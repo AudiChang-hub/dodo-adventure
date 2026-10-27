@@ -24,8 +24,10 @@ export function installGuards() {
   })
 }
 
+// 分頁用 requestFullscreen 進全螢幕時 Chrome 也會符合 display-mode: fullscreen，要排除掉
 export const isStandalone = () =>
-  matchMedia('(display-mode: fullscreen)').matches || matchMedia('(display-mode: standalone)').matches
+  !document.fullscreenElement &&
+  (matchMedia('(display-mode: fullscreen)').matches || matchMedia('(display-mode: standalone)').matches)
 
 export async function enterFullscreen() {
   if (isStandalone() || document.fullscreenElement) return

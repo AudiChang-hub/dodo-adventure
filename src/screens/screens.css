@@ -125,6 +125,32 @@
 .today-path i.done {
   background: #cfe8d9;
 }
+/* 給大人看的安裝提示：跟標題同一層級的淡墨小字，不是按鈕 */
+.install-hint {
+  position: absolute;
+  left: 34px;
+  top: 158px;
+  margin: 0;
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  padding: 8px 14px 8px 10px;
+  white-space: nowrap;
+  border-radius: 12px;
+  background: rgba(251, 248, 242, 0.55);
+  font-family: 'Huninn', sans-serif;
+  font-size: 13px;
+  line-height: 1.55;
+  letter-spacing: 0.02em;
+  color: var(--ink-faint);
+  pointer-events: none;
+}
+.install-hint svg {
+  flex: none;
+  width: 15px;
+  height: 15px;
+  margin-top: 2px;
+}
 
 /* ── 冒險轉場 ─────────────────────────────────────────────── */
 .travel {
