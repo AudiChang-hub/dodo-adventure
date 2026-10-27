@@ -62,9 +62,13 @@ export function initSync() {
 export async function signIn() {
   const f = await initSync()
   if (!f) return
+  const provider = new f.auth.GoogleAuthProvider()
   try {
-    await f.auth.signInWithPopup(f.a, new f.auth.GoogleAuthProvider())
+    await f.auth.signInWithPopup(f.a, provider)
   } catch (e) {
+    // 從主畫面圖示開啟（全螢幕 PWA）時，有些裝置不允許彈出視窗，改用整頁跳轉登入
+    const code = (e as { code?: string }).code ?? ''
+    if (code.includes('popup-blocked') || code.includes('operation-not-supported')) return f.auth.signInWithRedirect(f.a, provider)
     set({ status: 'error', error: friendly(e) })
   }
 }
