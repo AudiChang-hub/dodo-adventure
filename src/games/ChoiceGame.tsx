@@ -44,7 +44,8 @@ export function ChoiceGame({ gameId, onDone, onExit }: GameProps) {
         setMarks((m) => ({ ...m, [it.answer]: 'hint' }))
         await say(`hint.${host}`, ...it.correction)
       } else await say(`idle.${host}`, ...it.prompt)
-      armIdle(it)
+      // 最多提醒兩次（再說一次題目、給提示），之後就安靜等孩子，不要一直講
+      if (idleCount.current < 2) armIdle(it)
     }, 9000)
   }, [host])
 
