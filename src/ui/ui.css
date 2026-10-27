@@ -113,8 +113,9 @@
   gap: 4cqmin;
   padding: 0 6cqw 6cqh 14cqw;
 }
+/* 題目卡與選項往下讓一點，上方留給字幕（src/ui/subtitle.css） */
 .options.with-stim {
-  top: 38%;
+  top: 41%;
   align-items: flex-start;
 }
 .tile {
@@ -167,8 +168,8 @@
 .stimulus {
   position: absolute;
   left: calc(50% + 4cqw);
-  top: 4%;
-  height: 32%;
+  top: 10.5%;
+  height: 28%;
   aspect-ratio: 1.15;
   /* 用 translate 屬性而不是 transform：motion 的動畫會寫入 inline transform 蓋掉置中 */
   translate: -50% 0;

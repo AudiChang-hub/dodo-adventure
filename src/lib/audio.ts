@@ -108,11 +108,55 @@ export function preload(keys: string[]) {
   }
 }
 
+// ── 字幕用的逐字時間（gen_audio.py 產生，與音檔放在一起）──────
+/** [開始毫秒, 結束毫秒, 字]，相對於該段音檔開頭 */
+export type WordTiming = [number, number, string]
+
+let timings: Promise<Record<string, WordTiming[]>> | null = null
+
+function loadTimings() {
+  timings ??= fetch(`${BASE}audio/timings.json`)
+    .then((r) => (r.ok ? r.json() : {}))
+    .catch(() => ({}))
+  return timings
+}
+
+// ── 播放事件：給字幕用 ───────────────────────────────────────
+export type SpeechEvent =
+  /** 一句台詞的第 seg 段在 AudioContext 時間 at（秒）開始播放；words 為 null 表示沒有時間資料 */
+  | { type: 'seg'; key: string; line: Line; seg: number; at: number; dur: number; words: WordTiming[] | null }
+  /** 平板內建語音備援：沒有時間資料，整句一次亮起 */
+  | { type: 'whole'; key: string; line: Line }
+  /** 這句唸完了 */
+  | { type: 'end'; key: string }
+  /** 被 stopSpeech 打斷，字幕要清掉 */
+  | { type: 'stop' }
+
+type SpeechListener = (e: SpeechEvent) => void
+const speechListeners = new Set<SpeechListener>()
+
+export function onSpeech(fn: SpeechListener) {
+  speechListeners.add(fn)
+  return () => {
+    speechListeners.delete(fn)
+  }
+}
+
+const emit = (e: SpeechEvent) => speechListeners.forEach((fn) => fn(e))
+
+/** 喇叭此刻正在播出的 AudioContext 時間（秒），已扣掉輸出延遲 */
+export function audioClock(): number {
+  if (!ctx) return 0
+  const ts = ctx.getOutputTimestamp?.()
+  if (ts?.contextTime && ts.performanceTime) return ts.contextTime + (performance.now() - ts.performanceTime) / 1000
+  return ctx.currentTime - (ctx.outputLatency || 0) - ctx.baseLatency
+}
+
 // ── 播放 ───────────────────────────────────────────────────
 let current: { stop: () => void } | null = null
 let token = 0
 
-export function stopSpeech() {
+function halt() {
   token++
   current?.stop()
   current = null
@@ -120,31 +164,42 @@ export function stopSpeech() {
   stopLevel()
 }
 
+export function stopSpeech() {
+  halt()
+  emit({ type: 'stop' })
+}
+
 /** 依序說出多句台詞；被新的 say 或 stopSpeech 打斷時提早結束 */
 export async function say(...keys: string[]): Promise<void> {
-  stopSpeech()
+  // 不發 stop：字幕要接著顯示下一句，問題句的答案也要能補上
+  halt()
   const my = token
   for (const k of keys) {
     if (my !== token) return
-    await playLine(line(k), my)
+    await playLine(k, line(k), my)
   }
 }
 
 /** 一句台詞可能分成兩段（目標字另外加重），兩段之間停一下 */
-async function playLine(l: Line, my: number) {
+async function playLine(key: string, l: Line, my: number) {
   const segs = segments(l)
-  const bufs = await Promise.all(segs.map((s) => load(clipName(l, s))))
+  const names = segs.map((s) => clipName(l, s))
+  const [bufs, times] = await Promise.all([Promise.all(names.map(load)), loadTimings()])
   if (my !== token) return
-  if (bufs.some((b) => !b)) return speakFallback(l, my)
+  if (bufs.some((b) => !b)) return speakFallback(key, l, my)
   for (let i = 0; i < bufs.length; i++) {
     if (my !== token) return
     if (i > 0) await new Promise((r) => setTimeout(r, SEGMENT_GAP_MS))
     if (my !== token) return
-    await playBuffer(bufs[i]!, l.speaker)
+    const buf = bufs[i]!
+    await playBuffer(buf, l.speaker, (at) =>
+      emit({ type: 'seg', key, line: l, seg: i, at, dur: buf.duration, words: times[names[i]] ?? null }),
+    )
   }
+  if (my === token) emit({ type: 'end', key })
 }
 
-function playBuffer(buf: AudioBuffer, speaker: Speaker) {
+function playBuffer(buf: AudioBuffer, speaker: Speaker, onStart: (at: number) => void) {
   const c = ensure()
   return new Promise<void>((resolve) => {
     const src = c.createBufferSource()
@@ -166,12 +221,14 @@ function playBuffer(buf: AudioBuffer, speaker: Speaker) {
     }
     current = { stop }
     startLevel(speaker, false)
-    src.start()
+    const at = c.currentTime
+    src.start(at)
+    onStart(at)
   })
 }
 
 /** 沒有音檔時，用平板內建語音頂替 */
-function speakFallback(l: Line, my: number): Promise<void> {
+function speakFallback(key: string, l: Line, my: number): Promise<void> {
   if (!('speechSynthesis' in window)) return Promise.resolve()
   return new Promise((resolve) => {
     const u = new SpeechSynthesisUtterance(l.text.replace('|', ' '))
@@ -179,13 +236,17 @@ function speakFallback(l: Line, my: number): Promise<void> {
     u.rate = 0.85
     u.pitch = l.speaker === 'momo' ? 1 : 1.25
     const done = () => {
-      if (my === token) stopLevel()
+      if (my === token) {
+        stopLevel()
+        emit({ type: 'end', key })
+      }
       resolve()
     }
     u.onend = done
     u.onerror = done
     current = { stop: () => { speechSynthesis.cancel(); resolve() } }
     startLevel(l.speaker, true)
+    emit({ type: 'whole', key, line: l })
     speechSynthesis.speak(u)
   })
 }

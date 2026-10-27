@@ -14,6 +14,7 @@ import { stopSpeech } from './lib/audio'
 import { isBreakDue, onBreakChange } from './lib/session'
 import { useSettings } from './lib/settings'
 import { EyeBreak } from './ui/EyeBreak'
+import { Subtitle } from './ui/Subtitle'
 
 const isNight = () => {
   const h = new Date().getHours()
@@ -61,6 +62,8 @@ export function App() {
       <motion.div key={key} className="screen" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.3 }}>
         <Screen />
       </motion.div>
+      {/* 字幕只靠播放事件運作，家長區不顯示 */}
+      <Subtitle hidden={r.name === 'parent'} />
       {isChildPlay(r) && <ParentCorner onOpen={() => setGate(true)} />}
       {gate && (
         <ParentGate

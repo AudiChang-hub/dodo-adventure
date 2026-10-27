@@ -24,6 +24,7 @@ npm run dev
 - `npm run emoji`：內容新增圖示後，重新產生 `src/art/emoji.generated.ts`。
 - `npm run icons`：由 `public/icon.svg` 產生 PWA 圖示。
 - 台詞都定義在 `src/content/lines.ts`；新增或修改台詞後重跑 `npm run audio`，只會產生有變動的音檔。
+- 字幕逐字亮起用的 `public/audio/timings.json` 會跟音檔一起產生（edge-tts 的 WordBoundary）；已有音檔但缺時間資料的，重跑 `npm run audio` 會只補時間、不重產音檔。
 
 ## 部署（GitHub Pages）
 
