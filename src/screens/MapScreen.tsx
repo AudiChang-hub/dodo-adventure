@@ -10,12 +10,14 @@ import { say, sfx } from '../lib/audio'
 import { todayPlan, planDone } from '../lib/plan'
 import { useSettings } from '../lib/settings'
 
+// 六個站沿著小路一上一下排開；相鄰兩站高度錯開，站牌才不會擠在一起
 const SPOTS = [
-  { x: 16, y: 62 },
-  { x: 34, y: 30 },
-  { x: 52, y: 64 },
-  { x: 70, y: 32 },
-  { x: 86, y: 64 },
+  { x: 13, y: 62 },
+  { x: 28, y: 31 },
+  { x: 43, y: 64 },
+  { x: 58, y: 32 },
+  { x: 73, y: 64 },
+  { x: 88, y: 33 },
 ]
 
 export function MapScreen() {

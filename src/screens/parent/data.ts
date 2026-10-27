@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { db, phaseOf, today, type Attempt, type Drawing, type Phase, type Session, type StationId } from '../../lib/db'
 import { fetchCloud } from '../../lib/sync'
+import { DIR_ZH, PATTERN_ZH, story, type Dir, type PatternKind } from '../../content/code'
 
 export interface ParentData {
   attempts: Attempt[]
@@ -41,7 +42,7 @@ export function useParentData(source: 'local' | 'cloud', reloadKey: number) {
   return { data, error }
 }
 
-export const STATION_NAME: Record<StationId, string> = { english: '字母森林', math: '數字工地', mandarin: '動物村', draw: '畫畫小屋', park: '彩虹公園' }
+export const STATION_NAME: Record<StationId, string> = { english: '字母森林', math: '數字工地', mandarin: '動物村', draw: '畫畫小屋', park: '彩虹公園', code: '程式車庫' }
 
 /** 教學階段（PRD §5.8）：只有「自己答」計入答對率與熟練度 */
 export const PHASE_NAME: Record<Phase, string> = { teach: '教學', guided: '一起練', quiz: '自己答' }
@@ -79,6 +80,11 @@ export function skillLabel(key: string): string {
     glyph: (v) => `描 ${v}`,
     coloring: (v) => `著色 ${v}`,
     phonics: (v) => `字母音 ${v}`,
+    // 程式車庫
+    arrow: (v) => `方向 ${DIR_ZH[v as Dir] ?? v}`,
+    route: (v) => `箭頭卡 ${v} 張`,
+    pattern: (v) => `規律 ${PATTERN_ZH[v as PatternKind] ?? v}`,
+    seq: (v) => `排順序：${story(v)?.zh ?? v}`,
   }
   return map[kind]?.(v) ?? key
 }

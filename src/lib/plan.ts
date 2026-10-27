@@ -12,13 +12,21 @@ export interface Plan {
   hatched: string | null
 }
 
-/** 每天的冒險：英文、數學、（畫畫或公園輪流）、國語，每站挑最久沒玩的遊戲 */
+/**
+ * 第三格輪流的站：程式車庫、畫畫小屋、彩虹公園三天一輪。
+ * 程式車庫是「思考」主線唯一的站（PRD §5.10），所以排在輪替的第一個：每三天至少來一次，
+ * 每天的站數（家長設定）和總時間（約 20 分鐘）都不變
+ */
+const ROTATE: StationId[] = ['code', 'draw', 'park']
+
+/** 每天的冒險：英文、數學、（程式／畫畫／公園輪流）、國語，每站挑最久沒玩的遊戲 */
 export async function todayPlan(): Promise<Plan> {
   const date = today()
   const saved = await getKV<Plan | null>(`plan:${date}`, null)
   if (saved) return saved
   const dayIndex = Math.floor(Date.now() / 86_400_000)
-  const order: StationId[] = ['english', 'math', dayIndex % 2 ? 'draw' : 'park', 'mandarin', dayIndex % 2 ? 'park' : 'draw']
+  const rot = (k: number) => ROTATE[(dayIndex + k) % ROTATE.length]
+  const order: StationId[] = ['english', 'math', rot(0), 'mandarin', rot(1)]
   const n = Math.max(2, Math.min(5, getSettings().activitiesPerDay))
   const items = order.slice(0, n).map((station) => {
     // 功文式小練習要有足夠已熟的數字題才排進來，不然就不是「做得到、越做越快」的練習

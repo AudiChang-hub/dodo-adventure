@@ -14,6 +14,8 @@ import { LassoGame } from './LassoGame'
 import { FillCountGame } from './FillCountGame'
 import { GiveGame } from './GiveGame'
 import { SubitizeGame } from './SubitizeGame'
+import { DriveGame } from './code/DriveGame'
+import { SequenceGame } from './code/SequenceGame'
 
 const BY_KIND = {
   choice: ChoiceGame,
@@ -31,6 +33,9 @@ const BY_KIND = {
   fill: FillCountGame,
   give: GiveGame,
   subitize: SubitizeGame,
+  // 程式車庫
+  drive: DriveGame,
+  sequence: SequenceGame,
 }
 
 export function PlayGame(props: GameProps) {

@@ -1,6 +1,6 @@
 import Dexie, { type Table } from 'dexie'
 
-export type StationId = 'english' | 'math' | 'mandarin' | 'draw' | 'park'
+export type StationId = 'english' | 'math' | 'mandarin' | 'draw' | 'park' | 'code'
 
 /**
  * 教學階段（PRD §5.8）：teach 教學卡／示範、guided 一起練、quiz 自己答。

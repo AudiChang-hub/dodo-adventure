@@ -196,6 +196,26 @@
 .stimulus .glyph {
   font-size: 78cqh;
 }
+/* 規律的一列（程式車庫・找規律）：比數量的題目卡更寬 */
+.stimulus.seq {
+  aspect-ratio: 3.6;
+}
+/* 規律最後一格的「？」：虛線框、淡淡的問號；答對補上答案後變成實線的綠框 */
+.seq-blank {
+  border-radius: 24%;
+  border: 4px dashed rgba(46, 42, 37, 0.26);
+  background: rgba(251, 248, 242, 0.7);
+  transition: border-color 0.3s var(--ease-out), background 0.3s var(--ease-out);
+}
+.stimulus .seq-blank .glyph {
+  font-size: 60cqmin;
+  color: var(--ink-faint);
+}
+.seq-blank.is-filled {
+  border-style: solid;
+  border-color: var(--good);
+  background: #e6f3ea;
+}
 
 /* ── 家長閘門 ─────────────────────────────────────────────── */
 .gate-backdrop {

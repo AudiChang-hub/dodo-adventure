@@ -507,7 +507,7 @@ function ChoiceRound({ gameId, onDone, onExit }: GameProps) {
             <motion.div key={`q-${view}`} style={{ position: 'absolute', inset: 0 }} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0, transition: { duration: 0.2 } }}>
               {item.stimulus && (
                 <motion.div
-                  className={`stimulus${item.stimulus.t === 'group' ? ' wide' : ''}`}
+                  className={`stimulus${item.stimulus.t === 'group' ? ' wide' : item.stimulus.t === 'seq' ? ' seq' : ''}`}
                   initial={{ y: -30, opacity: 0 }}
                   animate={{ y: 0, opacity: 1 }}
                   transition={{ type: 'spring', stiffness: 300, damping: 22 }}
@@ -516,7 +516,8 @@ function ChoiceRound({ gameId, onDone, onExit }: GameProps) {
                     void say(...(decoyRef.current ? [teaseKey(item.skill)] : item.prompt))
                   }}
                 >
-                  <VisualView v={item.stimulus} />
+                  {/* 規律題答對後，答案補進最後一格的「？」 */}
+                  <VisualView v={item.stimulus} fill={item.options.find((o) => marks[o.id] === 'correct')?.v} />
                 </motion.div>
               )}
               <div className={`options${item.stimulus ? ' with-stim' : ''}`}>
