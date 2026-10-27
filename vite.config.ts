@@ -34,7 +34,7 @@ export default defineConfig({
       manifest: {
         name: '豆豆冒險',
         short_name: '豆豆冒險',
-        description: '和豆豆、波波、莫莫一起學英文、數學、國語',
+        description: '和豆豆、波波、莫莫一起用英文學字母、數字、詞彙與運筆',
         lang: 'zh-Hant-TW',
         // 固定 id，之後改 start_url 也不會被當成另一個 App
         id: '/dodo-adventure/',

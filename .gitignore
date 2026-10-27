@@ -7,3 +7,4 @@ docs/
 public/audio
 scripts/.cache
 .claude
+tsconfig.tsbuildinfo
