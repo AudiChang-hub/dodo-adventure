@@ -1,0 +1,278 @@
+/* ── 字形：字母與數字用 Fredoka，字距略開讓孩子好辨認 ───────── */
+.glyph {
+  font-family: 'Fredoka', sans-serif;
+  font-weight: 600;
+  font-size: min(15cqmin, 150px);
+  line-height: 1;
+  color: var(--ink);
+  letter-spacing: 0.02em;
+}
+.glyph.num {
+  font-size: min(14cqmin, 140px);
+}
+
+/* ── 遊戲舞台 ─────────────────────────────────────────────── */
+.stage {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  grid-template-rows: auto 1fr;
+  background: var(--stage, var(--paper));
+  transition: background 0.6s var(--ease-out);
+}
+.stage-top {
+  position: relative;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 18px 26px 0;
+  height: 96px;
+}
+.stage-main {
+  position: relative;
+  z-index: 2;
+  container-type: size;
+  min-height: 0;
+}
+.stage-host {
+  position: absolute;
+  left: 1.5vw;
+  bottom: -1vh;
+  z-index: 4;
+  width: clamp(150px, 19vw, 250px);
+}
+
+.progress {
+  display: flex;
+  gap: 12px;
+  padding: 10px 18px;
+  border-radius: 99px;
+  background: rgba(251, 248, 242, 0.7);
+}
+.progress i {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--paper-edge);
+  transition: background 0.4s var(--ease-out), transform 0.4s var(--ease-spring);
+}
+.progress i.on {
+  background: var(--deep, var(--dodo-deep));
+  transform: scale(1.15);
+}
+.progress i.now {
+  box-shadow: 0 0 0 4px rgba(46, 42, 37, 0.14);
+}
+
+/* ── 圓形按鈕（返回、地圖、收藏）────────────────────────────── */
+.round-btn {
+  position: relative;
+  width: 76px;
+  height: 76px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: var(--card);
+  box-shadow: 0 4px 0 var(--paper-edge);
+  transition: transform 0.18s var(--ease-out);
+}
+.round-btn:active {
+  transform: translateY(3px);
+  box-shadow: 0 1px 0 var(--paper-edge);
+}
+.round-btn svg.ring {
+  position: absolute;
+  inset: -6px;
+  width: calc(100% + 12px);
+  height: calc(100% + 12px);
+  transform: rotate(-90deg);
+  pointer-events: none;
+}
+
+/* ── 選項卡 ───────────────────────────────────────────────── */
+.options {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4cqmin;
+  padding: 0 6cqw 6cqh 14cqw;
+}
+.options.with-stim {
+  top: 38%;
+  align-items: flex-start;
+}
+.tile {
+  position: relative;
+  flex: 0 1 auto;
+  width: min(30cqh, 22cqw);
+  aspect-ratio: 1;
+  border-radius: var(--radius-lg);
+  background: var(--card);
+  box-shadow: 0 8px 0 rgba(46, 42, 37, 0.1), 0 0 0 3px rgba(46, 42, 37, 0.04) inset;
+}
+/* button 不能當尺寸容器，所以內容包在 .tile-in 裡，cqmin 才會以卡片為準 */
+.tile-in {
+  position: absolute;
+  inset: 9%;
+  container-type: size;
+  display: grid;
+  place-items: center;
+  pointer-events: none;
+}
+.options.with-stim .tile {
+  width: min(26cqh, 20cqw);
+}
+.tile.wide {
+  width: min(40cqh, 34cqw);
+  aspect-ratio: 1.25;
+}
+.tile-in .glyph {
+  font-size: 78cqmin;
+}
+.tile.correct {
+  background: #e6f3ea;
+  box-shadow: 0 8px 0 #b9dcc5, 0 0 0 5px var(--good) inset;
+}
+.tile.hint::after {
+  content: '';
+  position: absolute;
+  inset: -12px;
+  border-radius: calc(var(--radius-lg) + 12px);
+  border: 6px solid var(--hint);
+  animation: hint-pulse 1s ease-in-out infinite;
+}
+@keyframes hint-pulse {
+  50% {
+    transform: scale(1.04);
+    opacity: 0.55;
+  }
+}
+
+.stimulus {
+  position: absolute;
+  left: calc(50% + 4cqw);
+  top: 4%;
+  height: 32%;
+  aspect-ratio: 1.15;
+  transform: translateX(-50%);
+  display: grid;
+  place-items: center;
+  border-radius: var(--radius-lg);
+  background: rgba(251, 248, 242, 0.75);
+  grid-template: minmax(0, 1fr) / minmax(0, 1fr);
+  padding: 3%;
+  container-type: size;
+}
+.stimulus.wide {
+  aspect-ratio: 2.2;
+}
+.stimulus .glyph {
+  font-size: 78cqh;
+}
+
+/* ── 家長閘門 ─────────────────────────────────────────────── */
+.gate-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  display: grid;
+  place-items: center;
+  background: rgba(46, 42, 37, 0.42);
+}
+.gate {
+  width: min(560px, 92vw);
+  padding: 32px 36px 28px;
+  border-radius: 28px;
+  background: var(--card);
+  font-family: 'Huninn', sans-serif;
+  text-align: center;
+}
+.gate h2 {
+  margin: 0 0 4px;
+  font-size: 22px;
+  font-weight: 400;
+}
+.gate p {
+  margin: 0 0 18px;
+  color: var(--ink-soft);
+  font-size: 15px;
+}
+.gate .q {
+  font-family: 'Fredoka', sans-serif;
+  font-size: 40px;
+  margin-bottom: 12px;
+}
+.gate .ans {
+  height: 56px;
+  font-family: 'Fredoka', sans-serif;
+  font-size: 36px;
+  border-bottom: 3px solid var(--paper-edge);
+  margin: 0 auto 18px;
+  width: 140px;
+}
+.gate .ans.bad {
+  animation: shake 0.4s;
+  border-color: var(--coral);
+}
+.keypad {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+}
+.keypad button {
+  height: 58px;
+  border-radius: 14px;
+  background: var(--paper);
+  font-family: 'Fredoka', sans-serif;
+  font-size: 24px;
+}
+.keypad button:active {
+  background: var(--paper-deep);
+}
+.gate .row {
+  display: flex;
+  gap: 10px;
+  margin-top: 14px;
+}
+.gate .row button {
+  flex: 1;
+  height: 52px;
+  border-radius: 14px;
+  font-size: 17px;
+  background: var(--paper);
+}
+.gate .row button.primary {
+  background: var(--ink);
+  color: var(--card);
+}
+
+@keyframes shake {
+  20%,
+  60% {
+    transform: translateX(-8px);
+  }
+  40%,
+  80% {
+    transform: translateX(8px);
+  }
+}
+
+.parent-corner {
+  position: fixed;
+  top: 0;
+  right: 0;
+  width: 96px;
+  height: 96px;
+  z-index: 150;
+}
+.parent-corner svg {
+  position: absolute;
+  top: 18px;
+  right: 18px;
+  width: 60px;
+  height: 60px;
+  transform: rotate(-90deg);
+}

@@ -1,0 +1,120 @@
+@import '@fontsource/fredoka/500.css';
+@import '@fontsource/fredoka/600.css';
+@import '@fontsource/huninn/400.css';
+
+/* 紙感螢幕：低飽和、高明度，靠明度差而不是色相差區分元素 */
+:root {
+  --paper: #f3eee4;
+  --paper-deep: #e9e1d2;
+  --paper-edge: #ddd3c1;
+  --card: #fbf8f2;
+  --ink: #2e2a25;
+  --ink-soft: #6b645a;
+  --ink-faint: #a39b8e;
+
+  --dodo: #8fcbaa;
+  --dodo-deep: #5fa883;
+  --bobo: #f0b088;
+  --bobo-deep: #d98b5f;
+  --momo: #a3c4e4;
+  --momo-deep: #6f9cc8;
+  --coral: #e99a84;
+  --butter: #f1d27c;
+  --lilac: #bfb2df;
+  --leaf: #a9c98b;
+  --sky: #cfe2f0;
+
+  --good: #6fae86;
+  --hint: #f1d27c;
+
+  --font: 'Fredoka', 'Huninn', 'Noto Sans TC', sans-serif;
+  --radius-lg: 36px;
+  --radius-md: 24px;
+  --tap: clamp(120px, 17vmin, 180px);
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  margin: 0;
+  height: 100%;
+  overflow: hidden;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--font);
+  -webkit-font-smoothing: antialiased;
+  -webkit-tap-highlight-color: transparent;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+  touch-action: manipulation;
+  overscroll-behavior: none;
+}
+
+button {
+  font: inherit;
+  color: inherit;
+  border: 0;
+  background: none;
+  padding: 0;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+img,
+svg {
+  -webkit-user-drag: none;
+  user-select: none;
+}
+
+/* 紙張纖維：極淡的雜訊，讓大色塊不像螢幕而像紙 */
+.paper-grain {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 100;
+  opacity: 0.35;
+  mix-blend-mode: multiply;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='220' height='220'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0.45 0 0 0 0 0.4 0 0 0 0 0.33 0 0 0 0.09 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+/* 夜間暖色：疊一層暖色濾片降低藍光，比整頁 CSS filter 省效能 */
+.night-warm {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 99;
+  background: rgba(255, 176, 96, 0.13);
+  mix-blend-mode: multiply;
+}
+
+.screen {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}

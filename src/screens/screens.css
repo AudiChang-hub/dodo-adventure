@@ -1,0 +1,274 @@
+/* ── 首頁 ─────────────────────────────────────────────────── */
+.home {
+  background: linear-gradient(#e8f0ee 0%, var(--paper) 62%);
+}
+.home-title {
+  position: absolute;
+  left: 34px;
+  top: 26px;
+  font-family: 'Huninn', sans-serif;
+  font-size: 26px;
+  color: var(--ink-soft);
+  letter-spacing: 0.08em;
+}
+.home-title small {
+  display: block;
+  font-size: 15px;
+  letter-spacing: 0.02em;
+  color: var(--ink-faint);
+  margin-top: 2px;
+}
+.go-btn {
+  position: absolute;
+  right: 12vw;
+  top: 22vh;
+  width: clamp(200px, 27vmin, 300px);
+  aspect-ratio: 1;
+  border-radius: 50%;
+  background: var(--coral);
+  box-shadow: 0 14px 0 #c7735d, 0 0 0 14px rgba(251, 248, 242, 0.65);
+  display: grid;
+  place-items: center;
+  align-content: center;
+  gap: 4px;
+  color: var(--card);
+  font-family: 'Huninn', sans-serif;
+  font-size: clamp(26px, 3.4vmin, 36px);
+}
+.go-btn:active {
+  transform: translateY(8px);
+  box-shadow: 0 6px 0 #c7735d, 0 0 0 14px rgba(251, 248, 242, 0.65);
+}
+.go-btn.map {
+  background: var(--dodo-deep);
+  box-shadow: 0 14px 0 #4c8a6a, 0 0 0 14px rgba(251, 248, 242, 0.65);
+}
+.home-dock {
+  position: absolute;
+  right: 30px;
+  bottom: 28px;
+  display: flex;
+  gap: 18px;
+  z-index: 5;
+}
+.home-dock .round-btn {
+  width: 92px;
+  height: 92px;
+}
+.badge-count {
+  position: absolute;
+  right: -4px;
+  top: -4px;
+  min-width: 34px;
+  height: 34px;
+  padding: 0 8px;
+  border-radius: 17px;
+  background: var(--ink);
+  color: var(--card);
+  font-family: 'Fredoka', sans-serif;
+  font-size: 18px;
+  display: grid;
+  place-items: center;
+}
+.cloud {
+  position: absolute;
+  height: 60px;
+  border-radius: 40px;
+  background: rgba(251, 248, 242, 0.85);
+  animation: cloud-drift linear infinite;
+}
+.cloud::before,
+.cloud::after {
+  content: '';
+  position: absolute;
+  background: inherit;
+  border-radius: 50%;
+}
+.cloud::before {
+  width: 54%;
+  height: 130%;
+  left: 14%;
+  bottom: 30%;
+}
+.cloud::after {
+  width: 36%;
+  height: 100%;
+  right: 14%;
+  bottom: 40%;
+}
+@keyframes cloud-drift {
+  from {
+    transform: translateX(-30vw);
+  }
+  to {
+    transform: translateX(130vw);
+  }
+}
+
+.today-path {
+  position: absolute;
+  left: 34px;
+  top: 96px;
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+.today-path i {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: rgba(251, 248, 242, 0.8);
+  display: grid;
+  place-items: center;
+  padding: 6px;
+}
+.today-path i.done {
+  background: #cfe8d9;
+}
+
+/* ── 冒險轉場 ─────────────────────────────────────────────── */
+.travel {
+  display: grid;
+  place-items: center;
+}
+.travel-badge {
+  position: absolute;
+  top: 12vh;
+  left: 50%;
+  translate: -50% 0;
+  width: clamp(150px, 22vmin, 240px);
+  aspect-ratio: 1;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  padding: 3%;
+  background: var(--card);
+  box-shadow: 0 10px 0 rgba(46, 42, 37, 0.08);
+}
+.travel-name {
+  position: absolute;
+  top: calc(12vh + clamp(150px, 22vmin, 240px) + 18px);
+  left: 0;
+  right: 0;
+  text-align: center;
+  font-family: 'Huninn', sans-serif;
+  font-size: clamp(28px, 4vmin, 40px);
+  color: var(--ink);
+  letter-spacing: 0.1em;
+}
+
+/* ── 地圖 ─────────────────────────────────────────────────── */
+.map {
+  background: var(--paper);
+}
+.map-stop {
+  position: absolute;
+  width: clamp(150px, 21vmin, 220px);
+  translate: -50% -50%;
+  display: grid;
+  justify-items: center;
+  gap: 10px;
+}
+.map-stop .disc {
+  width: 100%;
+  aspect-ratio: 1;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  padding: 18%;
+  box-shadow: 0 10px 0 rgba(46, 42, 37, 0.1), 0 0 0 10px rgba(251, 248, 242, 0.85);
+}
+.map-stop span {
+  font-family: 'Huninn', sans-serif;
+  font-size: clamp(18px, 2.6vmin, 24px);
+  padding: 4px 16px;
+  border-radius: 99px;
+  background: rgba(251, 248, 242, 0.9);
+}
+.map-stop.locked .disc {
+  filter: saturate(0.3);
+  opacity: 0.6;
+}
+
+/* ── 站點 ─────────────────────────────────────────────────── */
+.station-games {
+  position: absolute;
+  inset: 16% 6% 14% 22%;
+  display: flex;
+  flex-wrap: wrap;
+  align-content: center;
+  justify-content: center;
+  gap: 3vmin;
+}
+.game-tile {
+  width: clamp(150px, 20vmin, 210px);
+  aspect-ratio: 0.88;
+  border-radius: var(--radius-lg);
+  background: var(--card);
+  box-shadow: 0 10px 0 rgba(46, 42, 37, 0.1);
+  display: grid;
+  grid-template-rows: 1fr auto;
+  justify-items: center;
+  padding: 16% 12% 10%;
+  gap: 8px;
+}
+.game-tile b {
+  font-weight: 400;
+  font-family: 'Huninn', sans-serif;
+  font-size: clamp(16px, 2.2vmin, 21px);
+  color: var(--ink-soft);
+}
+.game-tile .stars {
+  display: flex;
+  gap: 3px;
+}
+.game-tile .stars i {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--paper-edge);
+}
+.game-tile .stars i.on {
+  background: var(--butter);
+}
+
+/* ── 收藏 ─────────────────────────────────────────────────── */
+.friends {
+  position: absolute;
+  inset: 120px 5% 5%;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(118px, 1fr));
+  gap: 22px;
+  overflow-y: auto;
+  align-content: start;
+  padding: 10px;
+}
+.friend {
+  aspect-ratio: 1;
+  border-radius: 50%;
+  background: var(--card);
+  display: grid;
+  place-items: center;
+  padding: 16%;
+  box-shadow: 0 7px 0 rgba(46, 42, 37, 0.08);
+}
+.friend.empty {
+  background: rgba(46, 42, 37, 0.05);
+  box-shadow: none;
+}
+
+/* ── 睡覺 ─────────────────────────────────────────────────── */
+.bedtime {
+  background: #3b4560;
+  color: #f3eee4;
+}
+.bedtime .note {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 22px;
+  text-align: center;
+  font-family: 'Huninn', sans-serif;
+  font-size: 15px;
+  color: rgba(243, 238, 228, 0.55);
+}

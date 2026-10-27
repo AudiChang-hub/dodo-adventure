@@ -1,0 +1,53 @@
+.dino-blink {
+  transform-box: view-box;
+  animation: dino-blink 4.6s infinite;
+}
+
+@keyframes dino-blink {
+  0%,
+  93%,
+  100% {
+    transform: scaleY(1);
+  }
+  95.5% {
+    transform: scaleY(0.08);
+  }
+}
+
+.dino-breathe {
+  transform-box: fill-box;
+  transform-origin: 50% 100%;
+  animation: dino-breathe 3.2s ease-in-out infinite;
+}
+
+@keyframes dino-breathe {
+  0%,
+  100% {
+    transform: scale(1, 1);
+  }
+  50% {
+    transform: scale(1.012, 1.03);
+  }
+}
+
+.wheel-spin {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: wheel-spin 0.9s linear infinite;
+}
+
+@keyframes wheel-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.ride-bounce {
+  animation: ride-bounce 0.42s ease-in-out infinite alternate;
+}
+
+@keyframes ride-bounce {
+  to {
+    transform: translateY(-3px);
+  }
+}

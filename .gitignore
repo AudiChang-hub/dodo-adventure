@@ -1,0 +1,9 @@
+node_modules
+dist
+.env.local
+docs/
+*.log
+.DS_Store
+public/audio
+scripts/.cache
+.claude
