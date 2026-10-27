@@ -1,6 +1,10 @@
 import type { StationId } from '../lib/db'
 
-/** 各站點的背景：只在畫面邊緣放低對比的造型，不搶題目的注意力 */
+/**
+ * 各站點的背景：只在畫面邊緣放低對比的造型，不搶題目的注意力。
+ * 遊戲物件會撒在舞台中間（見 games/layout.ts 的 scatter），裝飾只能放在地面帶或左右最外緣，
+ * 也不要用和題目物件相像的形狀與顏色（彩色方塊、圓點），孩子會以為可以點或可以數。
+ */
 export function Scenery({ station }: { station: StationId | 'home' }) {
   return (
     <svg className="scenery" viewBox="0 0 1200 800" preserveAspectRatio="xMidYMax slice" aria-hidden="true" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', zIndex: 0 }}>
@@ -21,18 +25,13 @@ export function Scenery({ station }: { station: StationId | 'home' }) {
         <g>
           <path d="M0 700 H1200 V800 H0 Z" fill="#EBD3BE" />
           <path d="M0 700 H1200" stroke="#DDBFA3" strokeWidth={6} strokeDasharray="40 30" />
-          {[[70, 700], [1130, 700], [1060, 700]].map(([x, y], i) => (
-            <g key={i} transform={`translate(${x} ${y}) scale(${i === 2 ? 0.7 : 1})`}>
+          {[[70, 700, 1], [1140, 700, 0.8], [1186, 700, 0.6]].map(([x, y, s], i) => (
+            <g key={i} transform={`translate(${x} ${y}) scale(${s})`}>
               <path d="M-34 0 L-12 -96 L12 -96 L34 0 Z" fill="#F0B088" />
               <rect x={-24} y={-62} width={48} height={14} fill="#FBF8F2" />
               <rect x={-44} y={-6} width={88} height={12} rx={4} fill="#D38A5E" />
             </g>
           ))}
-          <g transform="translate(1000 520)">
-            <rect x={0} y={0} width={70} height={70} rx={10} fill="#F1D27C" />
-            <rect x={70} y={30} width={60} height={60} rx={10} fill="#A3C4E4" />
-            <rect x={20} y={-56} width={56} height={56} rx={10} fill="#E99A84" />
-          </g>
         </g>
       )}
       {station === 'mandarin' && (
@@ -51,14 +50,12 @@ export function Scenery({ station }: { station: StationId | 'home' }) {
       {station === 'draw' && (
         <g>
           <path d="M0 700 H1200 V800 H0 Z" fill="#DCD3EC" />
-          <g transform="translate(200 560) rotate(-62) scale(0.7)">
-            <rect x={0} y={0} width={40} height={220} rx={10} fill="#F1D27C" />
-            <path d="M0 220 L20 270 L40 220 Z" fill="#E9C9A3" />
-            <path d="M12 250 L20 270 L28 250 Z" fill="#2E2A25" />
+          {/* 鉛筆平躺在地面帶、和地面同色系：畫畫遊戲幾乎占滿舞台，裝飾不能看起來像可以點的東西 */}
+          <g transform="translate(150 742) rotate(-90) scale(0.42)" opacity={0.55}>
+            <rect x={-20} y={0} width={40} height={220} rx={10} fill="#C6B8DE" />
+            <path d="M-20 220 L0 270 L20 220 Z" fill="#D9CDEA" />
+            <path d="M-8 250 L0 270 L8 250 Z" fill="#A99BC6" />
           </g>
-          {[[1110, 730, '#E99A84'], [1170, 690, '#A3C4E4'], [40, 740, '#8FCBAA']].map(([x, y, c], i) => (
-            <circle key={i} cx={x as number} cy={y as number} r={34} fill={c as string} opacity={0.7} />
-          ))}
         </g>
       )}
       {station === 'park' && (
