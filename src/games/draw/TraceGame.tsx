@@ -3,14 +3,16 @@ import { motion } from 'motion/react'
 import { Shell, type GameProps } from '../Shell'
 import { Ink } from './Ink'
 import { PathTracker } from './track'
+import { PenArt, easeInOut, tween } from '../Demo'
 import { Ride } from '../../art/Ride'
 import { Emoji } from '../../art/Emoji'
 import { Sparkles } from '../../ui/Sparkles'
 import { game as gameDef } from '../../content/games'
-import { level, markPlayed, reportLevel } from '../../lib/adaptive'
-import { logAttempt } from '../../lib/record'
+import { level, markPlayed, needsDemo, plays, reportLevel } from '../../lib/adaptive'
+import { logAttempt, logTeach } from '../../lib/record'
 import { say, sfx, stopSpeech } from '../../lib/audio'
 import { praiseKey, wait } from '../lines'
+import { useIdle } from '../idle'
 
 /** 由易到難：直線 → 弧線 → 波浪 → Z 字 → 方波 → 圓 */
 const ROADS = [
@@ -23,20 +25,55 @@ const ROADS = [
 ]
 
 const ROUNDS = 3
+/** 一局最多示範兩條新的路 */
+const MAX_DEMO = 2
 
+/**
+ * 運筆小路：用筆帶豆豆的車沿著路開回家。
+ * 新的路（或第一次玩）先「Watch me!」：一支筆推著車沿路開一次，再「Your turn!」。
+ */
 export function TraceGame({ gameId, onDone, onExit }: GameProps) {
   const def = gameDef(gameId)
   const [r, setR] = useState(0)
   const [road, setRoad] = useState(ROADS[0])
   const [prog, setProg] = useState(0)
   const [done, setDone] = useState(false)
+  const [demo, setDemo] = useState(false)
   const tracker = useRef<PathTracker | null>(null)
   const drawing = useRef(false)
+  const busy = useRef(true)
   const t0 = useRef(0)
   const lv = useRef(1)
   const live = useRef(true)
   const first = useRef(0)
-  const nudged = useRef(0)
+  const nudged = useRef(false)
+  const idle = useIdle()
+  /** 閒置第二段提示：整條路慢慢亮起來 */
+  const [nudge, setNudge] = useState(false)
+  const demos = useRef(0)
+  const firstPlay = useRef(plays(def.id) === 0)
+
+  const showMe = async (idx: number) => {
+    const t = tracker.current!
+    const total = t.samples.length - 1
+    const s = performance.now()
+    demos.current++
+    setDemo(true)
+    await say('teach.watch.dodo')
+    if (!live.current) return
+    await tween(Math.max(1800, total * 22), (f) => setProg(Math.round(f * total)), () => live.current, easeInOut)
+    if (!live.current) return
+    sfx.tap()
+    await wait(380)
+    // 倒車回起點，換孩子開
+    await tween(520, (f) => setProg(Math.round((1 - f) * total)), () => live.current)
+    if (!live.current) return
+    tracker.current = new PathTracker(ROADS[idx].d, 8, ROADS[idx].lane * 0.75)
+    setProg(0)
+    setDemo(false)
+    void logTeach({ station: 'draw', game: def.id, itemId: `road-${idx + 1}`, skill: `trace:${idx + 1}`, level: lv.current, ms: Math.round(performance.now() - s) })
+    await say('teach.turn.dodo')
+  }
 
   const start = async (i: number) => {
     lv.current = level(def.id)
@@ -47,16 +84,36 @@ export function TraceGame({ gameId, onDone, onExit }: GameProps) {
     tracker.current = new PathTracker(rd.d, 8, rd.lane * 0.75)
     setProg(0)
     setDone(false)
+    // 要示範的話，示範完才讓孩子開；不示範就跟以前一樣，邊聽邊可以開始
+    const show = demos.current < MAX_DEMO && needsDemo(firstPlay.current && i === 0, `trace:${idx + 1}`)
+    busy.current = show
+    idle.stop()
+    setNudge(false)
+    nudged.current = false
     t0.current = performance.now()
     if (i === 0) await say(def.intro)
+    if (!live.current) return
+    if (show) {
+      await showMe(idx)
+      if (!live.current) return
+      t0.current = performance.now()
+      busy.current = false
+    }
+    // 閒置：15 秒再唸一次題目 → 再 15 秒整條路慢慢亮起來 → 之後安靜
+    if (!tracker.current?.done) idle.start({ repeat: () => void say(def.intro), hint: () => setNudge(true) })
   }
 
   useEffect(() => {
     live.current = true
-    markPlayed(def.id)
-    start(0)
+    // 延到下一輪才開始：StrictMode 開發模式會先掛載、卸載再掛載一次，避免兩條流程同時跑
+    const boot = window.setTimeout(() => {
+      markPlayed(def.id)
+      start(0)
+    }, 0)
     return () => {
       live.current = false
+      clearTimeout(boot)
+      idle.stop()
       stopSpeech()
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -67,6 +124,7 @@ export function TraceGame({ gameId, onDone, onExit }: GameProps) {
     const m = t.metrics()
     const good = m.offRatio < 0.35
     if (good) first.current++
+    idle.stop()
     setDone(true)
     sfx.done()
     void logAttempt({
@@ -74,6 +132,7 @@ export function TraceGame({ gameId, onDone, onExit }: GameProps) {
       game: def.id,
       itemId: `road-${ROADS.indexOf(road) + 1}`,
       skill: `trace:${ROADS.indexOf(road) + 1}`,
+      phase: 'quiz',
       level: lv.current,
       options: [],
       answer: '',
@@ -95,13 +154,17 @@ export function TraceGame({ gameId, onDone, onExit }: GameProps) {
 
   const onDown = (p: { x: number; y: number }) => {
     const t = tracker.current
-    if (!t || done) return
+    if (!t || done || busy.current) return
+    // 有畫線就重新計時
+    idle.poke()
     drawing.current = t.near(p)
     if (drawing.current) sfx.tap()
   }
   const onMove = (p: { x: number; y: number }) => {
     const t = tracker.current
-    if (!t || !drawing.current || done) return
+    if (!t || done || busy.current) return
+    idle.poke()
+    if (!drawing.current) return
     if (t.feed(p)) {
       setProg(t.progress)
       if (t.done) {
@@ -113,8 +176,9 @@ export function TraceGame({ gameId, onDone, onExit }: GameProps) {
   const onUp = () => {
     drawing.current = false
     const t = tracker.current
-    if (t && !t.done && t.progress > 0 && performance.now() - nudged.current > 6000) {
-      nudged.current = performance.now()
+    // 開到一半放開筆：每條路最多鼓勵一次「Keep going!」，不要一直講
+    if (t && !t.done && !busy.current && t.progress > 0 && !nudged.current) {
+      nudged.current = true
       void say('d.trace.keep')
     }
   }
@@ -131,6 +195,7 @@ export function TraceGame({ gameId, onDone, onExit }: GameProps) {
         <svg viewBox="0 0 1000 600" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%' }} aria-hidden="true">
           <path d={road.d} fill="none" stroke="#D9CFBE" strokeWidth={road.lane + 14} strokeLinecap="round" strokeLinejoin="round" />
           <path d={road.d} fill="none" stroke="#EFE8DA" strokeWidth={road.lane} strokeLinecap="round" strokeLinejoin="round" />
+          {nudge && !done && <path className="nudge-path" d={road.d} fill="none" stroke="#F1D27C" strokeWidth={road.lane} strokeLinecap="round" strokeLinejoin="round" />}
           <path d={road.d} fill="none" stroke="#C9E4D4" strokeWidth={road.lane} strokeLinecap="round" strokeLinejoin="round" pathLength={total} strokeDasharray={`${prog} ${total + 10}`} />
           <path d={road.d} fill="none" stroke="#FBF8F2" strokeWidth={6} strokeDasharray="22 22" strokeLinecap="round" />
           <foreignObject x={end.x - 70} y={end.y - 150} width={140} height={140}>
@@ -144,11 +209,18 @@ export function TraceGame({ gameId, onDone, onExit }: GameProps) {
               <Ride who="dodo" width={150} moving={prog > 0 && !done} mood={done ? 'cheer' : 'happy'} />
             </g>
           </g>
-          {prog === 0 && (
+          {prog === 0 && !demo && (
             <motion.circle cx={s[0]?.x ?? 130} cy={s[0]?.y ?? 320} r={30} fill="none" stroke="#6FAE86" strokeWidth={8} animate={{ r: [26, 40, 26], opacity: [1, 0.4, 1] }} transition={{ duration: 1.4, repeat: Infinity }} />
           )}
+          {demo && (
+            <g transform={`translate(${car.x + 10} ${car.y + 6})`}>
+              <motion.g initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+                <PenArt scale={1.7} />
+              </motion.g>
+            </g>
+          )}
         </svg>
-        <Ink w={1000} h={600} color="rgba(46,42,37,0.55)" size={16} onDown={onDown} onMove={onMove} onUp={onUp} />
+        <Ink w={1000} h={600} color="rgba(46,42,37,0.55)" size={16} ink={!demo} onDown={onDown} onMove={onMove} onUp={onUp} />
       </div>
     </Shell>
   )

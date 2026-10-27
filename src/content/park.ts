@@ -12,6 +12,18 @@ export const COLORS = [
 
 export type ColorId = (typeof COLORS)[number]['id']
 
+/** 顏色教學卡旁邊的例子：An apple is red! */
+export const COLOR_EXAMPLES: Record<ColorId, string> = {
+  red: 'red-apple',
+  yellow: 'banana',
+  blue: 'spouting-whale',
+  green: 'frog',
+  orange: 'carrot',
+  purple: 'grapes',
+  pink: 'pig-face',
+  brown: 'teddy-bear',
+}
+
 export const SHAPES = [
   { id: 'circle', en: 'circle', zh: '圓形' },
   { id: 'triangle', en: 'triangle', zh: '三角形' },

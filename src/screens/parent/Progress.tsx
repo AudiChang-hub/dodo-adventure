@@ -2,6 +2,7 @@ import { LETTERS } from '../../content/letters'
 import { VOCAB, THEME_LABEL, type VocabTheme } from '../../content/vocab'
 import { GAMES } from '../../content/games'
 import { level, unlockedLetters, unlockedNumbers } from '../../lib/adaptive'
+import { isQuiz } from '../../lib/db'
 import { pct, STATION_NAME, type ParentData } from './data'
 
 function Cell({ label, box, locked }: { label: string; box: number; locked?: boolean }) {
@@ -33,8 +34,9 @@ export function Progress({ d }: { d: ParentData }) {
   const letters = unlockedLetters()
   const maxN = unlockedNumbers()
   const themes = Object.keys(THEME_LABEL) as VocabTheme[]
-  const trace = d.attempts.filter((a) => a.game === 'd-trace' && a.metrics).reverse().map((a) => a.metrics!.offRatio ?? 0)
-  const glyphs = [...new Set(d.attempts.filter((a) => a.game === 'd-glyph').map((a) => a.itemId))]
+  // 運筆進步曲線只看孩子自己畫的，不含示範
+  const trace = d.attempts.filter((a) => a.game === 'd-trace' && isQuiz(a) && a.metrics).reverse().map((a) => a.metrics!.offRatio ?? 0)
+  const glyphs = [...new Set(d.attempts.filter((a) => a.game === 'd-glyph' && isQuiz(a)).map((a) => a.itemId))]
 
   return (
     <>

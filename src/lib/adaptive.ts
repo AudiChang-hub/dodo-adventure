@@ -77,9 +77,44 @@ export function markPlayed(game: string) {
 
 export const lastPlayed = (game: string) => levels.get(game)?.lastTs ?? 0
 
+/** 這個遊戲玩過幾次（markPlayed 之前讀，0 代表第一次玩，一定要示範） */
+export const plays = (game: string) => levels.get(game)?.plays ?? 0
+
+/** 從沒在「自己答」出現過的內容：要先教才能考 */
+export const isNew = (key: string) => skill(key).seen === 0
+
+/**
+ * 示範規則（運筆、數數這類沒有教學卡的遊戲）：
+ * 每個遊戲第一次玩一定示範；之後只示範還沒學過的內容，已經熟的不再重複。
+ */
+export const needsDemo = (firstPlay: boolean, key: string) => firstPlay || isNew(key)
+
+let targetFilter: ((key: string) => boolean) | null = null
+
+/**
+ * 在 run 裡面呼叫的 pickTarget 只挑 ok(key) 為真的內容（沒有符合的就照常挑）。
+ * 一局已經教滿兩個新內容時，用它讓其餘題目都是複習題。
+ */
+export function withTargetFilter<T>(ok: (key: string) => boolean, run: () => T): T {
+  targetFilter = ok
+  try {
+    return run()
+  } finally {
+    targetFilter = null
+  }
+}
+
 /** 越不熟、越久沒練的越容易被選中；並避開剛剛才出過的 */
 export function pickTarget<T>(items: readonly T[], keyOf: (t: T) => string, avoid: T[] = []): T {
-  const pool = items.length > avoid.length ? items.filter((t) => !avoid.includes(t)) : items
+  let pool = items.length > avoid.length ? items.filter((t) => !avoid.includes(t)) : items
+  if (!pool.length) pool = [...items]
+  if (targetFilter) {
+    const ok = targetFilter
+    const fit = pool.filter((t) => ok(keyOf(t)))
+    // 避開剛出過的之後沒有可複習的，就放寬「避開」的限制，也不要考沒教過的
+    const loose = fit.length ? fit : items.filter((t) => ok(keyOf(t)))
+    if (loose.length) pool = loose
+  }
   const now = Date.now()
   return weightedPick(pool, (t) => {
     const s = skill(keyOf(t))

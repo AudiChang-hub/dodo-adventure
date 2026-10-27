@@ -180,3 +180,75 @@ def('d.glyph.next', 'dodo', 'Now the next line!')
 const DOTS: Record<string, string> = { triangle: 'a triangle', square: 'a square', house: 'a house', fish: 'a fish', star: 'a star', boat: 'a boat', heart: 'a heart', diamond: 'a diamond' }
 for (const [d, name] of Object.entries(DOTS)) def(`d.dots.is.${d}`, 'dodo', `It's | ${name}!`)
 for (let n = 0; n <= 9; n++) def(`d.glyph.num.${n}`, 'dodo', `This is | ${NUM[n]}.`)
+
+// ── 教學：先教 → 一起練 → 自己答（PRD §5.8）────────────────
+// 前綴一律是 teach.：字幕不會把教學句挖空（教的時候答案本來就要看得到）
+const teachVoice: Record<Speaker, Record<'watch' | 'turn' | 'here' | 'again', string>> = {
+  dodo: { watch: 'Watch me!', turn: 'Your turn!', here: 'Here it is! Tap it!', again: "Let's look again!" },
+  bobo: { watch: 'Watch me!', turn: 'Your turn!', here: 'Here it is! Tap it!', again: "Let's look again!" },
+  momo: { watch: 'Watch me.', turn: 'Your turn.', here: 'Here it is. Tap it.', again: "Let's look again." },
+}
+for (const s of SPEAKERS) for (const [k, t] of Object.entries(teachVoice[s])) def(`teach.${k}.${s}`, s, t)
+
+/** 冠詞：x-ray 念 ex-ray，要用 an */
+const an = (w: string) => (/^([aeiou]|x-)/i.test(w) ? 'an' : 'a')
+
+for (const { letter, word } of LETTERS) {
+  def(`teach.letter.${letter}`, 'dodo', `This is | ${letter}.`)
+  def(`teach.letterfor.${letter}`, 'dodo', `${letter} is for | ${word}!`)
+  def(`teach.word.${letter}`, 'dodo', `This is ${an(word)} | ${word}!`)
+}
+
+for (let n = 1; n <= 20; n++) {
+  def(`teach.num.${n}`, 'bobo', `This is | ${NUM[n]}.`)
+  def(`teach.total.${n}`, 'bobo', n === 1 ? 'There is | one!' : `There are | ${NUM[n]}!`)
+  // 邊數邊念，最後一個數字加重：數到的最後一個就是「總共幾個」
+  if (n <= 10) def(`teach.count.${n}`, 'bobo', n === 1 ? 'Just | one!' : `${cap(NUM.slice(1, n).join(', '))}, | ${NUM[n]}!`)
+}
+def('teach.more', 'bobo', 'This side has | more!')
+def('teach.fewer', 'bobo', 'This side has | fewer.')
+def('teach.bigger', 'bobo', 'This one is | bigger!')
+def('teach.smaller', 'bobo', 'This one is | smaller.')
+
+for (const v of VOCAB) {
+  const plural = v.id === 'grapes'
+  const name = plural ? `These are | ${v.en}.` : `This is ${an(v.en)} | ${v.en}.`
+  // 有叫聲的先學叫聲：Woof woof! This is a dog.
+  def(`teach.vocab.${v.id}`, 'momo', v.sound ? `${v.sound} ${name}` : name)
+  if (v.sound) def(`teach.sound.${v.id}`, 'momo', `${cap(an(v.en))} ${v.en} says, | ${v.sound[0].toLowerCase()}${v.sound.slice(1)}`)
+}
+const CAT_TEACH: Record<Tag, [string, string]> = {
+  fly: ['Birds can | fly.', 'Airplanes can | fly, too!'],
+  water: ['Fish swim in the | water.', 'Boats go on the | water, too!'],
+  wheels: ['A car has | wheels.', 'A bus has | wheels, too!'],
+  legs4: ['A dog has | four legs.', 'A cow has | four legs, too!'],
+  eat: ['We can eat | apples.', 'We can eat | bananas, too!'],
+}
+for (const [tag, pair] of Object.entries(CAT_TEACH) as [Tag, [string, string]][]) pair.forEach((t, i) => def(`teach.cat.${tag}.${i}`, 'momo', t))
+
+const COLOR_LIKE: Record<string, string> = {
+  red: 'An apple is | red!',
+  yellow: 'A banana is | yellow!',
+  blue: 'A whale is | blue!',
+  green: 'A frog is | green!',
+  orange: 'A carrot is | orange!',
+  purple: 'Grapes are | purple!',
+  pink: 'A pig is | pink!',
+  brown: 'A teddy bear is | brown!',
+}
+for (const c of COLORS) {
+  def(`teach.color.${c.id}`, 'bobo', `This is | ${c.en}.`)
+  def(`teach.colorlike.${c.id}`, 'bobo', COLOR_LIKE[c.id])
+}
+const SHAPE_FUN: Record<string, string> = {
+  circle: 'Round and round!',
+  triangle: 'One, two, three sides!',
+  square: 'Four sides, all the same!',
+  star: 'Twinkle, twinkle!',
+  heart: 'I love you!',
+  rect: 'Long, like a bus!',
+}
+for (const s of SHAPES) {
+  def(`teach.shape.${s.id}`, 'bobo', `This is a | ${s.en}.`)
+  def(`teach.shapefun.${s.id}`, 'bobo', SHAPE_FUN[s.id])
+}

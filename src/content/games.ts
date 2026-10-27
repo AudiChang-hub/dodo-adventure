@@ -1,8 +1,8 @@
 import type { Speaker } from './lines'
 import type { StationId } from '../lib/db'
 import { LETTERS, LOOKALIKE, letterEntry } from './letters'
-import { VOCAB, AMBIGUOUS, type Tag } from './vocab'
-import { COLORS, SHAPES, SIZE_ICONS, COUNT_ICONS, type ShapeId } from './park'
+import { VOCAB, AMBIGUOUS, CAT_EXAMPLES, vocab, type Tag } from './vocab'
+import { COLORS, COLOR_EXAMPLES, SHAPES, SIZE_ICONS, COUNT_ICONS, type ShapeId } from './park'
 import { pickTarget, unlockedLetters, unlockedNumbers } from '../lib/adaptive'
 import { getSettings } from '../lib/settings'
 import { pick, rand, sample, shuffle } from '../lib/random'
@@ -26,6 +26,23 @@ export interface ChoiceItem {
   correction: string[]
   /** 答對之後順便複習的一句，例如「B is for bus!」 */
   after?: string[]
+  /** 新內容第一次出現時的教學卡（PRD §5.8：先教 → 一起練 → 自己答） */
+  teach?: TeachSpec
+}
+
+/**
+ * 教學卡：主持的恐龍大大地展示內容、念教學句。
+ * visual 是陣列時並排展示（例如數字＋數量、比多少的兩組），focus[i] 是念第 i 句時要指著哪一個。
+ */
+export interface TeachSpec {
+  visual: Visual | Visual[]
+  /** 旁邊的小例子貼紙，例如 B 旁邊的公車；在第 sideAt 句時出現 */
+  side?: Visual
+  sideAt?: number
+  focus?: number[]
+  lines: string[]
+  /** 答錯兩次重教時的精簡版，預設只念第一句 */
+  short?: string[]
 }
 
 export type GameKind = 'choice' | 'count' | 'order' | 'trace' | 'dots' | 'coloring' | 'free' | 'glyph'
@@ -83,6 +100,7 @@ const enFind = (level: number, recent: string[]): ChoiceItem => {
     answer: L,
     correction: [`en.thisis.${L}`],
     after: [`en.is.${L}`],
+    teach: { visual: { t: 'letter', ch: L }, side: { t: 'emoji', icon: letterEntry(L).icon }, sideAt: 1, lines: [`teach.letter.${L}`, `teach.letterfor.${L}`] },
   }
 }
 
@@ -97,6 +115,7 @@ const enPic = (level: number, recent: string[]): ChoiceItem => {
     options: opts.map((c) => ({ id: c, v: { t: 'emoji', icon: letterEntry(c).icon } })),
     answer: L,
     correction: [`en.itis.${L}`],
+    teach: { visual: { t: 'letter', ch: L }, side: { t: 'emoji', icon: letterEntry(L).icon }, sideAt: 0, lines: [`teach.letterfor.${L}`, `teach.word.${L}`] },
   }
 }
 
@@ -113,6 +132,7 @@ const enWord = (level: number, recent: string[]): ChoiceItem => {
     answer: L,
     correction: [`en.itis.${L}`],
     after: [`en.is.${L}`],
+    teach: { visual: { t: 'emoji', icon: letterEntry(L).icon }, side: { t: 'letter', ch: L }, sideAt: 1, lines: [`teach.word.${L}`, `teach.letterfor.${L}`] },
   }
 }
 
@@ -136,6 +156,10 @@ const mFind = (level: number, recent: string[]): ChoiceItem => {
     options: opts.map((x) => ({ id: String(x), v: { t: 'number', n: x } })),
     answer: String(n),
     correction: [`m.thisis.${n}`],
+    teach:
+      n <= 10
+        ? { visual: [{ t: 'number', n }, { t: 'group', icon: pick(COUNT_ICONS), count: n }], focus: [0, 1], lines: [`teach.num.${n}`, `teach.count.${n}`] }
+        : { visual: { t: 'number', n }, lines: [`teach.num.${n}`] },
   }
 }
 
@@ -143,14 +167,16 @@ const mMatch = (level: number, recent: string[]): ChoiceItem => {
   const max = Math.min(10, [3, 5, unlockedNumbers(), unlockedNumbers()][level - 1] ?? 5)
   const n = pickTarget(range(1, Math.max(2, max)), (x) => `count:${x}`, recent.map(Number))
   const opts = shuffle([n, ...numDistractors(n, optCount(level) - 1, Math.max(max, 4), level >= 3)])
+  const icon = pick(COUNT_ICONS)
   return {
     itemId: String(n),
     skill: `count:${n}`,
-    stimulus: { t: 'group', icon: pick(COUNT_ICONS), count: n },
+    stimulus: { t: 'group', icon, count: n },
     prompt: ['m.howmany'],
     options: opts.map((x) => ({ id: String(x), v: { t: 'number', n: x } })),
     answer: String(n),
     correction: [`m.total.${n}`],
+    teach: { visual: [{ t: 'group', icon, count: n }, { t: 'number', n }], focus: [0, 1], lines: [`teach.count.${n}`, `teach.total.${n}`] },
   }
 }
 
@@ -169,6 +195,12 @@ const mCompare = (level: number): ChoiceItem => {
     options: pair.map((c) => ({ id: String(c), v: { t: 'group', icon, count: c } })),
     answer: String(target),
     correction: [askLess ? 'm.this.less' : 'm.this.more'],
+    // 先示範一組差很多的：這邊比較多、這邊比較少
+    teach: {
+      visual: [{ t: 'group', icon, count: 6 }, { t: 'group', icon, count: 2 }],
+      focus: askLess ? [1, 0] : [0, 1],
+      lines: askLess ? ['teach.fewer', 'teach.more'] : ['teach.more', 'teach.fewer'],
+    },
   }
 }
 
@@ -190,6 +222,7 @@ const zFind = (level: number, recent: string[]): ChoiceItem => {
     options: opts.map((x) => ({ id: x.id, v: { t: 'emoji', icon: x.icon } })),
     answer: v.id,
     correction: [`z.itis.${v.id}`],
+    teach: { visual: { t: 'emoji', icon: v.icon }, lines: [`teach.vocab.${v.id}`] },
   }
 }
 
@@ -207,6 +240,8 @@ const zCategory = (level: number, recent: string[]): ChoiceItem => {
     options: opts.map((x) => ({ id: x.id, v: { t: 'emoji', icon: x.icon } })),
     answer: ans.id,
     correction: [`z.itis.${ans.id}`],
+    // 先看例子：Birds can fly. Airplanes can fly, too!
+    teach: { visual: CAT_EXAMPLES[tag].map((id) => ({ t: 'emoji', icon: vocab(id).icon }) as Visual), focus: [0, 1], lines: [`teach.cat.${tag}.0`, `teach.cat.${tag}.1`] },
   }
 }
 
@@ -221,6 +256,7 @@ const zSound = (level: number, recent: string[]): ChoiceItem => {
     options: opts.map((x) => ({ id: x.id, v: { t: 'emoji', icon: x.icon } })),
     answer: v.id,
     correction: [`z.itis.${v.id}`],
+    teach: { visual: { t: 'emoji', icon: v.icon }, lines: [`teach.sound.${v.id}`] },
   }
 }
 
@@ -237,6 +273,7 @@ const pColor = (level: number, recent: string[]): ChoiceItem => {
     options: opts.map((x) => ({ id: x.id, v: shape ? { t: 'shape', shape, hex: x.hex } : { t: 'color', hex: x.hex } })),
     answer: c.id,
     correction: [`p.thisis.color.${c.id}`],
+    teach: { visual: { t: 'color', hex: c.hex }, side: { t: 'emoji', icon: COLOR_EXAMPLES[c.id] }, sideAt: 1, lines: [`teach.color.${c.id}`, `teach.colorlike.${c.id}`] },
   }
 }
 
@@ -253,6 +290,7 @@ const pShape = (level: number, recent: string[]): ChoiceItem => {
     options: opts.map((x, i) => ({ id: x.id, v: { t: 'shape', shape: x.id, hex: level >= 3 ? hexes[i] : '#F0B088' } })),
     answer: s.id,
     correction: [`p.thisis.shape.${s.id}`],
+    teach: { visual: { t: 'shape', shape: s.id, hex: '#F0B088' }, lines: [`teach.shape.${s.id}`, `teach.shapefun.${s.id}`] },
   }
 }
 
@@ -261,6 +299,7 @@ const pSize = (level: number): ChoiceItem => {
   const askSmall = level >= 2 && Math.random() < 0.5
   const scales = level >= 3 ? shuffle([1, 0.68, 0.42]) : shuffle(level === 1 ? [1, 0.45] : [1, 0.6])
   const target = askSmall ? Math.min(...scales) : Math.max(...scales)
+  const pair: Visual[] = [{ t: 'emoji', icon, scale: 1 }, { t: 'emoji', icon, scale: 0.45 }]
   return {
     itemId: `${icon}:${askSmall ? 'small' : 'big'}`,
     skill: askSmall ? 'size:small' : 'size:big',
@@ -268,6 +307,7 @@ const pSize = (level: number): ChoiceItem => {
     options: scales.map((s) => ({ id: String(s), v: { t: 'emoji', icon, scale: s } })),
     answer: String(target),
     correction: [askSmall ? 'p.this.smaller' : 'p.this.bigger'],
+    teach: { visual: pair, focus: askSmall ? [1, 0] : [0, 1], lines: askSmall ? ['teach.smaller', 'teach.bigger'] : ['teach.bigger', 'teach.smaller'] },
   }
 }
 

@@ -91,3 +91,12 @@ export const AMBIGUOUS: Record<Tag, string[]> = {
   legs4: ['frog', 'turtle', 'mouse', 'dragon', 'sauropod'],
   eat: [],
 }
+
+/** 分類題的教學卡：先看兩個例子（Birds can fly. Airplanes can fly, too!） */
+export const CAT_EXAMPLES: Record<Tag, [string, string]> = {
+  fly: ['bird', 'plane'],
+  water: ['fish', 'boat'],
+  wheels: ['car', 'bus'],
+  legs4: ['dog', 'cow'],
+  eat: ['apple', 'banana'],
+}
