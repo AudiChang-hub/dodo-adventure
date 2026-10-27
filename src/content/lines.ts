@@ -1,3 +1,4 @@
+import './lines-phonics'
 import { CHILD_EN } from '../lib/env'
 import { LETTERS } from './letters'
 import { VOCAB, TAG_QUESTION, type Tag } from './vocab'
@@ -12,7 +13,6 @@ export { def, line, hasLine, allLines, segments, type Speaker, type Line, type S
 
 const NUM = ['zero', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten', 'eleven', 'twelve', 'thirteen', 'fourteen', 'fifteen', 'sixteen', 'seventeen', 'eighteen', 'nineteen', 'twenty']
 const cap = (s: string) => s[0].toUpperCase() + s.slice(1)
-const article = (w: string) => (/^[aeiou]/i.test(w) ? 'an' : 'a')
 
 const N = CHILD_EN
 const SPEAKERS: Speaker[] = ['dodo', 'bobo', 'momo']
@@ -74,17 +74,8 @@ def('eye.break', 'dodo', "Let's rest our eyes. Look far, far away!")
 def('eye.done', 'dodo', "All rested! Let's keep going!")
 
 // ── 字母森林 ───────────────────────────────────────────────
-def('en.intro.find', 'dodo', "Let's find letters! Listen and tap!")
-def('en.intro.pic', 'dodo', 'Look at the letter. Find its friend!')
-def('en.intro.word', 'dodo', 'Listen, and find the picture!')
-for (const { letter, word } of LETTERS) {
-  def(`en.where.${letter}`, 'dodo', `Where is | ${letter}?`)
-  def(`en.is.${letter}`, 'dodo', `${letter} is for | ${word}!`)
-  def(`en.word.${letter}`, 'dodo', `${cap(word)}!`)
-  def(`en.findword.${letter}`, 'dodo', `Where is the | ${word}?`)
-  def(`en.thisis.${letter}`, 'dodo', `This is | ${letter}.`)
-  def(`en.itis.${letter}`, 'dodo', `It's ${article(word)} | ${word}!`)
-}
+// 自然發音的台詞在 lines-phonics.ts。這裡只留描字母（GlyphGame）唸字母名稱用的句子
+for (const { letter } of LETTERS) def(`en.thisis.${letter}`, 'dodo', `This is | ${letter}.`)
 
 // ── 數字工地 ───────────────────────────────────────────────
 def('m.intro.count', 'bobo', "Let's count! Tap them one by one!")
