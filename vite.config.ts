@@ -27,7 +27,7 @@ export default defineConfig({
       registerType: 'prompt',
       includeAssets: ['icon.svg'],
       workbox: {
-        globPatterns: ['**/*.{js,css,html,svg,png,woff2,mp3}'],
+        globPatterns: ['**/*.{js,css,html,svg,png,woff2,mp3}', 'audio/timings.json'],
         maximumFileSizeToCacheInBytes: 8 * 1024 * 1024,
         navigateFallback: 'index.html',
       },

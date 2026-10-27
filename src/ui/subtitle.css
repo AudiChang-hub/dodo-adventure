@@ -1,0 +1,214 @@
+/* ── 字幕：上方中央、進度點下方，逐字亮起 ───────────────────────
+   已唸過 ink、正在唸的字有 butter 色底、還沒唸 ink-soft；不接收點擊，不會擋到題目 */
+.subtitle {
+  position: fixed;
+  z-index: 60;
+  left: 50%;
+  top: 22px;
+  translate: -50% 0;
+  width: max-content;
+  max-width: min(900px, calc(100vw - 300px));
+  pointer-events: none;
+  display: grid;
+  justify-items: center;
+}
+/* 遊戲畫面上方有進度點：字幕放在進度點下方、題目卡上方 */
+body:has(.stage-top .progress) .subtitle {
+  top: 90px;
+}
+/* 畫畫類（沒有主持恐龍）的描線區一路畫到上緣：字縮小一點，少壓到起點 */
+body:has(.stage-top .progress):not(:has(.stage-host)) .sub-pill {
+  font-size: clamp(22px, 3.5vmin, 32px);
+}
+.sub-pill {
+  grid-area: 1 / 1;
+  display: flex;
+  align-items: center;
+  gap: 0.42em;
+  padding: 0.26em 0.86em 0.3em 0.62em;
+  border-radius: 999px;
+  background: rgba(251, 248, 242, 0.94);
+  box-shadow:
+    0 0 0 2px rgba(46, 42, 37, 0.05) inset,
+    0 6px 0 rgba(46, 42, 37, 0.06),
+    0 14px 30px -18px rgba(46, 42, 37, 0.35);
+  font-family: 'Fredoka', sans-serif;
+  font-weight: 600;
+  font-size: clamp(26px, 4.3vmin, 40px);
+  line-height: 1.22;
+  letter-spacing: 0.012em;
+  color: var(--ink-soft);
+}
+.sub-pill.is-long {
+  font-size: clamp(22px, 3.5vmin, 32px);
+}
+
+/* 說話者的小圓點：豆豆綠、波波橘、莫莫藍，跟著音量起伏 */
+.sub-who {
+  flex: none;
+  width: 0.36em;
+  height: 0.36em;
+  border-radius: 50%;
+  background: var(--who, var(--dodo-deep));
+  box-shadow: 0 0 0 0.12em color-mix(in srgb, var(--who, var(--dodo-deep)) 22%, transparent);
+  transition: transform 0.08s linear;
+}
+
+.sub-text {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  column-gap: 0.24em;
+  text-wrap: balance;
+}
+
+.sub-w {
+  position: relative;
+  isolation: isolate;
+  padding: 0 0.08em;
+  white-space: nowrap;
+  transition: color 0.22s var(--ease-out);
+}
+/* 正在唸的字：奶油黃的圓角色底，像螢光筆一樣由中間展開 */
+.sub-w::before {
+  content: '';
+  position: absolute;
+  z-index: -1;
+  inset: 0.06em -0.04em 0.02em;
+  border-radius: 0.3em;
+  background: var(--butter);
+  opacity: 0;
+  transform: scale(0.7, 0.55);
+  transition:
+    opacity 0.2s var(--ease-out),
+    transform 0.28s var(--ease-spring);
+}
+.sub-w.is-said,
+.sub-w.is-now {
+  color: var(--ink);
+}
+.sub-w.is-now::before {
+  opacity: 1;
+  transform: none;
+}
+
+/* ── 空格：寬度等於答案字，答對或提示後補上答案 ───────────────── */
+.sub-blank {
+  position: relative;
+  display: inline-block;
+  margin: 0 0.04em;
+}
+.sub-ans {
+  display: inline-block;
+  /* 單一字母的空格太窄，孩子看不出來是空格 */
+  min-width: 1.15em;
+  text-align: center;
+  color: transparent;
+}
+.sub-blank::after {
+  content: '';
+  position: absolute;
+  left: 0.02em;
+  right: 0.02em;
+  bottom: 0.1em;
+  height: 0.13em;
+  border-radius: 99px;
+  background: var(--ink-faint);
+  transform-origin: center;
+}
+.sub-w.is-now .sub-blank::after {
+  background: var(--ink-soft);
+}
+
+.sub-blank.is-filled .sub-ans {
+  color: var(--ink);
+  animation: sub-answer 0.62s var(--ease-spring) 0.05s both;
+}
+.sub-blank.is-filled::after {
+  background: var(--butter);
+  animation: sub-underline 0.7s var(--ease-out) both;
+}
+@keyframes sub-answer {
+  0% {
+    opacity: 0;
+    transform: translateY(0.38em) scale(0.45);
+  }
+  55% {
+    opacity: 1;
+    transform: translateY(-0.1em) scale(1.16);
+  }
+  100% {
+    transform: none;
+  }
+}
+@keyframes sub-underline {
+  0% {
+    background: var(--ink-faint);
+    transform: scaleX(1);
+  }
+  35% {
+    transform: scaleX(1.3) scaleY(1.6);
+  }
+  100% {
+    background: var(--butter);
+    transform: none;
+  }
+}
+
+/* 補上答案時的四顆小光點 */
+.sub-spark {
+  position: absolute;
+  inset: 0;
+}
+.sub-spark i {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 0.16em;
+  height: 0.16em;
+  margin: -0.08em;
+  border-radius: 50%;
+  background: var(--butter);
+  opacity: 0;
+  animation: sub-spark 0.75s var(--ease-out) 0.12s both;
+}
+.sub-spark i:nth-child(1) {
+  --dx: -0.95em;
+  --dy: -0.55em;
+}
+.sub-spark i:nth-child(2) {
+  --dx: 0.95em;
+  --dy: -0.6em;
+  background: var(--coral);
+}
+.sub-spark i:nth-child(3) {
+  --dx: -0.8em;
+  --dy: 0.5em;
+  background: var(--leaf);
+}
+.sub-spark i:nth-child(4) {
+  --dx: 0.85em;
+  --dy: 0.55em;
+  background: var(--momo);
+}
+@keyframes sub-spark {
+  0% {
+    opacity: 0;
+    transform: translate(0, 0) scale(0.4);
+  }
+  30% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translate(var(--dx), var(--dy)) scale(1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sub-blank.is-filled .sub-ans,
+  .sub-blank.is-filled::after,
+  .sub-spark i {
+    animation-duration: 0.01s;
+  }
+}
