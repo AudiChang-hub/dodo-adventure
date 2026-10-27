@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { db, today, type Attempt, type Drawing, type Session, type StationId } from '../../lib/db'
+import { db, phaseOf, today, type Attempt, type Drawing, type Phase, type Session, type StationId } from '../../lib/db'
 import { fetchCloud } from '../../lib/sync'
 
 export interface ParentData {
@@ -42,6 +42,9 @@ export function useParentData(source: 'local' | 'cloud', reloadKey: number) {
 }
 
 export const STATION_NAME: Record<StationId, string> = { english: '字母森林', math: '數字工地', mandarin: '動物村', draw: '畫畫小屋', park: '彩虹公園' }
+
+/** 教學階段（PRD §5.8）：只有「自己答」計入答對率與熟練度 */
+export const PHASE_NAME: Record<Phase, string> = { teach: '教學', guided: '一起練', quiz: '自己答' }
 
 export function lastDays(n: number): string[] {
   return Array.from({ length: n }, (_, i) => today(new Date(Date.now() - (n - 1 - i) * 86_400_000)))
@@ -88,10 +91,10 @@ export function download(name: string, content: string, type: string) {
 }
 
 export function toCSV(rows: Attempt[]): string {
-  const cols = ['date', 'ts', 'station', 'game', 'itemId', 'skill', 'level', 'answer', 'options', 'taps', 'firstTryCorrect', 'attempts', 'responseMs', 'hintUsed', 'metrics'] as const
+  const cols = ['date', 'ts', 'station', 'game', 'phase', 'itemId', 'skill', 'level', 'answer', 'options', 'taps', 'firstTryCorrect', 'attempts', 'responseMs', 'hintUsed', 'metrics'] as const
   const esc = (v: unknown) => {
     const s = typeof v === 'object' ? JSON.stringify(v) : String(v ?? '')
     return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s
   }
-  return '﻿' + [cols.join(','), ...rows.map((r) => cols.map((c) => esc(c === 'ts' ? new Date(r.ts).toISOString() : r[c])).join(','))].join('\n')
+  return '﻿' + [cols.join(','), ...rows.map((r) => cols.map((c) => esc(c === 'ts' ? new Date(r.ts).toISOString() : c === 'phase' ? phaseOf(r) : r[c])).join(','))].join('\n')
 }

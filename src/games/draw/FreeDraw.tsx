@@ -47,6 +47,7 @@ export function FreeDraw({ gameId, onDone, onExit }: GameProps) {
       game: def.id,
       itemId: 'free',
       skill: 'free-draw',
+      phase: 'quiz',
       level: 1,
       options: [],
       answer: '',

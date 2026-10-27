@@ -118,6 +118,80 @@
   background: #f8e0d8;
   color: #8a3f2a;
 }
+.parent .chip.teach {
+  background: #f6e7b8;
+  color: #6e5513;
+}
+.parent .chip.guided {
+  background: #e6dff2;
+  color: #4f3f80;
+}
+
+/* 教學階段：教學／一起練／自己答。用形狀＋字區分，不只靠顏色 */
+.parent .phase {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  white-space: nowrap;
+  color: var(--ink-soft);
+}
+.parent .phase::before {
+  content: '';
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  border: 2px solid currentColor;
+}
+.parent .phase.teach {
+  color: #a07c1c;
+}
+.parent .phase.teach::before {
+  background: currentColor;
+  border-radius: 2px;
+  rotate: 45deg;
+}
+.parent .phase.guided {
+  color: #6c5aa6;
+}
+.parent .phase.guided::before {
+  background: linear-gradient(90deg, currentColor 50%, transparent 50%);
+}
+.parent .phase.quiz::before {
+  background: currentColor;
+}
+
+/* 今天新教了 */
+.parent .taught {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.parent .taught li {
+  list-style: none;
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 8px 14px;
+  border-radius: 14px;
+  background: #fbf3d8;
+  font-size: 15px;
+}
+.parent .taught li small {
+  color: var(--ink-soft);
+  font-size: 12px;
+}
+.parent .taught li .then {
+  font-size: 12px;
+  padding: 1px 8px;
+  border-radius: 99px;
+  background: #dcefe3;
+  color: #2f6b49;
+}
+.parent .taught li .then.no {
+  background: var(--paper);
+  color: var(--ink-soft);
+}
 .parent .btn {
   height: 42px;
   padding: 0 18px;

@@ -2,6 +2,12 @@ import Dexie, { type Table } from 'dexie'
 
 export type StationId = 'english' | 'math' | 'mandarin' | 'draw' | 'park'
 
+/**
+ * 教學階段（PRD §5.8）：teach 教學卡／示範、guided 一起練、quiz 自己答。
+ * 只有 quiz 會計入熟練度與難度。
+ */
+export type Phase = 'teach' | 'guided' | 'quiz'
+
 /** 一題的完整作答紀錄：PRD §7 的資料模型 */
 export interface Attempt {
   id: string
@@ -12,6 +18,8 @@ export interface Attempt {
   game: string
   itemId: string
   skill: string
+  /** 舊資料（v1）沒有這個欄位，一律視為 quiz；請用 phaseOf() 讀 */
+  phase?: Phase
   level: number
   options: string[]
   answer: string
@@ -95,8 +103,22 @@ class AppDB extends Dexie {
       friends: 'id, ts',
       kv: 'key',
     })
+    // v2：作答紀錄加上教學階段。舊紀錄都是當時的一般題目，補上 quiz
+    this.version(2)
+      .stores({ attempts: 'id, ts, date, station, game, skill, phase, synced' })
+      .upgrade((tx) =>
+        tx
+          .table('attempts')
+          .toCollection()
+          .modify((a: Attempt) => {
+            if (!a.phase) a.phase = 'quiz'
+          }),
+      )
   }
 }
+
+export const phaseOf = (a: Pick<Attempt, 'phase'>): Phase => a.phase ?? 'quiz'
+export const isQuiz = (a: Pick<Attempt, 'phase'>) => phaseOf(a) === 'quiz'
 
 export const db = new AppDB()
 

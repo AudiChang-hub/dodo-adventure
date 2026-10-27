@@ -1,5 +1,23 @@
-import { today, type StationId } from '../../lib/db'
+import { isQuiz, phaseOf, today, type Attempt, type StationId } from '../../lib/db'
+import { game } from '../../content/games'
 import { lastDays, minutesByDay, pct, skillLabel, STATION_NAME, type ParentData } from './data'
+
+/**
+ * 今天新教了什麼：今天的教學紀錄（不含答錯後的重教），每個技能一筆，
+ * 並附上教完之後第一次自己答的結果，家長可以看出「教了有沒有學會」。
+ */
+function taughtToday(todayA: Attempt[]) {
+  const seen = new Set<string>()
+  const out: { skill: string; game: string; then: 'ok' | 'no' | null }[] = []
+  // todayA 是新到舊，倒過來才是教學發生的順序
+  for (const a of [...todayA].reverse()) {
+    if (phaseOf(a) !== 'teach' || a.metrics?.retaught || seen.has(a.skill)) continue
+    seen.add(a.skill)
+    const after = todayA.filter((q) => q.skill === a.skill && isQuiz(q) && q.ts > a.ts).sort((x, y) => x.ts - y.ts)[0]
+    out.push({ skill: a.skill, game: a.game, then: after ? (after.firstTryCorrect ? 'ok' : 'no') : null })
+  }
+  return out
+}
 
 function Bars({ days, values, max, fmt }: { days: string[]; values: number[]; max: number; fmt: (v: number) => string }) {
   const h = 120
@@ -27,10 +45,15 @@ function Bars({ days, values, max, fmt }: { days: string[]; values: number[]; ma
 
 export function Overview({ d }: { d: ParentData }) {
   const t = today()
-  const todayA = d.attempts.filter((a) => a.date === t)
+  const todayAll = d.attempts.filter((a) => a.date === t)
+  const taught = taughtToday(todayAll)
+  const retaught = todayAll.filter((a) => phaseOf(a) === 'teach' && a.metrics?.retaught).length
+  // 答題數、答對率只算「自己答」；教學卡與一起練不計分
+  const quizzes = d.attempts.filter(isQuiz)
+  const todayA = todayAll.filter(isQuiz)
   const mins = minutesByDay(d.sessions)
   const days = lastDays(7)
-  const week = d.attempts.filter((a) => a.date >= days[0])
+  const week = quizzes.filter((a) => a.date >= days[0])
 
   const byStation = (Object.keys(STATION_NAME) as StationId[]).map((s) => {
     const rows = week.filter((a) => a.station === s)
@@ -39,7 +62,7 @@ export function Overview({ d }: { d: ParentData }) {
 
   // 需要多練習：最近出現 3 次以上、第一次答對率最低的技能
   const stats = new Map<string, { n: number; ok: number }>()
-  for (const a of d.attempts.slice(0, 600)) {
+  for (const a of quizzes.slice(0, 600)) {
     const s = stats.get(a.skill) ?? { n: 0, ok: 0 }
     s.n++
     if (a.firstTryCorrect) s.ok++
@@ -61,7 +84,7 @@ export function Overview({ d }: { d: ParentData }) {
           </div>
         </div>
         <div className="card stat">
-          <div className="label">今天答題</div>
+          <div className="label">今天自己答</div>
           <div className="value">
             {todayA.length}
             <small>題</small>
@@ -77,10 +100,30 @@ export function Overview({ d }: { d: ParentData }) {
         <div className="card stat">
           <div className="label">累計答題</div>
           <div className="value">
-            {d.attempts.length}
+            {quizzes.length}
             <small>題</small>
           </div>
         </div>
+      </div>
+
+      <div className="card">
+        <h3>
+          今天新教了 {taught.length ? `${taught.length} 個` : ''}
+          {retaught > 0 && <small style={{ marginLeft: 10, fontWeight: 400, color: 'var(--ink-soft)', fontSize: 13 }}>另外有 {retaught} 次答錯兩次、重教了一遍</small>}
+        </h3>
+        {taught.length ? (
+          <ul className="taught" style={{ margin: 0, padding: 0 }}>
+            {taught.map((x) => (
+              <li key={x.skill}>
+                {skillLabel(x.skill)}
+                <small>{game(x.game)?.title ?? x.game}</small>
+                {x.then && <span className={`then${x.then === 'no' ? ' no' : ''}`}>{x.then === 'ok' ? '教完自己答對' : '教完還在練'}</span>}
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="empty">今天還沒有遇到新的內容。新的字母、數字、詞彙第一次出現時，會先教再考，教過的會列在這裡。</p>
+        )}
       </div>
 
       <div className="card">

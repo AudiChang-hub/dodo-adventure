@@ -1,0 +1,242 @@
+/* ── 教學卡（先教）─────────────────────────────────────────────
+   一張放在桌上的厚紙卡：縫線框、貼紙、紙膠帶。念完後外圈輕輕發亮、手在點，邀請孩子點一下。 */
+.teach-layer {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  display: grid;
+  place-items: center;
+  padding: 1cqh 4cqw 5cqh 15cqw;
+}
+/* 卡片後面一圈柔光，把視線收到中間；靜態的，不閃 */
+.teach-layer::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(ellipse 46% 58% at 57% 48%, rgba(251, 248, 242, 0.75), rgba(251, 248, 242, 0) 70%);
+  pointer-events: none;
+}
+
+.teach-card {
+  position: relative;
+  height: min(82cqh, 58cqw);
+  aspect-ratio: 1.08;
+  border-radius: 48px;
+  background: var(--card);
+  box-shadow:
+    0 12px 0 rgba(46, 42, 37, 0.08),
+    0 36px 70px -34px rgba(46, 42, 37, 0.45);
+  container-type: size;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+.teach-card.duo {
+  height: min(74cqh, 44cqw);
+  aspect-ratio: 1.78;
+}
+/* 縫線框：紙卡的手作感 */
+.teach-card::before {
+  content: '';
+  position: absolute;
+  inset: 16px;
+  border-radius: 34px;
+  border: 3px dashed rgba(46, 42, 37, 0.09);
+  pointer-events: none;
+}
+.teach-card.ready::after {
+  content: '';
+  position: absolute;
+  inset: -14px;
+  border-radius: 62px;
+  border: 6px solid var(--hint);
+  pointer-events: none;
+  animation: teach-ready 1.6s ease-in-out infinite;
+}
+/* 閒置第二段提示：卡片慢慢亮起來（不說話） */
+.teach-card.nudge {
+  animation: teach-nudge-in 2.4s var(--ease-out) both;
+}
+@keyframes teach-nudge-in {
+  to {
+    box-shadow:
+      0 12px 0 rgba(46, 42, 37, 0.08),
+      0 0 0 10px rgba(241, 210, 124, 0.55),
+      0 0 60px 18px rgba(241, 210, 124, 0.55);
+  }
+}
+@keyframes teach-ready {
+  50% {
+    transform: scale(1.025);
+    opacity: 0.45;
+  }
+}
+
+.teach-stage {
+  position: absolute;
+  inset: 8%;
+  display: flex;
+  gap: 5cqmin;
+}
+.teach-card.has-side .teach-stage {
+  inset: 6% 20% 18% 6%;
+}
+.teach-item {
+  position: relative;
+  flex: 1 1 0;
+  min-width: 0;
+  container-type: size;
+  border-radius: 34px;
+  transition: background 0.35s var(--ease-out), box-shadow 0.35s var(--ease-out);
+}
+.teach-card.duo .teach-item {
+  background: rgba(233, 225, 210, 0.45);
+}
+.teach-card.duo .teach-item.on {
+  background: #fff6dc;
+  box-shadow:
+    0 0 0 5px rgba(241, 210, 124, 0.95),
+    0 16px 34px -18px rgba(201, 162, 62, 0.8);
+}
+.teach-vis {
+  position: absolute;
+  inset: 6%;
+  container-type: size;
+  display: grid;
+  place-items: center;
+}
+.teach-vis .glyph,
+.teach-vis .glyph.num {
+  font-size: 88cqmin;
+}
+
+/* 例子貼紙：B 旁邊的公車。上面貼一段紙膠帶 */
+.teach-side {
+  position: absolute;
+  right: -7%;
+  bottom: -7%;
+  width: 40%;
+  aspect-ratio: 1;
+  border-radius: 30px;
+  background: var(--card);
+  box-shadow:
+    0 9px 0 rgba(46, 42, 37, 0.08),
+    0 22px 40px -20px rgba(46, 42, 37, 0.5);
+}
+.teach-side .tape {
+  position: absolute;
+  top: -7%;
+  left: 50%;
+  width: 46%;
+  height: 14%;
+  translate: -50% 0;
+  rotate: -5deg;
+  border-radius: 3px;
+  background: rgba(241, 210, 124, 0.72);
+  z-index: 1;
+}
+.teach-side .teach-vis {
+  inset: 12%;
+}
+.teach-side .teach-vis .glyph,
+.teach-side .teach-vis .glyph.num {
+  font-size: 92cqmin;
+}
+
+/* 「新的」星星貼紙 */
+.teach-new {
+  position: absolute;
+  left: -4%;
+  top: -6%;
+  width: 15%;
+  aspect-ratio: 1;
+  filter: drop-shadow(0 5px 0 rgba(46, 42, 37, 0.1));
+  pointer-events: none;
+  z-index: 2;
+}
+.teach-burst {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 0;
+  height: 0;
+}
+
+/* ── 示範的手 ─────────────────────────────────────────────── */
+.demo-hand {
+  position: absolute;
+  z-index: 8;
+  pointer-events: none;
+  /* 指尖（34%, 7%）對準 left/top */
+  translate: -34% -7%;
+  filter: drop-shadow(0 6px 0 rgba(46, 42, 37, 0.12));
+}
+.demo-ripple {
+  position: absolute;
+  left: 34%;
+  top: 7%;
+  width: 130%;
+  aspect-ratio: 1;
+  margin: -65% 0 0 -65%;
+  border-radius: 50%;
+  border: 5px solid var(--hint);
+}
+
+/* ── 閒置第二段提示：要點的東西慢慢發光（不說話）──────────────── */
+.nudge-glow {
+  position: absolute;
+  inset: -22%;
+  border-radius: 50%;
+  background: radial-gradient(closest-side, rgba(241, 210, 124, 0.85), rgba(241, 210, 124, 0.35) 62%, rgba(241, 210, 124, 0));
+  pointer-events: none;
+  z-index: -1;
+  animation:
+    hint-in 1.6s var(--ease-out) both,
+    nudge-breathe 2.4s ease-in-out 1.6s infinite;
+}
+/* 運筆、描字的路徑提示：整條路慢慢亮起來 */
+.nudge-path {
+  opacity: 0.6;
+  animation:
+    nudge-path-in 1.6s var(--ease-out) both,
+    nudge-path 2.4s ease-in-out 1.6s infinite;
+}
+@keyframes nudge-path-in {
+  from {
+    opacity: 0;
+  }
+}
+@keyframes nudge-path {
+  50% {
+    opacity: 0.3;
+  }
+}
+@keyframes nudge-breathe {
+  50% {
+    transform: scale(1.08);
+    opacity: 0.7;
+  }
+}
+
+/* ── 一起練：正確答案發光、其他變淡 ─────────────────────────── */
+.tile.guide {
+  background: #fff8e2;
+  animation: guide-glow 1.5s ease-in-out infinite;
+}
+@keyframes guide-glow {
+  0%,
+  100% {
+    box-shadow:
+      0 8px 0 #e6cf8e,
+      0 0 0 6px var(--hint) inset,
+      0 0 0 0 rgba(241, 210, 124, 0);
+  }
+  50% {
+    box-shadow:
+      0 8px 0 #e6cf8e,
+      0 0 0 6px var(--hint) inset,
+      0 0 0 20px rgba(241, 210, 124, 0.42);
+  }
+}
+.tile.dim {
+  filter: saturate(0.45);
+}

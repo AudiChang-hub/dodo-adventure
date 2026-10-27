@@ -2,12 +2,14 @@ import { useEffect, useRef, useState } from 'react'
 import { motion } from 'motion/react'
 import { Shell, type GameProps } from '../Shell'
 import { Ink } from './Ink'
+import { PenArt, easeInOut, tween } from '../Demo'
 import { Sparkles } from '../../ui/Sparkles'
 import { game as gameDef } from '../../content/games'
-import { level, markPlayed, reportLevel, pickTarget } from '../../lib/adaptive'
-import { logAttempt } from '../../lib/record'
+import { level, markPlayed, needsDemo, plays, reportLevel, pickTarget } from '../../lib/adaptive'
+import { logAttempt, logTeach } from '../../lib/record'
 import { say, sfx, stopSpeech } from '../../lib/audio'
 import { praiseKey, wait } from '../lines'
+import { useIdle } from '../idle'
 
 interface Pic {
   id: string
@@ -45,13 +47,20 @@ const PICS: Pic[][] = [
 const ROUNDS = 2
 const HIT = 62
 
-/** 連點成圖：照數字順序連起來，最後會變出一個形狀 */
+/**
+ * 連點成圖：照數字順序連起來，最後會變出一個形狀。
+ * 第一次玩（或沒連過的圖）先「Watch me!」：筆從 1 連到 2，再把線擦掉換孩子從 1 開始。
+ */
 export function DotsGame({ gameId, onDone, onExit }: GameProps) {
   const def = gameDef(gameId)
   const [r, setR] = useState(0)
   const [pic, setPic] = useState<Pic>(PICS[0][0])
   const [next, setNext] = useState(1)
   const [reveal, setReveal] = useState(false)
+  /** 示範時筆尖的位置；null 表示沒有在示範 */
+  const [pen, setPen] = useState<{ x: number; y: number } | null>(null)
+  /** 示範中正在拉的那一段線：從上一點拉到筆尖 */
+  const [drag, setDrag] = useState(false)
   const nextRef = useRef(1)
   const picRef = useRef(pic)
   const wrongTouches = useRef(0)
@@ -61,6 +70,47 @@ export function DotsGame({ gameId, onDone, onExit }: GameProps) {
   const live = useRef(true)
   const first = useRef(0)
   const used = useRef<string[]>([])
+  const busy = useRef(false)
+  const demos = useRef(0)
+  const firstPlay = useRef(plays(def.id) === 0)
+  const idle = useIdle()
+  /** 閒置第二段提示：下一個點慢慢亮起來 */
+  const [nudge, setNudge] = useState(false)
+
+  const showMe = async (p: Pic) => {
+    const s = performance.now()
+    demos.current++
+    const [a, b] = p.pts
+    const alive = () => live.current
+    // 筆從畫面中間飄到 1
+    const from = { x: 500, y: 330 }
+    setPen(from)
+    await say('teach.watch.dodo')
+    if (!live.current) return
+    await tween(650, (f) => setPen({ x: from.x + (a[0] - from.x) * f, y: from.y + (a[1] - from.y) * f }), alive, easeInOut)
+    if (!live.current) return
+    nextRef.current = 2
+    setNext(2)
+    sfx.count(1)
+    await say('dodo.num.1')
+    if (!live.current) return
+    // 從 1 拉一條線到 2
+    setDrag(true)
+    await tween(1100, (f) => setPen({ x: a[0] + (b[0] - a[0]) * f, y: a[1] + (b[1] - a[1]) * f }), alive, easeInOut)
+    if (!live.current) return
+    setDrag(false)
+    nextRef.current = 3
+    setNext(3)
+    sfx.count(2)
+    await say('dodo.num.2')
+    if (!live.current) return
+    await wait(450)
+    setPen(null)
+    nextRef.current = 1
+    setNext(1)
+    void logTeach({ station: 'draw', game: def.id, itemId: p.id, skill: `dots:${p.id}`, level: lv.current, ms: Math.round(performance.now() - s) })
+    await say('teach.turn.dodo')
+  }
 
   const start = async (i: number) => {
     lv.current = level(def.id)
@@ -73,16 +123,35 @@ export function DotsGame({ gameId, onDone, onExit }: GameProps) {
     setNext(1)
     setReveal(false)
     wrongTouches.current = 0
+    // 要示範的話，示範完才換孩子連；不示範就跟以前一樣，邊聽邊可以開始
+    const show = demos.current < 1 && needsDemo(firstPlay.current && i === 0, `dots:${p.id}`)
+    busy.current = show
+    idle.stop()
+    setNudge(false)
     t0.current = performance.now()
     if (i === 0) await say(def.intro)
+    if (!live.current) return
+    if (show) {
+      await showMe(p)
+      if (!live.current) return
+      t0.current = performance.now()
+      busy.current = false
+    }
+    // 閒置：15 秒再唸一次題目 → 再 15 秒下一個點慢慢亮起來 → 之後安靜
+    if (picRef.current === p && nextRef.current <= p.pts.length) idle.start({ repeat: () => void say(def.intro), hint: () => setNudge(true) })
   }
 
   useEffect(() => {
     live.current = true
-    markPlayed(def.id)
-    start(0)
+    // 延到下一輪才開始：StrictMode 開發模式會先掛載、卸載再掛載一次，避免兩條流程同時跑
+    const boot = window.setTimeout(() => {
+      markPlayed(def.id)
+      start(0)
+    }, 0)
     return () => {
       live.current = false
+      clearTimeout(boot)
+      idle.stop()
       stopSpeech()
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -90,6 +159,7 @@ export function DotsGame({ gameId, onDone, onExit }: GameProps) {
 
   const finish = async () => {
     const p = picRef.current
+    idle.stop()
     setReveal(true)
     sfx.hatch()
     const good = wrongTouches.current <= 1
@@ -99,6 +169,7 @@ export function DotsGame({ gameId, onDone, onExit }: GameProps) {
       game: def.id,
       itemId: p.id,
       skill: `dots:${p.id}`,
+      phase: 'quiz',
       level: lv.current,
       options: [],
       answer: '',
@@ -119,14 +190,18 @@ export function DotsGame({ gameId, onDone, onExit }: GameProps) {
   }
 
   const touch = (pt: { x: number; y: number }) => {
+    if (busy.current) return
     const p = picRef.current
     const n = nextRef.current
     if (n > p.pts.length) return
+    // 有畫線就重新計時
+    idle.poke()
     p.pts.forEach(([x, y], i) => {
       if (Math.hypot(pt.x - x, pt.y - y) > HIT) return
       if (i + 1 === n) {
         nextRef.current = n + 1
         setNext(n + 1)
+        setNudge(false)
         sfx.count(n)
         if (n === p.pts.length) void finish()
         else void say(`dodo.num.${n}`)
@@ -140,18 +215,21 @@ export function DotsGame({ gameId, onDone, onExit }: GameProps) {
   const done = next - 1
   const pts = pic.pts
   const lines = pts.slice(0, Math.max(0, done)).map(([x, y]) => `${x},${y}`).join(' ')
+  const tail = drag && pen && done >= 1 ? `${pts[done - 1][0]},${pts[done - 1][1]} ${pen.x},${pen.y}` : ''
   return (
     <Shell station="draw" mood="idle" progress={{ total: ROUNDS, done: r }} onExit={onExit} hideHost>
       <div key={r} style={{ position: 'absolute', inset: '0 4% 4%' }}>
         <svg viewBox="0 0 1000 600" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%' }} aria-hidden="true">
           <motion.polygon points={pts.map(([x, y]) => `${x},${y}`).join(' ')} fill={pic.fill} initial={false} animate={{ opacity: reveal ? 1 : 0, scale: reveal ? [0.9, 1.05, 1] : 0.9 }} style={{ transformOrigin: '500px 300px' }} />
           <polyline points={reveal ? lines + ` ${pts[0][0]},${pts[0][1]}` : lines} fill="none" stroke="#2E2A25" strokeWidth={10} strokeLinecap="round" strokeLinejoin="round" />
+          {tail && <polyline points={tail} fill="none" stroke="#2E2A25" strokeWidth={10} strokeLinecap="round" />}
           {pts.map(([x, y], i) => {
             const n = i + 1
             const isNext = n === next
             const isDone = n < next
             return (
               <g key={i}>
+                {isNext && nudge && !pen && <circle className="nudge-path" cx={x} cy={y} r={78} fill="#F1D27C" />}
                 {isNext && <motion.circle cx={x} cy={y} r={34} fill="none" stroke="#6FAE86" strokeWidth={8} animate={{ r: [30, 44, 30], opacity: [1, 0.35, 1] }} transition={{ duration: 1.3, repeat: Infinity }} />}
                 <circle cx={x} cy={y} r={isNext ? 26 : 20} fill={isDone ? '#2E2A25' : isNext ? '#6FAE86' : '#FBF8F2'} stroke="#2E2A25" strokeWidth={5} />
                 {!reveal && (
@@ -162,13 +240,20 @@ export function DotsGame({ gameId, onDone, onExit }: GameProps) {
               </g>
             )
           })}
+          {pen && (
+            <g transform={`translate(${pen.x} ${pen.y})`}>
+              <motion.g initial={{ opacity: 0, scale: 0.6 }} animate={{ opacity: 1, scale: 1 }}>
+                <PenArt scale={1.6} />
+              </motion.g>
+            </g>
+          )}
         </svg>
         {reveal && (
           <div style={{ position: 'absolute', left: '50%', top: '50%', width: 10, height: 10 }}>
             <Sparkles count={16} />
           </div>
         )}
-        <Ink w={1000} h={600} color="rgba(46,42,37,0.35)" size={14} onDown={touch} onMove={touch} />
+        <Ink w={1000} h={600} color="rgba(46,42,37,0.35)" size={14} ink={!pen} onDown={touch} onMove={touch} />
       </div>
     </Shell>
   )

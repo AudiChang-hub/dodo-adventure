@@ -53,6 +53,7 @@ export function ColoringGame({ gameId, onDone, onExit }: GameProps) {
       game: def.id,
       itemId: pic.id,
       skill: `coloring:${pic.id}`,
+      phase: 'quiz',
       level: 1,
       options: [],
       answer: '',
