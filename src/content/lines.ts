@@ -3,41 +3,12 @@ import { LETTERS } from './letters'
 import { VOCAB, TAG_QUESTION, type Tag } from './vocab'
 import { COLORS, SHAPES } from './park'
 
-export type Speaker = 'dodo' | 'bobo' | 'momo'
+import { def, type Speaker } from './registry'
 
-/**
- * 台詞全部是英文。`|` 之後是要加重的目標字：
- * 會另外產生一段放慢、加大音量的音檔，播放時兩段之間停 0.1 秒，
- * 例如 'Where is | B?' 念成「Where is …B?」。
- */
-export interface Line {
-  speaker: Speaker
-  text: string
-}
+export { def, line, hasLine, allLines, segments, type Speaker, type Line, type Segment } from './registry'
 
-export interface Segment {
-  text: string
-  emph: boolean
-}
-
-export function segments(l: Line): Segment[] {
-  return l.text.split('|').map((t, i) => ({ text: t.trim(), emph: i > 0 }))
-}
-
-const REG = new Map<string, Line>()
-
-function def(key: string, speaker: Speaker, text: string) {
-  REG.set(key, { speaker, text })
-}
-
-export function line(key: string): Line {
-  const l = REG.get(key)
-  if (!l) throw new Error(`Unknown line: ${key}`)
-  return l
-}
-
-export const hasLine = (key: string) => REG.has(key)
-export const allLines = () => [...REG.entries()]
+// 新功能的大量台詞請放在自己的 lines-*.ts（用 registry 的 def），再到這裡 import 一行
+// （例如 import './lines-phonics'），避免多人同時改這個檔案
 
 const NUM = ['zero', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten', 'eleven', 'twelve', 'thirteen', 'fourteen', 'fifteen', 'sixteen', 'seventeen', 'eighteen', 'nineteen', 'twenty']
 const cap = (s: string) => s[0].toUpperCase() + s.slice(1)
