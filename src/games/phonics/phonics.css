@@ -1,0 +1,251 @@
+/* ── 自然發音（字母森林）──────────────────────────────────────
+   同一個音永遠用同一個顏色標開頭字母：深一點的珊瑚色，在紙感底上夠清楚；
+   墨水／黑白模式下靠下方的短底線分辨，不只靠顏色（PRD 設計原則 6）。 */
+:root {
+  --ph-tint: #c9583f;
+  --ph-tint-soft: #f6d9cf;
+}
+
+/* 字幕：上色規則在 content/subtitles.ts，由 subtitleTint.ts 加上 data-tint */
+.sub-w[data-tint]::first-letter {
+  color: var(--ph-tint);
+  text-decoration: underline 0.09em;
+  text-underline-offset: 0.14em;
+  text-decoration-color: color-mix(in srgb, var(--ph-tint) 55%, transparent);
+}
+
+/* ── 單字標籤、字母 ─────────────────────────────────────── */
+.ph-label {
+  display: inline-flex;
+  align-items: baseline;
+  font-family: 'Fredoka', sans-serif;
+  font-weight: 600;
+  line-height: 1;
+  color: var(--ink);
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+}
+.ph-init {
+  display: inline-block;
+  transition: color 0.35s var(--ease-out);
+}
+.ph-init.tint {
+  color: var(--ph-tint);
+  text-decoration: underline 0.08em;
+  text-underline-offset: 0.12em;
+  text-decoration-color: color-mix(in srgb, var(--ph-tint) 55%, transparent);
+}
+/* 開頭字母飛走之後留下的淡淡空位 */
+.ph-init.ghost {
+  color: var(--ph-tint);
+  opacity: 0.22;
+}
+
+.ph-pair {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.12em;
+  font-family: 'Fredoka', sans-serif;
+  font-weight: 600;
+  line-height: 1;
+  color: var(--ink);
+}
+
+.ph-pic {
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  display: grid;
+  place-items: center;
+}
+.ph-pic > svg {
+  max-width: 100%;
+  max-height: 100%;
+}
+
+/* ── 學習循環的卡片 ─────────────────────────────────────── */
+.ph-card {
+  position: relative;
+  height: min(84cqh, 60cqw);
+  aspect-ratio: 1.42;
+  border-radius: 48px;
+  background: var(--card);
+  box-shadow:
+    0 12px 0 rgba(46, 42, 37, 0.08),
+    0 36px 70px -34px rgba(46, 42, 37, 0.45);
+  container-type: size;
+  cursor: pointer;
+  touch-action: manipulation;
+  display: grid;
+  grid-template-rows: auto auto;
+  align-content: center;
+  padding: 4cqh 5cqw;
+}
+.ph-card::before {
+  content: '';
+  position: absolute;
+  inset: 16px;
+  border-radius: 34px;
+  border: 3px dashed rgba(46, 42, 37, 0.09);
+  pointer-events: none;
+}
+.ph-card.ready::after {
+  content: '';
+  position: absolute;
+  inset: -14px;
+  border-radius: 62px;
+  border: 6px solid var(--hint);
+  pointer-events: none;
+  animation: teach-ready 1.6s ease-in-out infinite;
+}
+.ph-card.nudge {
+  animation: teach-nudge-in 2.4s var(--ease-out) both;
+}
+
+.ph-words {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 3cqw;
+  height: 54cqh;
+  min-height: 0;
+}
+.ph-word {
+  position: relative;
+  display: grid;
+  grid-template-rows: minmax(0, 1fr) auto;
+  justify-items: center;
+  gap: 1.6cqh;
+  padding: 2.4cqh 1cqw 2.2cqh;
+  border-radius: 30px;
+  background: rgba(233, 225, 210, 0.42);
+  min-height: 0;
+  transition: background 0.35s var(--ease-out), box-shadow 0.35s var(--ease-out);
+}
+.ph-word.on {
+  background: #fff6dc;
+  box-shadow:
+    0 0 0 5px rgba(241, 210, 124, 0.95),
+    0 16px 34px -18px rgba(201, 162, 62, 0.8);
+}
+.ph-word .ph-label {
+  font-size: min(8.6cqh, calc(42cqw / var(--len, 6)));
+}
+
+.ph-bigrow {
+  display: grid;
+  place-items: center;
+  height: 0;
+  min-height: 0;
+  transition: height 0.55s var(--ease-out);
+}
+.ph-card.room .ph-bigrow {
+  height: 36cqh;
+}
+.ph-big {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.16em;
+  font-family: 'Fredoka', sans-serif;
+  font-weight: 600;
+  font-size: 34cqh;
+  line-height: 0.9;
+  color: var(--ph-tint);
+}
+.ph-big .up {
+  display: inline-block;
+}
+.ph-big .lo-stack {
+  position: relative;
+  display: inline-block;
+}
+.ph-big .lo {
+  display: inline-block;
+}
+.ph-big .lo-stack .lo + .lo {
+  position: absolute;
+  left: 0;
+  top: 0;
+}
+
+/* 重教：左邊一個關鍵字，右邊大字母 */
+.ph-card.short {
+  aspect-ratio: 1.5;
+  grid-template-rows: 1fr;
+  grid-template-columns: 1fr 1.15fr;
+  align-content: stretch;
+  gap: 4cqw;
+  padding: 7cqh 6cqw;
+}
+.ph-card.short .ph-words {
+  grid-template-columns: 1fr;
+  height: auto;
+}
+.ph-card.short .ph-bigrow {
+  height: auto;
+}
+.ph-card.short .ph-word .ph-label {
+  font-size: 11cqh;
+}
+.ph-card.short .ph-big {
+  font-size: 40cqh;
+}
+
+/* ── 題目 ───────────────────────────────────────────────── */
+/* 「哪個跟 bus 開頭一樣？」的 bus：圖＋單字 */
+.stimulus.ph-stim {
+  height: 29%;
+  aspect-ratio: 1.25;
+  grid-template: minmax(0, 1fr) auto / minmax(0, 1fr);
+  justify-items: center;
+  gap: 2px;
+  padding: 12px 16px 14px;
+}
+.stimulus.ph-stim .ph-pic {
+  width: auto;
+  height: 100%;
+  aspect-ratio: 1;
+}
+.stimulus.ph-stim .ph-pic > svg {
+  width: 100%;
+  height: 100%;
+}
+.stimulus.ph-stim .ph-label {
+  font-size: 24cqh;
+}
+
+.tile.ph-tile {
+  overflow: visible;
+}
+/* 點名到這張：輕輕浮起來、描一圈奶油黃，讓孩子知道現在唸的是哪一張 */
+.tile.ph-tile.named {
+  box-shadow:
+    0 8px 0 rgba(46, 42, 37, 0.1),
+    0 0 0 5px rgba(241, 210, 124, 0.9);
+}
+.tile.ph-tile.is-letter .ph-pair {
+  font-size: 46cqmin;
+}
+/* 字母卡的鷹架：還不熟的音，字母下面放關鍵字的小圖 */
+.tile.ph-tile.is-letter .tile-in:has(.ph-cue) {
+  grid-template-rows: 1fr auto;
+}
+.ph-cue {
+  width: 44cqmin;
+  height: 44cqmin;
+}
+.tile.ph-tile.is-letter .tile-in:has(.ph-cue) .ph-pair {
+  font-size: 36cqmin;
+}
+/* 答對後：圖下面出現單字，開頭字母上色 */
+.ph-tile-label {
+  position: absolute;
+  left: 50%;
+  bottom: -2.4em;
+  translate: -50% 0;
+  padding: 0.18em 0.5em 0.24em;
+  border-radius: 999px;
+  background: var(--card);
+  box-shadow: 0 6px 0 rgba(46, 42, 37, 0.08);
+  font-size: clamp(26px, 4.4vmin, 40px);
+  pointer-events: none;
+}

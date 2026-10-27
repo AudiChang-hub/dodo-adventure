@@ -1,9 +1,9 @@
 import type { Speaker } from './lines'
 import type { StationId } from '../lib/db'
-import { LETTERS, LOOKALIKE, letterEntry } from './letters'
+import { PHONICS, CONFUSE, LOOKALIKE_LOWER, phonicsSkill, wordsOf, wordId, type PhonicsWord, type SoundUnit } from './letters'
 import { VOCAB, AMBIGUOUS, CAT_EXAMPLES, vocab, type Tag } from './vocab'
 import { COLORS, COLOR_EXAMPLES, SHAPES, SIZE_ICONS, COUNT_ICONS, type ShapeId } from './park'
-import { pickTarget, unlockedLetters, unlockedNumbers } from '../lib/adaptive'
+import { pickTarget, unlockedNumbers, mastered, skill, isNew } from '../lib/adaptive'
 import { getSettings } from '../lib/settings'
 import { pick, rand, sample, shuffle } from '../lib/random'
 
@@ -46,7 +46,7 @@ export interface TeachSpec {
 }
 
 export type GameKind =
-  | 'choice' | 'count' | 'order' | 'trace' | 'dots' | 'coloring' | 'free' | 'glyph'
+  | 'choice' | 'phonics' | 'count' | 'order' | 'trace' | 'dots' | 'coloring' | 'free' | 'glyph'
   // 工作線 B：學習單題型
   | 'findall' | 'lasso' | 'fill' | 'give' | 'subitize'
 
@@ -83,61 +83,189 @@ export const station = (id: StationId) => STATIONS.find((s) => s.id === id)!
 /** 選項數：第 1 級 2 個、第 2 級 3 個、之後 4 個 */
 const optCount = (level: number) => Math.min(4, level + 1)
 
-// ── 字母森林 ───────────────────────────────────────────────
-function letterDistractors(target: string, n: number, level: number): string[] {
-  const unlocked = unlockedLetters()
-  const pool = unlocked.length > n + 1 ? unlocked : LETTERS.map((l) => l.letter)
-  const out: string[] = []
-  if (level >= 4) for (const c of LOOKALIKE[target] ?? '') if (out.length < n) out.push(c)
-  return [...out, ...sample(pool, n - out.length, [target, ...out])]
+// ── 字母森林：自然發音（PRD §6.1b）────────────────────────────
+// 不考字母名稱，考「哪個字是這個音開頭」。熟練度記在字母音上（phonics:b），三個遊戲共用：
+// 任何一個遊戲遇到新的音，都先跑一次完整的學習循環（PhonicsIntro）再一起練、自己答。
+
+export type PhonicsMode = 'start' | 'same' | 'letter'
+
+export interface PhonicsOption {
+  id: string
+  /** 圖片選項 */
+  word?: PhonicsWord
+  /** 字母選項（小寫），卡上顯示 B b */
+  letter?: string
+  /** 字母卡的鷹架：還不熟的音，字母下面放關鍵字的小圖 */
+  cue?: PhonicsWord
 }
 
-const enFind = (level: number, recent: string[]): ChoiceItem => {
-  const L = pickTarget(unlockedLetters(), (l) => `letter:${l}`, recent)
-  const opts = shuffle([L, ...letterDistractors(L, optCount(level) - 1, level)])
+export interface PhonicsItem {
+  itemId: string
+  skill: string
+  unit: SoundUnit
+  mode: PhonicsMode
+  /** 「哪個跟 bus 開頭一樣？」的 bus */
+  stimulus?: PhonicsWord
+  prompt: string[]
+  /** 題目唸完後依序點名的圖片選項 id（字母選項不點名，不然就把答案唸出來了） */
+  names: string[]
+  options: PhonicsOption[]
+  answer: string
+  /** 答對之後：這個字配上這個音（Ball! buh, buh, ball!） */
+  after: string[]
+}
+
+/** 同時在學（還沒熟）的音最多幾個：熟了一個才開下一個 */
+const LEARNING_WINDOW = 3
+
+/** 依教學順序開放：前面有三個還沒熟的音就先停下來 */
+export function unlockedSounds(): SoundUnit[] {
+  const out: SoundUnit[] = []
+  let learning = 0
+  for (const u of PHONICS) {
+    if (learning >= LEARNING_WINDOW) break
+    out.push(u)
+    if (!mastered(phonicsSkill(u.letter))) learning++
+  }
+  return out
+}
+
+/** 學過一陣子（2 格以上）：開始用新字複習、聽音找字母拿掉圖片鷹架 */
+const familiar = (u: SoundUnit) => skill(phonicsSkill(u.letter)).box >= 2
+
+/** 兩個字母是不是同一個音（c、k 都是 /k/） */
+const sameSound = (a: SoundUnit, b: SoundUnit) => a.letter === b.letter || a.phoneme === b.phoneme
+
+type UnitWord = PhonicsWord & { unit: SoundUnit }
+
+/** 這張圖會不會被聽成 u 開頭（本身是、或孩子可能叫成別的名字剛好是） */
+function soundsLike(x: UnitWord, u: SoundUnit) {
+  if (sameSound(x.unit, u)) return true
+  return [...(x.alt ?? '')].some((c) => c === u.letter || PHONICS.some((p) => p.letter === c && p.phoneme === u.phoneme))
+}
+
+/** 答案用的字：剛學時用三個關鍵字；熟一點之後用沒看過的新字，確認是真的懂這個音 */
+function answerWord(u: SoundUnit, exclude: string[] = []): PhonicsWord {
+  const base = familiar(u) && u.review.length ? u.review : u.keys
+  const pool = base.filter((x) => !exclude.includes(x.w))
+  return pick(pool.length ? pool : wordsOf(u).filter((x) => !exclude.includes(x.w)))
+}
+
+/** 干擾圖：別的音開頭的字，優先用已經開放的音的關鍵字（孩子叫得出名字）；最高難度放聽起來相近的音 */
+function distractorWords(u: SoundUnit, n: number, level: number): PhonicsWord[] {
+  const ok = (x: UnitWord) => !soundsLike(x, u)
+  const open = unlockedSounds().filter((x) => !sameSound(x, u))
+  const units = open.length >= n ? open : PHONICS.filter((x) => !sameSound(x, u)).slice(0, Math.max(n + 2, 6))
+  const out: UnitWord[] = []
+  const add = (cu: SoundUnit) => {
+    const cands = cu.keys.map((k) => ({ ...k, unit: cu })).filter(ok)
+    if (cands.length) out.push(pick(cands))
+  }
+  if (level >= 4)
+    for (const c of CONFUSE[u.letter] ?? '') {
+      const cu = PHONICS.find((x) => x.letter === c)
+      if (cu && out.length < n - 1) add(cu)
+    }
+  for (const cu of shuffle(units)) {
+    if (out.length >= n) break
+    if (!out.some((o) => o.unit === cu)) add(cu)
+  }
+  return out
+}
+
+/**
+ * 越不熟、越久沒練的音越容易被選中（pickTarget）；但如果選中的是還沒教過的音，
+ * 一律換成教學順序上最前面的那個新音——新的音要照研究過的順序教，不能隨機跳。
+ */
+function pickSound(pool: SoundUnit[], recent: string[]): SoundUnit {
+  const key = (x: SoundUnit) => phonicsSkill(x.letter)
+  const t = pickTarget(
+    pool,
+    key,
+    pool.filter((x) => recent.some((r) => r.split(':')[0] === x.letter)),
+  )
+  return isNew(key(t)) ? (pool.find((x) => isNew(key(x))) ?? t) : t
+}
+
+const pictureOpt = (x: PhonicsWord): PhonicsOption => ({ id: wordId(x.w), word: x })
+
+/** 哪個是 /b/ 開頭的？選圖 */
+const phStart = (level: number, recent: string[]): PhonicsItem => {
+  const u = pickSound(unlockedSounds(), recent)
+  const ans = answerWord(u)
+  const opts = shuffle([ans, ...distractorWords(u, optCount(level) - 1, level)]).map(pictureOpt)
   return {
-    itemId: L,
-    skill: `letter:${L}`,
-    prompt: [`en.where.${L}`],
-    options: opts.map((c) => ({ id: c, v: { t: 'letter', ch: c } })),
-    answer: L,
-    correction: [`en.thisis.${L}`],
-    after: [`en.is.${L}`],
-    teach: { visual: { t: 'letter', ch: L }, side: { t: 'emoji', icon: letterEntry(L).icon }, sideAt: 1, lines: [`teach.letter.${L}`, `teach.letterfor.${L}`] },
+    itemId: `${u.letter}:${wordId(ans.w)}`,
+    skill: phonicsSkill(u.letter),
+    unit: u,
+    mode: 'start',
+    prompt: [`ph.${u.letter}.q.start`],
+    names: opts.map((o) => o.id),
+    options: opts,
+    answer: wordId(ans.w),
+    after: [`ph.${u.letter}.echo.${wordId(ans.w)}`],
   }
 }
 
-const enPic = (level: number, recent: string[]): ChoiceItem => {
-  const L = pickTarget(unlockedLetters(), (l) => `word:${l}`, recent)
-  const opts = shuffle([L, ...letterDistractors(L, optCount(level) - 1, 1)])
+/** 哪個跟 bus 開頭一樣？ */
+const phSame = (level: number, recent: string[]): PhonicsItem => {
+  const u = pickSound(unlockedSounds(), recent)
+  const stim = pick(u.keys)
+  const ans = answerWord(u, [stim.w])
+  const opts = shuffle([ans, ...distractorWords(u, optCount(level) - 1, level)]).map(pictureOpt)
   return {
-    itemId: L,
-    skill: `word:${L}`,
-    stimulus: { t: 'letter', ch: L },
-    prompt: [`en.is.${L}`, `en.findword.${L}`],
-    options: opts.map((c) => ({ id: c, v: { t: 'emoji', icon: letterEntry(c).icon } })),
-    answer: L,
-    correction: [`en.itis.${L}`],
-    teach: { visual: { t: 'letter', ch: L }, side: { t: 'emoji', icon: letterEntry(L).icon }, sideAt: 0, lines: [`teach.letterfor.${L}`, `teach.word.${L}`] },
+    itemId: `${u.letter}:${wordId(stim.w)}>${wordId(ans.w)}`,
+    skill: phonicsSkill(u.letter),
+    unit: u,
+    mode: 'same',
+    stimulus: stim,
+    prompt: [`ph.same.${wordId(stim.w)}`],
+    names: opts.map((o) => o.id),
+    options: opts,
+    answer: wordId(ans.w),
+    after: [`ph.${u.letter}.echo.${wordId(ans.w)}`],
   }
 }
 
-const enWord = (level: number, recent: string[]): ChoiceItem => {
-  const pool = unlockedLetters()
-  const L = pickTarget(pool, (l) => `word:${l}`, recent)
-  const others = LETTERS.map((l) => l.letter)
-  const opts = shuffle([L, ...sample(others, optCount(level) - 1, [L])])
+/** 聽 /b/ 找字母：熟悉（2 格以上）的音才考；都還不熟時，字母卡下面放關鍵字小圖當鷹架 */
+const phLetter = (level: number, recent: string[]): PhonicsItem => {
+  const open = unlockedSounds()
+  const known = open.filter(familiar)
+  // 熟悉的音少於兩個時，一直考同一個太單調：其他開放的音也出，但帶圖片鷹架
+  const u = pickSound(known.length >= 2 ? known : open, recent)
+  const scaffold = !familiar(u)
+  const n = optCount(level) - 1
+  const others = open.filter((x) => !sameSound(x, u))
+  const pool = others.length >= n ? others : PHONICS.filter((x) => !sameSound(x, u)).slice(0, 6)
+  const look: SoundUnit[] = []
+  if (level >= 4)
+    for (const c of LOOKALIKE_LOWER[u.letter] ?? '') {
+      const cu = PHONICS.find((x) => x.letter === c)
+      if (cu && !sameSound(cu, u) && look.length < n - 1) look.push(cu)
+    }
+  const wrong = [...look, ...sample(pool, n - look.length, [u, ...look])]
+  const opts = shuffle([u, ...wrong]).map((x): PhonicsOption => ({ id: x.letter, letter: x.letter, ...(scaffold ? { cue: x.keys[0] } : {}) }))
   return {
-    itemId: L,
-    skill: `word:${L}`,
-    prompt: [`en.findword.${L}`],
-    options: opts.map((c) => ({ id: c, v: { t: 'emoji', icon: letterEntry(c).icon } })),
-    answer: L,
-    correction: [`en.itis.${L}`],
-    after: [`en.is.${L}`],
-    teach: { visual: { t: 'emoji', icon: letterEntry(L).icon }, side: { t: 'letter', ch: L }, sideAt: 1, lines: [`teach.word.${L}`, `teach.letterfor.${L}`] },
+    itemId: u.letter,
+    skill: phonicsSkill(u.letter),
+    unit: u,
+    mode: 'letter',
+    prompt: [`en.where.sound.${u.letter}`],
+    names: [],
+    options: opts,
+    answer: u.letter,
+    after: [`ph.${u.letter}.echo.${wordId(u.keys[0].w)}`],
   }
 }
+
+export const PHONICS_MAKERS: Record<string, (level: number, recent: string[]) => PhonicsItem> = {
+  'ph-start': phStart,
+  'ph-same': phSame,
+  'ph-letter': phLetter,
+}
+
+/** 舊的字母遊戲改寫成自然發音：今天已經排好的冒險、舊紀錄裡的遊戲 id 對到新遊戲 */
+export const LEGACY_GAME: Record<string, string> = { 'en-word': 'ph-start', 'en-pic': 'ph-same', 'en-find': 'ph-letter' }
 
 // ── 數字工地 ───────────────────────────────────────────────
 const range = (a: number, b: number) => Array.from({ length: b - a + 1 }, (_, i) => a + i)
@@ -315,9 +443,9 @@ const pSize = (level: number): ChoiceItem => {
 }
 
 export const GAMES: GameDef[] = [
-  { id: 'en-find', station: 'english', kind: 'choice', title: '找字母', icon: 'glowing-star', intro: 'en.intro.find', maxLevel: 4, make: enFind },
-  { id: 'en-pic', station: 'english', kind: 'choice', title: '字母找朋友', icon: 'red-apple', intro: 'en.intro.pic', maxLevel: 3, make: enPic },
-  { id: 'en-word', station: 'english', kind: 'choice', title: '聽英文找圖', icon: 'bus', intro: 'en.intro.word', maxLevel: 3, make: enWord },
+  { id: 'ph-start', station: 'english', kind: 'phonics', title: '開頭音找圖', icon: 'bus', intro: 'ph.intro.start', maxLevel: 4 },
+  { id: 'ph-same', station: 'english', kind: 'phonics', title: '開頭一樣', icon: 'soccer-ball', intro: 'ph.intro.same', maxLevel: 4 },
+  { id: 'ph-letter', station: 'english', kind: 'phonics', title: '聽音找字母', icon: 'glowing-star', intro: 'ph.intro.letter', maxLevel: 4 },
 
   { id: 'm-count', station: 'math', kind: 'count', title: '點點數數', icon: 'egg', intro: 'm.intro.count', maxLevel: 4 },
   { id: 'm-match', station: 'math', kind: 'choice', title: '有幾個', icon: 'automobile', intro: 'm.intro.match', maxLevel: 4, make: mMatch },
@@ -354,7 +482,7 @@ export const GAMES: GameDef[] = [
   // ── 工作線 B ──
 ]
 
-export const game = (id: string) => GAMES.find((g) => g.id === id)!
+export const game = (id: string) => GAMES.find((g) => g.id === (LEGACY_GAME[id] ?? id))!
 export const gamesOf = (s: StationId) => GAMES.filter((g) => g.station === s)
 
 /** 每局題數 */

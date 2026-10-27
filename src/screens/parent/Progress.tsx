@@ -1,7 +1,7 @@
-import { LETTERS } from '../../content/letters'
+import { LETTERS, PHONICS, phonicsSkill } from '../../content/letters'
 import { VOCAB, THEME_LABEL, type VocabTheme } from '../../content/vocab'
-import { GAMES } from '../../content/games'
-import { gameLevel, level, unlockedLetters, unlockedNumbers } from '../../lib/adaptive'
+import { GAMES, unlockedSounds } from '../../content/games'
+import { gameLevel, level, unlockedNumbers } from '../../lib/adaptive'
 import { isQuiz } from '../../lib/db'
 import { pct, STATION_NAME, type ParentData } from './data'
 import { DueCard, HintCard, ProtegeCard, SpeedCard, placementDots, placementText } from './EngineCards'
@@ -32,7 +32,9 @@ function Spark({ values }: { values: number[] }) {
 
 export function Progress({ d }: { d: ParentData }) {
   const box = (k: string) => d.skills.get(k)?.box ?? 0
-  const letters = unlockedLetters()
+  const sounds = unlockedSounds()
+  // 舊版字母森林（認字母名稱、字母配圖）已熟的字母
+  const namesKnown = LETTERS.filter((l) => box(`letter:${l.letter}`) >= 3 || box(`word:${l.letter}`) >= 3).map((l) => l.letter)
   const maxN = unlockedNumbers()
   const themes = Object.keys(THEME_LABEL) as VocabTheme[]
   // 運筆進步曲線只看孩子自己畫的，不含示範
@@ -47,18 +49,24 @@ export function Progress({ d }: { d: ParentData }) {
       <DueCard d={d} />
 
       <div className="card">
-        <h3>英文字母（目前開放到 {letters[letters.length - 1]}）</h3>
+        <h3>字母音（自然發音，目前開放 {sounds.length} 個）</h3>
+        <p className="sub" style={{ margin: '0 0 10px' }}>
+          依教學順序排列（不是 A 到 Z）。熟練度看的是能不能分辨「哪個字是這個音開頭」，不是會不會念字母名稱。
+          三個遊戲（開頭音找圖、開頭一樣、聽音找字母）都算在同一個字母音上。
+        </p>
         <div className="cells">
-          {LETTERS.map((l) => (
-            <Cell key={l.letter} label={l.letter} box={Math.max(box(`letter:${l.letter}`), 0)} locked={!letters.includes(l.letter)} />
+          {PHONICS.map((u) => (
+            <Cell key={u.letter} label={`${u.letter.toUpperCase()} ${u.letter}`} box={box(phonicsSkill(u.letter))} locked={!sounds.includes(u)} />
           ))}
         </div>
-        <h3 style={{ marginTop: 18 }}>字母對應的單字</h3>
-        <div className="cells">
-          {LETTERS.map((l) => (
-            <Cell key={l.letter} label={l.letter} box={box(`word:${l.letter}`)} locked={!letters.includes(l.letter)} />
-          ))}
-        </div>
+        <p className="sub" style={{ margin: '10px 0 0' }}>
+          還沒排進課程：i、u（畫得出來的短母音開頭字太少）、z（只有 zebra、zero）、x（只在字尾）、q（之後和 u 一起教 qu）。
+        </p>
+        {namesKnown.length > 0 && (
+          <p className="sub" style={{ margin: '6px 0 0' }}>
+            舊版遊戲的紀錄：已經認得字母名稱 {namesKnown.join('、')}（保留紀錄；字母音仍會從頭教一次）。
+          </p>
+        )}
       </div>
 
       <div className="card">

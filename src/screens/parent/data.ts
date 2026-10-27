@@ -78,6 +78,7 @@ export function skillLabel(key: string): string {
     dots: (v) => `連點 ${v}`,
     glyph: (v) => `描 ${v}`,
     coloring: (v) => `著色 ${v}`,
+    phonics: (v) => `字母音 ${v}`,
   }
   return map[kind]?.(v) ?? key
 }
