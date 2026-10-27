@@ -11,6 +11,7 @@ import { todayPlan, planDone, type Plan } from '../lib/plan'
 import { station } from '../content/games'
 import { useSettings } from '../lib/settings'
 import { audioReady, onUnlock } from '../lib/boot'
+import { useInstall } from '../lib/install'
 
 let greeted = false
 
@@ -19,6 +20,7 @@ export function Home() {
   const [friends, setFriends] = useState(0)
   const [leaving, setLeaving] = useState(false)
   const settings = useSettings()
+  const install = useInstall()
 
   useEffect(() => {
     todayPlan().then(setPlan)
@@ -80,6 +82,20 @@ export function Home() {
             <Emoji name={plan.hatched ?? 'egg'} />
           </i>
         </div>
+      )}
+
+      {!install.standalone && !install.installed && (
+        // 給大人看的小字：孩子點了也沒反應，不搶眼、不動
+        <p className="install-hint">
+          <svg viewBox="0 0 16 16" aria-hidden="true">
+            <path d="M8 2.5v7M5 7l3 3 3-3M3 12.5h10" fill="none" stroke="currentColor" strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+          <span>
+            家長：可以安裝成 App，全螢幕更穩定
+            <br />
+            右上角按住 3 秒 → 設定與同步
+          </span>
+        </p>
       )}
 
       <motion.div

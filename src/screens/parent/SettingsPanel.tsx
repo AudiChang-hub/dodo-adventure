@@ -1,7 +1,8 @@
 import { updateSettings, useSettings, type Settings } from '../../lib/settings'
 import { useSync, signIn, signOut, syncNow, syncConfigured } from '../../lib/sync'
 import { setVolume } from '../../lib/audio'
-import { isStandalone } from '../../lib/lock'
+import { useInstall, promptInstall } from '../../lib/install'
+import { useUpdateStatus, checkForUpdate, APP_VERSION, BUILD_TIME, type UpdateStatus } from '../../lib/update'
 import { minutesUsedToday } from '../../lib/session'
 import { THEME_LABEL } from '../../content/vocab'
 import { CHILD_EN, CHILD_ZH } from '../../lib/env'
@@ -12,6 +13,52 @@ function Field({ label, hint, children }: { label: string; hint?: string; childr
       <div>{label}</div>
       <div>{children}</div>
       {hint && <div className="hint">{hint}</div>}
+    </div>
+  )
+}
+
+const UPDATE_LABEL: Record<UpdateStatus, string> = {
+  idle: '',
+  checking: '檢查中…',
+  latest: '已經是最新版',
+  ready: '新版已下載，孩子回到首頁、地圖或收藏時會自動套用',
+  applying: '正在套用新版，畫面會重新載入…',
+  offline: '目前沒有網路，連上網路後會自動檢查',
+  error: '檢查失敗，稍後會再自動檢查',
+  unsupported: '這個瀏覽器不支援離線更新',
+}
+
+function InstallStep() {
+  const ins = useInstall()
+  if (ins.standalone) return <li>✓ 已從主畫面圖示開啟（全螢幕模式）</li>
+  if (ins.installed) return <li>✓ 已安裝。之後請從主畫面的「豆豆冒險」圖示開啟，不要用瀏覽器分頁，才會全螢幕、鎖橫向</li>
+  if (ins.canPrompt)
+    return (
+      <li>
+        安裝成 App，之後都從桌面的「豆豆冒險」圖示開啟（全螢幕、鎖橫向、可離線）
+        <div className="step-action">
+          <button className="btn primary" onClick={() => void promptInstall()}>
+            安裝成 App
+          </button>
+        </div>
+      </li>
+    )
+  return <li>用 Chrome 打開這個網址 → 右上角「⋮」選單 →「安裝應用程式」（沒有的話選「加到主畫面」→「安裝」），之後都從桌面的「豆豆冒險」圖示開啟</li>
+}
+
+function VersionCard() {
+  const st = useUpdateStatus()
+  const built = new Date(BUILD_TIME).toLocaleString('zh-TW', { dateStyle: 'medium', timeStyle: 'short', hour12: false })
+  return (
+    <div className="card">
+      <h3>App 版本</h3>
+      <p className="sub" style={{ marginTop: 0 }}>
+        目前版本 <span className="mono">{APP_VERSION}</span>（{built} 建置）。App 回到前景時和每 30 分鐘會自動檢查；有新版會在孩子不在遊戲中時自動更新，不用手動關掉重開。
+      </p>
+      <button className="btn" disabled={st === 'checking' || st === 'applying' || st === 'unsupported'} onClick={() => void checkForUpdate()}>
+        {st === 'ready' ? '立即更新' : '檢查更新'}
+      </button>
+      {UPDATE_LABEL[st] && <span className="update-status">{UPDATE_LABEL[st]}</span>}
     </div>
   )
 }
@@ -146,7 +193,7 @@ export function SettingsPanel({ onChanged }: { onChanged: () => void }) {
         <h3>鎖定平板（防止孩子跳出 App）</h3>
         <p className="sub" style={{ marginTop: 0 }}>網頁本身擋不住回到桌面的手勢，真正的鎖要用 Android 內建的「螢幕固定」。設定一次就好：</p>
         <ol className="steps">
-          <li>{isStandalone() ? '✓ 已從主畫面圖示開啟（全螢幕模式）' : '用 Chrome 打開這個網址 → 右上角選單 →「加到主畫面」/「安裝應用程式」，之後都從桌面的「豆豆冒險」圖示開啟'}</li>
+          <InstallStep />
           <li>設定 → 安全性與隱私權（或「安全性」）→ 更多安全性設定 →「應用程式固定」/「螢幕固定」→ 開啟</li>
           <li>同一頁開啟「取消固定前要求輸入 PIN」</li>
           <li>打開豆豆冒險 → 從底部往上滑叫出最近使用的應用程式 → 點 App 上方的圖示 →「固定」</li>
@@ -154,6 +201,8 @@ export function SettingsPanel({ onChanged }: { onChanged: () => void }) {
         </ol>
         <p className="sub">各家 Android 選單名稱略有不同，在設定裡搜尋「固定」最快。</p>
       </div>
+
+      <VersionCard />
     </>
   )
 }
