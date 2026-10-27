@@ -12,14 +12,14 @@
 .drive-board-area {
   position: absolute;
   left: 20cqw;
-  width: 46cqw;
+  width: 44cqw;
   top: 11cqh;
-  height: 55cqh;
+  height: 53cqh;
   display: grid;
   place-items: center;
 }
 .drive-board {
-  --cell: min(calc(55cqh / var(--rows)), calc(46cqw / var(--cols)), 20cqh);
+  --cell: min(calc(53cqh / var(--rows)), calc(44cqw / var(--cols)), 20cqh);
   position: relative;
   width: calc(var(--cell) * var(--cols));
   height: calc(var(--cell) * var(--rows));
@@ -148,14 +148,15 @@
 }
 
 /* ── 程式列 ── */
+/* 卡片與格子至少 120px（PRD §3 觸控區）：程式列放在波波右邊，不壓到他 */
 .prog-strip {
   position: absolute;
-  left: 44cqw;
-  top: 70cqh;
+  left: 45.5cqw;
+  top: 69cqh;
   translate: -50% 0;
   display: flex;
   align-items: center;
-  gap: 1.6cqh;
+  gap: 1cqh;
   padding: 1.6cqh 1.6cqh 1.6cqh 2.6cqh;
   border-radius: 999px;
   background: rgba(251, 248, 242, 0.72);
@@ -164,7 +165,7 @@
 .prog-cell {
   display: flex;
   align-items: center;
-  gap: 1.6cqh;
+  gap: 1cqh;
 }
 /* 卡片之間的小箭頭：程式從左讀到右 */
 .prog-chev {
@@ -178,7 +179,7 @@
 .prog-slot {
   --card-size: 100%;
   position: relative;
-  width: 15cqh;
+  width: 18cqh;
   aspect-ratio: 1;
   border-radius: 26%;
   border: 4px dashed rgba(46, 42, 37, 0.24);
@@ -256,15 +257,15 @@
 .dpad {
   --card-size: 100%;
   position: absolute;
-  left: 84cqw;
-  top: 41cqh;
+  left: 82.5cqw;
+  top: 39.5cqh;
   translate: -50% -50%;
-  width: 54cqh;
+  width: 58cqh;
   aspect-ratio: 1;
   display: grid;
   grid-template: repeat(3, 1fr) / repeat(3, 1fr);
-  gap: 1cqh;
-  padding: 1.2cqh;
+  gap: 0.8cqh;
+  padding: 1cqh;
   border-radius: 34%;
   background: rgba(251, 248, 242, 0.5);
 }
