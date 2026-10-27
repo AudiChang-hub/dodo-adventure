@@ -4,10 +4,12 @@ import { Shell, type GameProps } from '../Shell'
 import { Ink } from './Ink'
 import { PathTracker, samplePath } from './track'
 import { GLYPHS, GLYPH_LEVELS } from './glyphs'
-import { PenArt, easeInOut, tween } from '../Demo'
+import { HandArt, PenArt, easeInOut, tween } from '../Demo'
 import { Sparkles } from '../../ui/Sparkles'
+import './glyph.css'
 import { game as gameDef } from '../../content/games'
-import { level, markPlayed, needsDemo, plays, reportLevel, pickTarget } from '../../lib/adaptive'
+import { level, markPlayed, needsDemo, plays, reportLevel, pickTarget, skill } from '../../lib/adaptive'
+import { glyphToolHint } from '../../content/coplay'
 import { logAttempt, logTeach } from '../../lib/record'
 import { say, sfx, stopSpeech } from '../../lib/audio'
 import { praiseKey, wait } from '../lines'
@@ -17,6 +19,26 @@ const ROUNDS = 3
 const LANE = 20
 /** 一局最多示範兩個新的字 */
 const MAX_DEMO = 2
+
+/** 同一個字用手指描好幾次之後，才建議換筆（benchmark 手法 5） */
+const FINGER_GOOD = 2
+
+type Tool = 'finger' | 'pen'
+/** 這個字現在建議用什麼描：新的字先用手指，熟了才換筆。只是建議，兩種都能畫 */
+const toolFor = (g: string): Tool => (skill(`glyph:${g}`).firstTry < FINGER_GOOD ? 'finger' : 'pen')
+const toolLine = (t: Tool) => (t === 'finger' ? 'ink.finger' : 'ink.pen')
+
+/** 角落的大圖示：一直留到這個字描完，告訴孩子（和爸爸）現在建議用手指還是筆 */
+function ToolBadge({ tool, pulse }: { tool: Tool; pulse: number }) {
+  return (
+    <motion.div className="tool-badge" key={`${tool}-${pulse}`} initial={{ scale: pulse ? 1 : 0.4, opacity: pulse ? 1 : 0 }} animate={pulse ? { scale: [1, 1.18, 1], rotate: [0, -8, 6, 0], opacity: 1 } : { scale: 1, opacity: 1 }} transition={pulse ? { duration: 0.7 } : { type: 'spring', stiffness: 260, damping: 15 }} aria-hidden="true">
+      <svg viewBox={tool === 'finger' ? '-6 -2 76 92' : '-40 -92 90 100'} width="62%">
+        {tool === 'finger' ? <HandArt cuff="#BFB2DF" /> : <PenArt />}
+      </svg>
+      <span>{tool === 'finger' ? '用手指' : '用筆'}</span>
+    </motion.div>
+  )
+}
 
 const isDigit = (g: string) => /\d/.test(g)
 const nameLine = (g: string) => (isDigit(g) ? `d.glyph.num.${g}` : `en.thisis.${g}`)
@@ -31,7 +53,8 @@ function strokeStart(d: string) {
 
 /**
  * 描數字、描字母：粗跑道＋綠色起點＋箭頭，一筆一筆描。
- * 新的字（或第一次玩）先「Watch me!」：一支筆照筆順描一次，再「Your turn!」。
+ * 新的字（或第一次玩）先「Watch me!」：照筆順描一次，再「Your turn!」。
+ * 新的字建議用手指、熟了才建議換筆；每次換都有大圖示、語音與示範。兩種工具都能完成，不會卡關。
  */
 export function GlyphGame({ gameId, onDone, onExit }: GameProps) {
   const def = gameDef(gameId)
@@ -57,6 +80,12 @@ export function GlyphGame({ gameId, onDone, onExit }: GameProps) {
   const idle = useIdle()
   /** 閒置第二段提示：現在這一筆慢慢亮起來 */
   const [nudge, setNudge] = useState(false)
+  /** 現在建議的工具，與示範時用手指還是筆 */
+  const [tool, setTool] = useState<Tool>('finger')
+  const toolRef = useRef<Tool | null>(null)
+  /** 用了另一種工具時，整局最多溫和地再提示一次 */
+  const wrongNudged = useRef(false)
+  const [pulse, setPulse] = useState(0)
 
   const begin = (g: string, k: number) => {
     strokeRef.current = k
@@ -65,10 +94,10 @@ export function GlyphGame({ gameId, onDone, onExit }: GameProps) {
     setProg(0)
   }
 
-  /** 筆照筆順描一次：每一筆從綠點出發，描完換下一筆 */
-  const showMe = async (g: string) => {
+  /** 用建議的工具（手指或筆）照筆順描一次：每一筆從綠點出發，描完換下一筆 */
+  const showMe = async (g: string, isNew: boolean) => {
     const s = performance.now()
-    demos.current++
+    if (isNew) demos.current++
     setDemo(true)
     await say('teach.watch.dodo')
     for (let k = 0; k < GLYPHS[g].length; k++) {
@@ -88,7 +117,7 @@ export function GlyphGame({ gameId, onDone, onExit }: GameProps) {
     setDone(false)
     setDemo(false)
     begin(g, 0)
-    void logTeach({ station: 'draw', game: def.id, itemId: g, skill: `glyph:${g}`, level: lv.current, ms: Math.round(performance.now() - s) })
+    if (isNew) void logTeach({ station: 'draw', game: def.id, itemId: g, skill: `glyph:${g}`, level: lv.current, ms: Math.round(performance.now() - s) })
     await say('teach.turn.dodo')
   }
 
@@ -102,8 +131,16 @@ export function GlyphGame({ gameId, onDone, onExit }: GameProps) {
     setDone(false)
     devs.current = []
     begin(g, 0)
+    // 建議的工具：新的字先用手指，用手指描好兩次才換筆。每次換工具（含一局開始）都明確提示：
+    // 角落的大圖示、語音「Use your finger! / Now use the pen!」、再用那個工具示範一次
+    const t = toolFor(g)
+    const switched = toolRef.current !== t
+    toolRef.current = t
+    setTool(t)
+    setPulse(0)
     // 要示範的話，示範完才讓孩子下筆；不示範就跟以前一樣，邊聽邊可以開始描
-    const show = demos.current < MAX_DEMO && needsDemo(firstPlay.current && i === 0, `glyph:${g}`)
+    const isNew = demos.current < MAX_DEMO && needsDemo(firstPlay.current && i === 0, `glyph:${g}`)
+    const show = isNew || switched
     busy.current = show
     idle.stop()
     setNudge(false)
@@ -111,8 +148,10 @@ export function GlyphGame({ gameId, onDone, onExit }: GameProps) {
     if (i === 0) await say(def.intro, nameLine(g))
     else await say(nameLine(g))
     if (!live.current) return
+    if (switched) await say(toolLine(t))
+    if (!live.current) return
     if (show) {
-      await showMe(g)
+      await showMe(g, isNew)
       if (!live.current) return
       t0.current = performance.now()
       busy.current = false
@@ -178,8 +217,15 @@ export function GlyphGame({ gameId, onDone, onExit }: GameProps) {
     start(r + 1)
   }
 
-  const onDown = (p: { x: number; y: number }) => {
+  const onDown = (p: { x: number; y: number }, type: string) => {
     if (!tracker.current || done || busy.current) return
+    // 用了另一種工具：照樣可以畫、可以完成，只是整局最多溫和地再提示一次
+    const used: Tool = type === 'pen' ? 'pen' : 'finger'
+    if (used !== toolRef.current && !wrongNudged.current) {
+      wrongNudged.current = true
+      setPulse((n) => n + 1)
+      void say(toolLine(toolRef.current!))
+    }
     // 有畫線就重新計時
     idle.poke()
     drawing.current = tracker.current.near(p)
@@ -204,7 +250,7 @@ export function GlyphGame({ gameId, onDone, onExit }: GameProps) {
   const total = Math.max(1, samples.length - 1)
   const tip = samples[Math.min(prog, samples.length - 1)] ?? st
   return (
-    <Shell station="draw" mood="idle" progress={{ total: ROUNDS, done: r }} onExit={onExit} hideHost>
+    <Shell station="draw" mood="idle" progress={{ total: ROUNDS, done: r }} onExit={onExit} hideHost hintText={glyphToolHint(tool)}>
       <div key={`${r}-${glyph}`} style={{ position: 'absolute', inset: '0 0 4%' }}>
         <svg viewBox="0 0 100 140" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%' }} aria-hidden="true">
           {strokes.map((d, i) => (
@@ -229,7 +275,14 @@ export function GlyphGame({ gameId, onDone, onExit }: GameProps) {
           {demo && (
             <g transform={`translate(${tip.x} ${tip.y})`}>
               <motion.g initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
-                <PenArt scale={0.3} />
+                {/* 手指示範：指尖（HandArt 的 22, 6）對準路徑上的點 */}
+                {tool === 'finger' ? (
+                  <g transform="scale(0.32) translate(-22 -6)">
+                    <HandArt cuff="#BFB2DF" />
+                  </g>
+                ) : (
+                  <PenArt scale={0.3} />
+                )}
               </motion.g>
             </g>
           )}
@@ -239,6 +292,8 @@ export function GlyphGame({ gameId, onDone, onExit }: GameProps) {
             <Sparkles count={16} />
           </div>
         )}
+        {/* 建議工具的大圖示：一直留到這個字描完 */}
+        {(!done || demo) && <ToolBadge tool={tool} pulse={pulse} />}
         <Ink w={100} h={140} color="rgba(46,42,37,0.6)" size={3.2} ink={!demo} onDown={onDown} onMove={onMove} />
       </div>
     </Shell>

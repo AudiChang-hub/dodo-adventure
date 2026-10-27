@@ -1,0 +1,29 @@
+/* 描字時建議的工具：右側一個大圓章，手指或筆。孩子看圖、爸爸看下方小字 */
+.tool-badge {
+  position: absolute;
+  right: 7%;
+  top: 50%;
+  width: clamp(120px, 17vmin, 170px);
+  aspect-ratio: 1;
+  margin-top: calc(clamp(120px, 17vmin, 170px) / -2);
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  align-content: center;
+  gap: 4px;
+  background: var(--card);
+  box-shadow:
+    0 0 0 6px rgba(191, 178, 223, 0.45),
+    0 10px 0 rgba(46, 42, 37, 0.08);
+  pointer-events: none;
+}
+.tool-badge svg {
+  display: block;
+  overflow: visible;
+}
+.tool-badge span {
+  font-family: 'Huninn', sans-serif;
+  font-size: 14px;
+  letter-spacing: 0.1em;
+  color: var(--ink-faint);
+}

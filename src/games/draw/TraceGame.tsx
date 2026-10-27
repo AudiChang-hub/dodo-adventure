@@ -14,14 +14,19 @@ import { say, sfx, stopSpeech } from '../../lib/audio'
 import { praiseKey, wait } from '../lines'
 import { useIdle } from '../idle'
 
-/** 由易到難：直線 → 弧線 → 波浪 → Z 字 → 方波 → 圓 */
-const ROADS = [
+/**
+ * 照運筆的發展順序（benchmark 手法 5）：直線（由上往下）→ 橫線（由左往右）→ 弧線 → 圓 →
+ * 直角轉彎（橫線＋直線）→ 波浪 → 斜線的 Z 字路最後（只在最高難度的第三條才會出現）。
+ * home 是家的位置：直線往下開時，家放在終點下面
+ */
+const ROADS: { d: string; lane: number; home?: 'below' }[] = [
+  { d: 'M500 110 L500 420', lane: 130, home: 'below' },
   { d: 'M130 320 L870 320', lane: 130 },
   { d: 'M130 400 Q500 130 870 400', lane: 124 },
-  { d: 'M110 330 C230 150 360 150 450 320 S 680 490 780 320 S 870 220 900 230', lane: 112 },
-  { d: 'M120 440 L310 190 L500 440 L690 190 L880 440', lane: 104 },
-  { d: 'M130 470 L130 190 L500 190 L500 470 L870 470 L870 190', lane: 96 },
-  { d: 'M500 130 A175 175 0 1 1 499 130', lane: 96 },
+  { d: 'M500 130 A175 175 0 1 1 499 130', lane: 110 },
+  { d: 'M130 470 L130 190 L500 190 L500 470 L870 470 L870 190', lane: 104 },
+  { d: 'M110 330 C230 150 360 150 450 320 S 680 490 780 320 S 870 220 900 230', lane: 104 },
+  { d: 'M120 440 L310 190 L500 440 L690 190 L880 440', lane: 96 },
 ]
 
 const ROUNDS = 3
@@ -198,7 +203,7 @@ export function TraceGame({ gameId, onDone, onExit }: GameProps) {
           {nudge && !done && <path className="nudge-path" d={road.d} fill="none" stroke="#F1D27C" strokeWidth={road.lane} strokeLinecap="round" strokeLinejoin="round" />}
           <path d={road.d} fill="none" stroke="#C9E4D4" strokeWidth={road.lane} strokeLinecap="round" strokeLinejoin="round" pathLength={total} strokeDasharray={`${prog} ${total + 10}`} />
           <path d={road.d} fill="none" stroke="#FBF8F2" strokeWidth={6} strokeDasharray="22 22" strokeLinecap="round" />
-          <foreignObject x={end.x - 70} y={end.y - 150} width={140} height={140}>
+          <foreignObject x={end.x - 70} y={road.home === 'below' ? end.y + 40 : end.y - 150} width={140} height={140}>
             <motion.div animate={done ? { scale: [1, 1.25, 1], rotate: [0, -6, 6, 0] } : {}} style={{ width: '100%', height: '100%', position: 'relative' }}>
               <Emoji name="house-with-garden" />
               {done && <Sparkles count={14} />}

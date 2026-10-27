@@ -12,6 +12,7 @@ import { station } from '../content/games'
 import { useSettings } from '../lib/settings'
 import { audioReady, onUnlock } from '../lib/boot'
 import { useInstall } from '../lib/install'
+import { HomeFriends } from './HomeFriends'
 
 let greeted = false
 
@@ -106,6 +107,9 @@ export function Home() {
       >
         <Dino who="momo" mood="peek" size="100%" flip onTap={() => say('home.tapmomo')} />
       </motion.div>
+
+      {/* 今天出來玩的朋友：在車子和右下角按鈕之間的草地上慢慢走 */}
+      <HomeFriends />
 
       <motion.div
         style={{ position: 'absolute', left: '8vw', bottom: '10vh', width: '52vmin', zIndex: 2 }}

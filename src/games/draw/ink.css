@@ -1,0 +1,24 @@
+/* 被忽略的手指觸碰（筆正在用）：觸碰處淡淡浮出一支筆，再慢慢消失 */
+.ink-ghost {
+  position: absolute;
+  width: 54px;
+  height: 68px;
+  margin: -62px 0 0 -14px;
+  overflow: visible;
+  pointer-events: none;
+  animation: ink-ghost 0.9s var(--ease-out) both;
+}
+@keyframes ink-ghost {
+  0% {
+    opacity: 0;
+    transform: translateY(8px) scale(0.8);
+  }
+  25% {
+    opacity: 0.55;
+    transform: none;
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+}

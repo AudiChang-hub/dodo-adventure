@@ -1,4 +1,6 @@
-import { forwardRef, useEffect, useImperativeHandle, useRef } from 'react'
+import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 'react'
+import { PenArt } from '../Demo'
+import './ink.css'
 import { getStroke } from 'perfect-freehand'
 
 export interface Pt {
@@ -27,13 +29,29 @@ interface Props {
   size?: number
   /** false 時只回報座標、不留下筆跡 */
   ink?: boolean
-  onDown?: (p: Pt) => void
+  /** 第二個參數是 pointerType（'pen' | 'touch' | 'mouse'），遊戲可以用來判斷孩子用的是手指還是筆 */
+  onDown?: (p: Pt, type: string) => void
   onMove?: (p: Pt) => void
   onUp?: () => void
 }
 
-// 一旦看過觸控筆，就忽略手指與手掌，避免孩子手靠在螢幕上亂畫
-let penSeen = false
+// 防手掌誤觸：只有在筆正在接觸螢幕或懸停、以及筆離開後約 1 秒內，才忽略手指與手掌。
+// 其他時候手指都能畫（以前看過一次筆就永遠忽略手指，大人也會以為壞掉）
+const PALM_MS = 1000
+let penDown = false
+let penAt = -Infinity
+const notePen = (e: PointerEvent) => {
+  if (e.pointerType !== 'pen') return
+  penAt = performance.now()
+  if (e.type === 'pointerdown') penDown = true
+  else if (e.type === 'pointerup' || e.type === 'pointercancel') penDown = false
+}
+if (typeof window !== 'undefined')
+  for (const t of ['pointerdown', 'pointermove', 'pointerup', 'pointercancel', 'pointerover', 'pointerleave', 'pointerrawupdate'])
+    window.addEventListener(t, notePen as EventListener, { capture: true, passive: true })
+
+/** 筆現在在附近嗎（接觸、懸停，或剛離開不到 1 秒） */
+export const penNearby = () => penDown || performance.now() - penAt < PALM_MS
 
 function toPath(outline: number[][]): Path2D {
   const p = new Path2D()
@@ -56,6 +74,10 @@ export const Ink = forwardRef<InkHandle, Props>(function Ink({ w, h, color = '#2
   const active = useRef<number | null>(null)
   const isPen = useRef(false)
   const geo = useRef({ scale: 1, ox: 0, oy: 0, dpr: 1 })
+  /** 被忽略的觸碰：在那裡淡淡地出現一支筆，讓人知道「筆在用，手先拿開」，不會毫無反應 */
+  const [ghost, setGhost] = useState<{ x: number; y: number; n: number } | null>(null)
+  const ghostTimer = useRef(0)
+  useEffect(() => () => clearTimeout(ghostTimer.current), [])
   const props = useRef({ color, size, ink, onDown, onMove, onUp })
   props.current = { color, size, ink, onDown, onMove, onUp }
 
@@ -142,8 +164,19 @@ export const Ink = forwardRef<InkHandle, Props>(function Ink({ w, h, color = '#2
   }
 
   const down = (e: React.PointerEvent) => {
-    if (e.pointerType === 'pen') penSeen = true
-    if (penSeen && e.pointerType === 'touch') return
+    if (e.pointerType === 'touch' && penNearby() && active.current === null) {
+      const r = live.current!.getBoundingClientRect()
+      setGhost((g) => ({ x: e.clientX - r.left, y: e.clientY - r.top, n: (g?.n ?? 0) + 1 }))
+      clearTimeout(ghostTimer.current)
+      ghostTimer.current = window.setTimeout(() => setGhost(null), 900)
+      return
+    }
+    // 手掌先碰到、筆才下來：筆優先，丟掉手掌那一筆（還沒留下筆跡）
+    if (active.current !== null && e.pointerType === 'pen' && !isPen.current) {
+      active.current = null
+      cur.current = null
+      clearCanvas(live.current)
+    }
     if (active.current !== null) return
     active.current = e.pointerId
     isPen.current = e.pointerType === 'pen'
@@ -155,7 +188,7 @@ export const Ink = forwardRef<InkHandle, Props>(function Ink({ w, h, color = '#2
     const p = toPt(e)
     cur.current = { color: props.current.color, size: props.current.size, pts: [p] }
     redrawLive()
-    props.current.onDown?.(p)
+    props.current.onDown?.(p, e.pointerType)
   }
 
   const move = (e: React.PointerEvent) => {
@@ -186,6 +219,11 @@ export const Ink = forwardRef<InkHandle, Props>(function Ink({ w, h, color = '#2
     <>
       <canvas ref={base} style={{ ...style, pointerEvents: 'none' }} />
       <canvas ref={live} style={{ ...style, touchAction: 'none' }} onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerCancel={up} />
+      {ghost && (
+        <svg key={ghost.n} className="ink-ghost" style={{ left: ghost.x, top: ghost.y }} viewBox="-20 -90 80 100" aria-hidden="true">
+          <PenArt scale={0.9} />
+        </svg>
+      )}
     </>
   )
 })

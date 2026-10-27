@@ -6,23 +6,40 @@ import { Emoji } from '../art/Emoji'
 import { Scenery } from '../ui/Scenery'
 import { Sparkles } from '../ui/Sparkles'
 import { PlayGame } from '../games/PlayGame'
+import { PlayingGame } from '../games/Shell'
+import { DadTurn } from '../games/DadTurn'
 import { station as stationDef } from '../content/games'
+import { STORY_EGG_COUNT } from '../content/lines-friends'
+import { hasLine } from '../content/lines'
 import { go } from '../lib/nav'
 import { say, sfx, stopSpeech } from '../lib/audio'
+import { getKV, setKV, today } from '../lib/db'
 import { todayPlan, savePlan, planDone, hatchFriend, type Plan } from '../lib/plan'
-import { noteActivity, isBreakDue } from '../lib/session'
+import { noteActivity, isBreakDue, holdBedtime, bedtimeIfDue } from '../lib/session'
 import { EyeBreak } from '../ui/EyeBreak'
 import { wait } from '../games/lines'
+import { RouteMap, RouteStrip } from './Route'
 
-type Phase = 'travel' | 'play' | 'egg' | 'hatch' | 'finish' | 'rest'
+type Phase = 'route' | 'travel' | 'play' | 'coplay' | 'egg' | 'hatch' | 'finish' | 'rest'
 
-/** 今日冒險：轉場 → 遊戲 → 蛋裂開一點 → 下一站…最後孵出新朋友 */
+/** 開局的路線至少展示這麼久（毫秒），讓孩子看得到「今天有 4 站」 */
+const ROUTE_MS = 3000
+/** 爸爸回合：一天最多幾次、每站結束後出現的機率（第一站是暖身，不出現） */
+const COPLAY_PER_DAY = 1
+const COPLAY_CHANCE = 0.5
+
+/**
+ * 今日冒險：今天的路線 → 轉場 → 遊戲 →（偶爾）換爸爸問 → 蛋裂開一點 → 下一站…最後孵出新朋友。
+ * 每日時間到了不在題目中途結束，而是在兩站之間（蛋裂開之後）才去睡覺。
+ */
 export function Adventure() {
   const [plan, setPlan] = useState<Plan | null>(null)
-  const [phase, setPhase] = useState<Phase>('travel')
+  const [phase, setPhase] = useState<Phase>('route')
   const [taps, setTaps] = useState(0)
   const [friend, setFriend] = useState<string | null>(null)
   const live = useRef(true)
+  /** 爸爸回合是哪一站之後（站的 index），結束後接回蛋裂開 */
+  const [coplayAt, setCoplayAt] = useState(-1)
 
   const cur = plan?.items.findIndex((i) => !i.done) ?? -1
   const item = plan && cur >= 0 ? plan.items[cur] : null
@@ -39,6 +56,39 @@ export function Adventure() {
       stopSpeech()
     }
   }, [])
+
+  // 冒險在畫面上就先擋住「時間到」：由冒險自己在兩站之間檢查。
+  // 收尾畫面（finish）說完那句話才放開，之後一般的計時就會送去睡覺
+  useEffect(() => {
+    const release = holdBedtime()
+    if (phase !== 'finish') return release
+    let cancelled = false
+    void say('adv.done').then(() => !cancelled && release())
+    return () => {
+      cancelled = true
+      release()
+    }
+  }, [phase])
+
+  // 開局：先看今天的路線（約 3 秒），說「今天有四站」，再出發
+  useEffect(() => {
+    if (phase !== 'route' || !plan || planDone(plan)) return
+    let cancelled = false
+    ;(async () => {
+      const t = performance.now()
+      await wait(500)
+      if (cancelled) return
+      const n = plan.items.length
+      const k = `route.stops.${n}`
+      await say(...(doneCount === 0 && hasLine(k) ? [k] : []), 'adv.go')
+      await wait(Math.max(0, ROUTE_MS - (performance.now() - t)))
+      if (!cancelled && live.current) setPhase('travel')
+    })()
+    return () => {
+      cancelled = true
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [phase, plan])
 
   // 轉場：主持的恐龍開車進場、報站名，說完自動開始
   useEffect(() => {
@@ -59,22 +109,47 @@ export function Adventure() {
 
   useEffect(() => {
     if (phase === 'hatch') void say('egg.ready')
-    if (phase === 'finish') void say('adv.done')
   }, [phase])
+
+  /** 這一站之後要不要換爸爸問：第一站是暖身，之後一天最多一次、偶爾出現 */
+  const wantCoplay = async (index: number) => {
+    if (index === 0) return false
+    const key = `coplay:${today()}`
+    const n = await getKV<number>(key, 0)
+    if (n >= COPLAY_PER_DAY || Math.random() >= COPLAY_CHANCE) return false
+    await setKV(key, n + 1)
+    return true
+  }
 
   const onGameDone = async () => {
     if (!plan || !item) return
-    const next = { ...plan, items: plan.items.map((it, i) => (i === cur ? { ...it, done: true } : it)) }
+    const index = cur
+    const next = { ...plan, items: plan.items.map((it, i) => (i === index ? { ...it, done: true } : it)) }
     noteActivity(item.game, item.station, true)
     await savePlan(next)
+    if (await wantCoplay(index)) {
+      setCoplayAt(index)
+      setPlan(next)
+      setPhase('coplay')
+      return
+    }
     setPlan(next)
+    void afterGame(next)
+  }
+
+  /** 一站結束：蛋在車上晃一下、多一道裂痕（旅程的劇情，不是付款），再決定下一步 */
+  const afterGame = async (next: Plan) => {
     setPhase('egg')
     await wait(500)
     sfx.crack()
-    await say('egg.crack')
+    const done = next.items.filter((i) => i.done).length
+    await say(`story.egg.${(done - 1 + STORY_EGG_COUNT) % STORY_EGG_COUNT}`)
     await wait(500)
     if (!live.current) return
-    setPhase(planDone(next) ? 'hatch' : isBreakDue() ? 'rest' : 'travel')
+    // 全部走完就孵蛋（故事的結尾一定讓它說完）；時間到了就在兩站之間去睡覺
+    if (planDone(next)) return setPhase('hatch')
+    if (bedtimeIfDue()) return
+    setPhase(isBreakDue() ? 'rest' : 'travel')
   }
 
   const tapEgg = async () => {
@@ -89,8 +164,9 @@ export function Adventure() {
     setPlan(next)
     setFriend(id)
     sfx.hatch()
-    await say('egg.hatch')
-    await wait(1200)
+    // 新朋友一出來就自我介紹：I'm a fox!
+    await say('egg.hatch', ...[`friend.name.${id}`, `friend.sound.${id}`].filter(hasLine))
+    await wait(900)
     if (live.current) setPhase('finish')
   }
 
@@ -101,17 +177,42 @@ export function Adventure() {
 
   if (!plan) return <div className="screen" />
 
-  if (phase === 'rest') return <EyeBreak onDone={() => setPhase('travel')} />
+  if (phase === 'rest')
+    return (
+      <EyeBreak
+        onDone={() => {
+          if (!bedtimeIfDue()) setPhase('travel')
+        }}
+      />
+    )
 
-  if (phase === 'play' && item) return <PlayGame gameId={item.game} onDone={onGameDone} onExit={exit} />
+  if (phase === 'play' && item)
+    return (
+      <PlayingGame.Provider value={item.game}>
+        <PlayGame gameId={item.game} onDone={onGameDone} onExit={exit} />
+      </PlayingGame.Provider>
+    )
+
+  if (phase === 'coplay' && coplayAt >= 0) {
+    const it = plan.items[coplayAt]
+    return <DadTurn gameId={it.game} station={it.station} onDone={() => void afterGame(plan)} onExit={() => go({ name: 'home' })} />
+  }
 
   const st = item ? stationDef(item.station) : null
   return (
-    <div className="screen travel" style={{ background: st?.tint ?? 'var(--paper)', transition: 'background .6s' } as CSSProperties}>
-      <Scenery station="home" />
+    <div className="screen travel" style={{ background: phase === 'route' ? 'var(--paper)' : (st?.tint ?? 'var(--paper)'), transition: 'background .6s' } as CSSProperties}>
+      {/* 路線圖自己就是一條路，不再疊首頁的地面 */}
+      {phase !== 'route' && <Scenery station="home" />}
       <AnimatePresence mode="wait">
+        {phase === 'route' && (
+          <motion.div key="route" className="screen" exit={{ opacity: 0, transition: { duration: 0.3 } }}>
+            <RouteMap plan={plan} />
+          </motion.div>
+        )}
+
         {phase === 'travel' && st && item && (
           <motion.div key={`t${cur}`} className="screen" exit={{ opacity: 0 }}>
+            <RouteStrip plan={plan} />
             <motion.div className="travel-badge" initial={{ scale: 0, rotate: -30 }} animate={{ scale: 1, rotate: 0 }} transition={{ type: 'spring', stiffness: 220, damping: 14, delay: 0.3 }}>
               <Emoji name={st.icon} />
             </motion.div>
