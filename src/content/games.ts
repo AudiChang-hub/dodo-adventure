@@ -45,7 +45,10 @@ export interface TeachSpec {
   short?: string[]
 }
 
-export type GameKind = 'choice' | 'count' | 'order' | 'trace' | 'dots' | 'coloring' | 'free' | 'glyph'
+export type GameKind =
+  | 'choice' | 'count' | 'order' | 'trace' | 'dots' | 'coloring' | 'free' | 'glyph'
+  // 工作線 B：學習單題型
+  | 'findall' | 'lasso' | 'fill' | 'give' | 'subitize'
 
 export interface GameDef {
   id: string
@@ -335,6 +338,16 @@ export const GAMES: GameDef[] = [
   { id: 'p-color', station: 'park', kind: 'choice', title: '找顏色', icon: 'balloon', intro: 'p.intro.color', maxLevel: 4, make: pColor },
   { id: 'p-shape', station: 'park', kind: 'choice', title: '找形狀', icon: 'glowing-star', intro: 'p.intro.shape', maxLevel: 4, make: pShape },
   { id: 'p-size', station: 'park', kind: 'choice', title: '比大小', icon: 'elephant', intro: 'p.intro.size', maxLevel: 3, make: pSize },
+
+  // ── 工作線 B ── 學習單題型（題目產生器在 games-worksheet.ts）
+  { id: 'm-fill', station: 'math', kind: 'fill', title: '塗格子', icon: 'lady-beetle', intro: 'ws.intro.fill', maxLevel: 4 },
+  { id: 'm-give', station: 'math', kind: 'give', title: '給波波蛋', icon: 'basket', intro: 'ws.intro.give', maxLevel: 4 },
+  { id: 'm-flash', station: 'math', kind: 'subitize', title: '一眼看幾個', icon: 'game-die', intro: 'ws.intro.flash', maxLevel: 4 },
+  { id: 'p-findall', station: 'park', kind: 'findall', title: '找出全部', icon: 'red-apple', intro: 'ws.intro.findall', maxLevel: 4 },
+  { id: 'p-lasso', station: 'park', kind: 'lasso', title: '圈圈看', icon: 'crayon', intro: 'ws.intro.lasso', maxLevel: 4 },
+  { id: 'p-solid', station: 'park', kind: 'findall', title: '立體形狀', icon: 'package', intro: 'ws.intro.solid', maxLevel: 4 },
+  { id: 'z-use', station: 'mandarin', kind: 'findall', title: '做什麼用', icon: 'umbrella', intro: 'ws.intro.use', maxLevel: 4 },
+  // ── 工作線 B ──
 ]
 
 export const game = (id: string) => GAMES.find((g) => g.id === id)!

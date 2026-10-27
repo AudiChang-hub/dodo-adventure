@@ -47,3 +47,46 @@ export const FRIENDS = [
   'rabbit-face', 'lion', 'tiger-face', 'elephant', 'giraffe', 'zebra', 'hedgehog', 'dolphin', 'octopus', 'crab',
   'racing-car', 'fire-engine', 'locomotive', 'helicopter', 'rocket', 'tractor', 'sailboat', 'police-car', 'bus', 'ambulance',
 ]
+
+// ── 工作線 B：學習單題型 ───────────────────────────────────────
+/** 立體形狀（找出全部、找立體形狀）：用 src/art/Solid.tsx 畫成有明暗面的立體圖 */
+export const SOLIDS = [
+  { id: 'cube', en: 'cube', zh: '正方體' },
+  { id: 'sphere', en: 'sphere', zh: '球體' },
+  { id: 'cylinder', en: 'cylinder', zh: '圓柱' },
+  { id: 'cone', en: 'cone', zh: '圓錐' },
+  { id: 'prism', en: 'prism', zh: '三角柱' },
+] as const
+
+export type SolidId = (typeof SOLIDS)[number]['id']
+
+/** 立體形狀教學卡的第二句：連到孩子看過的東西 */
+export const SOLID_LIKE: Record<SolidId, string> = {
+  cube: 'Like a | block!',
+  sphere: 'Round, like a | ball!',
+  cylinder: 'Like a | can!',
+  cone: 'Like an ice cream | cone!',
+  prism: 'Like a | tent!',
+}
+
+/** 立體形狀容易混淆的對象：高難度時優先當干擾（正方體 vs 三角柱，就是學習單的原題） */
+export const SOLID_LOOKALIKE: Record<SolidId, SolidId[]> = {
+  cube: ['prism', 'cylinder'],
+  sphere: ['cylinder', 'cone'],
+  cylinder: ['cube', 'sphere'],
+  cone: ['prism', 'cylinder'],
+  prism: ['cube', 'cone'],
+}
+
+/** 氣球的造型：「找出全部」的顏色題用（同色、不同形，包含熊形氣球） */
+export const BALLOON_KINDS = ['round', 'heart', 'star', 'bear'] as const
+export type BalloonKind = (typeof BALLOON_KINDS)[number]
+
+/** 學習單題型用到、但不在詞彙表裡的圖示（scripts/build-emoji.ts 會一起打包） */
+export const SHEET_ICONS = [
+  'green-apple', 'tomato', 'peach', 'tangerine', 'cherries', 'lemon',
+  'soccer-ball', 'basketball', 'baseball', 'tennis',
+  'baby-chick', 'front-facing-baby-chick', 'hatching-chick', 'hamster',
+  'lady-beetle', 'beetle', 'ant', 'snail',
+  'racing-car', 'game-die', 'package', 'basket', 'leaf-fluttering-in-wind',
+]

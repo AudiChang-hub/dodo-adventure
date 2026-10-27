@@ -4,6 +4,7 @@ import { VOCAB, TAG_QUESTION, type Tag } from './vocab'
 import { COLORS, SHAPES } from './park'
 
 import { def, type Speaker } from './registry'
+import './lines-worksheet'
 
 export { def, line, hasLine, allLines, segments, type Speaker, type Line, type Segment } from './registry'
 

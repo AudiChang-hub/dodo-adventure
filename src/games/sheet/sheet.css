@@ -1,0 +1,131 @@
+/* ── 學習單題型（工作線 B）────────────────────────────────────
+   一張放在桌上的學習單：暖白紙、淡淡的格線、蠟筆圈。物件撒在紙上，不放在卡片裡，比較像紙本。 */
+
+/* 舞台中可用的區域：上方留給字幕、左下角留給主持的恐龍 */
+.sheet-area {
+  position: absolute;
+  inset: 9% 2.5% 3% 15%;
+  container-type: size;
+  display: grid;
+  place-items: center;
+}
+/* 學習單本身固定 5:3，和筆跡座標 1000×600 一致（圈選時不會偏） */
+.sheet-board {
+  position: relative;
+  width: min(100cqw, 166.67cqh);
+  aspect-ratio: 5 / 3;
+  border-radius: 40px;
+  background:
+    radial-gradient(circle at 1px 1px, rgba(46, 42, 37, 0.07) 1.4px, transparent 1.6px) 0 0 / 34px 34px,
+    var(--card);
+  box-shadow:
+    0 10px 0 rgba(46, 42, 37, 0.07),
+    0 34px 60px -38px rgba(46, 42, 37, 0.45);
+  container-type: size;
+}
+.sheet-board::before {
+  content: '';
+  position: absolute;
+  inset: 14px;
+  border-radius: 28px;
+  border: 3px dashed rgba(46, 42, 37, 0.07);
+  pointer-events: none;
+}
+.sheet-svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  pointer-events: none;
+}
+
+.sheet-thing {
+  position: absolute;
+  aspect-ratio: 1;
+  translate: -50% -50%;
+  display: grid;
+  place-items: center;
+  touch-action: manipulation;
+}
+.sheet-thing > .art {
+  width: 100%;
+  height: 100%;
+  filter: drop-shadow(0 5px 0 rgba(46, 42, 37, 0.07));
+  transition: filter 0.4s var(--ease-out);
+}
+.sheet-thing.dim > .art {
+  filter: saturate(0.4);
+}
+/* 一起練：答案底下一圈暖黃的光，慢慢呼吸 */
+.sheet-glow {
+  position: absolute;
+  inset: -16%;
+  border-radius: 50%;
+  background: radial-gradient(closest-side, rgba(241, 210, 124, 0.9), rgba(241, 210, 124, 0.4) 60%, rgba(241, 210, 124, 0));
+  z-index: -1;
+  pointer-events: none;
+  animation: sheet-breathe 1.8s ease-in-out infinite;
+}
+@keyframes sheet-breathe {
+  50% {
+    transform: scale(1.1);
+    opacity: 0.65;
+  }
+}
+/* ── 完成鍵（塗格子、給蛋）：大大的綠色勾勾，不需要文字 ─────────── */
+.sheet-done {
+  position: absolute;
+  width: 15cqmin;
+  aspect-ratio: 1;
+  border-radius: 50%;
+  background: #6fae86;
+  box-shadow: 0 8px 0 #4e8a64;
+  display: grid;
+  place-items: center;
+  translate: -50% -50%;
+  z-index: 3;
+}
+.sheet-done.glow::after {
+  content: '';
+  position: absolute;
+  inset: -12px;
+  border-radius: 50%;
+  border: 6px solid var(--hint);
+  animation:
+    hint-in 1.6s var(--ease-out) both,
+    hint-pulse 2.4s ease-in-out 1.6s infinite;
+}
+.sheet-done:disabled {
+  cursor: default;
+}
+
+/* ── 給波波蛋 ─────────────────────────────────────────────── */
+.give-egg {
+  position: absolute;
+  aspect-ratio: 5 / 6;
+  translate: -50% -50%;
+  touch-action: none;
+  z-index: 2;
+}
+.give-egg.dragging {
+  z-index: 6;
+  filter: drop-shadow(0 14px 10px rgba(46, 42, 37, 0.22));
+}
+
+/* ── 一眼看出幾個 ─────────────────────────────────────────── */
+.flash-card {
+  position: absolute;
+  left: 57%;
+  top: 6%;
+  height: 50%;
+  aspect-ratio: 1;
+  translate: -50% 0;
+  border-radius: 40px;
+  background: var(--card);
+  box-shadow:
+    0 10px 0 rgba(46, 42, 37, 0.08),
+    0 30px 50px -30px rgba(46, 42, 37, 0.45);
+  overflow: hidden;
+  touch-action: manipulation;
+}

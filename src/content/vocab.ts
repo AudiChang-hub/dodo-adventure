@@ -1,4 +1,7 @@
-export type VocabTheme = 'animal' | 'vehicle' | 'dino' | 'food'
+export type VocabTheme = 'animal' | 'vehicle' | 'dino' | 'food' | 'home'
+
+/** 功能分類（學習單題型）：下雨天、洗澡、睡覺、吃的、穿的 */
+export type UseTag = 'rain' | 'bath' | 'bed' | 'eat' | 'wear'
 
 export interface VocabEntry {
   id: string
@@ -9,6 +12,8 @@ export interface VocabEntry {
   /** 英文的叫聲或引擎聲，用在「聽聲音猜猜看」 */
   sound?: string
   tags: Tag[]
+  /** 功能分類；食物不用另外標，會沿用 tags 的 eat */
+  uses?: UseTag[]
 }
 
 /** 「聽指令找圖」的分類題 */
@@ -64,6 +69,23 @@ export const VOCAB: VocabEntry[] = [
   { id: 'strawberry', en: 'strawberry', zh: '草莓', icon: 'strawberry', theme: 'food', tags: ['eat'] },
   { id: 'watermelon', en: 'watermelon', zh: '西瓜', icon: 'watermelon', theme: 'food', tags: ['eat'] },
   { id: 'carrot', en: 'carrot', zh: '紅蘿蔔', icon: 'carrot', theme: 'food', tags: ['eat'] },
+  { id: 'cookie', en: 'cookie', zh: '餅乾', icon: 'cookie', theme: 'food', tags: ['eat'] },
+
+  // ── 生活用品（功能分類用；en 一律用單數，教學句會念「This is a …」）──
+  { id: 'umbrella', en: 'umbrella', zh: '雨傘', icon: 'umbrella', theme: 'home', tags: [], uses: ['rain'] },
+  { id: 'raincoat', en: 'raincoat', zh: '雨衣', icon: 'coat', theme: 'home', tags: [], uses: ['rain', 'wear'] },
+  { id: 'boot', en: 'boot', zh: '雨靴', icon: 'hiking-boot', theme: 'home', tags: [], uses: ['rain', 'wear'] },
+  { id: 'bathtub', en: 'bathtub', zh: '浴缸', icon: 'bathtub', theme: 'home', tags: [], uses: ['bath'] },
+  { id: 'sponge', en: 'sponge', zh: '海綿', icon: 'sponge', theme: 'home', tags: [], uses: ['bath'] },
+  { id: 'shower', en: 'shower', zh: '蓮蓬頭', icon: 'shower', theme: 'home', tags: [], uses: ['bath'] },
+  { id: 'bed', en: 'bed', zh: '床', icon: 'bed', theme: 'home', tags: [], uses: ['bed'] },
+  { id: 'teddy', en: 'teddy bear', zh: '泰迪熊', icon: 'teddy-bear', theme: 'home', tags: [], uses: ['bed'] },
+  { id: 'toothbrush', en: 'toothbrush', zh: '牙刷', icon: 'toothbrush', theme: 'home', tags: [], uses: ['bed'] },
+  { id: 'tshirt', en: 'T-shirt', zh: 'T 恤', icon: 't-shirt', theme: 'home', tags: [], uses: ['wear'] },
+  { id: 'cap', en: 'cap', zh: '帽子', icon: 'billed-cap', theme: 'home', tags: [], uses: ['wear'] },
+  { id: 'dress', en: 'dress', zh: '洋裝', icon: 'dress', theme: 'home', tags: [], uses: ['wear'] },
+  { id: 'scarf', en: 'scarf', zh: '圍巾', icon: 'scarf', theme: 'home', tags: [], uses: ['wear'] },
+  { id: 'shoe', en: 'shoe', zh: '鞋子', icon: 'running-shoe', theme: 'home', tags: [], uses: ['wear'] },
 ]
 
 export const TAG_QUESTION: Record<Tag, string> = {
@@ -79,6 +101,7 @@ export const THEME_LABEL: Record<VocabTheme, string> = {
   vehicle: '交通工具',
   dino: '恐龍',
   food: '水果蔬菜',
+  home: '生活用品',
 }
 
 export const vocab = (id: string) => VOCAB.find((v) => v.id === id)!
@@ -86,10 +109,35 @@ export const vocab = (id: string) => VOCAB.find((v) => v.id === id)!
 /** 分類題中容易讓孩子混淆的項目：不出成答案，也不出成干擾選項 */
 export const AMBIGUOUS: Record<Tag, string[]> = {
   fly: ['duck', 'chicken', 'dragon'],
-  water: ['duck', 'frog', 'turtle', 'elephant'],
+  // 浴缸、海綿、雨具都和水有關，「哪個在水裡」不能拿它們當干擾
+  water: ['duck', 'frog', 'turtle', 'elephant', 'bathtub', 'sponge', 'shower', 'umbrella', 'raincoat', 'boot'],
   wheels: ['plane'],
-  legs4: ['frog', 'turtle', 'mouse', 'dragon', 'sauropod'],
+  // 床和泰迪熊也有四隻腳
+  legs4: ['frog', 'turtle', 'mouse', 'dragon', 'sauropod', 'bed', 'teddy'],
   eat: [],
+}
+
+// ── 功能分類（學習單題型「找出全部」）────────────────────────
+export const usesOf = (v: VocabEntry): UseTag[] => [...(v.uses ?? []), ...(v.tags.includes('eat') && !v.uses?.includes('eat') ? (['eat'] as UseTag[]) : [])]
+
+export const USE_TAGS: UseTag[] = ['rain', 'eat', 'wear', 'bath', 'bed']
+
+/** 不出成干擾的項目：下雨天也會穿 T 恤、鞋子；洗澡前後也會刷牙；魚和雞也能吃 */
+export const USE_AMBIGUOUS: Record<UseTag, string[]> = {
+  rain: ['tshirt', 'cap', 'dress', 'scarf', 'shoe', 'duck', 'frog', 'fish', 'boat', 'whale', 'turtle'],
+  bath: ['toothbrush', 'duck', 'fish', 'frog', 'boat', 'whale', 'turtle'],
+  bed: ['owl', 'panda', 'cat', 'dog'],
+  eat: ['fish', 'chicken', 'duck', 'cow', 'pig', 'sheep'],
+  wear: ['umbrella'],
+}
+
+/** 功能分類的教學卡：先看兩個例子 */
+export const USE_EXAMPLES: Record<UseTag, [string, string]> = {
+  rain: ['umbrella', 'boot'],
+  bath: ['bathtub', 'sponge'],
+  bed: ['bed', 'teddy'],
+  eat: ['apple', 'cookie'],
+  wear: ['tshirt', 'cap'],
 }
 
 /** 分類題的教學卡：先看兩個例子（Birds can fly. Airplanes can fly, too!） */
