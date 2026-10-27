@@ -192,14 +192,31 @@ async function playLine(key: string, l: Line, my: number) {
     if (i > 0) await new Promise((r) => setTimeout(r, SEGMENT_GAP_MS))
     if (my !== token) return
     const buf = bufs[i]!
-    await playBuffer(buf, l.speaker, (at) =>
-      emit({ type: 'seg', key, line: l, seg: i, at, dur: buf.duration, words: times[names[i]] ?? null }),
-    )
+    const words = times[names[i]] ?? null
+    const dur = audibleDuration(buf, words)
+    await playBuffer(buf, l.speaker, dur, (at) => emit({ type: 'seg', key, line: l, seg: i, at, dur, words }))
   }
   if (my === token) emit({ type: 'end', key })
 }
 
-function playBuffer(buf: AudioBuffer, speaker: Speaker, onStart: (at: number) => void) {
+/** Edge TTS 的音檔結尾約有 1.1 秒靜音，會讓「目標字前停 0.1 秒」變成停一秒多，也拖長教學卡 */
+const TAIL_PAD_S = 0.08
+const trimCache = new WeakMap<AudioBuffer, number>()
+
+/** 實際有聲音的長度：有逐字時間就用最後一個字的結束點，沒有就掃描波形 */
+function audibleDuration(buf: AudioBuffer, words: WordTiming[] | null): number {
+  if (words?.length) return Math.min(buf.duration, words[words.length - 1][1] / 1000 + TAIL_PAD_S)
+  const cached = trimCache.get(buf)
+  if (cached !== undefined) return cached
+  const data = buf.getChannelData(0)
+  let last = data.length - 1
+  while (last > 0 && Math.abs(data[last]) < 0.01) last--
+  const dur = Math.min(buf.duration, last / buf.sampleRate + TAIL_PAD_S)
+  trimCache.set(buf, dur)
+  return dur
+}
+
+function playBuffer(buf: AudioBuffer, speaker: Speaker, dur: number, onStart: (at: number) => void) {
   const c = ensure()
   return new Promise<void>((resolve) => {
     const src = c.createBufferSource()
@@ -222,7 +239,7 @@ function playBuffer(buf: AudioBuffer, speaker: Speaker, onStart: (at: number) =>
     current = { stop }
     startLevel(speaker, false)
     const at = c.currentTime
-    src.start(at)
+    src.start(at, 0, dur)
     onStart(at)
   })
 }
