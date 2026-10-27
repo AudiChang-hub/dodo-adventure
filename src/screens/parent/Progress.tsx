@@ -1,6 +1,7 @@
 import { LETTERS, PHONICS, phonicsSkill } from '../../content/letters'
 import { VOCAB, THEME_LABEL, type VocabTheme } from '../../content/vocab'
 import { GAMES, unlockedSounds } from '../../content/games'
+import { DIRS, DIR_ZH, PATTERN_ZH, STORIES, seqSkill, type PatternKind } from '../../content/code'
 import { gameLevel, level, unlockedNumbers } from '../../lib/adaptive'
 import { isQuiz } from '../../lib/db'
 import { pct, STATION_NAME, type ParentData } from './data'
@@ -40,6 +41,8 @@ export function Progress({ d }: { d: ParentData }) {
   // 運筆進步曲線只看孩子自己畫的，不含示範
   const trace = d.attempts.filter((a) => a.game === 'd-trace' && isQuiz(a) && a.metrics).reverse().map((a) => a.metrics!.offRatio ?? 0)
   const glyphs = [...new Set(d.attempts.filter((a) => a.game === 'd-glyph' && isQuiz(a)).map((a) => a.itemId))]
+  // 箭頭卡開車：開錯之後自己改卡、再開就到了的次數
+  const debugFixes = d.attempts.filter((a) => a.game === 'c-drive' && isQuiz(a) && a.metrics?.fixed).length
 
   return (
     <>
@@ -103,6 +106,34 @@ export function Progress({ d }: { d: ParentData }) {
             })}
           </tbody>
         </table>
+      </div>
+
+      <div className="card">
+        <h3>程式車庫（方向、規律、順序）</h3>
+        <p className="sub" style={{ margin: '0 0 10px' }}>
+          6 歲寫程式的地基（PRD §10）。箭頭卡用「上下左右」的絕對方向；錯了車子會退回起點，孩子改一張卡再開一次，就是最早的除錯。
+          {debugFixes > 0 && ` 目前自己改卡修好 ${debugFixes} 次。`}
+        </p>
+        <p className="sub" style={{ margin: '0 0 6px' }}>方向與路線</p>
+        <div className="cells">
+          {DIRS.map((dir) => (
+            <Cell key={dir} label={DIR_ZH[dir]} box={box(`arrow:${dir}`)} />
+          ))}
+          <Cell label="2 張卡" box={box('route:2')} />
+          <Cell label="3 張卡" box={box('route:3')} />
+        </div>
+        <p className="sub" style={{ margin: '10px 0 6px' }}>找規律</p>
+        <div className="cells">
+          {(Object.keys(PATTERN_ZH) as PatternKind[]).map((k) => (
+            <Cell key={k} label={PATTERN_ZH[k]} box={box(`pattern:${k}`)} />
+          ))}
+        </div>
+        <p className="sub" style={{ margin: '10px 0 6px' }}>排順序（{STORIES.filter((st) => box(seqSkill(st)) >= 3).length}/{STORIES.length} 個故事已熟練）</p>
+        <p style={{ margin: 0, color: 'var(--ink-soft)' }}>
+          {STORIES.filter((st) => d.skills.get(seqSkill(st))?.seen)
+            .map((st) => `${st.zh}${box(seqSkill(st)) >= 3 ? ' ✓' : ''}`)
+            .join('、') || <span className="empty">還沒玩過。</span>}
+        </p>
       </div>
 
       <div className="card">

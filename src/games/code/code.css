@@ -1,0 +1,372 @@
+/* ── 程式車庫 ─────────────────────────────────────────────────
+   車庫的冷灰水泥地上，一張紙感的小地圖。箭頭卡是厚紙卡：同一個顏色，方向只靠形狀。
+   版面固定：左邊路面、下面程式列＋Go、右邊卡盒（方向鍵排法），每一題位置都不變 */
+
+.drive {
+  position: absolute;
+  inset: 0;
+}
+
+/* ── 路面 ── */
+/* 上緣讓給字幕（約到 11cqh），左下角讓給主持的波波 */
+.drive-board-area {
+  position: absolute;
+  left: 20cqw;
+  width: 44cqw;
+  top: 11cqh;
+  height: 53cqh;
+  display: grid;
+  place-items: center;
+}
+.drive-board {
+  --cell: min(calc(53cqh / var(--rows)), calc(44cqw / var(--cols)), 20cqh);
+  position: relative;
+  width: calc(var(--cell) * var(--cols));
+  height: calc(var(--cell) * var(--rows));
+  display: grid;
+  grid-template-columns: repeat(var(--cols), 1fr);
+  grid-template-rows: repeat(var(--rows), 1fr);
+  padding: calc(var(--cell) * 0.05);
+  gap: calc(var(--cell) * 0.05);
+  border-radius: calc(var(--cell) * 0.26);
+  background: #c6ced5;
+  box-shadow:
+    0 10px 0 rgba(46, 42, 37, 0.08),
+    0 30px 60px -36px rgba(46, 42, 37, 0.5);
+  box-sizing: content-box;
+}
+.road-tile {
+  position: relative;
+  border-radius: calc(var(--cell) * 0.18);
+  background: #f4f1ea;
+  box-shadow: 0 0 0 2px rgba(46, 42, 37, 0.03) inset;
+}
+/* 每格中間淡淡的十字：看得出是一格一格的路，數得出走幾步 */
+.road-tile::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 10%;
+  aspect-ratio: 1;
+  translate: -50% -50%;
+  border-radius: 50%;
+  background: rgba(46, 42, 37, 0.1);
+}
+.road-tile.is-block {
+  background: #dbe7d3;
+}
+.road-tile.is-block::after {
+  display: none;
+}
+/* 起點：停車格的虛線框，開錯時車子就退回這裡 */
+.park-mark {
+  position: absolute;
+  inset: 12%;
+  border-radius: 18%;
+  border: 3px dashed rgba(111, 132, 153, 0.55);
+}
+.tile-icon {
+  position: absolute;
+  inset: 16%;
+}
+.drive-layer {
+  position: absolute;
+  inset: calc(var(--cell) * 0.05);
+  pointer-events: none;
+}
+.drive-trail {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+.drive-goal,
+.drive-car {
+  position: absolute;
+  translate: -50% -50%;
+  pointer-events: none;
+}
+.drive-goal::before {
+  content: '';
+  position: absolute;
+  inset: 8%;
+  border-radius: 50%;
+  background: radial-gradient(closest-side, rgba(241, 210, 124, 0.7), rgba(241, 210, 124, 0));
+}
+.drive-car {
+  translate: -50% -62%;
+  z-index: 2;
+  filter: drop-shadow(0 6px 0 rgba(46, 42, 37, 0.12));
+}
+
+/* ── 箭頭卡 ── */
+.arrow-card {
+  position: relative;
+  width: var(--card-size, 17cqh);
+  aspect-ratio: 1;
+  border-radius: 26%;
+  background: var(--card);
+  box-shadow:
+    0 7px 0 rgba(46, 42, 37, 0.12),
+    0 0 0 3px rgba(46, 42, 37, 0.04) inset;
+  display: grid;
+  place-items: center;
+  padding: 16%;
+  touch-action: none;
+  cursor: grab;
+}
+.arrow-card.guide {
+  background: #fff8e2;
+  animation: guide-glow 1.5s ease-in-out infinite;
+}
+.arrow-card.dim {
+  filter: saturate(0.4);
+}
+.arrow-card.hint::after,
+.arrow-card.is-bug::after {
+  content: '';
+  position: absolute;
+  inset: -10px;
+  border-radius: 30%;
+  border: 6px solid var(--hint);
+  animation:
+    hint-in 1.6s var(--ease-out) both,
+    hint-pulse 2.4s ease-in-out 1.6s infinite;
+  pointer-events: none;
+}
+.arrow-card.ghost {
+  position: absolute;
+  z-index: 50;
+  translate: -50% -50%;
+  rotate: -4deg;
+  pointer-events: none;
+  box-shadow:
+    0 18px 30px -10px rgba(46, 42, 37, 0.35),
+    0 0 0 3px rgba(46, 42, 37, 0.04) inset;
+}
+
+/* ── 程式列 ── */
+/* 卡片與格子至少 120px（PRD §3 觸控區）：程式列放在波波右邊，不壓到他 */
+.prog-strip {
+  position: absolute;
+  left: 45.5cqw;
+  top: 69cqh;
+  translate: -50% 0;
+  display: flex;
+  align-items: center;
+  gap: 1cqh;
+  padding: 1.6cqh 1.6cqh 1.6cqh 2.6cqh;
+  border-radius: 999px;
+  background: rgba(251, 248, 242, 0.72);
+  box-shadow: 0 0 0 2px rgba(46, 42, 37, 0.04) inset;
+}
+.prog-cell {
+  display: flex;
+  align-items: center;
+  gap: 1cqh;
+}
+/* 卡片之間的小箭頭：程式從左讀到右 */
+.prog-chev {
+  width: 2.2cqh;
+  height: 2.2cqh;
+  border-top: 5px solid rgba(46, 42, 37, 0.22);
+  border-right: 5px solid rgba(46, 42, 37, 0.22);
+  border-radius: 3px;
+  rotate: 45deg;
+}
+.prog-slot {
+  --card-size: 100%;
+  position: relative;
+  width: 18cqh;
+  aspect-ratio: 1;
+  border-radius: 26%;
+  border: 4px dashed rgba(46, 42, 37, 0.24);
+  display: grid;
+  place-items: center;
+  transition: border-color 0.3s var(--ease-out), background 0.3s var(--ease-out);
+}
+.prog-slot.is-full {
+  border-color: transparent;
+}
+.prog-slot > .arrow-card {
+  position: absolute;
+  inset: -4px;
+  width: auto;
+}
+.prog-num {
+  position: absolute;
+  bottom: -3.4cqh;
+  font-family: 'Fredoka', sans-serif;
+  font-weight: 600;
+  font-size: 2.6cqh;
+  color: var(--ink-faint);
+}
+/* 執行到這一張：底下亮一條黃光（像程式的游標） */
+.prog-slot.is-running::before {
+  content: '';
+  position: absolute;
+  left: 18%;
+  right: 18%;
+  bottom: -1.6cqh;
+  height: 7px;
+  border-radius: 9px;
+  background: var(--hint);
+}
+.prog-slot.is-need {
+  border-color: #c9a23e;
+  background: rgba(241, 210, 124, 0.3);
+  animation: hint-pulse 2.4s ease-in-out infinite;
+}
+
+/* ── Go ── */
+.go-run {
+  position: relative;
+  width: 18cqh;
+  aspect-ratio: 1;
+  margin-left: 1cqh;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: #8fbf9f;
+  box-shadow: 0 8px 0 #6c9d7d;
+  transition: background 0.3s var(--ease-out), box-shadow 0.3s var(--ease-out);
+}
+.go-run svg {
+  translate: 6% 0;
+}
+.go-run.is-ready {
+  background: var(--good);
+  box-shadow:
+    0 8px 0 #4f8d68,
+    0 0 0 9px rgba(111, 174, 134, 0.22);
+}
+.go-run.guide {
+  animation: go-glow 1.5s ease-in-out infinite;
+}
+@keyframes go-glow {
+  50% {
+    box-shadow:
+      0 8px 0 #4f8d68,
+      0 0 0 22px rgba(241, 210, 124, 0.55);
+  }
+}
+
+/* ── 卡盒（方向鍵排法）── */
+.dpad {
+  --card-size: 100%;
+  position: absolute;
+  left: 82.5cqw;
+  top: 39.5cqh;
+  translate: -50% -50%;
+  width: 58cqh;
+  aspect-ratio: 1;
+  display: grid;
+  grid-template: repeat(3, 1fr) / repeat(3, 1fr);
+  gap: 0.8cqh;
+  padding: 1cqh;
+  border-radius: 34%;
+  background: rgba(251, 248, 242, 0.5);
+}
+.dpad-hub {
+  grid-area: 2 / 2;
+  margin: 26%;
+  border-radius: 50%;
+  background: rgba(111, 132, 153, 0.16);
+}
+
+/* ── 排順序 ───────────────────────────────────────────────── */
+.seq {
+  position: absolute;
+  inset: 0;
+}
+/* 上緣讓給字幕 */
+.seq-strip {
+  position: absolute;
+  left: 57cqw;
+  top: 11cqh;
+  translate: -50% 0;
+  display: flex;
+  align-items: center;
+  gap: 1.6cqh;
+  padding: 2cqh 3cqh 5.4cqh;
+  border-radius: 6cqh;
+  background: rgba(251, 248, 242, 0.62);
+}
+.seq-slot {
+  position: relative;
+  width: 24cqh;
+  aspect-ratio: 1;
+  border-radius: 24%;
+  border: 4px dashed rgba(46, 42, 37, 0.22);
+}
+.seq-slot.is-next {
+  border-color: rgba(111, 132, 153, 0.7);
+  background: rgba(255, 255, 255, 0.4);
+}
+.seq-slot .prog-num {
+  left: 50%;
+  translate: -50% 0;
+  bottom: -4.6cqh;
+  font-size: 3.2cqh;
+}
+.seq-tray {
+  position: absolute;
+  left: 57cqw;
+  top: 59cqh;
+  translate: -50% 0;
+  display: flex;
+  gap: 4cqh;
+}
+.seq-card {
+  position: relative;
+  width: 25cqh;
+  aspect-ratio: 1;
+  border-radius: 24%;
+  background: var(--card);
+  box-shadow:
+    0 8px 0 rgba(46, 42, 37, 0.1),
+    0 0 0 3px rgba(46, 42, 37, 0.04) inset;
+  touch-action: none;
+}
+.seq-slot > .seq-card {
+  position: absolute;
+  inset: -4px;
+  width: auto;
+}
+.seq-card .tile-in {
+  inset: 14%;
+}
+.seq-card.guide {
+  background: #fff8e2;
+  animation: guide-glow 1.5s ease-in-out infinite;
+}
+.seq-card.dim {
+  filter: saturate(0.45);
+}
+.seq-card.hint::after {
+  content: '';
+  position: absolute;
+  inset: -12px;
+  border-radius: 28%;
+  border: 6px solid var(--hint);
+  animation:
+    hint-in 1.6s var(--ease-out) both,
+    hint-pulse 2.4s ease-in-out 1.6s infinite;
+  pointer-events: none;
+}
+.seq-card.ghost {
+  position: absolute;
+  z-index: 50;
+  translate: -50% -50%;
+  rotate: -4deg;
+  pointer-events: none;
+  box-shadow: 0 18px 30px -10px rgba(46, 42, 37, 0.35);
+}
+.seq-card.is-done {
+  background: #e6f3ea;
+  box-shadow:
+    0 8px 0 #b9dcc5,
+    0 0 0 5px var(--good) inset;
+}

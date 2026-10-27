@@ -1,4 +1,6 @@
+import { motion } from 'motion/react'
 import { Emoji } from '../art/Emoji'
+import { ArrowArt } from '../art/Arrow'
 import type { Visual } from '../content/games'
 import type { ShapeId } from '../content/park'
 
@@ -39,7 +41,35 @@ function Group({ icon, count, fit = count }: { icon: string; count: number; fit?
   )
 }
 
-export function VisualView({ v, fit }: { v: Visual; fit?: number }) {
+/**
+ * 規律的一列（程式車庫・找規律）：圖一格一格排好，最後一格是虛線的「？」。
+ * fill 是答對之後補進「？」的圖：輕輕彈進去，整列就完整了。
+ */
+function SeqRow({ items, fill }: { items: Visual[]; fill?: Visual }) {
+  const n = items.length + 1
+  const size = `min(76cqh, ${Math.floor(94 / n)}cqw)`
+  const cell = { width: size, height: size, containerType: 'size', display: 'grid', placeItems: 'center' } as const
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '1.2cqw', width: '100cqw', height: '100cqh' }}>
+      {items.map((it, i) => (
+        <div key={i} style={cell}>
+          <VisualView v={it} />
+        </div>
+      ))}
+      <div className={`seq-blank${fill ? ' is-filled' : ''}`} style={cell}>
+        {fill ? (
+          <motion.div style={{ ...cell, width: '100%', height: '100%' }} initial={{ scale: 0.3, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ type: 'spring', stiffness: 380, damping: 16 }}>
+            <VisualView v={fill} />
+          </motion.div>
+        ) : (
+          <span className="glyph">?</span>
+        )}
+      </div>
+    </div>
+  )
+}
+
+export function VisualView({ v, fit, fill }: { v: Visual; fit?: number; fill?: Visual }) {
   switch (v.t) {
     case 'emoji':
       return (
@@ -66,5 +96,13 @@ export function VisualView({ v, fit }: { v: Visual; fit?: number }) {
           <ShapeSvg shape={v.shape} hex={v.hex} />
         </div>
       )
+    case 'arrow':
+      return (
+        <div style={{ width: '86cqmin', height: '86cqmin' }}>
+          <ArrowArt dir={v.dir} />
+        </div>
+      )
+    case 'seq':
+      return <SeqRow items={v.items} fill={fill} />
   }
 }

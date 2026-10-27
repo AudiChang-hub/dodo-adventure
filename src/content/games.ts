@@ -6,6 +6,7 @@ import { COLORS, COLOR_EXAMPLES, SHAPES, SIZE_ICONS, COUNT_ICONS, type ShapeId }
 import { pickTarget, unlockedNumbers, mastered, skill, isNew } from '../lib/adaptive'
 import { getSettings } from '../lib/settings'
 import { pick, rand, sample, shuffle } from '../lib/random'
+import { cPattern, type Dir } from './code'
 
 export type Visual =
   | { t: 'emoji'; icon: string; scale?: number }
@@ -14,6 +15,9 @@ export type Visual =
   | { t: 'group'; icon: string; count: number }
   | { t: 'color'; hex: string }
   | { t: 'shape'; shape: ShapeId; hex: string }
+  // 程式車庫：箭頭卡、規律的一列（最後一格是「？」）
+  | { t: 'arrow'; dir: Dir }
+  | { t: 'seq'; items: Visual[] }
 
 export interface ChoiceItem {
   itemId: string
@@ -49,6 +53,8 @@ export type GameKind =
   | 'choice' | 'phonics' | 'count' | 'order' | 'trace' | 'dots' | 'coloring' | 'free' | 'glyph'
   // 工作線 B：學習單題型
   | 'findall' | 'lasso' | 'fill' | 'give' | 'subitize'
+  // 程式車庫：箭頭卡開車、排順序（找規律是選擇題，用 choice）
+  | 'drive' | 'sequence'
 
 export interface GameDef {
   id: string
@@ -76,6 +82,8 @@ export const STATIONS: StationDef[] = [
   { id: 'mandarin', name: '動物村', host: 'momo', icon: 'house-with-garden', tint: '#D8E6F4', deep: '#6F9CC8' },
   { id: 'draw', name: '畫畫小屋', host: 'dodo', icon: 'artist-palette', tint: '#E6DFF2', deep: '#8F7CC0' },
   { id: 'park', name: '彩虹公園', host: 'bobo', icon: 'rainbow', tint: '#F6E7B8', deep: '#C9A23E' },
+  // 車庫的水泥地：其他站都帶一點色相，這一站用偏冷的淺灰，在地圖上一眼分得出來
+  { id: 'code', name: '程式車庫', host: 'bobo', icon: 'vertical-traffic-light', tint: '#DDE2E6', deep: '#6F8499' },
 ]
 
 export const station = (id: StationId) => STATIONS.find((s) => s.id === id)!
@@ -480,6 +488,10 @@ export const GAMES: GameDef[] = [
   { id: 'p-solid', station: 'park', kind: 'findall', title: '立體形狀', icon: 'package', intro: 'ws.intro.solid', maxLevel: 4 },
   { id: 'z-use', station: 'mandarin', kind: 'findall', title: '做什麼用', icon: 'umbrella', intro: 'ws.intro.use', maxLevel: 4 },
   // ── 工作線 B ──
+  // ── 程式車庫（PRD §10）── 題目產生器與資料在 code.ts
+  { id: 'c-drive', station: 'code', kind: 'drive', title: '箭頭卡開車', icon: 'automobile', intro: 'c.intro.drive', maxLevel: 4 },
+  { id: 'c-pattern', station: 'code', kind: 'choice', title: '找規律', icon: 'puzzle-piece', intro: 'c.intro.pattern', maxLevel: 4, make: cPattern },
+  { id: 'c-seq', station: 'code', kind: 'sequence', title: '排順序', icon: 'hatching-chick', intro: 'c.intro.seq', maxLevel: 4 },
 ]
 
 export const game = (id: string) => GAMES.find((g) => g.id === (LEGACY_GAME[id] ?? id))!

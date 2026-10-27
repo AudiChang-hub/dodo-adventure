@@ -66,6 +66,38 @@ export function Scenery({ station }: { station: StationId | 'home' }) {
           ))}
         </g>
       )}
+      {station === 'code' && (
+        <g>
+          {/* 車庫的水泥地與停車格線：同一個冷灰色系，只比底色深一點 */}
+          <path d="M0 700 H1200 V800 H0 Z" fill="#CDD3D8" />
+          <path d="M0 700 H1200" stroke="#C2C9CF" strokeWidth={4} />
+          {[300, 470, 640, 810].map((x) => (
+            <path key={x} d={`M${x} 720 L${x - 40} 800`} stroke="#DCE1E5" strokeWidth={10} strokeLinecap="round" />
+          ))}
+          {/* 左邊緣：小車庫和捲門（在主持恐龍後面，只露出輪廓） */}
+          <g opacity={0.9}>
+            <path d="M-30 520 L70 452 L170 520 V700 H-30 Z" fill="#C7CED5" />
+            <rect x={-6} y={560} width={150} height={140} rx={8} fill="#D6DBE0" />
+            {[586, 612, 638, 664].map((y) => (
+              <path key={y} d={`M4 ${y} H134`} stroke="#C7CED5" strokeWidth={5} strokeLinecap="round" />
+            ))}
+          </g>
+          {/* 右邊緣：疊起來的輪胎和一個三角錐，都是低對比的灰與淡橘 */}
+          <g transform="translate(1128 700)">
+            {[0, -34, -68].map((y) => (
+              <g key={y} transform={`translate(0 ${y})`}>
+                <ellipse cx={0} cy={-16} rx={46} ry={18} fill="#B9C1C8" />
+                <ellipse cx={0} cy={-20} rx={18} ry={6} fill="#CDD3D8" />
+              </g>
+            ))}
+          </g>
+          <g transform="translate(1046 704)" opacity={0.8}>
+            <path d="M-20 0 L-7 -58 H7 L20 0 Z" fill="#EBC3A3" />
+            <path d="M-13 -28 H13" stroke="#F6EDE4" strokeWidth={8} />
+            <rect x={-30} y={-6} width={60} height={10} rx={4} fill="#DDB08D" />
+          </g>
+        </g>
+      )}
       {station === 'home' && (
         <g>
           <path d="M0 520 Q260 430 560 500 T1200 470 V800 H0 Z" fill="#DCE9D2" />
