@@ -1,23 +1,24 @@
-import type { Lang, Speaker } from './lines'
+import type { Speaker } from './lines'
 
 export interface VoiceSpec {
   voice: string
   rate: string
   pitch: string
+  volume: string
 }
 
-// 每隻恐龍各有中英文聲線；語速一律放慢，讓 3 歲孩子聽得清楚
-export const VOICES: Record<Speaker, Record<Lang, VoiceSpec>> = {
-  dodo: {
-    zh: { voice: 'zh-TW-HsiaoYuNeural', rate: '-8%', pitch: '+14Hz' },
-    en: { voice: 'en-US-AnaNeural', rate: '-18%', pitch: '+0Hz' },
-  },
-  bobo: {
-    zh: { voice: 'zh-TW-YunJheNeural', rate: '-6%', pitch: '+10Hz' },
-    en: { voice: 'en-US-GuyNeural', rate: '-15%', pitch: '+0Hz' },
-  },
-  momo: {
-    zh: { voice: 'zh-TW-HsiaoChenNeural', rate: '-16%', pitch: '-2Hz' },
-    en: { voice: 'en-US-JennyNeural', rate: '-18%', pitch: '+0Hz' },
-  },
+// 三隻恐龍都用北美童聲 Ana，只微調音高與語速來區分角色；整體只放慢約 10%
+export const VOICES: Record<Speaker, VoiceSpec> = {
+  dodo: { voice: 'en-US-AnaNeural', rate: '-10%', pitch: '+0Hz', volume: '+0%' },
+  bobo: { voice: 'en-US-AnaNeural', rate: '-8%', pitch: '-8Hz', volume: '+0%' },
+  momo: { voice: 'en-US-AnaNeural', rate: '-14%', pitch: '+4Hz', volume: '+0%' },
 }
+
+/** 加重的目標字：再放慢、音量加大 */
+export function emphasis(v: VoiceSpec): VoiceSpec {
+  const rate = parseInt(v.rate, 10) - 15
+  return { ...v, rate: `${rate}%`, volume: '+30%' }
+}
+
+/** 兩段之間的停頓（毫秒） */
+export const SEGMENT_GAP_MS = 100

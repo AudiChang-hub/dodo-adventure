@@ -1,21 +1,33 @@
-import { CHILD_EN, CHILD_ZH } from '../lib/env'
+import { CHILD_EN } from '../lib/env'
 import { LETTERS } from './letters'
 import { VOCAB, TAG_QUESTION, type Tag } from './vocab'
 import { COLORS, SHAPES } from './park'
 
 export type Speaker = 'dodo' | 'bobo' | 'momo'
-export type Lang = 'zh' | 'en'
 
+/**
+ * 台詞全部是英文。`|` 之後是要加重的目標字：
+ * 會另外產生一段放慢、加大音量的音檔，播放時兩段之間停 0.1 秒，
+ * 例如 'Where is | B?' 念成「Where is …B?」。
+ */
 export interface Line {
   speaker: Speaker
-  lang: Lang
   text: string
+}
+
+export interface Segment {
+  text: string
+  emph: boolean
+}
+
+export function segments(l: Line): Segment[] {
+  return l.text.split('|').map((t, i) => ({ text: t.trim(), emph: i > 0 }))
 }
 
 const REG = new Map<string, Line>()
 
-function def(key: string, speaker: Speaker, lang: Lang, text: string) {
-  REG.set(key, { speaker, lang, text })
+function def(key: string, speaker: Speaker, text: string) {
+  REG.set(key, { speaker, text })
 }
 
 export function line(key: string): Line {
@@ -27,153 +39,144 @@ export function line(key: string): Line {
 export const hasLine = (key: string) => REG.has(key)
 export const allLines = () => [...REG.entries()]
 
-const CN = ['', '一', '二', '三', '四', '五', '六', '七', '八', '九', '十']
-export function cnNum(n: number): string {
-  if (n <= 10) return CN[n]
-  if (n < 20) return '十' + CN[n - 10]
-  return '二十'
-}
-/** 量詞前的「二」要說「兩」 */
-export const cnQty = (n: number) => (n === 2 ? '兩' : cnNum(n))
+const NUM = ['zero', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten', 'eleven', 'twelve', 'thirteen', 'fourteen', 'fifteen', 'sixteen', 'seventeen', 'eighteen', 'nineteen', 'twenty']
+const cap = (s: string) => s[0].toUpperCase() + s.slice(1)
+const article = (w: string) => (/^[aeiou]/i.test(w) ? 'an' : 'a')
 
-const N = CHILD_ZH
-const E = CHILD_EN
+const N = CHILD_EN
+const SPEAKERS: Speaker[] = ['dodo', 'bobo', 'momo']
 
 // ── 通用：稱讚、再試一次、提示 ─────────────────────────────
 export const PRAISE_COUNT = 5
-const praiseZh: Record<Speaker, string[]> = {
-  dodo: ['好棒！', '答對了！', `${N}好厲害！`, '就是這個！', '哇，你好會喔！'],
-  bobo: ['答對了！', '太厲害了！', `${N}，你好棒！`, '沒錯沒錯！', '耶！完全正確！'],
-  momo: ['答對了喔。', '好棒喔。', `${N}真聰明。`, '就是它。', '你好認真喔。'],
+const praise: Record<Speaker, string[]> = {
+  dodo: ['Great job!', 'Yes! You got it!', `Wow, ${N}!`, "That's right!", 'Awesome!'],
+  bobo: ["That's right!", 'Super!', `Good job, ${N}!`, 'Yes, yes, yes!', 'You did it!'],
+  momo: ['Very good.', "That's it.", `Well done, ${N}.`, 'Yes, you found it.', 'Wonderful.'],
 }
-for (const s of ['dodo', 'bobo', 'momo'] as Speaker[])
-  praiseZh[s].forEach((t, i) => def(`praise.${s}.${i}`, s, 'zh', t))
-;['Great job!', 'Yes!', `You got it, ${E}!`, 'Awesome!', 'Super!'].forEach((t, i) => def(`praise.en.${i}`, 'dodo', 'en', t))
-
 export const RETRY_COUNT = 3
 const retry: Record<Speaker, string[]> = {
-  dodo: ['再找找看！', '嗯…再試一次！', '差一點點喔！'],
-  bobo: ['沒關係，再試一次！', '再看一看！', '差一點點！'],
-  momo: ['沒關係，慢慢來。', '再找找看喔。', '差一點點喔。'],
+  dodo: ['Try again!', 'Hmm, look again!', 'Almost!'],
+  bobo: ["That's okay, try again!", 'Look again!', 'So close!'],
+  momo: ["That's okay. Take your time.", 'Look again.', 'Almost.'],
 }
-for (const s of ['dodo', 'bobo', 'momo'] as Speaker[]) {
-  retry[s].forEach((t, i) => def(`retry.${s}.${i}`, s, 'zh', t))
-  def(`hint.${s}`, s, 'zh', s === 'momo' ? '是這個喔，你點點看。' : '是這個喔！點點看！')
-  def(`idle.${s}`, s, 'zh', s === 'momo' ? '要選哪一個呢？' : '要點哪一個呢？')
+for (const s of SPEAKERS) {
+  praise[s].forEach((t, i) => def(`praise.${s}.${i}`, s, t))
+  retry[s].forEach((t, i) => def(`retry.${s}.${i}`, s, t))
+  def(`hint.${s}`, s, s === 'momo' ? 'It is this one. Tap it.' : "It's this one! Tap it!")
+  def(`idle.${s}`, s, 'Which one?')
 }
-def('retry.en.0', 'dodo', 'en', "Let's try again!")
+// 舊版遊戲會用到的英文稱讚，沿用豆豆的句子
+praise.dodo.forEach((t, i) => def(`praise.en.${i}`, 'dodo', t))
 
 // ── 首頁、冒險流程 ─────────────────────────────────────────
-def('home.hello', 'dodo', 'zh', `${N}你好！今天要跟豆豆一起去冒險嗎？`)
-def('home.tapdodo', 'dodo', 'zh', '我是豆豆！我最喜歡開車車了！')
-def('home.tapbobo', 'bobo', 'zh', '我是波波！我最喜歡數東西！')
-def('home.tapmomo', 'momo', 'zh', '我是莫莫，我的脖子很長喔。')
-def('adv.go', 'dodo', 'zh', '出發囉！')
-def('adv.done', 'dodo', 'zh', `今天的冒險完成了！${N}好棒！`)
-def('adv.again', 'dodo', 'zh', '今天已經冒險過了，我們去地圖上玩吧！')
-def('station.english', 'dodo', 'zh', '下一站，字母森林！')
-def('station.math', 'bobo', 'zh', '下一站，數字工地！')
-def('station.mandarin', 'momo', 'zh', '下一站，動物村。')
-def('station.draw', 'dodo', 'zh', '下一站，畫畫小屋！')
-def('station.park', 'bobo', 'zh', '下一站，彩虹公園！')
-def('welcome.english', 'dodo', 'zh', '歡迎來到字母森林！')
-def('welcome.math', 'bobo', 'zh', '我是波波，歡迎來到數字工地！')
-def('welcome.mandarin', 'momo', 'zh', '我是莫莫，歡迎來到動物村。')
-def('welcome.draw', 'dodo', 'zh', '歡迎來到畫畫小屋！拿起筆來吧！')
-def('welcome.park', 'bobo', 'zh', '歡迎來到彩虹公園！')
-def('map.where', 'dodo', 'zh', '想去哪裡玩呢？')
-def('map.locked', 'dodo', 'zh', '先完成今天的冒險，地圖就會打開喔！')
-def('egg.crack', 'dodo', 'zh', '蛋蛋裂開了一點點！')
-def('egg.ready', 'dodo', 'zh', '蛋蛋要孵出來了！點一點蛋蛋！')
-def('egg.hatch', 'dodo', 'zh', '哇！是新朋友！')
-def('collection.hi', 'dodo', 'zh', '這些都是你的好朋友！')
-def('collection.empty', 'dodo', 'zh', '去冒險，就可以孵出新朋友喔！')
-def('bedtime', 'dodo', 'zh', '豆豆有點睏了…我們明天再一起玩，好不好？晚安！')
-def('challenge', 'dodo', 'zh', '最後一題比較難喔！')
-def('challenge.bobo', 'bobo', 'zh', '最後一題，挑戰題來囉！')
-def('challenge.momo', 'momo', 'zh', '最後一題比較難喔，加油。')
-def('levelup', 'dodo', 'zh', '你變得好厲害，我們來玩難一點的！')
-def('goodbye', 'dodo', 'zh', `掰掰${N}！`)
-def('eye.break', 'dodo', 'zh', '眼睛累了嗎？我們一起看看遠遠的地方，讓眼睛休息一下！')
-def('eye.done', 'dodo', 'zh', '眼睛休息好了！我們繼續冒險吧！')
+def('home.hello', 'dodo', `Hi, ${N}! Let's go on an adventure!`)
+def('home.tapdodo', 'dodo', "I'm Dodo! I love driving my car!")
+def('home.tapbobo', 'bobo', "I'm Bobo! I love counting things!")
+def('home.tapmomo', 'momo', "I'm Momo. I have a long, long neck.")
+def('adv.go', 'dodo', "Let's go!")
+def('adv.done', 'dodo', `We did it! Great job today, ${N}!`)
+def('adv.again', 'dodo', "We already went today. Let's play on the map!")
+def('station.english', 'dodo', 'Next stop, | Letter Forest!')
+def('station.math', 'bobo', 'Next stop, | Number Land!')
+def('station.mandarin', 'momo', 'Next stop, | Animal Village.')
+def('station.draw', 'dodo', 'Next stop, | Drawing House!')
+def('station.park', 'bobo', 'Next stop, | Rainbow Park!')
+def('welcome.english', 'dodo', 'Welcome to Letter Forest!')
+def('welcome.math', 'bobo', "I'm Bobo! Welcome to Number Land!")
+def('welcome.mandarin', 'momo', "I'm Momo. Welcome to Animal Village.")
+def('welcome.draw', 'dodo', 'Welcome to Drawing House! Get your pen!')
+def('welcome.park', 'bobo', 'Welcome to Rainbow Park!')
+def('map.where', 'dodo', 'Where do you want to go?')
+def('map.locked', 'dodo', 'Finish today’s adventure first, then the map will open!')
+def('egg.crack', 'dodo', 'Look! The egg is cracking!')
+def('egg.ready', 'dodo', 'The egg is ready! Tap the egg!')
+def('egg.hatch', 'dodo', 'Wow! A new friend!')
+def('collection.hi', 'dodo', 'These are all your friends!')
+def('collection.empty', 'dodo', 'Go on an adventure to hatch new friends!')
+def('bedtime', 'dodo', `Dodo is sleepy... Let's play again tomorrow. Good night, ${N}!`)
+def('challenge', 'dodo', 'Last one! This one is tricky!')
+def('challenge.bobo', 'bobo', 'Last one! Here comes a tricky one!')
+def('challenge.momo', 'momo', 'Last one. This one is a little tricky.')
+def('levelup', 'dodo', "You're getting so good! Let's try a harder one!")
+def('goodbye', 'dodo', `Bye-bye, ${N}!`)
+def('eye.break', 'dodo', "Let's rest our eyes. Look far, far away!")
+def('eye.done', 'dodo', "All rested! Let's keep going!")
 
-// ── 字母森林（英文）────────────────────────────────────────
-def('en.intro.find', 'dodo', 'zh', '我們來找字母！聽豆豆說，點對的字母喔！')
-def('en.intro.pic', 'dodo', 'zh', '看看這個字母，幫它找到好朋友！')
-def('en.intro.word', 'dodo', 'zh', '聽豆豆說英文，找出對的圖片！')
+// ── 字母森林 ───────────────────────────────────────────────
+def('en.intro.find', 'dodo', "Let's find letters! Listen and tap!")
+def('en.intro.pic', 'dodo', 'Look at the letter. Find its friend!')
+def('en.intro.word', 'dodo', 'Listen, and find the picture!')
 for (const { letter, word } of LETTERS) {
-  const Word = word[0].toUpperCase() + word.slice(1)
-  const article = /^[aeiou]/i.test(word) ? 'an' : 'a'
-  def(`en.where.${letter}`, 'dodo', 'en', `Where is ${letter}?`)
-  def(`en.is.${letter}`, 'dodo', 'en', `${letter}. ${letter} is for ${word}!`)
-  def(`en.word.${letter}`, 'dodo', 'en', `${Word}!`)
-  def(`en.findword.${letter}`, 'dodo', 'en', `Where is the ${word}?`)
-  def(`en.thisis.${letter}`, 'dodo', 'en', `This is ${letter}.`)
-  def(`en.itis.${letter}`, 'dodo', 'en', `It's ${article} ${word}!`)
+  def(`en.where.${letter}`, 'dodo', `Where is | ${letter}?`)
+  def(`en.is.${letter}`, 'dodo', `${letter} is for | ${word}!`)
+  def(`en.word.${letter}`, 'dodo', `${cap(word)}!`)
+  def(`en.findword.${letter}`, 'dodo', `Where is the | ${word}?`)
+  def(`en.thisis.${letter}`, 'dodo', `This is | ${letter}.`)
+  def(`en.itis.${letter}`, 'dodo', `It's ${article(word)} | ${word}!`)
 }
 
-// ── 數字工地（數學）────────────────────────────────────────
-def('m.intro.count', 'bobo', 'zh', '我們來數一數！一個一個點喔！')
-def('m.intro.match', 'bobo', 'zh', '數數看有幾個，再點對的數字！')
-def('m.intro.find', 'bobo', 'zh', '聽波波說，找出對的數字！')
-def('m.intro.compare', 'bobo', 'zh', '兩邊比一比！')
-def('m.intro.order', 'bobo', 'zh', '照順序點數字，從一開始！')
-def('m.howmany', 'bobo', 'zh', '總共有幾個呢？')
-def('m.more', 'bobo', 'zh', '哪一邊比較多呢？')
-def('m.less', 'bobo', 'zh', '哪一邊比較少呢？')
-def('m.this.more', 'bobo', 'zh', '這邊比較多！')
-def('m.this.less', 'bobo', 'zh', '這邊比較少！')
-def('m.order.start', 'bobo', 'zh', '從一開始，照順序點！')
-def('m.count.go', 'bobo', 'zh', '點一點，一起數！')
+// ── 數字工地 ───────────────────────────────────────────────
+def('m.intro.count', 'bobo', "Let's count! Tap them one by one!")
+def('m.intro.match', 'bobo', 'Count them, then tap the number!')
+def('m.intro.find', 'bobo', 'Listen, and find the number!')
+def('m.intro.compare', 'bobo', "Let's compare!")
+def('m.intro.order', 'bobo', 'Tap the numbers in order. Start with one!')
+def('m.howmany', 'bobo', 'How many are there?')
+def('m.more', 'bobo', 'Which side has | more?')
+def('m.less', 'bobo', 'Which side has | fewer?')
+def('m.this.more', 'bobo', 'This side has more!')
+def('m.this.less', 'bobo', 'This side has fewer!')
+def('m.order.start', 'bobo', 'Start with one. Tap in order!')
+def('m.count.go', 'bobo', 'Tap and count with me!')
 for (let n = 1; n <= 20; n++) {
-  def(`m.num.${n}`, 'bobo', 'zh', `${cnNum(n)}！`)
-  def(`m.findnum.${n}`, 'bobo', 'zh', `${cnNum(n)}在哪裡？`)
-  def(`m.total.${n}`, 'bobo', 'zh', `總共有${cnQty(n)}個！`)
-  def(`m.thisis.${n}`, 'bobo', 'zh', `這是${cnNum(n)}。`)
-  def(`dodo.num.${n}`, 'dodo', 'zh', `${cnNum(n)}！`)
+  def(`m.num.${n}`, 'bobo', `${cap(NUM[n])}!`)
+  def(`m.findnum.${n}`, 'bobo', `Where is | ${NUM[n]}?`)
+  def(`m.total.${n}`, 'bobo', n === 1 ? 'There is | one!' : `There are | ${NUM[n]}!`)
+  def(`m.thisis.${n}`, 'bobo', `This is | ${NUM[n]}.`)
+  def(`dodo.num.${n}`, 'dodo', `${cap(NUM[n])}!`)
 }
 
-// ── 動物村（國語）──────────────────────────────────────────
-def('z.intro.find', 'momo', 'zh', '聽莫莫說，找出對的圖片喔。')
-def('z.intro.category', 'momo', 'zh', '莫莫要考考你喔。')
-def('z.intro.sound', 'momo', 'zh', '聽聽看，是誰在叫呢？')
+// ── 動物村（英文詞彙）──────────────────────────────────────
+def('z.intro.find', 'momo', 'Listen, and find the picture.')
+def('z.intro.category', 'momo', "Let's think together.")
+def('z.intro.sound', 'momo', 'Listen. Who is making that sound?')
 for (const v of VOCAB) {
-  def(`z.where.${v.id}`, 'momo', 'zh', `${v.zh}在哪裡？`)
-  def(`z.itis.${v.id}`, 'momo', 'zh', `是${v.zh}喔。`)
-  if (v.sound) def(`z.sound.${v.id}`, 'momo', 'zh', `${v.sound}！猜猜我是誰？`)
+  def(`z.where.${v.id}`, 'momo', `Where is the | ${v.en}?`)
+  def(`z.itis.${v.id}`, 'momo', `It's the | ${v.en}.`)
+  if (v.sound) def(`z.sound.${v.id}`, 'momo', `${v.sound} Who am I?`)
 }
-for (const [tag, q] of Object.entries(TAG_QUESTION) as [Tag, string][]) def(`z.cat.${tag}`, 'momo', 'zh', q)
+for (const [tag, q] of Object.entries(TAG_QUESTION) as [Tag, string][]) def(`z.cat.${tag}`, 'momo', q)
 
-// ── 彩虹公園（顏色、形狀、大小）────────────────────────────
-def('p.intro.color', 'bobo', 'zh', '彩虹公園有好多顏色！')
-def('p.intro.shape', 'bobo', 'zh', '我們來找形狀！')
-def('p.intro.size', 'bobo', 'zh', '比比看，哪一個大，哪一個小！')
+// ── 彩虹公園 ───────────────────────────────────────────────
+def('p.intro.color', 'bobo', 'So many colors!')
+def('p.intro.shape', 'bobo', "Let's find shapes!")
+def('p.intro.size', 'bobo', 'Big or small? Let’s look!')
 for (const c of COLORS) {
-  def(`p.color.${c.id}`, 'bobo', 'zh', `${c.zh}色在哪裡？`)
-  def(`p.thisis.color.${c.id}`, 'bobo', 'zh', `這是${c.zh}色。`)
+  def(`p.color.${c.id}`, 'bobo', `Where is | ${c.en}?`)
+  def(`p.thisis.color.${c.id}`, 'bobo', `This is | ${c.en}.`)
 }
 for (const s of SHAPES) {
-  def(`p.shape.${s.id}`, 'bobo', 'zh', `${s.zh}在哪裡？`)
-  def(`p.thisis.shape.${s.id}`, 'bobo', 'zh', `這是${s.zh}。`)
+  def(`p.shape.${s.id}`, 'bobo', `Where is the | ${s.en}?`)
+  def(`p.thisis.shape.${s.id}`, 'bobo', `This is a | ${s.en}.`)
 }
-def('p.bigger', 'bobo', 'zh', '哪一個比較大？')
-def('p.smaller', 'bobo', 'zh', '哪一個比較小？')
-def('p.this.bigger', 'bobo', 'zh', '這個比較大！')
-def('p.this.smaller', 'bobo', 'zh', '這個比較小！')
+def('p.bigger', 'bobo', 'Which one is | bigger?')
+def('p.smaller', 'bobo', 'Which one is | smaller?')
+def('p.this.bigger', 'bobo', 'This one is bigger!')
+def('p.this.smaller', 'bobo', 'This one is smaller!')
 
-// ── 畫畫小屋（運筆）────────────────────────────────────────
-def('d.intro.trace', 'dodo', 'zh', '幫豆豆的車車開回家！用筆沿著小路畫過去！')
-def('d.intro.dots', 'dodo', 'zh', '從一開始，把點點連起來，看看會變出什麼！')
-def('d.intro.color', 'dodo', 'zh', '選一個顏色，點一點，幫它塗上顏色！')
-def('d.intro.free', 'dodo', 'zh', '想畫什麼都可以喔！畫好了就點打勾。')
-def('d.intro.glyph', 'dodo', 'zh', '從綠色的點開始，跟著箭頭畫！')
-def('d.trace.done', 'dodo', 'zh', '到家了！謝謝你！')
-def('d.trace.keep', 'dodo', 'zh', '繼續畫，車車還沒到家喔！')
-def('d.dots.done', 'dodo', 'zh', '哇！變出來了！')
-def('d.color.done', 'dodo', 'zh', '塗得好漂亮！')
-def('d.free.done', 'dodo', 'zh', '畫得好棒！我幫你收進作品集了！')
-def('d.glyph.done', 'dodo', 'zh', '寫得好棒！')
-def('d.glyph.next', 'dodo', 'zh', '再畫下一筆！')
-for (const d of ['triangle', 'square', 'house', 'fish', 'star', 'boat', 'heart', 'diamond'])
-  def(`d.dots.is.${d}`, 'dodo', 'zh', `是${{ triangle: '三角形', square: '正方形', house: '房子', fish: '小魚', star: '星星', boat: '小船', heart: '愛心', diamond: '鑽石' }[d]}！`)
-for (let n = 0; n <= 9; n++) def(`d.glyph.num.${n}`, 'dodo', 'zh', `這是${n === 0 ? '零' : cnNum(n)}。`)
+// ── 畫畫小屋 ───────────────────────────────────────────────
+def('d.intro.trace', 'dodo', 'Help me drive home! Follow the road with your pen!')
+def('d.intro.dots', 'dodo', 'Connect the dots, starting with one!')
+def('d.intro.color', 'dodo', 'Pick a color, and tap to paint!')
+def('d.intro.free', 'dodo', 'Draw anything you like! Tap the check when you are done.')
+def('d.intro.glyph', 'dodo', 'Start at the green dot, and follow the arrow!')
+def('d.trace.done', 'dodo', "We're home! Thank you!")
+def('d.trace.keep', 'dodo', "Keep going! We're not home yet!")
+def('d.dots.done', 'dodo', 'Wow! Look what it is!')
+def('d.color.done', 'dodo', 'So pretty!')
+def('d.free.done', 'dodo', 'I love it! I put it in your gallery!')
+def('d.glyph.done', 'dodo', 'Great writing!')
+def('d.glyph.next', 'dodo', 'Now the next line!')
+const DOTS: Record<string, string> = { triangle: 'a triangle', square: 'a square', house: 'a house', fish: 'a fish', star: 'a star', boat: 'a boat', heart: 'a heart', diamond: 'a diamond' }
+for (const [d, name] of Object.entries(DOTS)) def(`d.dots.is.${d}`, 'dodo', `It's | ${name}!`)
+for (let n = 0; n <= 9; n++) def(`d.glyph.num.${n}`, 'dodo', `This is | ${NUM[n]}.`)

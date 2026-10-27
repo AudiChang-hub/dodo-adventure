@@ -72,7 +72,7 @@ export function Progress({ d }: { d: ParentData }) {
       </div>
 
       <div className="card">
-        <h3>國語詞彙</h3>
+        <h3>動物村英文詞彙</h3>
         <table>
           <tbody>
             {themes.map((t) => {
@@ -84,7 +84,7 @@ export function Progress({ d }: { d: ParentData }) {
                   <td>
                     {ok.length}/{words.length} 個已熟練（{pct(ok.length, words.length)}%）
                   </td>
-                  <td style={{ color: 'var(--ink-soft)' }}>{ok.map((v) => v.zh).join('、')}</td>
+                  <td style={{ color: 'var(--ink-soft)' }}>{ok.map((v) => `${v.en}（${v.zh}）`).join('、')}</td>
                 </tr>
               )
             })}

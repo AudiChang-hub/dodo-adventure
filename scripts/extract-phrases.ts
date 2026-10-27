@@ -1,4 +1,4 @@
-// 把所有台詞列成清單，交給 gen_audio.py 產生音檔
+// 把所有台詞拆成要產生的音檔清單（加重的目標字是獨立一段），交給 gen_audio.py
 import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'node:fs'
 
 for (const f of ['.env', '.env.local']) {
@@ -9,11 +9,15 @@ for (const f of ['.env', '.env.local']) {
   }
 }
 
-const { allLines } = await import('../src/content/lines')
-const { VOICES } = await import('../src/content/voices')
-const { clipName } = await import('../src/lib/clip')
+const { allLines, segments } = await import('../src/content/lines')
+const { clipName, segmentVoice } = await import('../src/lib/clip')
 
-const rows = allLines().map(([key, l]) => ({ key, file: clipName(l), text: l.text, ...VOICES[l.speaker][l.lang] }))
+const rows = new Map<string, object>()
+for (const [key, l] of allLines())
+  for (const s of segments(l)) {
+    const file = clipName(l, s)
+    if (!rows.has(file)) rows.set(file, { key, file, text: s.text, ...segmentVoice(l, s) })
+  }
 mkdirSync('scripts/.cache', { recursive: true })
-writeFileSync('scripts/.cache/lines.json', JSON.stringify(rows, null, 1))
-console.log(`${rows.length} lines`)
+writeFileSync('scripts/.cache/lines.json', JSON.stringify([...rows.values()], null, 1))
+console.log(`${allLines().length} lines, ${rows.size} clips`)

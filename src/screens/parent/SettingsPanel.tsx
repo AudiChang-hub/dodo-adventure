@@ -57,7 +57,7 @@ export function SettingsPanel({ onChanged }: { onChanged: () => void }) {
             <option value="always">一直開放</option>
           </select>
         </Field>
-        <Field label="本週主題" hint="可以對應幼兒園聯絡簿的主題，動物村會多出這一類的詞。">
+        <Field label="本週主題" hint="可以對應幼兒園聯絡簿的主題，動物村會多出這一類的英文詞。">
           <select value={s.theme} onChange={(e) => set({ theme: e.target.value as Settings['theme'] })}>
             <option value="all">不指定</option>
             {Object.entries(THEME_LABEL).map(([k, v]) => (

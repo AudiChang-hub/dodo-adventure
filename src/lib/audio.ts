@@ -1,4 +1,5 @@
-import { line, type Line, type Speaker } from '../content/lines'
+import { line, segments, type Line, type Speaker } from '../content/lines'
+import { SEGMENT_GAP_MS } from '../content/voices'
 import { clipName } from './clip'
 
 const BASE = import.meta.env.BASE_URL
@@ -88,13 +89,12 @@ function stopLevel() {
 // ── 音檔載入 ───────────────────────────────────────────────
 const buffers = new Map<string, Promise<AudioBuffer | null>>()
 
-function load(l: Line): Promise<AudioBuffer | null> {
-  const name = clipName(l)
+function load(name: string): Promise<AudioBuffer | null> {
   let p = buffers.get(name)
   if (!p) {
     p = fetch(`${BASE}audio/${name}.mp3`)
       .then((r) => (r.ok ? r.arrayBuffer() : Promise.reject(r.status)))
-      .then((b) => ensure().decodeAudioData(b))
+      .then((b) => (b.byteLength ? ensure().decodeAudioData(b) : null))
       .catch(() => null)
     buffers.set(name, p)
   }
@@ -102,7 +102,10 @@ function load(l: Line): Promise<AudioBuffer | null> {
 }
 
 export function preload(keys: string[]) {
-  for (const k of keys) load(line(k))
+  for (const k of keys) {
+    const l = line(k)
+    for (const s of segments(l)) load(clipName(l, s))
+  }
 }
 
 // ── 播放 ───────────────────────────────────────────────────
@@ -127,12 +130,23 @@ export async function say(...keys: string[]): Promise<void> {
   }
 }
 
+/** 一句台詞可能分成兩段（目標字另外加重），兩段之間停一下 */
 async function playLine(l: Line, my: number) {
-  const buf = await load(l)
+  const segs = segments(l)
+  const bufs = await Promise.all(segs.map((s) => load(clipName(l, s))))
   if (my !== token) return
-  if (!buf) return speakFallback(l, my)
+  if (bufs.some((b) => !b)) return speakFallback(l, my)
+  for (let i = 0; i < bufs.length; i++) {
+    if (my !== token) return
+    if (i > 0) await new Promise((r) => setTimeout(r, SEGMENT_GAP_MS))
+    if (my !== token) return
+    await playBuffer(bufs[i]!, l.speaker)
+  }
+}
+
+function playBuffer(buf: AudioBuffer, speaker: Speaker) {
   const c = ensure()
-  await new Promise<void>((resolve) => {
+  return new Promise<void>((resolve) => {
     const src = c.createBufferSource()
     src.buffer = buf
     src.connect(voiceGain)
@@ -151,7 +165,7 @@ async function playLine(l: Line, my: number) {
       resolve()
     }
     current = { stop }
-    startLevel(l.speaker, false)
+    startLevel(speaker, false)
     src.start()
   })
 }
@@ -160,8 +174,8 @@ async function playLine(l: Line, my: number) {
 function speakFallback(l: Line, my: number): Promise<void> {
   if (!('speechSynthesis' in window)) return Promise.resolve()
   return new Promise((resolve) => {
-    const u = new SpeechSynthesisUtterance(l.text)
-    u.lang = l.lang === 'zh' ? 'zh-TW' : 'en-US'
+    const u = new SpeechSynthesisUtterance(l.text.replace('|', ' '))
+    u.lang = 'en-US'
     u.rate = 0.85
     u.pitch = l.speaker === 'momo' ? 1 : 1.25
     const done = () => {

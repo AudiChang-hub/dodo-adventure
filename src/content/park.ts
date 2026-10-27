@@ -1,24 +1,24 @@
 // 顏色刻意比紙感主題飽和一點：要讓孩子分得出「紅」和「粉紅」，但不刺眼
 export const COLORS = [
-  { id: 'red', zh: '紅', hex: '#DE6B5A' },
-  { id: 'yellow', zh: '黃', hex: '#F2C84B' },
-  { id: 'blue', zh: '藍', hex: '#5E93D1' },
-  { id: 'green', zh: '綠', hex: '#6DB06B' },
-  { id: 'orange', zh: '橘', hex: '#EE9A4C' },
-  { id: 'purple', zh: '紫', hex: '#9C7FCB' },
-  { id: 'pink', zh: '粉紅', hex: '#F09DB9' },
-  { id: 'brown', zh: '咖啡', hex: '#9C7356' },
+  { id: 'red', en: 'red', zh: '紅', hex: '#DE6B5A' },
+  { id: 'yellow', en: 'yellow', zh: '黃', hex: '#F2C84B' },
+  { id: 'blue', en: 'blue', zh: '藍', hex: '#5E93D1' },
+  { id: 'green', en: 'green', zh: '綠', hex: '#6DB06B' },
+  { id: 'orange', en: 'orange', zh: '橘', hex: '#EE9A4C' },
+  { id: 'purple', en: 'purple', zh: '紫', hex: '#9C7FCB' },
+  { id: 'pink', en: 'pink', zh: '粉紅', hex: '#F09DB9' },
+  { id: 'brown', en: 'brown', zh: '咖啡', hex: '#9C7356' },
 ] as const
 
 export type ColorId = (typeof COLORS)[number]['id']
 
 export const SHAPES = [
-  { id: 'circle', zh: '圓形' },
-  { id: 'triangle', zh: '三角形' },
-  { id: 'square', zh: '正方形' },
-  { id: 'star', zh: '星星' },
-  { id: 'heart', zh: '愛心' },
-  { id: 'rect', zh: '長方形' },
+  { id: 'circle', en: 'circle', zh: '圓形' },
+  { id: 'triangle', en: 'triangle', zh: '三角形' },
+  { id: 'square', en: 'square', zh: '正方形' },
+  { id: 'star', en: 'star', zh: '星星' },
+  { id: 'heart', en: 'heart', zh: '愛心' },
+  { id: 'rect', en: 'rectangle', zh: '長方形' },
 ] as const
 
 export type ShapeId = (typeof SHAPES)[number]['id']
