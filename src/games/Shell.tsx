@@ -25,6 +25,17 @@ export function HomeIcon() {
   )
 }
 
+/** 摺起來的地圖：站點畫面「回地圖」用 */
+export function MapIcon() {
+  return (
+    <svg viewBox="0 0 48 48" width={40} aria-hidden="true">
+      <path d="M6 12 L17 8 L31 13 L42 9 V36 L31 40 L17 35 L6 39 Z" fill="#BFDCC8" stroke="#2E2A25" strokeWidth={3.5} strokeLinejoin="round" />
+      <path d="M17 8 V35 M31 13 V40" stroke="#2E2A25" strokeWidth={3} />
+      <path d="M22 22 q4 -6 8 0 q-4 7 -4 9 q0 -2 -4 -9 Z" fill="#E99A84" />
+    </svg>
+  )
+}
+
 interface Props {
   station: StationId
   mood: Mood

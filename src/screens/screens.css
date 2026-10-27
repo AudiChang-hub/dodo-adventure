@@ -233,16 +233,23 @@
   background: var(--card);
   box-shadow: 0 10px 0 rgba(46, 42, 37, 0.1);
   display: grid;
-  grid-template-rows: 1fr auto;
+  grid-template-rows: minmax(0, 1fr) auto;
   justify-items: center;
-  padding: 16% 12% 10%;
-  gap: 8px;
+  /* 固定內距：百分比 padding 會以外層 .station-games 的寬度計算，把卡片擠扁 */
+  padding: 20px 14px 15px;
+  gap: 10px;
+}
+.game-tile > svg {
+  width: auto;
+  height: 100%;
+  max-width: 100%;
 }
 .game-tile b {
   font-weight: 400;
   font-family: 'Huninn', sans-serif;
   font-size: clamp(16px, 2.2vmin, 21px);
   color: var(--ink-soft);
+  white-space: nowrap;
 }
 .game-tile .stars {
   display: flex;

@@ -4,7 +4,7 @@ import { Emoji } from '../art/Emoji'
 import { Dino } from '../art/Dino'
 import { HoldButton } from '../ui/Hold'
 import { Scenery } from '../ui/Scenery'
-import { HomeIcon } from '../games/Shell'
+import { MapIcon } from '../games/Shell'
 import { gamesOf, station as stationDef } from '../content/games'
 import { level } from '../lib/adaptive'
 import { go } from '../lib/nav'
@@ -24,7 +24,7 @@ export function StationScreen({ id }: { id: StationId }) {
       <Scenery station={id} />
       <div style={{ position: 'absolute', left: 26, top: 18, zIndex: 5, display: 'flex', gap: 14 }}>
         <HoldButton label="回地圖（按住）" ms={600} onHold={() => go({ name: 'map' })}>
-          <HomeIcon />
+          <MapIcon />
         </HoldButton>
       </div>
       <div style={{ position: 'absolute', left: '2vw', bottom: 0, width: '20vw', zIndex: 4 }}>

@@ -140,6 +140,7 @@ export function ChoiceGame({ gameId, onDone, onExit }: GameProps) {
   }
 
   const wide = item?.options.some((o) => o.v.t === 'group')
+  const fit = Math.max(0, ...(item?.options ?? []).map((o) => (o.v.t === 'group' ? o.v.count : 0)))
   return (
     <Shell station={def.station} mood={mood} progress={{ total: ROUND_ITEMS, done: idx }} onExit={onExit} onHost={() => item && say(...item.prompt)}>
       <AnimatePresence mode="wait">
@@ -175,7 +176,7 @@ export function ChoiceGame({ gameId, onDone, onExit }: GameProps) {
                   onPointerDown={() => tap(o.id)}
                 >
                   <div className="tile-in">
-                    <VisualView v={o.v} />
+                    <VisualView v={o.v} fit={fit} />
                   </div>
                   {marks[o.id] === 'correct' && <Sparkles key={burst} />}
                 </motion.button>

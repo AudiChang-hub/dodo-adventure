@@ -67,7 +67,9 @@ export function FreeDraw({ gameId, onDone, onExit }: GameProps) {
       <div style={{ position: 'absolute', inset: '0 13% 4% 3%', borderRadius: 32, background: '#FBF8F2', boxShadow: '0 8px 0 rgba(46,42,37,.08)', overflow: 'hidden' }}>
         <Ink ref={ink} w={1000} h={620} color={color} size={thick ? 34 : 16} />
       </div>
-      <Palette value={color} onChange={setColor} />
+      <Palette value={color} onChange={setColor}>
+        <CheckButton onPress={finish} />
+      </Palette>
       <div style={{ position: 'absolute', right: '12%', top: '4%', display: 'flex', gap: 14, zIndex: 3 }}>
         <button className="round-btn" aria-label="換筆的粗細" onPointerDown={() => setThick((t) => !t)}>
           <span style={{ width: thick ? 34 : 14, height: thick ? 34 : 14, borderRadius: '50%', background: color, transition: 'all .25s' }} />
@@ -80,7 +82,6 @@ export function FreeDraw({ gameId, onDone, onExit }: GameProps) {
           <Ring progress={clear.progress} />
         </button>
       </div>
-      <CheckButton onPress={finish} />
     </Shell>
   )
 }

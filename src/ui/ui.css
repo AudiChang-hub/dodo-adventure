@@ -90,6 +90,19 @@
   pointer-events: none;
 }
 
+/* 不是 .round-btn 的按住鍵（例如畫畫的完成鍵）：進度環包在 .hold-ring 裡 */
+.hold-ring {
+  position: absolute;
+  inset: -14px;
+  pointer-events: none;
+}
+.hold-ring svg.ring {
+  display: block;
+  width: 100%;
+  height: 100%;
+  transform: rotate(-90deg);
+}
+
 /* ── 選項卡 ───────────────────────────────────────────────── */
 .options {
   position: absolute;
@@ -157,7 +170,8 @@
   top: 4%;
   height: 32%;
   aspect-ratio: 1.15;
-  transform: translateX(-50%);
+  /* 用 translate 屬性而不是 transform：motion 的動畫會寫入 inline transform 蓋掉置中 */
+  translate: -50% 0;
   display: grid;
   place-items: center;
   border-radius: var(--radius-lg);
@@ -187,6 +201,7 @@
   padding: 32px 36px 28px;
   border-radius: 28px;
   background: var(--card);
+  color: var(--ink);
   font-family: 'Huninn', sans-serif;
   text-align: center;
 }
@@ -243,6 +258,14 @@
   border-radius: 14px;
   font-size: 17px;
   background: var(--paper);
+}
+.gate .row.stack {
+  flex-direction: column;
+}
+/* 直向排列時 flex: 1 會讓 basis 變 0、按鈕縮成文字高度 */
+.gate .row.stack button {
+  flex: none;
+  min-height: 52px;
 }
 .gate .row button.primary {
   background: var(--ink);

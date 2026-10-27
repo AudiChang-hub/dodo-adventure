@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { motion } from 'motion/react'
 import { Dino } from '../art/Dino'
-import { ParentGate } from '../ui/ParentGate'
+import { ParentCorner, ParentGate } from '../ui/ParentGate'
 import { go } from '../lib/nav'
 import { say } from '../lib/audio'
 import { grantExtra } from '../lib/session'
@@ -40,8 +40,8 @@ export function Bedtime() {
           z
         </motion.span>
       ))}
-      <div className="parent-corner" onPointerDown={() => setTimeout(() => setGate(true), 0)} style={{ width: 120, height: 120 }} aria-label="家長" />
-      <div className="note">家長：點右上角可以延長時間</div>
+      {!gate && !menu && <ParentCorner onOpen={() => setGate(true)} color="rgba(243,238,228,0.5)" />}
+      <div className="note">家長：按住右上角 3 秒可以延長時間</div>
       {gate && (
         <ParentGate
           title="延長遊戲時間"
@@ -57,7 +57,7 @@ export function Bedtime() {
           <div className="gate">
             <h2>要怎麼做呢？</h2>
             <p>今天的時間已經用完了</p>
-            <div className="row" style={{ flexDirection: 'column' }}>
+            <div className="row stack">
               {[10, 20].map((m) => (
                 <button
                   key={m}

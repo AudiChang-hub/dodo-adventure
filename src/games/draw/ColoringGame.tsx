@@ -92,8 +92,9 @@ export function ColoringGame({ gameId, onDone, onExit }: GameProps) {
           </g>
         </svg>
       </div>
-      <Palette value={color} onChange={setColor} />
-      <CheckButton onPress={finish} />
+      <Palette value={color} onChange={setColor}>
+        <CheckButton onPress={finish} />
+      </Palette>
     </Shell>
   )
 }

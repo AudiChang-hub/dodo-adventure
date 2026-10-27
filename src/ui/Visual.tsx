@@ -16,11 +16,18 @@ export function ShapeSvg({ shape, hex, size = '100%' }: { shape: ShapeId; hex: s
   )
 }
 
-/** 一組數量：圖示排成整齊的格子，方便孩子一個一個數 */
-function Group({ icon, count }: { icon: string; count: number }) {
-  const cols = count <= 3 ? count : count <= 4 ? 2 : count <= 6 ? 3 : count <= 8 ? 4 : 5
-  const rows = Math.ceil(count / cols)
-  const size = `min(${Math.floor(84 / rows)}cqh, ${Math.floor(88 / cols)}cqw)`
+const gridCols = (count: number) => (count <= 3 ? count : count <= 4 ? 2 : count <= 6 ? 3 : count <= 8 ? 4 : 5)
+
+/**
+ * 一組數量：圖示排成整齊的格子，方便孩子一個一個數。
+ * fit 是同一題裡最大的那組數量：圖示大小以它為準，兩組的單個圖示才會一樣大，
+ * 不會出現「數量多的那組反而比較小」的矛盾線索。
+ */
+function Group({ icon, count, fit = count }: { icon: string; count: number; fit?: number }) {
+  const cols = gridCols(count)
+  const fitCols = gridCols(Math.max(fit, count))
+  const fitRows = Math.ceil(Math.max(fit, count) / fitCols)
+  const size = `min(${Math.floor(84 / fitRows)}cqh, ${Math.floor(88 / fitCols)}cqw)`
   return (
     <div style={{ display: 'grid', gridTemplateColumns: `repeat(${cols}, auto)`, gap: '2cqmin', width: '100cqw', height: '100cqh', alignContent: 'center', justifyContent: 'center' }}>
       {Array.from({ length: count }, (_, i) => (
@@ -32,7 +39,7 @@ function Group({ icon, count }: { icon: string; count: number }) {
   )
 }
 
-export function VisualView({ v }: { v: Visual }) {
+export function VisualView({ v, fit }: { v: Visual; fit?: number }) {
   switch (v.t) {
     case 'emoji':
       return (
@@ -45,7 +52,7 @@ export function VisualView({ v }: { v: Visual }) {
     case 'number':
       return <span className="glyph num">{v.n}</span>
     case 'group':
-      return <Group icon={v.icon} count={v.count} />
+      return <Group icon={v.icon} count={v.count} fit={fit} />
     case 'color':
       return (
         <svg viewBox="0 0 100 100" style={{ width: '92cqmin', height: '92cqmin' }} aria-hidden="true">

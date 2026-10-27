@@ -56,11 +56,11 @@ export function ParentGate({ onPass, onCancel, title = '家長確認' }: { onPas
 }
 
 /** 右上角隱形熱區：按住 3 秒才會出現家長閘門 */
-export function ParentCorner({ onOpen }: { onOpen: () => void }) {
+export function ParentCorner({ onOpen, color = 'rgba(46,42,37,0.35)' }: { onOpen: () => void; color?: string }) {
   const { progress, handlers } = useHold(3000, onOpen)
   return (
     <div className="parent-corner" {...handlers} aria-hidden="true">
-      {progress > 0.12 && <Ring progress={(progress - 0.12) / 0.88} color="rgba(46,42,37,0.35)" width={7} />}
+      {progress > 0.12 && <Ring progress={(progress - 0.12) / 0.88} color={color} width={7} />}
     </div>
   )
 }
