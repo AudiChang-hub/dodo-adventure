@@ -51,11 +51,55 @@ function tick() {
   }
   session.end = Date.now()
   if (usedToday % 10 === 0) void persist()
+  // 時間到不在題目中途結束：有遊戲（或冒險的收尾）在畫面上就等它結束，
+  // 在兩個遊戲之間才轉到睡覺畫面。不做任何倒數或預告（benchmark 手法 8）
+  const over = overtime()
+  if (over >= 0 && (holds === 0 || over >= GRACE_MAX_SEC)) goToBed()
+}
+
+/** 超過每日上限幾秒；還沒到（或不限制）是 -1 */
+function overtime(): number {
   const limit = getSettings().dailyMinutes
-  if (limit > 0 && usedToday >= (limit + extraMinutes) * 60) {
-    void persist()
-    go({ name: 'bedtime' })
+  if (limit <= 0) return -1
+  const over = usedToday - (limit + extraMinutes) * 60
+  return over >= 0 ? over : -1
+}
+
+function goToBed() {
+  void persist()
+  go({ name: 'bedtime' })
+}
+
+// ── 時間到只在兩個遊戲之間結束 ───────────────────────────────
+/**
+ * 遊戲放著不管時的保險：超過上限這麼久還沒玩完，就算在題目中途也結束。
+ * 一般一局 3–5 分鐘，正常玩不會碰到；只是避免平板被丟著一直計時。
+ */
+const GRACE_MAX_SEC = 6 * 60
+let holds = 0
+
+/**
+ * 遊戲進行中先別結束：每個遊戲的 Shell 掛載時呼叫，回傳的函式在遊戲結束時呼叫。
+ * 今日冒險在「蛋裂開、爸爸回合、孵蛋」這些收尾段落也會先擋著，由冒險自己在兩站之間檢查。
+ */
+export function holdBedtime(): () => void {
+  holds++
+  let done = false
+  return () => {
+    if (done) return
+    done = true
+    holds = Math.max(0, holds - 1)
   }
+}
+
+/** 今天的時間用完了嗎（給冒險在兩站之間判斷） */
+export const isTimeUp = () => overtime() >= 0
+
+/** 兩個遊戲之間呼叫：時間到了就去睡覺，回傳是否已經結束 */
+export function bedtimeIfDue(): boolean {
+  if (!isTimeUp()) return false
+  goToBed()
+  return true
 }
 
 async function persist() {

@@ -41,5 +41,11 @@ export const GLYPHS: Record<string, string[]> = {
   Q: ['M50 20 C10 20 10 120 50 120 C90 120 90 20 50 20', 'M58 96 L82 128'],
 }
 
-/** 依難度分組：直線 → 簡單曲線與斜線 → 多筆畫 → 複雜曲線 */
-export const GLYPH_LEVELS = ['1ILT7H', '0OCUVA', '4EFNMWZKXY', '235689BDPRSGJQ']
+/**
+ * 照運筆的發展順序分組（benchmark 手法 5）：直線 → 橫線 → 圓 → 十字 → 斜線。
+ * 1. 只有直線、橫線與圓：1 I L T H 0 O C
+ * 2. 直線＋橫線的多筆畫、直線＋弧線：E F U D P B J
+ * 3. 連續的曲線（沒有斜線）：S G 3 5 6 8 9
+ * 4. 有斜線的最後：A K V X Y Z N M W 4 7 2 R Q（約 5 歲才畫得好斜線）
+ */
+export const GLYPH_LEVELS = ['1ILTH0OC', 'EFUDPBJ', 'SG35689', 'AKVXYZNMW472RQ']

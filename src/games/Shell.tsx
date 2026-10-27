@@ -1,9 +1,39 @@
-import type { CSSProperties, ReactNode } from 'react'
+import { createContext, useContext, useEffect, useState, type CSSProperties, type ReactNode } from 'react'
 import { Dino, type Mood } from '../art/Dino'
 import { HoldButton } from '../ui/Hold'
 import { Scenery } from '../ui/Scenery'
 import { station as stationDef } from '../content/games'
+import { coplayHint } from '../content/coplay'
+import { useRoute } from '../lib/nav'
+import { holdBedtime } from '../lib/session'
 import type { StationId } from '../lib/db'
+import './coplay.css'
+
+/**
+ * 現在在玩哪個遊戲：今日冒險用它告訴 Shell（陪玩提示要依遊戲 id 挑）。
+ * 從站點直接玩時路由本身就帶著遊戲 id，不需要提供。
+ */
+export const PlayingGame = createContext<string | null>(null)
+
+function usePlayingGame(): string | null {
+  const fromAdventure = useContext(PlayingGame)
+  const r = useRoute()
+  return fromAdventure ?? (r.name === 'play' ? r.game : null)
+}
+
+/** 給爸爸看的一行中文陪玩提示：小字、低對比、不接收點擊（benchmark 手法 2） */
+export function CoplayHint({ station, text: override }: { station: StationId; text?: string }) {
+  const gameId = usePlayingGame()
+  // 一進遊戲就決定，玩的過程中不換句子（遊戲自己給的提示例外，例如描字的建議工具）
+  const [picked] = useState(() => coplayHint(gameId, station))
+  const text = override ?? picked
+  return (
+    <p className="coplay-hint" aria-hidden="true">
+      <span className="coplay-tag">陪玩</span>
+      {text}
+    </p>
+  )
+}
 
 export interface GameResult {
   items: number
@@ -44,11 +74,17 @@ interface Props {
   onHost?: () => void
   children: ReactNode
   hideHost?: boolean
+  /** 角落的陪玩提示，預設顯示；爸爸回合自己有更大的提示，不用再顯示 */
+  hint?: boolean
+  /** 遊戲自己決定的陪玩提示（例如描字現在建議用手指還是用筆），取代預設的那句 */
+  hintText?: string
 }
 
 /** 每個遊戲共用的舞台：上方返回鍵與進度、左下角是主持的恐龍（點它會再說一次題目） */
-export function Shell({ station, mood, progress, onExit, onHost, children, hideHost }: Props) {
+export function Shell({ station, mood, progress, onExit, onHost, children, hideHost, hint = true, hintText }: Props) {
   const st = stationDef(station)
+  // 遊戲在畫面上的時候，每日時間到了也先等它玩完（在兩個遊戲之間才去睡覺）
+  useEffect(() => holdBedtime(), [])
   return (
     <div className="stage" style={{ '--stage': st.tint, '--deep': st.deep } as CSSProperties}>
       <Scenery station={station} />
@@ -64,6 +100,7 @@ export function Shell({ station, mood, progress, onExit, onHost, children, hideH
           </div>
         )}
         <div style={{ width: 76 }} />
+        {hint && <CoplayHint station={station} text={hintText} />}
       </div>
       <div className="stage-main">{children}</div>
       {!hideHost && (

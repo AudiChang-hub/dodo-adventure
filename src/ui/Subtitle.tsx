@@ -11,6 +11,10 @@ interface Tok {
   /** 挖空的字：pre + 空格 + post，空格寬度等於 core */
   blank?: { pre: string; core: string; post: string }
   seg: number
+  /** 目標字（`|` 後的加重段）：字幕上字級最大 */
+  key: boolean
+  /** 長句裡的次要字：字小一點、淡一點，讓目標字跳出來 */
+  minor: boolean
   /** 相對於該段音檔開頭的毫秒 */
   start: number
   end: number
@@ -44,6 +48,11 @@ let nextId = 1
 
 /** 超過這個字數的句子字縮小一點，盡量維持一行，少擋到下面的東西 */
 const LONG_CHARS = 40
+/**
+ * 字幕最好一句不超過 6 個字（benchmark 手法 6）。超過的句子照樣顯示，
+ * 但目標字以外的字縮小、變淡，眼睛還是先看到目標字。
+ */
+const MAX_WORDS = 6
 
 function makeLive(key: string, line: Line): Live {
   const blank = isBlankQuestion(key)
@@ -52,11 +61,12 @@ function makeLive(key: string, line: Line): Live {
     if (!s.text) return
     if (blank && s.emph) {
       const [, pre, core, post] = s.text.match(EDGE)!
-      toks.push({ text: s.text, blank: { pre, core, post }, seg, start: NaN, end: NaN })
+      toks.push({ text: s.text, blank: { pre, core, post }, seg, key: true, minor: false, start: NaN, end: NaN })
       return
     }
-    for (const w of s.text.split(/\s+/)) toks.push({ text: w, seg, start: NaN, end: NaN })
+    for (const w of s.text.split(/\s+/)) toks.push({ text: w, seg, key: s.emph, minor: false, start: NaN, end: NaN })
   })
+  if (toks.length > MAX_WORDS) for (const t of toks) t.minor = !t.key
   return { id: nextId++, key, line, toks, segAt: [], ended: false, whole: false, blank }
 }
 
@@ -274,7 +284,7 @@ export function Subtitle({ hidden }: { hidden: boolean }) {
             <span className="sub-who" aria-hidden="true" />
             <span className="sub-text">
               {v.live.toks.map((t, i) => (
-                <span key={i} data-i={i} className={`sub-w${v.mode !== 'live' ? ' is-said' : ''}`}>
+                <span key={i} data-i={i} className={`sub-w${t.key ? ' is-key' : ''}${t.minor ? ' is-minor' : ''}${v.mode !== 'live' ? ' is-said' : ''}`}>
                   {t.blank ? (
                     <>
                       {t.blank.pre}

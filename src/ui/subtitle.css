@@ -58,6 +58,8 @@ body:has(.stage-top .progress):not(:has(.stage-host)) .sub-pill {
   display: flex;
   flex-wrap: wrap;
   justify-content: center;
+  /* 字級大小不一：對齊基線，目標字往上長，不會把整行撐歪 */
+  align-items: baseline;
   column-gap: 0.24em;
   text-wrap: balance;
 }
@@ -90,6 +92,22 @@ body:has(.stage-top .progress):not(:has(.stage-host)) .sub-pill {
 .sub-w.is-now::before {
   opacity: 1;
   transform: none;
+}
+
+/* ── 少字、大字（benchmark 手法 6）：目標字最大，長句的次要字淡一點 ─────
+   孩子看字幕的時間很少，字越大、越少越容易被看到；目標字是其他字的約 1.6 倍 */
+.sub-w.is-key {
+  font-size: 1.6em;
+  line-height: 1;
+  letter-spacing: 0.02em;
+}
+.sub-w.is-minor {
+  font-size: 0.82em;
+  color: var(--ink-faint);
+}
+.sub-w.is-minor.is-said,
+.sub-w.is-minor.is-now {
+  color: var(--ink-soft);
 }
 
 /* ── 空格：寬度等於答案字，答對或提示後補上答案 ───────────────── */
