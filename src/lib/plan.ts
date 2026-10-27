@@ -2,6 +2,7 @@ import { db, getKV, setKV, today, type StationId } from './db'
 import { gamesOf } from '../content/games'
 import { FRIENDS } from '../content/park'
 import { lastPlayed } from './adaptive'
+import { fluencyReady, isFluency } from './fluency'
 import { getSettings } from './settings'
 import { pick } from './random'
 
@@ -20,7 +21,8 @@ export async function todayPlan(): Promise<Plan> {
   const order: StationId[] = ['english', 'math', dayIndex % 2 ? 'draw' : 'park', 'mandarin', dayIndex % 2 ? 'park' : 'draw']
   const n = Math.max(2, Math.min(5, getSettings().activitiesPerDay))
   const items = order.slice(0, n).map((station) => {
-    const games = gamesOf(station).filter((g) => g.kind !== 'free')
+    // 功文式小練習要有足夠已熟的數字題才排進來，不然就不是「做得到、越做越快」的練習
+    const games = gamesOf(station).filter((g) => g.kind !== 'free' && (!isFluency(g.id) || fluencyReady()))
     const oldest = [...games].sort((a, b) => lastPlayed(a.id) - lastPlayed(b.id)).slice(0, 2)
     return { game: pick(oldest).id, station, done: false }
   })

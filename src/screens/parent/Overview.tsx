@@ -1,6 +1,8 @@
 import { isQuiz, phaseOf, today, type Attempt, type StationId } from '../../lib/db'
 import { game } from '../../content/games'
 import { lastDays, minutesByDay, pct, skillLabel, STATION_NAME, type ParentData } from './data'
+import { isDueAt, isScored } from '../../lib/engine'
+import { LoadAlert, playDayIndex } from './EngineCards'
 
 /**
  * 今天新教了什麼：今天的教學紀錄（不含答錯後的重教），每個技能一筆，
@@ -51,6 +53,10 @@ export function Overview({ d }: { d: ParentData }) {
   // 答題數、答對率只算「自己答」；教學卡與一起練不計分
   const quizzes = d.attempts.filter(isQuiz)
   const todayA = todayAll.filter(isQuiz)
+  // 第一次答對率排除程度校準的探測題（故意出難的）與 Sam 教豆豆，和負擔控制同一套算法
+  const todayScored = todayAll.filter(isScored)
+  const day = playDayIndex(d)
+  const dueN = [...d.skills.values()].filter((s) => isDueAt(s as { box: number; due?: number }, day)).length
   const mins = minutesByDay(d.sessions)
   const days = lastDays(7)
   const week = quizzes.filter((a) => a.date >= days[0])
@@ -75,7 +81,9 @@ export function Overview({ d }: { d: ParentData }) {
     <>
       <h2>總覽</h2>
       <p className="sub">{d.source === 'cloud' ? '資料來源：雲端' : '資料來源：這台裝置'}</p>
-      <div className="grid">
+      <LoadAlert d={d} />
+      {/* 五張數字卡：平板橫向一排放得下，手機自動換行 */}
+      <div className="grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))' }}>
         <div className="card stat">
           <div className="label">今天玩了</div>
           <div className="value">
@@ -93,8 +101,15 @@ export function Overview({ d }: { d: ParentData }) {
         <div className="card stat">
           <div className="label">今天第一次就答對</div>
           <div className="value">
-            {pct(todayA.filter((a) => a.firstTryCorrect).length, todayA.length)}
+            {pct(todayScored.filter((a) => a.firstTryCorrect).length, todayScored.length)}
             <small>%</small>
+          </div>
+        </div>
+        <div className="card stat">
+          <div className="label">今天到期複習</div>
+          <div className="value">
+            {dueN}
+            <small>個</small>
           </div>
         </div>
         <div className="card stat">

@@ -1,0 +1,135 @@
+/* 家長區：學習引擎（第二批・工作線 A）的區塊 */
+
+/* 負擔控制的提醒：放在總覽最上面。用左邊的粗線＋圖示＋文字，不只靠顏色 */
+.parent .alert {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 4px 14px;
+  align-items: start;
+  padding: 16px 20px;
+  margin-bottom: 18px;
+  border-radius: 18px;
+  background: #fbefe6;
+  box-shadow: inset 5px 0 0 #d38a5e, 0 1px 0 var(--paper-edge);
+}
+.parent .alert::before {
+  content: '!';
+  grid-row: span 2;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-family: 'Fredoka', sans-serif;
+  font-weight: 600;
+  background: #d38a5e;
+  color: #fff;
+}
+.parent .alert b {
+  font-weight: 500;
+  font-size: 15px;
+}
+.parent .alert p {
+  margin: 0;
+  font-size: 14px;
+  color: var(--ink-soft);
+  line-height: 1.6;
+}
+
+/* 每天的第一次答對率：小格子，低於 6 成的有斜線，黑白也分得出來 */
+.parent .days {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+}
+.parent .days span {
+  font-size: 12px;
+  padding: 3px 10px;
+  border-radius: 99px;
+  background: var(--card);
+  box-shadow: inset 0 0 0 1px var(--paper-edge);
+}
+.parent .days span.low {
+  background: repeating-linear-gradient(-45deg, #f8e0d8 0 6px, #fbefe6 6px 12px);
+  box-shadow: inset 0 0 0 1px #e9b9a6;
+}
+
+/* 今天到期複習 */
+.parent .due {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+}
+.parent .due li {
+  list-style: none;
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 8px 14px;
+  border-radius: 14px;
+  background: #e8f1ec;
+  font-size: 15px;
+}
+.parent .due li small {
+  color: var(--ink-soft);
+  font-size: 12px;
+}
+.parent .due li.stale {
+  background: var(--paper);
+  outline: 1.5px dashed #c9bfae;
+  outline-offset: -1.5px;
+}
+.parent .due li .tag {
+  font-size: 12px;
+  padding: 1px 8px;
+  border-radius: 99px;
+  background: #f6e7b8;
+  color: #6e5513;
+}
+
+/* 兩欄的小統計 */
+.parent .duo {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 0 18px;
+}
+.parent .kv {
+  display: flex;
+  gap: 18px;
+  flex-wrap: wrap;
+  margin: 4px 0 10px;
+}
+.parent .kv div {
+  font-size: 13px;
+  color: var(--ink-soft);
+}
+.parent .kv b {
+  display: block;
+  font-family: 'Fredoka', sans-serif;
+  font-weight: 500;
+  font-size: 24px;
+  color: var(--ink);
+}
+.parent .kv b small {
+  font-size: 13px;
+  color: var(--ink-soft);
+  margin-left: 3px;
+}
+.parent .note {
+  font-size: 13px;
+  color: var(--ink-soft);
+  line-height: 1.6;
+  margin: 8px 0 0;
+}
+.parent .placed {
+  font-size: 13px;
+  color: var(--ink-soft);
+  white-space: nowrap;
+}
+.parent .placed .steps-dots {
+  letter-spacing: 2px;
+  margin-left: 6px;
+  color: var(--ink);
+}
