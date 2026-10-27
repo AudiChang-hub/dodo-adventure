@@ -335,6 +335,11 @@ export const GAMES: GameDef[] = [
   { id: 'p-color', station: 'park', kind: 'choice', title: '找顏色', icon: 'balloon', intro: 'p.intro.color', maxLevel: 4, make: pColor },
   { id: 'p-shape', station: 'park', kind: 'choice', title: '找形狀', icon: 'glowing-star', intro: 'p.intro.shape', maxLevel: 4, make: pShape },
   { id: 'p-size', station: 'park', kind: 'choice', title: '比大小', icon: 'elephant', intro: 'p.intro.size', maxLevel: 3, make: pSize },
+
+  // ── 工作線 A ──
+  // 功文式小練習：全是已熟的數字題、一題接一題（由 ChoiceGame 交給 src/games/FluencyGame.tsx）
+  { id: 'm-quick', station: 'math', kind: 'choice', title: '數字快答', icon: 'rocket', intro: 'quick.intro', maxLevel: 1 },
+  // ── 工作線 A ──
 ]
 
 export const game = (id: string) => GAMES.find((g) => g.id === id)!

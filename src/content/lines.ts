@@ -1,3 +1,4 @@
+import './lines-engine'
 import { CHILD_EN } from '../lib/env'
 import { LETTERS } from './letters'
 import { VOCAB, TAG_QUESTION, type Tag } from './vocab'

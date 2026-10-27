@@ -1,9 +1,10 @@
 import { LETTERS } from '../../content/letters'
 import { VOCAB, THEME_LABEL, type VocabTheme } from '../../content/vocab'
 import { GAMES } from '../../content/games'
-import { level, unlockedLetters, unlockedNumbers } from '../../lib/adaptive'
+import { gameLevel, level, unlockedLetters, unlockedNumbers } from '../../lib/adaptive'
 import { isQuiz } from '../../lib/db'
 import { pct, STATION_NAME, type ParentData } from './data'
+import { DueCard, HintCard, ProtegeCard, SpeedCard, placementDots, placementText } from './EngineCards'
 
 function Cell({ label, box, locked }: { label: string; box: number; locked?: boolean }) {
   return (
@@ -41,7 +42,9 @@ export function Progress({ d }: { d: ParentData }) {
   return (
     <>
       <h2>學習進度</h2>
-      <p className="sub">每格下方的長條是熟練度（0–5）：第一次就答對往上一格，答錯退一格；3 格以上視為熟練。</p>
+      <p className="sub">每格下方的長條是熟練度（0–5）：第一次就答對、而且不比自己平常慢，往上一格；答錯退一格；3 格以上視為熟練，之後會定期回來複習。</p>
+
+      <DueCard d={d} />
 
       <div className="card">
         <h3>英文字母（目前開放到 {letters[letters.length - 1]}）</h3>
@@ -101,6 +104,10 @@ export function Progress({ d }: { d: ParentData }) {
         <p>{glyphs.length ? glyphs.join('　') : <span className="empty">還沒有。</span>}</p>
       </div>
 
+      <SpeedCard d={d} />
+      <HintCard d={d} />
+      <ProtegeCard d={d} />
+
       <div className="card">
         <h3>各遊戲目前的難度</h3>
         <table>
@@ -109,20 +116,34 @@ export function Progress({ d }: { d: ParentData }) {
               <th>站點</th>
               <th>遊戲</th>
               <th>難度</th>
+              <th>程度校準（第一次玩的探測）</th>
             </tr>
           </thead>
           <tbody>
-            {GAMES.filter((g) => g.maxLevel > 1).map((g) => (
-              <tr key={g.id}>
-                <td>{STATION_NAME[g.station]}</td>
-                <td>{g.title}</td>
-                <td>
-                  {level(g.id)} / {g.maxLevel}
-                </td>
-              </tr>
-            ))}
+            {GAMES.filter((g) => g.maxLevel > 1).map((g) => {
+              const l = gameLevel(g.id)
+              const dots = placementDots(l)
+              return (
+                <tr key={g.id}>
+                  <td>{STATION_NAME[g.station]}</td>
+                  <td>{g.title}</td>
+                  <td>
+                    {level(g.id)} / {g.maxLevel}
+                  </td>
+                  <td className="placed">
+                    {placementText(g.id, l)}
+                    {dots && (
+                      <span className="steps-dots" aria-label="探測題結果：○ 答對、× 答錯">
+                        {dots}
+                      </span>
+                    )}
+                  </td>
+                </tr>
+              )
+            })}
           </tbody>
         </table>
+        <p className="note">每個遊戲第一次玩時，前 2–3 題直接出比較難的題目：答對升一級、答錯降一級（沒學過的就先教）。畫畫類照發展順序走，不探測。</p>
       </div>
     </>
   )

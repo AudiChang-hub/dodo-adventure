@@ -10,7 +10,7 @@ export type AttemptInput = Omit<Attempt, 'id' | 'ts' | 'date' | 'sessionId' | 's
  * 教學卡與一起練也會留下紀錄（家長區看得到今天教了什麼），但另外標記階段。
  */
 export async function logAttempt(a: AttemptInput) {
-  if (a.phase === 'quiz') recordSkill(a.skill, a.firstTryCorrect)
+  if (a.phase === 'quiz') recordSkill(a.skill, a.firstTryCorrect, a)
   await db.attempts.put({ ...a, id: uid(), ts: Date.now(), date: today(), sessionId: sessionId(), synced: 0 })
   requestSync()
 }

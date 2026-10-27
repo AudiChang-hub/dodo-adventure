@@ -1,49 +1,183 @@
-import { db, type GameLevel, type Skill } from './db'
+import { db, getKV, setKV, today, type Attempt, type GameLevel, type Skill } from './db'
 import { LETTER_GROUPS } from '../content/letters'
 import { weightedPick } from './random'
+import { beginProbe, probing, stepProbe } from './placement'
+import {
+  HINT_DELAY_MAX,
+  HINT_DELAY_START,
+  HINT_DELAY_STEP,
+  MASTERED_BOX,
+  REVIEW_DAYS,
+  SPEED_WINDOW,
+  dayIndexOf,
+  isDueAt,
+  isProtege,
+  isSlow,
+  loadCheck,
+  overdueBy,
+  replayHintDelay,
+  speedCat,
+  type LoadState,
+} from './engine'
 
 // 技能熟練度與遊戲難度都很小，開機時整份載入記憶體，題目產生器就能同步取用
 const skills = new Map<string, Skill>()
 const levels = new Map<string, GameLevel>()
 
+// ── 學習引擎的執行狀態：開機時從作答紀錄推算（第二批・工作線 A）──
+/** 有玩的日子（作答紀錄的日期） */
+const playDates = new Set<string>()
+/** 每一類題目最近幾次「第一次就答對」的反應時間 */
+const speed = new Map<string, number[]>()
+let load: LoadState = { overloaded: false, days: [] }
+let hintDelay = HINT_DELAY_START
+let hintRecent: number[] = []
+
+/** 開機時讀多久以內的紀錄來推算速度、負擔與延遲提示 */
+const LOOKBACK_DAYS = 60
+
 export async function loadAdaptive() {
   ;(await db.skills.toArray()).forEach((s) => skills.set(s.key, s))
   ;(await db.levels.toArray()).forEach((l) => levels.set(l.key, l))
+  ;((await db.attempts.orderBy('date').uniqueKeys()) as string[]).forEach((d) => playDates.add(d))
+
+  const since = today(new Date(Date.now() - LOOKBACK_DAYS * 86_400_000))
+  const recent = await db.attempts.where('date').aboveOrEqual(since).sortBy('ts')
+  for (const a of recent) if (a.phase === 'quiz' || a.phase == null) noteSpeed(a)
+  const h = replayHintDelay(recent)
+  hintDelay = h.ms
+  hintRecent = h.recent
+  load = loadCheck(recent, today())
+  await applyLoadDrop()
 }
 
 export function skill(key: string): Skill {
   return skills.get(key) ?? { key, box: 0, seen: 0, firstTry: 0, streak: 0, lastTs: 0 }
 }
 
-/** 熟練度分 0–5 格：第一次就答對往上一格，答錯退一格 */
-export function recordSkill(key: string, firstTry: boolean) {
+// ── 有玩的日子 ───────────────────────────────────────────────
+/** 今天是第幾個有玩的日子 */
+export const dayIndex = () => dayIndexOf(playDates, today())
+const notePlayDay = () => playDates.add(today())
+
+export const isDue = (key: string) => isDueAt(skill(key), dayIndex())
+
+/** 今天到期、該複習的已熟技能（越久沒確認的越前面） */
+export function dueSkills(): Skill[] {
+  const day = dayIndex()
+  return [...skills.values()].filter((s) => isDueAt(s, day)).sort((a, b) => overdueBy(b, day) - overdueBy(a, day))
+}
+
+// ── 又對又快 ─────────────────────────────────────────────────
+function noteSpeed(a: Pick<Attempt, 'game' | 'skill' | 'firstTryCorrect' | 'hintUsed' | 'responseMs' | 'metrics'>) {
+  if (!a.firstTryCorrect || a.hintUsed || isProtege(a) || !(a.responseMs > 0)) return
+  const cat = speedCat(a.game, a.skill)
+  if (!cat) return
+  speed.set(cat, [...(speed.get(cat) ?? []), a.responseMs].slice(-SPEED_WINDOW))
+}
+
+/** 這一類題目目前的速度樣本（家長區、除錯用） */
+export const speedWindow = (game: string, skillKey: string) => speed.get(speedCat(game, skillKey) ?? '') ?? []
+
+export interface SkillInput {
+  game: string
+  responseMs: number
+  hintUsed: boolean
+  metrics?: Record<string, number>
+}
+
+/**
+ * 熟練度分 0–5 格（只採計「自己答」）：
+ * - 第一次就答對，而且沒有比他自己這類題目的移動中位數明顯慢 → 往上一格；
+ *   答對但明顯偏慢 → 維持原格（功文式：又對又快才算熟練）。
+ * - 答錯 → 退一格。
+ * - 已熟（3 格以上）的技能排到期複習：依序隔 1、2、4、7、14 個有玩的日子。
+ *   到期那天答對就拉長間隔；答錯就降一格、隔天再考，間隔從頭開始。
+ * - 延遲提示亮了才答對（softHint）：不算第一次答對，但也不退格。
+ * - 探測題答錯、Sam 教豆豆：不改熟練度（前者還沒教過，後者是另一種題型）。
+ */
+export function recordSkill(key: string, firstTry: boolean, info?: SkillInput) {
+  const m = info?.metrics
+  if (m?.protege) return
+  if (m?.probe && !firstTry) return
+  notePlayDay()
   const s = { ...skill(key) }
+  const day = dayIndex()
+  const wasMastered = s.box >= MASTERED_BOX
+  const due = wasMastered && isDueAt(s, day)
+  const slow = !!info && firstTry && isSlow(speedWindow(info.game, key), info.responseMs)
   s.seen++
   s.lastTs = Date.now()
   if (firstTry) {
     s.firstTry++
     s.streak++
-    s.box = Math.min(5, s.box + 1)
+    if (slow) s.slow = (s.slow ?? 0) + 1
+    else s.box = Math.min(5, s.box + 1)
   } else {
     s.streak = 0
-    s.box = Math.max(0, s.box - 1)
+    if (!m?.softHint) s.box = Math.max(0, s.box - 1)
+  }
+  if (info) noteSpeed({ ...info, skill: key, firstTryCorrect: firstTry })
+
+  // 到期複習的排程
+  if (s.box >= MASTERED_BOX) {
+    if (!wasMastered) {
+      s.rev = 0
+      s.due = day + REVIEW_DAYS[0]
+    } else if (!firstTry) {
+      s.rev = 0
+      s.due = day + 1
+      if (due) s.lastReview = { day, ts: s.lastTs, result: 'no' }
+    } else if (due) {
+      const rev = slow ? (s.rev ?? 0) : Math.min(REVIEW_DAYS.length - 1, (s.rev ?? 0) + 1)
+      s.rev = rev
+      s.due = day + REVIEW_DAYS[rev]
+      s.lastReview = { day, ts: s.lastTs, result: slow ? 'slow' : 'ok' }
+    }
+  } else if (wasMastered) {
+    // 複習答錯、掉出已熟：回到一般的「越不熟越常出」，重新熟了再排複習
+    s.lastReview = due ? { day, ts: s.lastTs, result: 'no' } : s.lastReview
+    delete s.rev
+    delete s.due
   }
   skills.set(key, s)
   void db.skills.put(s)
 }
 
-export const mastered = (key: string) => skill(key).box >= 3
+export const mastered = (key: string) => skill(key).box >= MASTERED_BOX
+
+// ── 遊戲難度與程度校準 ─────────────────────────────────────
+const blankLevel = (game: string): GameLevel => ({ key: game, level: 1, up: 0, down: 0, plays: 0, lastTs: 0 })
+
+function putLevel(l: GameLevel) {
+  levels.set(l.key, l)
+  void db.levels.put(l)
+}
 
 export function level(game: string): number {
   return levels.get(game)?.level ?? 1
 }
 
+/** 這個遊戲正在做程度校準的探測（第一次玩的前 2–3 題） */
+export const isProbing = (game: string) => probing(levels.get(game))
+
+export const gameLevel = (game: string): GameLevel | undefined => levels.get(game)
+
 /**
  * 維持約七到八成的答對率：連續 3 題第一次就答對升一級，連續 2 題沒答對降一級。
  * 回傳是否升降級，讓畫面可以給一句鼓勵。
+ *
+ * 程度校準中（第一次玩）：這一題是探測題，改用階梯法（答對升、答錯降），不給升級語音。
+ * opts.probe 為 false 時（例如教完之後的自己答）不算探測題；沒給就照遊戲狀態判斷，
+ * 這樣數數、照順序這些沒有改程式的遊戲也會自動校準。
  */
-export function reportLevel(game: string, firstTry: boolean, maxLevel: number): 'up' | 'down' | null {
-  const l = { ...(levels.get(game) ?? { key: game, level: 1, up: 0, down: 0, plays: 0, lastTs: 0 }) }
+export function reportLevel(game: string, firstTry: boolean, maxLevel: number, opts?: { probe?: boolean; skill?: string }): 'up' | 'down' | null {
+  const cur = levels.get(game) ?? blankLevel(game)
+  if (probing(cur) && opts?.probe !== false) {
+    putLevel(stepProbe(cur, firstTry, maxLevel, opts?.skill))
+    return null
+  }
+  const l = { ...cur }
   let change: 'up' | 'down' | null = null
   if (firstTry) {
     l.up++
@@ -62,17 +196,18 @@ export function reportLevel(game: string, firstTry: boolean, maxLevel: number): 
       change = 'down'
     }
   }
-  levels.set(game, l)
-  void db.levels.put(l)
+  putLevel(l)
   return change
 }
 
+/** 每個遊戲開始時呼叫：記一次遊玩；還沒校準過的遊戲在這裡開始探測（負擔過重的期間先不探測） */
 export function markPlayed(game: string) {
-  const l = { ...(levels.get(game) ?? { key: game, level: 1, up: 0, down: 0, plays: 0, lastTs: 0 }) }
+  notePlayDay()
+  let l: GameLevel = { ...(levels.get(game) ?? blankLevel(game)) }
+  if (!load.overloaded) l = beginProbe(l) ?? l
   l.plays++
   l.lastTs = Date.now()
-  levels.set(game, l)
-  void db.levels.put(l)
+  putLevel(l)
 }
 
 export const lastPlayed = (game: string) => levels.get(game)?.lastTs ?? 0
@@ -89,6 +224,40 @@ export const isNew = (key: string) => skill(key).seen === 0
  */
 export const needsDemo = (firstPlay: boolean, key: string) => firstPlay || isNew(key)
 
+// ── 負擔控制（PRD §5.10）────────────────────────────────────
+export const loadState = () => load
+/** 負擔過重：暫停教新內容 */
+export const pauseNew = () => load.overloaded
+
+/**
+ * 連續 3 個有玩的日子第一次答對率都低於 6 成：每個遊戲降一級。
+ * 一天只做一次（重新整理不會重複降）；同時暫停教新內容，直到有一天回到 6 成以上。
+ */
+async function applyLoadDrop() {
+  if (!load.overloaded) return
+  const t = today()
+  if ((await getKV<string>('engine:loadDrop', '')) === t) return
+  for (const l of levels.values()) if (l.level > 1) putLevel({ ...l, level: l.level - 1, up: 0, down: 0 })
+  await setKV('engine:loadDrop', t)
+}
+
+// ── 延遲提示（benchmark 手法 3）──────────────────────────────
+/** 學習中的題目：唸完題目後幾毫秒，正確答案才淡淡亮起 */
+export const hintDelayMs = () => hintDelay
+
+/**
+ * 每一題延遲提示的結果：waited = 光亮了之後很快才點（孩子在等光）。
+ * 最近 5 題有 3 題在等光，就把延遲拉長 1 秒（和 engine.replayHintDelay 同一套規則）。
+ */
+export function noteHintWait(waited: boolean) {
+  hintRecent = [...hintRecent, waited ? 1 : 0].slice(-5)
+  if (hintRecent.reduce((s, x) => s + x, 0) >= 3 && hintDelay < HINT_DELAY_MAX) {
+    hintDelay = Math.min(HINT_DELAY_MAX, hintDelay + HINT_DELAY_STEP)
+    hintRecent = []
+  }
+}
+
+// ── 挑題 ─────────────────────────────────────────────────────
 let targetFilter: ((key: string) => boolean) | null = null
 
 /**
@@ -104,7 +273,10 @@ export function withTargetFilter<T>(ok: (key: string) => boolean, run: () => T):
   }
 }
 
-/** 越不熟、越久沒練的越容易被選中；並避開剛剛才出過的 */
+/**
+ * 到期的已熟內容優先（到期複習）；沒有到期的，越不熟、越久沒練的越容易被選中。
+ * 並避開剛剛才出過的。
+ */
 export function pickTarget<T>(items: readonly T[], keyOf: (t: T) => string, avoid: T[] = []): T {
   let pool = items.length > avoid.length ? items.filter((t) => !avoid.includes(t)) : items
   if (!pool.length) pool = [...items]
@@ -115,6 +287,9 @@ export function pickTarget<T>(items: readonly T[], keyOf: (t: T) => string, avoi
     const loose = fit.length ? fit : items.filter((t) => ok(keyOf(t)))
     if (loose.length) pool = loose
   }
+  const day = dayIndex()
+  const due = pool.filter((t) => isDueAt(skill(keyOf(t)), day))
+  if (due.length) return weightedPick(due, (t) => 1 + overdueBy(skill(keyOf(t)), day))
   const now = Date.now()
   return weightedPick(pool, (t) => {
     const s = skill(keyOf(t))
@@ -142,3 +317,4 @@ export function unlockedNumbers(): number {
   if (ratio(range(6, 10)) < 0.8) return 10
   return 20
 }
+

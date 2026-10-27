@@ -1,0 +1,60 @@
+/* 學習引擎（第二批・工作線 A）的選項狀態 */
+
+/* ── 延遲提示：比閒置提示（.tile.hint）更淡的一圈細光，慢慢浮現、不閃 ──
+   紙感螢幕對比低，線條比一般螢幕粗一點（4px），但仍比閒置提示（6px、會呼吸）安靜 */
+.tile.soft::after {
+  content: '';
+  position: absolute;
+  inset: -8px;
+  border-radius: calc(var(--radius-lg) + 8px);
+  border: 4px solid var(--hint);
+  opacity: 0.9;
+  animation: soft-in 2.2s var(--ease-out) both;
+  pointer-events: none;
+}
+@keyframes soft-in {
+  from {
+    opacity: 0;
+    transform: scale(0.985);
+  }
+}
+
+/* ── Sam 教豆豆：恐龍「猜」的那一個，掛一個問號泡泡 ── */
+.tile.tease {
+  box-shadow:
+    0 8px 0 rgba(46, 42, 37, 0.1),
+    0 0 0 4px color-mix(in srgb, var(--deep, #d38a5e) 55%, transparent) inset;
+}
+.tease-q {
+  position: absolute;
+  top: -22px;
+  right: -16px;
+  width: clamp(54px, 9vmin, 84px);
+  aspect-ratio: 1;
+  display: grid;
+  place-items: center;
+  border-radius: 50% 50% 50% 14%;
+  background: var(--card);
+  border: 4px solid var(--ink);
+  color: var(--ink);
+  font-family: var(--font);
+  font-weight: 600;
+  font-size: clamp(32px, 5.6vmin, 52px);
+  line-height: 1;
+  box-shadow: 0 5px 0 rgba(46, 42, 37, 0.14);
+  pointer-events: none;
+  z-index: 2;
+}
+
+/* ── 功文式小練習：波波背後的暖光，答對越多越大（不是分數，沒有數字、沒有時間） ── */
+.quick-joy {
+  position: absolute;
+  left: -12cqw;
+  bottom: -26cqh;
+  width: 70cqh;
+  aspect-ratio: 1;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(241, 210, 124, 0.95) 0%, rgba(240, 176, 136, 0.55) 45%, rgba(240, 176, 136, 0) 70%);
+  pointer-events: none;
+  transform-origin: 50% 50%;
+}

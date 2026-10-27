@@ -51,6 +51,22 @@ export interface Skill {
   firstTry: number
   streak: number
   lastTs: number
+  // ── 以下是第二批（學習引擎）新增的欄位，都不建索引，舊資料沒有也能讀 ──
+  /** 到期複習的階段 0–4，對應隔 1、2、4、7、14 個「有玩的日子」；只有已熟（3 格以上）才有 */
+  rev?: number
+  /** 下一次該複習的「第幾個有玩的日子」；已熟卻沒有這個欄位（舊資料）視為今天到期 */
+  due?: number
+  /** 最近一次到期複習：第幾個有玩的日子、結果（ok／slow 答對但偏慢／no 答錯） */
+  lastReview?: { day: number; ts: number; result: 'ok' | 'slow' | 'no' }
+  /** 答對但明顯偏慢、所以沒有升格的次數 */
+  slow?: number
+}
+
+/** 程度校準（第一次玩的 2–3 題探測）的一題 */
+export interface ProbeStep {
+  level: number
+  ok: boolean
+  skill?: string
 }
 
 export interface GameLevel {
@@ -60,6 +76,10 @@ export interface GameLevel {
   down: number
   plays: number
   lastTs: number
+  /** 探測中：從哪一級開始、已經出了哪些題 */
+  probe?: { from: number; start: number; steps: ProbeStep[] }
+  /** 探測完成：從 from 級調到 to 級；skipped 表示原本的難度已經夠高，沒有探測 */
+  placed?: { ts: number; from: number; to: number; steps: ProbeStep[]; skipped?: boolean }
 }
 
 export interface Drawing {
