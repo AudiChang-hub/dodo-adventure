@@ -6,6 +6,7 @@ import { Hand } from '../Demo'
 import { preload, say, sfx } from '../../lib/audio'
 import { wait } from '../lines'
 import { useIdle } from '../idle'
+import { PACE } from '../pace'
 import '../teach.css'
 
 interface Props {
@@ -43,12 +44,13 @@ export function SheetTeach({ items, lines: all, short, onDone }: Props) {
     preload(lines)
     const boot = window.setTimeout(async () => {
       sfx.whoosh()
-      await wait(420)
+      await wait(PACE.TEACH_ENTER)
       for (let i = 0; i < lines.length; i++) {
         if (!live.current) return
         setStep(i)
         await say(lines[i])
-        await wait(120)
+        // 句子之間停一下，讓孩子看著圖把這一句聽進去；最後一句念完，例子貼紙也停留一下才出現「點我」
+        await wait(i < lines.length - 1 ? PACE.TEACH_LINE_GAP : PACE.TEACH_SETTLE)
       }
       if (!live.current) return
       readyAt.current = performance.now()
@@ -65,7 +67,8 @@ export function SheetTeach({ items, lines: all, short, onDone }: Props) {
   }, [])
 
   const tap = async () => {
-    if (!ready) return setPop((p) => p + 1)
+    // 還在念（或「點我」剛出現）：只給一點點回饋，不會一出現就被帶過去
+    if (!ready || performance.now() - readyAt.current < PACE.TEACH_TAP_ARM) return setPop((p) => p + 1)
     if (busy.current) return
     busy.current = true
     idle.stop()
@@ -75,7 +78,8 @@ export function SheetTeach({ items, lines: all, short, onDone }: Props) {
     setPop((p) => p + 1)
     sfx.pop()
     await say(lines[0])
-    await wait(260)
+    // 再聽一次之後，卡片和例子再停留一下才收起來
+    await wait(PACE.TEACH_HOLD)
     if (live.current) onDone(ms)
   }
 

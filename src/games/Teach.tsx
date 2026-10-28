@@ -8,6 +8,7 @@ import { preload, say, sfx } from '../lib/audio'
 import type { TeachSpec, Visual } from '../content/games'
 import { wait } from './lines'
 import { useIdle } from './idle'
+import { PACE } from './pace'
 import './teach.css'
 
 interface Props {
@@ -50,12 +51,13 @@ export function TeachCard({ spec, short, onDone }: Props) {
     // 延到下一輪才開始：StrictMode 開發模式會先掛載、卸載再掛載一次，避免兩條流程同時在念
     const boot = window.setTimeout(async () => {
       sfx.whoosh()
-      await wait(420)
+      await wait(PACE.TEACH_ENTER)
       for (let i = 0; i < lines.length; i++) {
         if (!live.current) return
         setStep(i)
         await say(lines[i])
-        await wait(120)
+        // 句子之間停一下，讓孩子看著圖把這一句聽進去；最後一句念完，例子貼紙也停留一下才出現「點我」
+        await wait(i < lines.length - 1 ? PACE.TEACH_LINE_GAP : PACE.TEACH_SETTLE)
       }
       if (!live.current) return
       readyAt.current = performance.now()
@@ -72,8 +74,8 @@ export function TeachCard({ spec, short, onDone }: Props) {
   }, [])
 
   const tap = async () => {
-    if (!ready) {
-      // 還在念：只給一點點回饋，不打斷
+    // 還在念（或「點我」剛出現）：只給一點點回饋，不打斷；念的時候一直在點的孩子，不會一出現就被帶過去
+    if (!ready || performance.now() - readyAt.current < PACE.TEACH_TAP_ARM) {
       setPop((p) => p + 1)
       return
     }
@@ -87,7 +89,8 @@ export function TeachCard({ spec, short, onDone }: Props) {
     setPop((p) => p + 1)
     sfx.pop()
     await say(lines[0])
-    await wait(260)
+    // 再聽一次之後，卡片和例子再停留一下才收起來
+    await wait(PACE.TEACH_HOLD)
     if (live.current) onDone(ms)
   }
 

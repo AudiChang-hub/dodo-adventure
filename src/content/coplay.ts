@@ -7,6 +7,7 @@ import { letterEntry } from './letters'
 import { VOCAB } from './vocab'
 import { COLORS, SHAPES, COUNT_ICONS } from './park'
 import { pick } from '../lib/random'
+import { skill } from '../lib/adaptive'
 import { themeNow } from '../lib/theme-play'
 
 // ── 陪玩提示：一行、短、只寫給大人看 ─────────────────────────────
@@ -137,9 +138,14 @@ const ASKS: Record<string, (itemId: string) => DadAsk | null> = {
   'd-glyph': glyphAsk,
 }
 
-/** 通用題：拿一個動物村的詞，問「這是什麼？」 */
+/**
+ * 通用題：拿一個動物村的詞，問「這是什麼？」。
+ * 優先挑在 App 裡學過的（聽詞找圖、聽聲音答過的）；一個都還沒學過才用常見的動物（爸爸用中文問「這是什麼動物」，不考英文名字）。
+ */
 function genericAsk(): DadAsk {
-  const v = pick(VOCAB.filter((x) => x.theme === 'animal' || x.theme === 'vehicle'))
+  const pool = VOCAB.filter((x) => x.theme === 'animal' || x.theme === 'vehicle')
+  const known = pool.filter((x) => skill(`vocab:${x.id}`).seen > 0 || skill(`sound:${x.id}`).seen > 0)
+  const v = pick(known.length ? known : pool.filter((x) => x.theme === 'animal'))
   return vocabAsk(v.id)!
 }
 

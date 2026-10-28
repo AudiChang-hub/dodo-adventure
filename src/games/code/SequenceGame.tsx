@@ -6,21 +6,21 @@ import { Hand } from '../Demo'
 import { Emoji } from '../../art/Emoji'
 import { Sparkles } from '../../ui/Sparkles'
 import { game as gameDef, type TeachSpec, type Visual } from '../../content/games'
-import { pickStory, seqSkill, type Story } from '../../content/code'
-import { isNew, level, markPlayed, mastered, plays, reportLevel, teachable, withTargetFilter } from '../../lib/adaptive'
+import { seqSkill, type Story } from '../../content/code'
+import { markPlayed, plays, reportLevel } from '../../lib/adaptive'
+import { planSequence, roundState } from '../pick'
 import { logAttempt, logTeach } from '../../lib/record'
 import type { Phase } from '../../lib/db'
 import { preload, say, sfx, stopSpeech } from '../../lib/audio'
 import { shuffle } from '../../lib/random'
 import { praiseKey, retryKey, wait } from '../lines'
 import { useIdle } from '../idle'
+import { PACE, nextPause } from '../pace'
 import { hit, useTapDrag } from './drag'
 import type { Mood } from '../../art/Dino'
 import './code.css'
 
 const ROUNDS = 4
-/** 一局最多教幾個新故事（PRD §5.8） */
-const MAX_TEACH = 2
 
 /** 教學卡：故事照順序排開，一張一張指著念旁白 */
 const teachOf = (s: Story): TeachSpec => {
@@ -77,10 +77,10 @@ export function SequenceGame({ gameId, onDone, onExit }: GameProps) {
   const misses = useRef(0)
   const hintUsed = useRef(false)
   const lv = useRef(1)
-  const recent = useRef<Story[]>([])
-  const taught = useRef(0)
   const firstTries = useRef(0)
-  const firstPlay = useRef(plays(def.id) === 0)
+  const round = useRef({ ...roundState(plays(def.id) === 0), stories: [] as Story[] })
+  /** 這一題剛走過教學卡、示範或一起練：答對後多停一下再換題 */
+  const taughtItem = useRef(false)
   const resolver = useRef<((ms: number) => void) | null>(null)
   const stripEl = useRef<HTMLDivElement | null>(null)
   const rootEl = useRef<HTMLDivElement | null>(null)
@@ -135,7 +135,7 @@ export function SequenceGame({ gameId, onDone, onExit }: GameProps) {
     if (!live.current) return
     setCard(null)
     void logTeach({ station: def.station, game: def.id, itemId: s.id, skill: seqSkill(s), level: lv.current, ms, retaught: short })
-    await wait(260)
+    await wait(PACE.TEACH_TO_GUIDED)
   }
 
   /** 一起練或自己答：同一個故事、重新洗牌 */
@@ -166,34 +166,28 @@ export function SequenceGame({ gameId, onDone, onExit }: GameProps) {
   const present = async (i: number) => {
     idxRef.current = i
     setIdx(i)
-    lv.current = level(def.id)
-    // 主題式冒險先挑主題的故事（等公車 → 公車來了），這一級沒有就照常挑
-    const make = () => pickStory(lv.current, recent.current)
-    // 開局先出已熟的故事；這局已經教滿（或負擔過重、本週新概念額度用完）就只出學過的
-    let s = i === 0 ? withTargetFilter(mastered, make) : make()
-    const ok = teachable(def.id, taught.current, MAX_TEACH)
-    if (!ok(seqSkill(s))) s = withTargetFilter(ok, make)
-    recent.current = [s, ...recent.current].slice(0, 2)
+    // 這題排哪個故事、要不要先教（pick.ts，自動檢查 scripts/sim-teach.ts 用同一份）
+    const { s, lv: l, fresh, walk } = planSequence(def, round.current, i)
+    lv.current = l
     preload([...teachOf(s).lines, 'c.seq.first', 'c.seq.next', 'teach.here.bobo', 'teach.turn.bobo'])
 
-    const fresh = isNew(seqSkill(s))
-    const walk = !fresh && firstPlay.current && i === 0
     if (fresh) {
-      taught.current++
       await teach(s, false)
       if (!live.current) return
     }
+    taughtItem.current = fresh || walk
     if (fresh || walk) {
+      // 一起練答對後的停頓在 GUIDED_TO_QUIZ（finish 裡），這裡不用再等
       const g = await ask(s, 'guided', false)
       if (!live.current) return
-      await wait(300)
       return ask(s, 'quiz', true, g)
     }
     return ask(s, 'quiz', false)
   }
 
-  const next = async () => {
-    await wait(500)
+  /** 答對（或重教完）到下一題：剛教的新內容多停一下，複習題維持輕快 */
+  const next = async (ms = nextPause(taughtItem.current)) => {
+    await wait(ms)
     if (!live.current) return
     const n = idxRef.current + 1
     if (n >= ROUNDS) return onDone({ items: ROUNDS, firstTry: firstTries.current })
@@ -290,7 +284,8 @@ export function SequenceGame({ gameId, onDone, onExit }: GameProps) {
     })
     if (ph === 'guided') {
       await say(praiseKey('bobo'))
-      await wait(250)
+      // 排好的故事和答對的動畫停留一下，才換「Your turn!」
+      await wait(PACE.GUIDED_TO_QUIZ)
       return release()
     }
     if (firstTry) firstTries.current++
@@ -322,7 +317,8 @@ export function SequenceGame({ gameId, onDone, onExit }: GameProps) {
     await teach(s, true)
     if (!live.current) return
     await ask(s, 'guided', false)
-    if (live.current) next()
+    // 一起練答對時已經停過了（GUIDED_TO_QUIZ），不用再多等
+    if (live.current) next(PACE.NEXT_REVIEW)
   }
 
   const drag = useTapDrag<number>({

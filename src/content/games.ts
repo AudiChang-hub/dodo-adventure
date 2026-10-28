@@ -3,6 +3,7 @@ import type { StationId } from '../lib/db'
 import { PHONICS, CONFUSE, LOOKALIKE_LOWER, phonicsSkill, wordsOf, wordId, type PhonicsWord, type SoundUnit } from './letters'
 import { VOCAB, AMBIGUOUS, CAT_EXAMPLES, vocab, type Tag } from './vocab'
 import { COLORS, COLOR_EXAMPLES, SHAPES, SIZE_ICONS, COUNT_ICONS, type ShapeId } from './park'
+import { COLOR_LOOKALIKE, SHAPE_LOOKALIKE } from './worksheet-data'
 import { pickTarget, pickPreferred, unlockedNumbers, mastered, skill, isNew } from '../lib/adaptive'
 import { themeNow, themed as themeList } from '../lib/theme-play'
 import { weekTheme } from '../lib/settings'
@@ -440,10 +441,21 @@ const zSound = (level: number, recent: string[]): ChoiceItem => {
 }
 
 // ── 彩虹公園 ───────────────────────────────────────────────
+/**
+ * 低難度（1–2 級）的干擾選項溫和一點：不放和答案長得像的（紅色旁邊不放粉紅、橘色；三角形旁邊不放星星），
+ * 剛學會 red 的孩子是在練「聽到名字找到它」，不是在練分辨相近的顏色；3 級以上才放進來。
+ * 干擾選項本來就可以是還沒教過的（在紅、綠、藍裡找紅色），答案一定是學過或剛教的（games/pick.ts）。
+ */
+function gentleOthers<T extends { id: string }>(pool: readonly T[], ans: T, n: number, level: number, like: Record<string, string[]>): T[] {
+  const far = level <= 2 ? pool.filter((x) => x !== ans && !(like[ans.id] ?? []).includes(x.id)) : []
+  const first = sample(far, n)
+  return [...first, ...sample(pool, n - first.length, [ans, ...first])]
+}
+
 const pColor = (level: number, recent: string[]): ChoiceItem => {
   const pool = COLORS.slice(0, level >= 3 ? 8 : 5)
   const c = pickPreferred(pool.filter((x) => themeNow()?.colors.includes(x.id)), pool, (x) => `color:${x.id}`, pool.filter((x) => recent.includes(x.id)))
-  const opts = shuffle([c, ...sample(pool, optCount(level) - 1, [c])])
+  const opts = shuffle([c, ...gentleOthers(pool, c, optCount(level) - 1, level, COLOR_LOOKALIKE)])
   const shape = level >= 4 ? (pick(SHAPES).id as ShapeId) : null
   return {
     itemId: c.id,
@@ -459,7 +471,7 @@ const pColor = (level: number, recent: string[]): ChoiceItem => {
 const pShape = (level: number, recent: string[]): ChoiceItem => {
   const pool = SHAPES.slice(0, level >= 3 ? 6 : 4)
   const s = pickTarget(pool, (x) => `shape:${x.id}`, pool.filter((x) => recent.includes(x.id)))
-  const opts = shuffle([s, ...sample(pool, optCount(level) - 1, [s])])
+  const opts = shuffle([s, ...gentleOthers(pool, s, optCount(level) - 1, level, SHAPE_LOOKALIKE)])
   // 低難度全部同色，只比形狀；高難度顏色各不同，要忽略顏色
   const hexes = shuffle(COLORS.map((c) => c.hex))
   return {

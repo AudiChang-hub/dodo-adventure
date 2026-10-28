@@ -6,24 +6,24 @@ import { Hand } from './Demo'
 import { VisualView } from '../ui/Visual'
 import { Sparkles } from '../ui/Sparkles'
 import { game as gameDef, station as stationDef, ROUND_ITEMS, type ChoiceItem, type TeachSpec } from '../content/games'
-import { level, reportLevel, markPlayed, plays, isNew, withTargetFilter, mastered, skill, isProbing, teachable, hintDelayMs, noteHintWait } from '../lib/adaptive'
+import { level, reportLevel, markPlayed, plays, mastered, skill, hintDelayMs, noteHintWait } from '../lib/adaptive'
+import { planChoice, roundState } from './pick'
 import { logAttempt, logTeach } from '../lib/record'
 import type { Phase } from '../lib/db'
 import { WAIT_WINDOW_MS } from '../lib/engine'
 import { canTease, teaseKey } from '../content/lines-engine'
 import { FluencyGame, isFluency } from './FluencyGame'
+import { FLUENCY_FALLBACK, fluencyTargets } from '../lib/fluency'
 import { preload, say, sfx, stopSpeech } from '../lib/audio'
 import { pick, shuffle } from '../lib/random'
 import { challengeKey, praiseKey, retryKey, wait } from './lines'
 import { useIdle } from './idle'
+import { PACE, nextPause } from './pace'
 import type { Mood } from '../art/Dino'
 import './engine.css'
 
 /** soft：延遲提示的淡淡一圈光；tease：Sam 教豆豆時，恐龍故意指錯的那一個 */
 type Mark = 'wrong' | 'correct' | 'hint' | 'soft' | 'tease'
-
-/** 一局最多教幾個新內容，其餘都是複習（PRD §5.8）；負擔過重的期間暫停教新內容 */
-const MAX_TEACH = 2
 
 /** Sam 教豆豆：一局最多 1 次，而且只有約三成的局會出現（頻率要低） */
 const PROTEGE_CHANCE = 0.3
@@ -32,7 +32,7 @@ const PROTEGE_CHANCE = 0.3
 interface QuizOpts {
   /** 剛一起練完的自己答 */
   afterGuide?: boolean
-  /** 程度校準的探測題：不先教，直接考比較難的 */
+  /** 程度校準的探測題：用比較難的題型考學過的內容（pick.ts 保證是學過的） */
   probe?: boolean
   /** Sam 教豆豆：恐龍故意指著這個錯的選項 */
   decoy?: string
@@ -58,14 +58,18 @@ function reshuffle(it: ChoiceItem): ChoiceItem {
  * 熟練度與難度只採計「自己答」。
  */
 export function ChoiceGame(props: GameProps) {
-  // 功文式小練習也是選擇題（kind: 'choice'），由它自己的元件負責
+  // 功文式小練習也是選擇題（kind: 'choice'），由它自己的元件負責。
+  // 還沒有學過的數字題（例如第一天就從地圖點進數字快答）：改玩找數字，先教再考
+  // 進來的那一刻決定（玩到一半學會了也不換遊戲）
+  const [fallback] = useState(() => isFluency(props.gameId) && !fluencyTargets().length)
+  if (fallback) return <ChoiceRound {...props} gameId={FLUENCY_FALLBACK} />
   return isFluency(props.gameId) ? <FluencyGame {...props} /> : <ChoiceRound {...props} />
 }
 
 /**
  * 第二批（學習引擎）在原本的流程上加了：
  * - 開局第一題出已熟的內容，先答對、建立信心。
- * - 程度校準：第一次玩的前 2–3 題是探測題，直接考比較難的；答錯才教，答對就不用教。
+ * - 程度校準：前 2–3 題是探測題，用比較難的題型考「學過的」內容（不教不考，placement.ts）。
  * - 延遲提示：學習中（0–2 格）的題目，唸完題目幾秒後正確答案才淡淡亮起。
  * - Sam 教豆豆：已熟的內容偶爾由恐龍故意指錯，孩子點正確的來糾正。
  */
@@ -88,7 +92,6 @@ function ChoiceRound({ gameId, onDone, onExit }: GameProps) {
   const taps = useRef<{ pick: string; ms: number }[]>([])
   const shownAt = useRef(0)
   const hintUsed = useRef(false)
-  const recent = useRef<string[]>([])
   const firstTries = useRef(0)
   const idle = useIdle()
   const itemLevel = useRef(1)
@@ -97,9 +100,10 @@ function ChoiceRound({ gameId, onDone, onExit }: GameProps) {
   const phaseRef = useRef<Phase>('quiz')
   /** 每換一個步驟就加一，舊步驟的計時器看到不一樣就不動作 */
   const stepRef = useRef(0)
-  const taught = useRef(0)
   // 必須在 markPlayed 之前讀：第一次玩的遊戲，第一題一定先一起練一次
-  const firstPlay = useRef(plays(def.id) === 0)
+  const round = useRef(roundState(plays(def.id) === 0))
+  /** 這一題剛走過教學卡或一起練：答對後多停一下再換題 */
+  const taughtItem = useRef(false)
   /** 這一題是探測題 */
   const probeRef = useRef(false)
   /** Sam 教豆豆：恐龍指著的錯誤選項 */
@@ -138,7 +142,7 @@ function ChoiceRound({ gameId, onDone, onExit }: GameProps) {
     if (!live.current) return
     setCard(null)
     void logTeach({ station: def.station, game: def.id, itemId: it.itemId, skill: it.skill, level: itemLevel.current, ms, retaught: short })
-    await wait(260)
+    await wait(PACE.TEACH_TO_GUIDED)
   }
 
   // ── 一起練：答案發光，點錯也沒關係 ─────────────────────────
@@ -214,35 +218,10 @@ function ChoiceRound({ gameId, onDone, onExit }: GameProps) {
     idxRef.current = i
     setIdx(i)
     const isLast = i === ROUND_ITEMS - 1
-    // 第一次玩的第一題是「怎麼玩」的一起練，不算探測；之後的 2–3 題是探測題
-    const probe = isProbing(def.id) && !(firstPlay.current && i === 0)
-    const lvBase = level(def.id)
-    // 最後一題是挑戰題：比目前難度高一級
-    let lv = isLast && !probe && lvBase < def.maxLevel ? lvBase + 1 : lvBase
+    // 這題出什麼、要不要先教、是不是探測題（pick.ts，自動檢查 scripts/sim-teach.ts 用同一份）
+    const { it, lv, probe, fresh, walk: walkThrough } = planChoice(def, round.current, i)
     itemLevel.current = lv
-    const make = () => def.make!(lv, recent.current)
-    /** 盡量出符合 ok 的題目：先用挑題篩選，沒有用（例如比多少不經過挑題）就多抽幾次 */
-    const makeWhere = (ok: (k: string) => boolean) => {
-      let it = make()
-      for (let k = 0; k < 10 && !ok(it.skill); k++) it = withTargetFilter(ok, make)
-      return it
-    }
-    // 開局先出已熟的：讓孩子先答對、建立信心（功文式「從低一點開始」）
-    let it = i === 0 ? makeWhere(mastered) : make()
-    const ok = teachable(def.id, taught.current, MAX_TEACH)
-    if (!ok(it.skill)) {
-      // 這局已經教滿了、負擔過重暫停教新內容，或這條主線本週的新概念額度用完：其餘出複習題，不考沒教過的
-      it = makeWhere(ok)
-      // 挑戰題（高一級）的內容全是新的（例如找規律 3 級才有的 AAB）：退回目前難度再找一次
-      if (!ok(it.skill) && lv > lvBase) {
-        lv = lvBase
-        itemLevel.current = lv
-        it = makeWhere(ok)
-      }
-    }
-    recent.current = [it.itemId, ...recent.current].slice(0, 3)
     // Sam 教豆豆：已熟、有「這是 X 嗎？」台詞的題目，一局最多 1 次，不放在第一題和挑戰題
-    const fresh = !!it.teach && isNew(it.skill) && !probe
     const tease =
       !probe && !fresh && i > 0 && !isLast && protegeRound.current && !protegeUsed.current && mastered(it.skill) && canTease(it.skill) && it.options.length >= 2
     let decoy: string | undefined
@@ -258,17 +237,13 @@ function ChoiceRound({ gameId, onDone, onExit }: GameProps) {
       `teach.here.${host}`,
       `teach.turn.${host}`,
       ...(decoy ? [`tease.try.${host}`, teaseKey(it.skill), `tease.thanks.${host}`, `tease.oops.${host}`] : []),
-      ...(probe ? [`probe.show.${host}`] : []),
     ])
 
-    // 真的找不到複習題時（例如比多少隨機出到沒學過的「少」），寧可多教一個，也不考沒教過的
-    // 探測題例外：先直接考，答錯才教（已經會的就不用教）
-    const walkThrough = !fresh && !probe && firstPlay.current && i === 0
     if (fresh) {
-      taught.current++
       await teach(it, false)
       if (!live.current) return
     }
+    taughtItem.current = fresh || walkThrough
     if (fresh || walkThrough) {
       await guided(it)
       if (!live.current) return
@@ -277,8 +252,9 @@ function ChoiceRound({ gameId, onDone, onExit }: GameProps) {
     return quiz(it, { probe, decoy })
   }
 
-  const next = async () => {
-    await wait(350)
+  /** 答對（或重教完）到下一題：剛教的新內容多停一下，複習題維持輕快 */
+  const next = async (ms = nextPause(taughtItem.current)) => {
+    await wait(ms)
     if (!live.current) return
     const n = idxRef.current + 1
     if (n >= ROUND_ITEMS) return onDone({ items: ROUND_ITEMS, firstTry: firstTries.current })
@@ -327,7 +303,8 @@ function ChoiceRound({ gameId, onDone, onExit }: GameProps) {
       hintUsed: true,
     })
     await say(praiseKey(host, english))
-    await wait(250)
+    // 答對的動畫跑完、孩子看清楚了，才換「Your turn!」
+    await wait(PACE.GUIDED_TO_QUIZ)
     if (live.current) release()
   }
 
@@ -354,37 +331,8 @@ function ChoiceRound({ gameId, onDone, onExit }: GameProps) {
     await teach(it, true)
     if (!live.current) return
     await guided(reshuffle(it))
-    if (live.current) next()
-  }
-
-  /** 探測題沒答對：記一筆探測紀錄（不改熟練度）、難度往下調，接著照一般流程先教再考 */
-  const probeMiss = async (it: ChoiceItem, optId: string) => {
-    locked.current = true
-    stepRef.current++
-    idle.stop()
-    delayRef.current = null
-    probeRef.current = false
-    sfx.gentle()
-    setMarks((m) => ({ ...m, [optId]: 'wrong' }))
-    void logAttempt({
-      ...base(it),
-      phase: 'quiz',
-      taps: taps.current,
-      firstTryCorrect: false,
-      attempts: 1,
-      responseMs: taps.current[0].ms,
-      hintUsed: false,
-      metrics: { probe: 1 },
-    })
-    reportLevel(def.id, false, def.maxLevel, { probe: true, skill: it.skill })
-    await say(`probe.show.${host}`)
-    if (!live.current) return
-    taught.current++
-    await teach(it, false)
-    if (!live.current) return
-    await guided(reshuffle(it))
-    if (!live.current) return
-    await quiz(reshuffle(it), { afterGuide: true })
+    // 一起練答對時已經停過了（GUIDED_TO_QUIZ），不用再多等
+    if (live.current) next(PACE.NEXT_REVIEW)
   }
 
   /** Sam 教豆豆：點正確的就是糾正成功；點了恐龍指的（或其他錯的），恐龍自己發現、正確答案亮起 */
@@ -436,9 +384,6 @@ function ChoiceRound({ gameId, onDone, onExit }: GameProps) {
     if (phaseRef.current === 'guided') return tapGuided(it, optId)
     taps.current.push({ pick: optId, ms: Math.round(performance.now() - shownAt.current) })
     if (decoyRef.current) return tapTease(it, optId)
-
-    // 探測題第一下就錯、而且是沒學過的：表示還不會，直接教（不再試、不算答錯）
-    if (optId !== it.answer && probeRef.current && taps.current.length === 1 && it.teach && isNew(it.skill)) return probeMiss(it, optId)
 
     if (optId !== it.answer) {
       sfx.gentle()

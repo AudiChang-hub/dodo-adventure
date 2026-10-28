@@ -8,21 +8,20 @@ import { SheetTeach } from './SheetTeach'
 import { ThingView } from './ThingView'
 import { game as gameDef, station as stationDef } from '../../content/games'
 import { SHEET_MAKERS, type SheetItem } from '../../content/games-worksheet'
-import { level, reportLevel, markPlayed, plays, isNew, teachable, withTargetFilter } from '../../lib/adaptive'
+import { reportLevel, markPlayed, plays } from '../../lib/adaptive'
+import { planSheet, roundState } from '../pick'
 import { logAttempt, logTeach } from '../../lib/record'
 import type { Phase } from '../../lib/db'
 import { preload, say, sfx, stopSpeech } from '../../lib/audio'
 import { shuffle } from '../../lib/random'
 import { praiseKey, retryKey, wait } from '../lines'
 import { useIdle } from '../idle'
+import { PACE, nextPause } from '../pace'
 import { analyzeLasso, crayonLoop, dist, layout, smoothPath, winding, BOARD_H, BOARD_W, type P, type Spot } from './geom'
 import type { Mood } from '../../art/Dino'
 import './sheet.css'
 
 export type SheetMode = 'tap' | 'lasso'
-
-/** 一局最多教幾個新概念，其餘都是複習（PRD §5.8） */
-const MAX_TEACH = 2
 
 interface LoopStat {
   circ: number
@@ -66,7 +65,6 @@ export function SheetGame({ gameId, onDone, onExit, mode }: GameProps & { mode: 
   const shownAt = useRef(0)
   const hintUsed = useRef(false)
   const wrongs = useRef(0)
-  const recent = useRef<string[]>([])
   const firstTries = useRef(0)
   const itemLevel = useRef(1)
   const idxRef = useRef(0)
@@ -77,9 +75,9 @@ export function SheetGame({ gameId, onDone, onExit, mode }: GameProps & { mode: 
   const wrongRef = useRef<string[]>([])
   /** 每換一個步驟就加一，舊步驟的計時器看到不一樣就不動作 */
   const stepRef = useRef(0)
-  const taught = useRef(0)
-  const demos = useRef(0)
-  const firstPlay = useRef(plays(def.id) === 0)
+  const round = useRef(roundState(plays(def.id) === 0))
+  /** 這一題剛走過教學卡、示範或一起練：答對後多停一下再換題 */
+  const taughtItem = useRef(false)
   const resolver = useRef<((ms: number) => void) | null>(null)
   const idle = useIdle()
   // 圈選
@@ -145,13 +143,12 @@ export function SheetGame({ gameId, onDone, onExit, mode }: GameProps & { mode: 
     if (!live.current) return
     setCard(null)
     void logTeach({ station: def.station, game: def.id, itemId: it.itemId, skill: it.skill, level: itemLevel.current, ms, retaught: short })
-    await wait(260)
+    await wait(PACE.TEACH_TO_GUIDED)
   }
 
   // ── 圈選示範：Watch me! 筆沿著一圈畫過去，把第一個圈起來 ─────────
   const penShow = async (it: SheetItem) => {
     const s = performance.now()
-    demos.current++
     stepRef.current++
     idle.stop()
     locked.current = true
@@ -179,7 +176,7 @@ export function SheetGame({ gameId, onDone, onExit, mode }: GameProps & { mode: 
     setFound([sh.things[i].id])
     setBurst({ id: sh.things[i].id, k: Date.now() })
     await say(numKey(1))
-    await wait(700)
+    await wait(PACE.DEMO_HOLD)
     if (!live.current) return
     setDemo(null)
     setFound([])
@@ -240,22 +237,12 @@ export function SheetGame({ gameId, onDone, onExit, mode }: GameProps & { mode: 
   const present = async (i: number) => {
     idxRef.current = i
     setIdx(i)
-    const lv = level(def.id)
+    // 這題出什麼、要不要先教、要不要先示範怎麼圈（pick.ts，自動檢查 scripts/sim-teach.ts 用同一份）
+    const { it, lv, fresh, pen, walk } = planSheet(def, make, mode, round.current, i)
     itemLevel.current = lv
-    const gen = () => make(lv, recent.current)
-    let it = gen()
-    // 這局已經教滿、負擔過重，或這條主線本週的新概念額度用完：出學過的
-    const ok = teachable(def.id, taught.current, MAX_TEACH)
-    for (let k = 0; k < 10 && !ok(it.skill); k++) it = withTargetFilter(ok, gen)
-    recent.current = [it.itemId, ...recent.current].slice(0, 3)
     preload([promptOf(it), hereKey, ...it.teach.lines, ...it.things.flatMap((t) => (t.say ? [t.say] : [])), `teach.turn.${host}`, `ws.done.${host}`])
 
-    // 圈選：概念在「找出全部」學過就不用再看教學卡，只要學怎麼圈
-    const fresh = isNew(it.skill) && (mode === 'tap' || isNew(`all:${it.itemId}`))
-    const pen = mode === 'lasso' && demos.current < 1 && (firstPlay.current || isNew(it.skill))
-    const walk = !fresh && !pen && firstPlay.current && i === 0
     if (fresh) {
-      taught.current++
       await teach(it, false)
       if (!live.current) return
     }
@@ -263,6 +250,7 @@ export function SheetGame({ gameId, onDone, onExit, mode }: GameProps & { mode: 
       await penShow(it)
       if (!live.current) return
     }
+    taughtItem.current = fresh || pen || walk
     if (fresh || pen || walk) {
       await guided(it)
       if (!live.current) return
@@ -270,8 +258,9 @@ export function SheetGame({ gameId, onDone, onExit, mode }: GameProps & { mode: 
     return quiz(it, fresh || pen || walk)
   }
 
-  const next = async () => {
-    await wait(350)
+  /** 答對（或重教完）到下一題：剛教的新概念多停一下，複習題維持輕快 */
+  const next = async (ms = nextPause(taughtItem.current)) => {
+    await wait(ms)
     if (!live.current) return
     const n = idxRef.current + 1
     if (n >= ITEMS) return onDone({ items: ITEMS, firstTry: firstTries.current })
@@ -333,7 +322,8 @@ export function SheetGame({ gameId, onDone, onExit, mode }: GameProps & { mode: 
     await teach(it, true)
     if (!live.current) return
     await guided(it)
-    if (live.current) next()
+    // 一起練答對時已經停過了（GUIDED_TO_QUIZ），不用再多等
+    if (live.current) next(PACE.NEXT_REVIEW)
   }
 
   const finishQuiz = async (it: SheetItem) => {
@@ -417,7 +407,8 @@ export function SheetGame({ gameId, onDone, onExit, mode }: GameProps & { mode: 
         ...(mode === 'lasso' ? { metrics: lassoMetrics() } : {}),
       })
       await say(praiseKey(host))
-      await wait(250)
+      // 答對的動畫跑完、孩子看清楚了，才換「Your turn!」
+      await wait(PACE.GUIDED_TO_QUIZ)
       if (live.current) release()
       return
     }

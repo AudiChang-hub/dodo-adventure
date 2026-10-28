@@ -12,14 +12,14 @@ import type { Phase } from '../lib/db'
 import { preload, say, sfx, stopSpeech } from '../lib/audio'
 import { praiseKey, wait } from './lines'
 import { useIdle } from './idle'
-import { useNumberPicker } from './sheet/NumberFlow'
+import { PACE, nextPause } from './pace'
+import { NUMBER_RANGE, useNumberPicker } from './sheet/NumberFlow'
 import { DoneButton } from './sheet/DoneButton'
 import type { Mood } from '../art/Dino'
 import './sheet/sheet.css'
 
 const ROUNDS = 4
 /** 波波要的數量：從 1–3 開始，熟了延伸到 10 */
-const RANGE: Record<number, [number, number]> = { 1: [1, 3], 2: [2, 5], 3: [3, 7], 4: [5, 10] }
 
 // 學習單座標 1000×600：左邊是草窩，右邊是籃子，完成鍵在籃子下面
 const BASKET = { x: 580, y: 176, w: 370, h: 254 }
@@ -93,6 +93,8 @@ export function GiveGame({ gameId, onDone, onExit }: GameProps) {
   const firstPlay = useRef(plays(def.id) === 0)
   const resolver = useRef<(() => void) | null>(null)
   const idle = useIdle()
+  /** 這一題剛走過示範或一起練：答對後多停一下再換題 */
+  const taughtItem = useRef(false)
   const picker = useNumberPicker('give', def.id)
   /** 每換一個步驟就加一，舊步驟的計時器看到不一樣就不動作 */
   const step = useRef(0)
@@ -154,7 +156,8 @@ export function GiveGame({ gameId, onDone, onExit }: GameProps) {
     await say(`teach.total.${k}`)
     if (!live.current) return
     setFinger(null)
-    await wait(300)
+    // 籃子裡的蛋停留一下，孩子看完整的結果
+    await wait(PACE.DEMO_HOLD)
     reset(supply(k))
     void logTeach({ station: 'math', game: def.id, itemId: String(k), skill: `give:${k}`, level: lv.current, ms: Math.round(performance.now() - s) })
     setMood('idle')
@@ -191,7 +194,7 @@ export function GiveGame({ gameId, onDone, onExit }: GameProps) {
 
   const start = async (i: number) => {
     lv.current = level(def.id)
-    const [a, b] = RANGE[lv.current]
+    const [a, b] = NUMBER_RANGE.give[lv.current]
     const { n: k, fresh } = picker.pick(a, b)
     nRef.current = k
     setN(k)
@@ -207,10 +210,10 @@ export function GiveGame({ gameId, onDone, onExit }: GameProps) {
       await demo(k)
       if (!live.current) return
     }
+    taughtItem.current = fresh || walk
     if (fresh || walk) {
       await ask(k, 'guided', false)
       if (!live.current) return
-      await wait(300)
     }
     return ask(k, 'quiz', fresh || walk)
   }
@@ -287,13 +290,15 @@ export function GiveGame({ gameId, onDone, onExit }: GameProps) {
     })
     if (ph === 'guided') {
       await say(`teach.total.${k}`, praiseKey('bobo'))
-      await wait(250)
+      // 答對的動畫跑完、孩子看清楚了，才換「Your turn!」
+      await wait(PACE.GUIDED_TO_QUIZ)
       return release()
     }
     if (firstTry) first.current++
     reportLevel(def.id, firstTry, def.maxLevel)
     await say(`teach.total.${k}`, 'ws.give.thanks')
-    await wait(400)
+    // 剛教的新數量多停一下，複習題維持輕快
+    await wait(nextPause(taughtItem.current))
     if (!live.current) return
     if (r + 1 >= ROUNDS) return onDone({ items: ROUNDS, firstTry: first.current })
     setR(r + 1)

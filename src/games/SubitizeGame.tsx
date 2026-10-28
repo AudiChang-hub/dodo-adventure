@@ -12,7 +12,8 @@ import { preload, say, sfx, stopSpeech } from '../lib/audio'
 import { shuffle } from '../lib/random'
 import { praiseKey, wait } from './lines'
 import { useIdle } from './idle'
-import { range, useNumberPicker } from './sheet/NumberFlow'
+import { PACE, nextPause } from './pace'
+import { NUMBER_RANGE, range, useNumberPicker } from './sheet/NumberFlow'
 import type { Mood } from '../art/Dino'
 import './sheet/sheet.css'
 
@@ -20,7 +21,6 @@ const ROUNDS = 5
 /** 閃現多久（毫秒）：約 1.5 秒，來不及一個一個數，只能「一眼看出來」 */
 const FLASH_MS = 1500
 /** 第 1 級 1–3、第 2 級 1–4、之後 1–5；選項 2 → 3 → 3 → 4 個 */
-const RANGE: Record<number, [number, number]> = { 1: [1, 3], 2: [1, 4], 3: [1, 5], 4: [1, 5] }
 const OPTS: Record<number, number> = { 1: 2, 2: 3, 3: 3, 4: 4 }
 
 type Dot = [number, number]
@@ -130,6 +130,8 @@ export function SubitizeGame({ gameId, onDone, onExit }: GameProps) {
   const step = useRef(0)
   const flashing = useRef(false)
   const idle = useIdle()
+  /** 這一題剛走過示範或一起練：答對後多停一下再換題 */
+  const taughtItem = useRef(false)
   const picker = useNumberPicker('flash', def.id)
 
   const release = (ms = 0) => {
@@ -160,7 +162,7 @@ export function SubitizeGame({ gameId, onDone, onExit }: GameProps) {
     if (!live.current) return
     setCard(null)
     void logTeach({ station: 'math', game: def.id, itemId: String(k), skill: `flash:${k}`, level: lv.current, ms, retaught: short })
-    await wait(260)
+    await wait(PACE.TEACH_TO_GUIDED)
   }
 
   const round = async (k: number, ph: Phase, afterGuide: boolean) => {
@@ -206,7 +208,7 @@ export function SubitizeGame({ gameId, onDone, onExit }: GameProps) {
 
   const start = async (i: number) => {
     lv.current = level(def.id)
-    const [a, b] = RANGE[lv.current]
+    const [a, b] = NUMBER_RANGE.flash[lv.current]
     const { n: k, fresh } = picker.pick(a, b)
     nRef.current = k
     setN(k)
@@ -222,10 +224,10 @@ export function SubitizeGame({ gameId, onDone, onExit }: GameProps) {
       await teach(k, false)
       if (!live.current) return
     }
+    taughtItem.current = fresh || walk
     if (fresh || walk) {
       await round(k, 'guided', false)
       if (!live.current) return
-      await wait(300)
     }
     return round(k, 'quiz', fresh || walk)
   }
@@ -289,13 +291,15 @@ export function SubitizeGame({ gameId, onDone, onExit }: GameProps) {
     })
     if (ph === 'guided') {
       await say(`teach.total.${k}`, praiseKey('bobo'))
-      await wait(250)
+      // 答對的動畫跑完、孩子看清楚了，才換「Your turn!」
+      await wait(PACE.GUIDED_TO_QUIZ)
       return release()
     }
     if (firstTry) first.current++
     reportLevel(def.id, firstTry, def.maxLevel)
     await say(`teach.total.${k}`, praiseKey('bobo'))
-    await wait(400)
+    // 剛教的新數量多停一下，複習題維持輕快
+    await wait(nextPause(taughtItem.current))
     if (!live.current) return
     if (r + 1 >= ROUNDS) return onDone({ items: ROUNDS, firstTry: first.current })
     setR(r + 1)

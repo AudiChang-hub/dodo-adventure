@@ -14,14 +14,14 @@ import { preload, say, sfx, stopSpeech } from '../lib/audio'
 import { pick } from '../lib/random'
 import { praiseKey, wait } from './lines'
 import { useIdle } from './idle'
-import { useNumberPicker } from './sheet/NumberFlow'
+import { PACE, nextPause } from './pace'
+import { NUMBER_RANGE, useNumberPicker } from './sheet/NumberFlow'
 import { DoneButton } from './sheet/DoneButton'
 import type { Mood } from '../art/Dino'
 import './sheet/sheet.css'
 
 const ROUNDS = 4
 /** 從 1–5 開始（一排 5 格），熟了延伸到 10（兩排，像十格框） */
-const RANGE: Record<number, [number, number]> = { 1: [1, 3], 2: [2, 5], 3: [4, 8], 4: [6, 10] }
 
 // 學習單座標 1000×600：上面是要數的東西，下面是一排（或兩排）圓圈，勾勾在右邊
 const CELL_R = 46
@@ -89,6 +89,8 @@ export function FillCountGame({ gameId, onDone, onExit }: GameProps) {
   const resolver = useRef<(() => void) | null>(null)
   const step = useRef(0)
   const idle = useIdle()
+  /** 這一題剛走過示範或一起練：答對後多停一下再換題 */
+  const taughtItem = useRef(false)
   const picker = useNumberPicker('fill', def.id)
 
   const setOrderBoth = (o: number[]) => {
@@ -128,7 +130,8 @@ export function FillCountGame({ gameId, onDone, onExit }: GameProps) {
     await wait(520)
     setFinger((f) => ({ x: DONE.x, y: DONE.y, tap: (f?.tap ?? 0) + 1 }))
     sfx.correct()
-    await wait(500)
+    // 示範完的那一排格子停留一下，孩子看完整的結果
+    await wait(PACE.DEMO_HOLD)
     if (!live.current) return
     setFinger(null)
     setOrderBoth([])
@@ -166,7 +169,7 @@ export function FillCountGame({ gameId, onDone, onExit }: GameProps) {
 
   const start = async (i: number) => {
     lv.current = level(def.id)
-    const [a, b] = RANGE[lv.current]
+    const [a, b] = NUMBER_RANGE.fill[lv.current]
     const { n: k, fresh } = picker.pick(a, b)
     const m = k > 5 || lv.current >= 3 ? 10 : 5
     nRef.current = k
@@ -189,10 +192,10 @@ export function FillCountGame({ gameId, onDone, onExit }: GameProps) {
       await demo(k)
       if (!live.current) return
     }
+    taughtItem.current = fresh || walk
     if (fresh || walk) {
       await ask(k, 'guided', false)
       if (!live.current) return
-      await wait(300)
     }
     return ask(k, 'quiz', fresh || walk)
   }
@@ -241,13 +244,15 @@ export function FillCountGame({ gameId, onDone, onExit }: GameProps) {
     })
     if (ph === 'guided') {
       await say(`teach.total.${k}`, praiseKey('bobo'))
-      await wait(250)
+      // 答對的動畫跑完、孩子看清楚了，才換「Your turn!」
+      await wait(PACE.GUIDED_TO_QUIZ)
       return release()
     }
     if (firstTry) first.current++
     reportLevel(def.id, firstTry, def.maxLevel)
     await say(`teach.total.${k}`, praiseKey('bobo'))
-    await wait(400)
+    // 剛教的新數量多停一下，複習題維持輕快
+    await wait(nextPause(taughtItem.current))
     if (!live.current) return
     if (r + 1 >= ROUNDS) return onDone({ items: ROUNDS, firstTry: first.current })
     setR(r + 1)
