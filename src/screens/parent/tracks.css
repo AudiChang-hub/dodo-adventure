@@ -1,0 +1,286 @@
+/* 家長區：四條能力主線（雷達圖、說明、課綱對照）。顏色沿用各站的深色，低彩度；文字一律用墨色，顏色只做記號 */
+
+.parent .tracks-card h3 small,
+.parent .curriculum h3 small {
+  margin-left: 10px;
+  font-weight: 400;
+  color: var(--ink-soft);
+  font-size: 13px;
+}
+
+.parent .tracks {
+  display: grid;
+  grid-template-columns: minmax(280px, 430px) minmax(0, 1fr);
+  gap: 8px 28px;
+  align-items: center;
+}
+/* SVG 和長句子不能把格子撐寬（手機直式會出現橫向捲動） */
+.parent .tracks > * {
+  min-width: 0;
+}
+
+/* ── 雷達圖 ─────────────────────────────────────────────── */
+.parent .radar {
+  width: 100%;
+  height: auto;
+  display: block;
+  overflow: visible;
+}
+.parent .radar .ring {
+  fill: none;
+  stroke: #e7dfd1;
+  stroke-width: 1;
+}
+.parent .radar .ring.outer {
+  fill: #f6f1e7;
+  stroke: var(--paper-edge);
+}
+.parent .radar .axis {
+  stroke: #e2d9c9;
+  stroke-width: 1;
+}
+.parent .radar .tick {
+  font-size: 11px;
+  fill: var(--ink-faint);
+  font-family: 'Fredoka', sans-serif;
+}
+.parent .radar .prev {
+  fill: none;
+  stroke: #a39b8e;
+  stroke-width: 1.5;
+  stroke-dasharray: 5 5;
+  stroke-linejoin: round;
+}
+.parent .radar .now {
+  fill: rgba(111, 132, 153, 0.14);
+  stroke: #5d6f80;
+  stroke-width: 2.5;
+  stroke-linejoin: round;
+  transform-origin: 220px 176px;
+  animation: radar-in 0.9s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+.parent .radar .dot {
+  stroke: var(--card);
+  stroke-width: 2.5;
+  animation: radar-fade 0.6s 0.35s ease-out both;
+}
+.parent .radar .empty-note {
+  font-size: 13px;
+  fill: var(--ink-soft);
+  paint-order: stroke;
+  stroke: #f6f1e7;
+  stroke-width: 6px;
+}
+.parent .radar .axis-label text {
+  font-size: 15px;
+  fill: var(--ink);
+}
+.parent .radar .axis-label .score {
+  font-family: 'Fredoka', sans-serif;
+  font-weight: 500;
+  font-size: 20px;
+}
+@keyframes radar-in {
+  from {
+    transform: scale(0.82);
+    opacity: 0;
+  }
+}
+@keyframes radar-fade {
+  from {
+    opacity: 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .parent .radar .now,
+  .parent .radar .dot {
+    animation: none;
+  }
+}
+
+/* ── 每條線的清單 ───────────────────────────────────────── */
+.parent .trk-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 4px;
+}
+.parent .trk-list li {
+  padding: 10px 0 10px 16px;
+  border-bottom: 1px solid #efe9de;
+  box-shadow: inset 3px 0 0 var(--trk);
+}
+.parent .trk-list li:last-child {
+  border-bottom: 0;
+}
+.parent .trk-head {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+}
+.parent .trk-head b {
+  font-weight: 500;
+  font-size: 15px;
+}
+.parent .trk-score {
+  font-family: 'Fredoka', sans-serif;
+  font-weight: 500;
+  font-size: 22px;
+  line-height: 1;
+}
+.parent .trk-delta {
+  font-size: 12px;
+  color: var(--ink-soft);
+  font-variant-numeric: tabular-nums;
+}
+.parent .trk-delta.up {
+  color: #2f6b49;
+}
+.parent .trk-head .chip {
+  margin-left: auto;
+}
+.parent .trk-list p {
+  margin: 3px 0 0;
+  line-height: 1.55;
+}
+.parent .trk-line {
+  font-size: 14px;
+}
+.parent .trk-what,
+.parent .trk-budget {
+  font-size: 13px;
+  color: var(--ink-soft);
+}
+.parent .trk-budget::before {
+  content: '新';
+  display: inline-block;
+  margin-right: 6px;
+  padding: 0 6px;
+  border-radius: 6px;
+  font-size: 11px;
+  line-height: 18px;
+  background: var(--paper);
+  color: var(--ink-soft);
+}
+
+/* 這幾天多排哪一條、本週主題、負擔控制 */
+.parent .trk-plan {
+  margin-top: 14px;
+  padding: 12px 16px;
+  border-radius: 14px;
+  background: var(--paper);
+  display: grid;
+  gap: 6px;
+}
+.parent .trk-plan p {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.65;
+  color: var(--ink-soft);
+}
+.parent .trk-plan b {
+  font-weight: 500;
+  color: var(--ink);
+}
+
+/* ── 課綱對照：每條線一個可展開的區塊 ────────────────────── */
+.parent .curriculum .sub {
+  margin-bottom: 10px;
+}
+.parent .curriculum details {
+  border-top: 1px solid #efe9de;
+}
+.parent .curriculum summary {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 2px 12px;
+  padding: 12px 4px 12px 0;
+  cursor: pointer;
+  list-style: none;
+  min-height: 24px;
+}
+.parent .curriculum summary::-webkit-details-marker {
+  display: none;
+}
+.parent .curriculum summary::before {
+  content: '';
+  flex: none;
+  width: 9px;
+  height: 9px;
+  border-right: 2px solid var(--ink-soft);
+  border-bottom: 2px solid var(--ink-soft);
+  transform: translateY(-2px) rotate(-45deg);
+  transition: transform 0.2s ease;
+}
+.parent .curriculum details[open] summary::before {
+  transform: translateY(-4px) rotate(45deg);
+}
+.parent .curriculum summary b {
+  font-weight: 500;
+  box-shadow: inset 0 -6px 0 color-mix(in srgb, var(--trk) 22%, transparent);
+}
+.parent .curriculum summary span {
+  font-size: 13px;
+  color: var(--ink-soft);
+}
+.parent .curriculum dl {
+  margin: 0 0 14px 21px;
+  display: grid;
+  gap: 6px;
+}
+.parent .curriculum dl > div {
+  display: grid;
+  grid-template-columns: 92px 1fr;
+  gap: 12px;
+  font-size: 14px;
+  line-height: 1.6;
+}
+.parent .curriculum dt small {
+  display: block;
+  font-size: 12px;
+  color: var(--ink-faint);
+}
+.parent .curriculum dd {
+  margin: 0;
+}
+.parent .curriculum .app {
+  margin-top: 4px;
+  padding: 8px 12px;
+  border-radius: 12px;
+  background: var(--paper);
+}
+.parent .curriculum .app dt {
+  font-family: 'Fredoka', sans-serif;
+  font-weight: 500;
+}
+
+@media (max-width: 760px) {
+  .parent .tracks {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .parent .radar {
+    max-width: 380px;
+    margin: 0 auto;
+  }
+  /* 手機上整張圖縮小約七成：字放大一點，縮完還有 12px 以上 */
+  .parent .radar .axis-label text {
+    font-size: 18px;
+  }
+  .parent .radar .axis-label .score {
+    font-size: 23px;
+  }
+  .parent .curriculum dl {
+    margin-left: 0;
+  }
+  .parent .curriculum dl > div {
+    grid-template-columns: 1fr;
+    gap: 0;
+  }
+  .parent .curriculum dt small {
+    display: inline;
+    margin-left: 6px;
+  }
+}

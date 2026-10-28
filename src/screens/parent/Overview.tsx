@@ -3,6 +3,7 @@ import { game } from '../../content/games'
 import { lastDays, minutesByDay, pct, skillLabel, STATION_NAME, type ParentData } from './data'
 import { isDueAt, isScored } from '../../lib/engine'
 import { LoadAlert, playDayIndex } from './EngineCards'
+import { CurriculumCard, TrackCard } from './Tracks'
 
 /**
  * 今天新教了什麼：今天的教學紀錄（不含答錯後的重教），每個技能一筆，
@@ -121,6 +122,8 @@ export function Overview({ d }: { d: ParentData }) {
         </div>
       </div>
 
+      <TrackCard d={d} />
+
       <div className="card">
         <h3>
           今天新教了 {taught.length ? `${taught.length} 個` : ''}
@@ -205,6 +208,8 @@ export function Overview({ d }: { d: ParentData }) {
           )}
         </div>
       </div>
+
+      <CurriculumCard />
     </>
   )
 }
