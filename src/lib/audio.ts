@@ -1,6 +1,5 @@
-import { line, segments, type Line, type Speaker } from '../content/lines'
-import { SEGMENT_GAP_MS } from '../content/voices'
-import { clipName } from './clip'
+import { line, plainText, segments, type Line, type Speaker } from '../content/lines'
+import { clipName, segmentGap } from './clip'
 
 const BASE = import.meta.env.BASE_URL
 
@@ -180,7 +179,7 @@ export async function say(...keys: string[]): Promise<void> {
   }
 }
 
-/** 一句台詞可能分成兩段（目標字另外加重），兩段之間停一下 */
+/** 一句台詞可能分成幾段（感嘆詞、鋪陳段、加重的目標字），段與段之間停一下（長度見 clip.ts 的 segmentGap） */
 async function playLine(key: string, l: Line, my: number) {
   const segs = segments(l)
   const names = segs.map((s) => clipName(l, s))
@@ -189,7 +188,7 @@ async function playLine(key: string, l: Line, my: number) {
   if (bufs.some((b) => !b)) return speakFallback(key, l, my)
   for (let i = 0; i < bufs.length; i++) {
     if (my !== token) return
-    if (i > 0) await new Promise((r) => setTimeout(r, SEGMENT_GAP_MS))
+    if (i > 0) await new Promise((r) => setTimeout(r, segmentGap(l, i)))
     if (my !== token) return
     const buf = bufs[i]!
     const words = times[names[i]] ?? null
@@ -248,7 +247,7 @@ function playBuffer(buf: AudioBuffer, speaker: Speaker, dur: number, onStart: (a
 function speakFallback(key: string, l: Line, my: number): Promise<void> {
   if (!('speechSynthesis' in window)) return Promise.resolve()
   return new Promise((resolve) => {
-    const u = new SpeechSynthesisUtterance(l.text.replace('|', ' '))
+    const u = new SpeechSynthesisUtterance(plainText(l))
     u.lang = 'en-US'
     u.rate = 0.85
     u.pitch = l.speaker === 'momo' ? 1 : 1.25

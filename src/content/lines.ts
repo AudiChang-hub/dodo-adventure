@@ -14,7 +14,7 @@ import { def, type Speaker } from './registry'
 import './lines-friends'
 import './lines-worksheet'
 
-export { def, line, hasLine, allLines, segments, type Speaker, type Line, type Segment } from './registry'
+export { def, line, hasLine, allLines, segments, plainText, type Speaker, type Line, type Segment } from './registry'
 
 // 新功能的大量台詞請放在自己的 lines-*.ts（用 registry 的 def），再到這裡 import 一行
 // （例如 import './lines-phonics'），避免多人同時改這個檔案
