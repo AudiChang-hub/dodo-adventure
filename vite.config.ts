@@ -14,19 +14,29 @@ function gitVersion() {
   }
 }
 
+const APP_VERSION = gitVersion()
+
 export default defineConfig({
   base: '/dodo-adventure/',
   define: {
-    __APP_VERSION__: JSON.stringify(gitVersion()),
+    __APP_VERSION__: JSON.stringify(APP_VERSION),
     __BUILD_TIME__: JSON.stringify(new Date().toISOString()),
   },
   plugins: [
     react(),
+    // index.html 的啟動／失敗畫面不經過 bundle，版本要在這裡填進去，家長拍照回報時才看得出是哪一版
+    {
+      name: 'boot-version',
+      transformIndexHtml: (html) => html.replace('__APP_VERSION__', APP_VERSION),
+    },
     VitePWA({
       // 不要 autoUpdate：它會在新版啟用時立刻重新載入，可能打斷遊戲；改由 src/lib/update.ts 挑時機
       registerType: 'prompt',
       includeAssets: ['icon.svg'],
       workbox: {
+        // 語音（約 2000 個 mp3、28MB）刻意留在 precache：孩子可能在沒網路時玩，沒聲音的遊戲對 3 歲小孩等於壞掉。
+        // 不會造成白畫面：新版要等全部下載完（installed → waiting）才會通知 update.ts，下載中舊版照常服務；
+        // 下載失敗只是這次不更新。沒變的檔案靠 revision 比對直接沿用，平常更新只下載有改的檔案。
         globPatterns: ['**/*.{js,css,html,svg,png,woff2,mp3}', 'audio/timings.json'],
         maximumFileSizeToCacheInBytes: 8 * 1024 * 1024,
         navigateFallback: 'index.html',
