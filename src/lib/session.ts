@@ -108,6 +108,16 @@ async function persist() {
   if (session.activeSec > 0) await db.sessions.put({ ...session, synced: 0 })
 }
 
+/**
+ * 重置學習進度前呼叫：先把這次的時間存好，再停止計時、不再寫入作答時間與這次的遊玩紀錄，
+ * 免得清掉資料庫之後、重新載入之前（例如切到背景時）又被寫回去。重置失敗時再呼叫 startSession 接著計時。
+ */
+export async function stopSession() {
+  clearInterval(timer)
+  await persist()
+  session = null
+}
+
 export function noteActivity(game: string, station: StationId, done: boolean) {
   session?.activities.push({ game, station, done })
   void persist()

@@ -2,6 +2,7 @@ import { useSyncExternalStore } from 'react'
 import { db, type Attempt, type Drawing, type Session } from './db'
 import { env } from './env'
 import { achieveForSync, type Milestone } from './achievements'
+import { wipeCloudLearning, type WipeFs, type WipeResult } from './reset-cloud'
 
 const cfg = {
   apiKey: env('VITE_FIREBASE_API_KEY'),
@@ -88,8 +89,13 @@ function friendly(e: unknown): string {
 }
 
 let timer = 0
+/** 重置學習進度時暫停同步：不再上傳，直到重新載入 App */
+let paused = false
+/** 正在跑的上傳，重置前要等它結束 */
+let running: Promise<void> | null = null
+
 export function requestSync() {
-  if (!syncConfigured) return
+  if (!syncConfigured || paused) return
   clearTimeout(timer)
   timer = window.setTimeout(() => void syncNow(), 4000)
 }
@@ -100,7 +106,12 @@ const strip = <T extends { synced: 0 | 1 }>(r: T) => {
 }
 
 /** 把還沒上傳的紀錄批次寫到 users/{uid}/... */
-export async function syncNow() {
+export function syncNow(): Promise<void> {
+  if (paused) return Promise.resolve()
+  return (running ??= upload().finally(() => (running = null)))
+}
+
+async function upload() {
   const f = await initSync()
   if (!f || !state.user || !navigator.onLine || state.status === 'syncing') return
   const uid = state.user.uid
@@ -131,6 +142,28 @@ export async function syncNow() {
     set({ status: 'idle', last: Date.now() })
   } catch (e) {
     set({ status: 'error', error: friendly(e) })
+  }
+}
+
+/**
+ * 重置學習進度（家長區「設定與同步」）：先停掉同步、等正在上傳的批次結束，再刪掉雲端的學習資料。
+ * 成功之後同步維持暫停，由呼叫的人清掉這台裝置的資料、重新載入 App；失敗會恢復同步，讓家長可以再試一次。
+ * 沒登入（或沒設定 Firebase）回傳 null，不碰雲端。
+ */
+export async function wipeCloud(opts: { keepDrawings: boolean }): Promise<WipeResult | null> {
+  // 沒登入就不必載入 Firebase（載入失敗也不該擋住只清本機的重置）
+  if (!state.user) return null
+  const f = await initSync()
+  if (!f || !state.user) return null
+  if (!navigator.onLine) throw new Error('目前沒有網路，請連上網路再重置。')
+  paused = true
+  clearTimeout(timer)
+  try {
+    await running
+    return await wipeCloudLearning(f.fs as unknown as WipeFs, f.store, state.user.uid, opts)
+  } catch (e) {
+    paused = false
+    throw new Error(friendly(e))
   }
 }
 
