@@ -60,10 +60,12 @@ const EGG_D = 'M100 14 C150 14 184 92 184 144 C184 194 148 222 100 222 C52 222 1
 
 /**
  * 波波頭上的對話泡泡：要幾顆蛋就畫幾個空的蛋形虛線框，旁邊寫大大的數字（盤點：要幾顆原本只有英文說）。
- * 籃子裡放一顆，泡泡裡就填滿一格；剛好放滿，泡泡變成綠框；放太多，泡泡輕輕搖。
+ * have 是泡泡裡填滿幾格：剛好填滿，泡泡變成綠框；比要的多，多的蛋排在格子下面、泡泡輕輕搖。
  * 不靠語言也不只靠數字：3 歲孩子看的是「把空格填滿」，數字跟著一起出現、一起熟。
+ * 示範、一起練：籃子放一顆就填一格。自己答：放蛋時泡泡不動（要自己數），按勾勾後才一格一格填起來對答案；
+ * mark 時把還空著的格子（少幾顆）、多出來的蛋（多幾顆）溫和地標出來。
  */
-function WantBubble({ k, have, ping }: { k: number; have: number; ping: number }) {
+function WantBubble({ k, have, ping, mark = false }: { k: number; have: number; ping: number; mark?: boolean }) {
   const [scope, animate] = useAnimate()
   // 波波說「Give me N eggs!」時泡泡跳一下：聲音和泡泡連在一起
   useEffect(() => {
@@ -83,11 +85,28 @@ function WantBubble({ k, have, ping }: { k: number; have: number; ping: number }
       <div ref={scope} className="give-want-in">
         <span className="give-want-num">{k}</span>
         <div className="give-want-eggs" style={{ gridTemplateColumns: `repeat(${perRow}, auto)` }}>
-          {Array.from({ length: k }, (_, i) => (
+          {Array.from({ length: k }, (_, i) => {
+            // 少給：還空著的格子換成暖色、一起輕輕呼吸，看得出還差幾顆
+            const miss = mark && i >= have
+            return (
             <div key={i} className="give-want-slot">
-              <svg viewBox="0 0 200 240" width="100%" aria-hidden="true" style={{ display: 'block', overflow: 'visible' }}>
-                <path d={EGG_D} fill="rgba(241,210,124,.22)" stroke="#C9A23E" strokeWidth={12} strokeDasharray="22 18" strokeLinecap="round" />
-              </svg>
+              <motion.svg
+                viewBox="0 0 200 240"
+                width="100%"
+                aria-hidden="true"
+                style={{ display: 'block', overflow: 'visible' }}
+                animate={{ scale: miss ? [1, 1.14, 1] : 1 }}
+                transition={miss ? { duration: 1.1, repeat: Infinity, ease: 'easeInOut' } : { duration: 0.2 }}
+              >
+                <path
+                  d={EGG_D}
+                  fill={miss ? 'rgba(233,154,132,.3)' : 'rgba(241,210,124,.22)'}
+                  stroke={miss ? '#DD8466' : '#C9A23E'}
+                  strokeWidth={12}
+                  strokeDasharray="22 18"
+                  strokeLinecap="round"
+                />
+              </motion.svg>
               <AnimatePresence>
                 {i < have && (
                   <motion.div
@@ -103,8 +122,25 @@ function WantBubble({ k, have, ping }: { k: number; have: number; ping: number }
                 )}
               </AnimatePresence>
             </div>
-          ))}
+            )
+          })}
         </div>
+        {/* 多給：多出來的蛋排在格子外面，看得出多了幾顆 */}
+        {over && (
+          <div className="give-want-extra">
+            {Array.from({ length: have - k }, (_, i) => (
+              <motion.div
+                key={i}
+                className="give-want-slot"
+                initial={{ scale: 0.3, opacity: 0, y: -10 }}
+                animate={{ scale: 1, opacity: 1, y: 0, rotate: mark ? [0, -12, 12, -7, 7, 0] : 0 }}
+                transition={{ type: 'spring', stiffness: 420, damping: 18, rotate: { duration: 0.6, repeat: mark ? Infinity : 0, repeatDelay: 0.6 } }}
+              >
+                <Egg cracks={0} size="100%" />
+              </motion.div>
+            ))}
+          </div>
+        )}
       </div>
     </motion.div>
   )
@@ -131,6 +167,11 @@ export function GiveGame({ gameId, onDone, onExit }: GameProps) {
   const [party, setParty] = useState(0)
   /** 對話泡泡跳一下（波波說要幾顆的時候） */
   const [askPing, setAskPing] = useState(0)
+  /**
+   * 自己答：按勾勾後泡泡填到第幾格（對答案），mark 時標出少幾顆、多幾顆。
+   * null 是還沒對答案：泡泡只有數字和空格，放蛋時不會跟著填，要孩子自己數。
+   */
+  const [tally, setTally] = useState<{ n: number; mark: boolean } | null>(null)
 
   const live = useRef(true)
   const locked = useRef(true)
@@ -173,6 +214,7 @@ export function GiveGame({ gameId, onDone, onExit }: GameProps) {
     setEggs(e)
     setBagBoth([])
     setGlow(null)
+    setTally(null)
     setScaffold(false)
     setDrag(null)
   }
@@ -191,6 +233,9 @@ export function GiveGame({ gameId, onDone, onExit }: GameProps) {
     const s = performance.now()
     demos.current++
     locked.current = true
+    // 示範時泡泡跟著籃子一格一格填（看波波怎麼數）
+    phaseRef.current = 'teach'
+    setPhase('teach')
     setMood('happy')
     await say('teach.watch.bobo')
     setAskPing((p) => p + 1)
@@ -304,6 +349,8 @@ export function GiveGame({ gameId, onDone, onExit }: GameProps) {
     const nb = into ? [...b, id] : b.filter((x) => x !== id)
     setBagBoth(nb)
     setGlow(null)
+    // 對過答案之後再動籃子：泡泡回到空格，重新自己數
+    setTally(null)
     taps.current.push({ pick: `${into ? '+' : '-'}${nb.length}`, ms: Math.round(performance.now() - t0.current) })
     if (into) {
       sfx.count(nb.length)
@@ -324,6 +371,17 @@ export function GiveGame({ gameId, onDone, onExit }: GameProps) {
       await say(`m.num.${i + 1}`)
     }
     setFinger(null)
+  }
+
+  /** 自己答按下勾勾：泡泡照籃子裡的蛋一格一格填起來（對答案），多的排到格子外面 */
+  const tallyUp = async (c: number) => {
+    for (let i = 1; i <= c; i++) {
+      if (!live.current) return
+      setTally({ n: i, mark: false })
+      sfx.count(i)
+      await wait(i === 1 ? 300 : 220)
+    }
+    await wait(260)
   }
 
   const finish = async () => {
@@ -381,10 +439,17 @@ export function GiveGame({ gameId, onDone, onExit }: GameProps) {
       return void say(`ws.give.${k}`)
     }
     taps.current.push({ pick: `done:${c}`, ms: Math.round(performance.now() - t0.current) })
+    const guided = phaseRef.current === 'guided'
+    locked.current = true
+    // 自己答：放蛋時泡泡不動，按了勾勾才把格子填起來對答案（剛好就變綠框）
+    if (!guided) {
+      await tallyUp(c)
+      if (!live.current) return
+    }
     if (c === k) return finish()
     sfx.gentle()
-    locked.current = true
-    const guided = phaseRef.current === 'guided'
+    // 少給：空著的格子呼吸；多給：多的蛋在格子外面搖
+    if (!guided) setTally({ n: c, mark: true })
     if (c < k) {
       if (!guided) wrongs.current.few++
       setGlow('next')
@@ -525,7 +590,7 @@ export function GiveGame({ gameId, onDone, onExit }: GameProps) {
         </div>
       </div>
       {/* 對話泡泡在波波頭上（學習單外面、舞台左邊那一欄），不蓋到草窩和籃子 */}
-      {k > 0 && <WantBubble k={k} have={bag.length} ping={askPing} />}
+      {k > 0 && <WantBubble k={k} have={phase === 'quiz' ? (tally?.n ?? 0) : bag.length} mark={phase === 'quiz' && !!tally?.mark} ping={askPing} />}
     </Shell>
   )
 }

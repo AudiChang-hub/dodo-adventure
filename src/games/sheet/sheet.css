@@ -170,6 +170,14 @@
   position: absolute;
   inset: 0;
 }
+/* 多給的蛋：排在格子外面，上面一條暖色虛線隔開（「這幾顆是多的」） */
+.give-want-extra {
+  display: flex;
+  justify-content: center;
+  gap: 0.7cqw;
+  padding-top: 1cqh;
+  border-top: 3px dashed #dd8466;
+}
 
 /* ── 一眼看出幾個 ─────────────────────────────────────────── */
 .flash-card {

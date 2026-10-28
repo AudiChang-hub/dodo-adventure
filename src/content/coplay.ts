@@ -1,7 +1,7 @@
 // 給爸爸的一句話（benchmark 手法 2）：遊戲角落的中文陪玩提示，與「換爸爸問」回合的題目。
 // 以遊戲 id 對應；其他工作線新增的遊戲沒有對應時，先找同一站的提示，再用通用提示。
 import type { StationId } from '../lib/db'
-import type { Visual } from './games'
+import type { Cue, Visual } from './games'
 import { hasLine } from './lines'
 import { letterEntry } from './letters'
 import { VOCAB } from './vocab'
@@ -18,7 +18,8 @@ const GAME_HINTS: Record<string, string[]> = {
   'm-count': ['伸出手指問他：How many fingers?', '輪流數：他點一個，你數一個'],
   'm-match': ['數完問他：How many? 用手指比給你看', '一起大聲數：one, two, three…'],
   'm-find': ['問他：這是幾？家裡哪裡有這個數字？', '用手指比數字，讓他說英文'],
-  'm-compare': ['問他：哪邊比較多？你怎麼知道的？', '拿兩堆餅乾，問他 Which has more?'],
+  // 比多少、比大小：題目出來之後換成跟這一題一致的那句（cueHint）；這裡是題目出來前的，不寫多或少
+  'm-compare': ['問他：你怎麼知道是這一邊的？', '拿兩堆餅乾，跟他一起比一比'],
   'm-order': ['一起大聲數：one, two, three…', '問他：下一個是幾？'],
   'z-find': ['問他：這是什麼動物？牠怎麼叫？', '你學動物叫，讓他用英文說名字'],
   'z-category': ['問他：還有什麼會飛？', '問他：為什麼選這個？'],
@@ -30,7 +31,7 @@ const GAME_HINTS: Record<string, string[]> = {
   'd-glyph': ['讓他先在你手心用手指描一次', '描完問他：這是什麼？'],
   'p-color': ['指著衣服問他：What color?', '找找看：家裡什麼是紅色的？'],
   'p-shape': ['找找看：家裡什麼東西是圓形？', '用手指在空中畫形狀，讓他猜'],
-  'p-size': ['問他：哪個比較大？用手比比看', '拿兩個杯子，問他 Which is bigger?'],
+  'p-size': ['問他：你怎麼知道是這一個的？', '拿兩個杯子，跟他一起比一比'],
   // 程式車庫：讓他說出想法，比答對更重要；開錯了不急著糾正，等他自己發現
   'c-drive': ['按 Go 之前先問他：車子會開到哪裡？', '開錯了先別說，問他：哪一張卡要換？', '用手指在格子上走一次，邊走邊說 up、right'],
   'c-pattern': ['跟他一起拍手念：car, dino, car, dino…', '玩完找找看：地磚、衣服上有沒有一樣的規律？', '問他：你怎麼知道下一個是這個？'],
@@ -47,6 +48,19 @@ const STATION_HINTS: Record<StationId, string[]> = {
 }
 
 const GENERIC_HINTS = ['問他：這是什麼？', '他答對時，說說他做了什麼：你看得好仔細！', '他卡住時，先等 5 秒，不急著說答案']
+
+/**
+ * 比較題的陪玩提示要跟當題問的一致（題目問 fewer 時不能寫 Which has more?）。
+ * 選擇題引擎每出一題就用題目徽章換一次；variant 一局固定，句型不會每題跳來跳去。
+ */
+const CUE_HINTS: Record<Cue, string[]> = {
+  more: ['問他：哪邊比較多？你怎麼知道的？', '拿兩堆餅乾，問他 Which has more?'],
+  less: ['問他：哪邊比較少？你怎麼知道的？', '拿兩堆餅乾，問他 Which has fewer?'],
+  big: ['問他：哪個比較大？用手比比看', '拿兩個杯子，問他 Which is bigger?'],
+  small: ['問他：哪個比較小？用手比比看', '拿兩個杯子，問他 Which is smaller?'],
+}
+
+export const cueHint = (cue: Cue, variant: number) => CUE_HINTS[cue][variant % CUE_HINTS[cue].length]
 
 /** 主題式冒險裡，陪玩提示說今天主題的機會 */
 const THEME_HINT_SHARE = 0.35

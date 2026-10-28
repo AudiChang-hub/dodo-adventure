@@ -359,11 +359,26 @@ const mMatch = (level: number, recent: string[]): ChoiceItem => {
   }
 }
 
+/**
+ * 比多少、比大小的由簡到難（2026-10-28 家長確認）：
+ * 1. 先只問 more／bigger，兩邊差很多；
+ * 2. more／bigger 真的熟了（到 2 級、而且隔天的到期複習答對過）才開始問 fewer／smaller，
+ *    第一次出現照新內容先上教學卡（pick.ts 的 fresh）；
+ * 3. fewer／smaller 也開始學了，差距才慢慢縮小：問的那一邊每多通過一次隔天複習，才縮一階；還在學的一律差很多。
+ * 難度（level）只是上限：程度校準或同一局連續答對升級，都不會讓還沒熟的孩子看到少／小或很接近的兩邊。
+ */
+/** 跨天的到期複習答對過幾次（engine 的 REVIEW_DAYS）；還沒熟是 -1。同一局連對三題就「已熟」，不算真的熟 */
+const reviews = (key: string) => (mastered(key) ? (skill(key).rev ?? 0) : -1)
+/** 這一題的難度階段：1 是差很多；問的那一邊每通過一次複習縮一階（但不超過遊戲難度），另一邊（少／小）還沒學過就不縮 */
+const compareStage = (level: number, key: string, second: string) => (isNew(second) ? 1 : Math.max(1, Math.min(level, 1 + reviews(key))))
+
 const mCompare = (level: number): ChoiceItem => {
-  const gap = [4, 3, 2, 1][level - 1] ?? 1
-  const a = 1 + rand(10 - gap)
-  const b = Math.min(10, a + gap + (level <= 2 ? rand(2) : 0))
-  const askLess = level >= 3 && Math.random() < 0.5
+  const askLess = level >= 2 && reviews('compare:more') >= 1 && Math.random() < 0.5
+  const stage = compareStage(level, askLess ? 'compare:less' : 'compare:more', 'compare:less')
+  // 1–2 級：差 4–5 個（1 對 5、2 對 6、3 對 8）；3 級差 2–3 個；4 級差 1–2 個
+  const gap = stage <= 2 ? 4 + rand(2) : stage === 3 ? 2 + rand(2) : 1 + rand(2)
+  const a = 1 + (stage <= 2 ? rand(3) : rand(10 - gap))
+  const b = a + gap
   const icon = countIcon()
   const pair = shuffle([a, b])
   const target = askLess ? Math.min(a, b) : Math.max(a, b)
@@ -502,8 +517,10 @@ const pShape = (level: number, recent: string[]): ChoiceItem => {
 
 const pSize = (level: number): ChoiceItem => {
   const icon = pick(themeList(SIZE_ICONS, (t) => t.count))
-  const askSmall = level >= 2 && Math.random() < 0.5
-  const scales = level >= 3 ? shuffle([1, 0.68, 0.42]) : shuffle(level === 1 ? [1, 0.45] : [1, 0.6])
+  // 由簡到難同比多少（compareStage）：bigger 熟了才問 smaller；還在學的一律兩個、差很多
+  const askSmall = level >= 2 && reviews('size:big') >= 1 && Math.random() < 0.5
+  const stage = compareStage(level, askSmall ? 'size:small' : 'size:big', 'size:small')
+  const scales = stage >= 3 ? shuffle([1, 0.68, 0.42]) : shuffle(stage === 2 ? [1, 0.62] : [1, 0.4])
   const target = askSmall ? Math.min(...scales) : Math.max(...scales)
   const pair: Visual[] = [{ t: 'emoji', icon, scale: 1 }, { t: 'emoji', icon, scale: 0.45 }]
   const cue = { t: 'cue', cue: askSmall ? 'small' : 'big', icon } as const

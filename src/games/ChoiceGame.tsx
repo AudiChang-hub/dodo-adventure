@@ -12,6 +12,7 @@ import { logAttempt, logTeach } from '../lib/record'
 import { getKV, setKV, type Phase } from '../lib/db'
 import { WAIT_WINDOW_MS } from '../lib/engine'
 import { canTease, teaseKey } from '../content/lines-engine'
+import { cueHint } from '../content/coplay'
 import { FluencyGame, isFluency } from './FluencyGame'
 import { FLUENCY_FALLBACK, fluencyTargets } from '../lib/fluency'
 import { preload, say, sfx, stopSpeech } from '../lib/audio'
@@ -97,6 +98,9 @@ function ChoiceRound({ gameId, onDone, onExit }: GameProps) {
   const [burst, setBurst] = useState(0)
   /** 題目徽章重演一次（波波念題目、孩子點徽章的時候） */
   const [cuePing, setCuePing] = useState(0)
+  /** 比較題的陪玩提示：跟著當題問的（多／少、大／小）換；句型一局固定 */
+  const [hintVariant] = useState(() => Math.floor(Math.random() * 2))
+  const [hintText, setHintText] = useState<string | undefined>(undefined)
 
   const live = useRef(true)
   const locked = useRef(true)
@@ -262,6 +266,8 @@ function ChoiceRound({ gameId, onDone, onExit }: GameProps) {
     // 這題出什麼、要不要先教、是不是探測題（pick.ts，自動檢查 scripts/sim-teach.ts 用同一份）
     const { it, lv, probe: probed, fresh, walk: walkThrough } = planChoice(def, round.current, i)
     itemLevel.current = lv
+    // 教學卡出來之前就換好：卡片上教的、陪玩提示寫的、題目問的是同一件事
+    setHintText(it.cue ? cueHint(it.cue.cue, hintVariant) : undefined)
     // 題目徽章第一次出現（這個技能以前學過、但還沒看過徽章）：照新內容的流程先教徽章，不當探測題
     const cueNew = !!it.cue && !!it.teach && !fresh && !(await getKV<string[]>(CUE_KEY, [])).includes(it.cue.cue)
     if (!live.current) return
@@ -496,7 +502,7 @@ function ChoiceRound({ gameId, onDone, onExit }: GameProps) {
   const wide = item?.options.some((o) => o.v.t === 'group')
   const fit = Math.max(0, ...(item?.options ?? []).map((o) => (o.v.t === 'group' ? o.v.count : 0)))
   return (
-    <Shell station={def.station} mood={mood} progress={{ total: ROUND_ITEMS, done: idx }} onExit={onExit} onHost={onHost}>
+    <Shell station={def.station} mood={mood} progress={{ total: ROUND_ITEMS, done: idx }} onExit={onExit} onHost={onHost} hintText={hintText}>
       {/* 教學卡從主持的恐龍長出來、題目在後面退開；換題時新題目蓋在舊的上面淡入（ui/Scenes.tsx） */}
       <CardStage card={card && <TeachCard key={`teach-${card.n}`} spec={card.spec} short={card.short} camera onDone={release} />}>
         {item && (
