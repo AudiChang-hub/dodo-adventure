@@ -6,11 +6,13 @@ import { Overview } from './Overview'
 import { Progress } from './Progress'
 import { Records } from './Records'
 import { Gallery } from './Gallery'
+import { Outing } from './Outing'
 import { SettingsPanel } from './SettingsPanel'
 import './parent.css'
 
 const TABS = [
   ['overview', '總覽'],
+  ['outing', '出門任務卡'],
   ['progress', '學習進度'],
   ['records', '作答紀錄'],
   ['gallery', '作品集'],
@@ -36,6 +38,7 @@ export function Parent() {
       progress: (d) => <Progress d={d} />,
       records: (d) => <Records d={d} />,
       gallery: (d) => <Gallery d={d} />,
+      outing: (d) => <Outing d={d} />,
     }
     return views[tab](data)
   }, [tab, data, error])
