@@ -6,19 +6,17 @@ import { Emoji } from '../art/Emoji'
 import { game as gameDef } from '../content/games'
 import { COUNT_ICONS } from '../content/park'
 import { themed } from '../lib/theme-play'
-import { level, markPlayed, needsDemo, plays, reportLevel } from '../lib/adaptive'
+import { level, markPlayed, plays, reportLevel } from '../lib/adaptive'
+import { planCount, roundState } from './pick'
 import { logAttempt, logTeach } from '../lib/record'
 import { say, sfx, stopSpeech } from '../lib/audio'
-import { pick, rand, shuffle } from '../lib/random'
+import { pick, shuffle } from '../lib/random'
 import { scatter } from './layout'
 import { praiseKey, retryKey, wait } from './lines'
 import { useIdle } from './idle'
 import type { Mood } from '../art/Dino'
 
 const ROUNDS = 4
-const RANGE: Record<number, [number, number]> = { 1: [1, 3], 2: [2, 5], 3: [4, 8], 4: [6, 10] }
-/** 一局最多示範一次：數數的規則一樣，看一次就夠 */
-const MAX_DEMO = 1
 
 interface Round {
   n: number
@@ -27,9 +25,7 @@ interface Round {
   choices: number[]
 }
 
-function makeRound(lv: number): Round {
-  const [a, b] = RANGE[lv]
-  const n = a + rand(b - a + 1)
+function makeRound(n: number): Round {
   const others = shuffle([n - 1, n + 1, n + 2, n - 2].filter((x) => x >= 1 && x <= 10)).slice(0, 2)
   // 主題式冒險數主題的東西（公車旅行數公車）
   return { n, icon: pick(themed(COUNT_ICONS, (t) => t.count)), pos: scatter(n, n > 6 ? 5 : 4, n > 4 ? 2 : 1), choices: shuffle([n, ...others]) }
@@ -59,9 +55,8 @@ export function CountGame({ gameId, onDone, onExit }: GameProps) {
   const extra = useRef(0)
   const lv = useRef(1)
   const first = useRef(0)
-  const demos = useRef(0)
   const retaught = useRef(false)
-  const firstPlay = useRef(plays(def.id) === 0)
+  const round0 = useRef(roundState(plays(def.id) === 0))
   const stage = useRef<'count' | 'ask' | 'done'>('count')
   const idle = useIdle()
   /** 閒置第二段提示：下一個要數的物件慢慢發光 */
@@ -93,7 +88,6 @@ export function CountGame({ gameId, onDone, onExit }: GameProps) {
 
   const demo = async (rd: Round) => {
     const s = performance.now()
-    demos.current++
     setMood('happy')
     await say('teach.watch.bobo')
     if (!live.current) return
@@ -109,7 +103,9 @@ export function CountGame({ gameId, onDone, onExit }: GameProps) {
 
   const start = async (i: number) => {
     lv.current = level(def.id)
-    const rd = makeRound(lv.current)
+    // 這一輪數幾個、要不要先示範（pick.ts，自動檢查 scripts/sim-teach.ts 用同一份）
+    const plan = planCount(def.id, lv.current, round0.current, i)
+    const rd = makeRound(plan.n)
     setRound(rd)
     setCounted([])
     setAsk(false)
@@ -120,7 +116,7 @@ export function CountGame({ gameId, onDone, onExit }: GameProps) {
     extra.current = 0
     retaught.current = false
     // 要示範的話，示範完才換孩子點；不示範就跟以前一樣，邊聽邊可以開始點
-    const show = demos.current < MAX_DEMO && needsDemo(firstPlay.current && i === 0, `count:${rd.n}`)
+    const show = plan.show
     busy.current = show
     stage.current = 'count'
     idle.stop()

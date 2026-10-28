@@ -8,7 +8,8 @@ import { SheetTeach } from './SheetTeach'
 import { ThingView } from './ThingView'
 import { game as gameDef, station as stationDef } from '../../content/games'
 import { SHEET_MAKERS, type SheetItem } from '../../content/games-worksheet'
-import { level, reportLevel, markPlayed, plays, isNew, teachable, withTargetFilter } from '../../lib/adaptive'
+import { reportLevel, markPlayed, plays } from '../../lib/adaptive'
+import { planSheet, roundState } from '../pick'
 import { logAttempt, logTeach } from '../../lib/record'
 import type { Phase } from '../../lib/db'
 import { preload, say, sfx, stopSpeech } from '../../lib/audio'
@@ -20,9 +21,6 @@ import type { Mood } from '../../art/Dino'
 import './sheet.css'
 
 export type SheetMode = 'tap' | 'lasso'
-
-/** 一局最多教幾個新概念，其餘都是複習（PRD §5.8） */
-const MAX_TEACH = 2
 
 interface LoopStat {
   circ: number
@@ -66,7 +64,6 @@ export function SheetGame({ gameId, onDone, onExit, mode }: GameProps & { mode: 
   const shownAt = useRef(0)
   const hintUsed = useRef(false)
   const wrongs = useRef(0)
-  const recent = useRef<string[]>([])
   const firstTries = useRef(0)
   const itemLevel = useRef(1)
   const idxRef = useRef(0)
@@ -77,9 +74,7 @@ export function SheetGame({ gameId, onDone, onExit, mode }: GameProps & { mode: 
   const wrongRef = useRef<string[]>([])
   /** 每換一個步驟就加一，舊步驟的計時器看到不一樣就不動作 */
   const stepRef = useRef(0)
-  const taught = useRef(0)
-  const demos = useRef(0)
-  const firstPlay = useRef(plays(def.id) === 0)
+  const round = useRef(roundState(plays(def.id) === 0))
   const resolver = useRef<((ms: number) => void) | null>(null)
   const idle = useIdle()
   // 圈選
@@ -151,7 +146,6 @@ export function SheetGame({ gameId, onDone, onExit, mode }: GameProps & { mode: 
   // ── 圈選示範：Watch me! 筆沿著一圈畫過去，把第一個圈起來 ─────────
   const penShow = async (it: SheetItem) => {
     const s = performance.now()
-    demos.current++
     stepRef.current++
     idle.stop()
     locked.current = true
@@ -240,22 +234,12 @@ export function SheetGame({ gameId, onDone, onExit, mode }: GameProps & { mode: 
   const present = async (i: number) => {
     idxRef.current = i
     setIdx(i)
-    const lv = level(def.id)
+    // 這題出什麼、要不要先教、要不要先示範怎麼圈（pick.ts，自動檢查 scripts/sim-teach.ts 用同一份）
+    const { it, lv, fresh, pen, walk } = planSheet(def, make, mode, round.current, i)
     itemLevel.current = lv
-    const gen = () => make(lv, recent.current)
-    let it = gen()
-    // 這局已經教滿、負擔過重，或這條主線本週的新概念額度用完：出學過的
-    const ok = teachable(def.id, taught.current, MAX_TEACH)
-    for (let k = 0; k < 10 && !ok(it.skill); k++) it = withTargetFilter(ok, gen)
-    recent.current = [it.itemId, ...recent.current].slice(0, 3)
     preload([promptOf(it), hereKey, ...it.teach.lines, ...it.things.flatMap((t) => (t.say ? [t.say] : [])), `teach.turn.${host}`, `ws.done.${host}`])
 
-    // 圈選：概念在「找出全部」學過就不用再看教學卡，只要學怎麼圈
-    const fresh = isNew(it.skill) && (mode === 'tap' || isNew(`all:${it.itemId}`))
-    const pen = mode === 'lasso' && demos.current < 1 && (firstPlay.current || isNew(it.skill))
-    const walk = !fresh && !pen && firstPlay.current && i === 0
     if (fresh) {
-      taught.current++
       await teach(it, false)
       if (!live.current) return
     }

@@ -6,7 +6,8 @@ import { Hand } from './Demo'
 import { VisualView } from '../ui/Visual'
 import { Sparkles } from '../ui/Sparkles'
 import { game as gameDef, station as stationDef, ROUND_ITEMS, type ChoiceItem, type TeachSpec } from '../content/games'
-import { level, reportLevel, markPlayed, plays, isNew, withTargetFilter, mastered, skill, isProbing, teachable, hintDelayMs, noteHintWait } from '../lib/adaptive'
+import { level, reportLevel, markPlayed, plays, isNew, mastered, skill, hintDelayMs, noteHintWait } from '../lib/adaptive'
+import { planChoice, roundState } from './pick'
 import { logAttempt, logTeach } from '../lib/record'
 import type { Phase } from '../lib/db'
 import { WAIT_WINDOW_MS } from '../lib/engine'
@@ -21,9 +22,6 @@ import './engine.css'
 
 /** soft：延遲提示的淡淡一圈光；tease：Sam 教豆豆時，恐龍故意指錯的那一個 */
 type Mark = 'wrong' | 'correct' | 'hint' | 'soft' | 'tease'
-
-/** 一局最多教幾個新內容，其餘都是複習（PRD §5.8）；負擔過重的期間暫停教新內容 */
-const MAX_TEACH = 2
 
 /** Sam 教豆豆：一局最多 1 次，而且只有約三成的局會出現（頻率要低） */
 const PROTEGE_CHANCE = 0.3
@@ -88,7 +86,6 @@ function ChoiceRound({ gameId, onDone, onExit }: GameProps) {
   const taps = useRef<{ pick: string; ms: number }[]>([])
   const shownAt = useRef(0)
   const hintUsed = useRef(false)
-  const recent = useRef<string[]>([])
   const firstTries = useRef(0)
   const idle = useIdle()
   const itemLevel = useRef(1)
@@ -97,9 +94,8 @@ function ChoiceRound({ gameId, onDone, onExit }: GameProps) {
   const phaseRef = useRef<Phase>('quiz')
   /** 每換一個步驟就加一，舊步驟的計時器看到不一樣就不動作 */
   const stepRef = useRef(0)
-  const taught = useRef(0)
   // 必須在 markPlayed 之前讀：第一次玩的遊戲，第一題一定先一起練一次
-  const firstPlay = useRef(plays(def.id) === 0)
+  const round = useRef(roundState(plays(def.id) === 0))
   /** 這一題是探測題 */
   const probeRef = useRef(false)
   /** Sam 教豆豆：恐龍指著的錯誤選項 */
@@ -214,35 +210,10 @@ function ChoiceRound({ gameId, onDone, onExit }: GameProps) {
     idxRef.current = i
     setIdx(i)
     const isLast = i === ROUND_ITEMS - 1
-    // 第一次玩的第一題是「怎麼玩」的一起練，不算探測；之後的 2–3 題是探測題
-    const probe = isProbing(def.id) && !(firstPlay.current && i === 0)
-    const lvBase = level(def.id)
-    // 最後一題是挑戰題：比目前難度高一級
-    let lv = isLast && !probe && lvBase < def.maxLevel ? lvBase + 1 : lvBase
+    // 這題出什麼、要不要先教、是不是探測題（pick.ts，自動檢查 scripts/sim-teach.ts 用同一份）
+    const { it, lv, probe, fresh, walk: walkThrough } = planChoice(def, round.current, i)
     itemLevel.current = lv
-    const make = () => def.make!(lv, recent.current)
-    /** 盡量出符合 ok 的題目：先用挑題篩選，沒有用（例如比多少不經過挑題）就多抽幾次 */
-    const makeWhere = (ok: (k: string) => boolean) => {
-      let it = make()
-      for (let k = 0; k < 10 && !ok(it.skill); k++) it = withTargetFilter(ok, make)
-      return it
-    }
-    // 開局先出已熟的：讓孩子先答對、建立信心（功文式「從低一點開始」）
-    let it = i === 0 ? makeWhere(mastered) : make()
-    const ok = teachable(def.id, taught.current, MAX_TEACH)
-    if (!ok(it.skill)) {
-      // 這局已經教滿了、負擔過重暫停教新內容，或這條主線本週的新概念額度用完：其餘出複習題，不考沒教過的
-      it = makeWhere(ok)
-      // 挑戰題（高一級）的內容全是新的（例如找規律 3 級才有的 AAB）：退回目前難度再找一次
-      if (!ok(it.skill) && lv > lvBase) {
-        lv = lvBase
-        itemLevel.current = lv
-        it = makeWhere(ok)
-      }
-    }
-    recent.current = [it.itemId, ...recent.current].slice(0, 3)
     // Sam 教豆豆：已熟、有「這是 X 嗎？」台詞的題目，一局最多 1 次，不放在第一題和挑戰題
-    const fresh = !!it.teach && isNew(it.skill) && !probe
     const tease =
       !probe && !fresh && i > 0 && !isLast && protegeRound.current && !protegeUsed.current && mastered(it.skill) && canTease(it.skill) && it.options.length >= 2
     let decoy: string | undefined
@@ -261,11 +232,7 @@ function ChoiceRound({ gameId, onDone, onExit }: GameProps) {
       ...(probe ? [`probe.show.${host}`] : []),
     ])
 
-    // 真的找不到複習題時（例如比多少隨機出到沒學過的「少」），寧可多教一個，也不考沒教過的
-    // 探測題例外：先直接考，答錯才教（已經會的就不用教）
-    const walkThrough = !fresh && !probe && firstPlay.current && i === 0
     if (fresh) {
-      taught.current++
       await teach(it, false)
       if (!live.current) return
     }
@@ -379,7 +346,7 @@ function ChoiceRound({ gameId, onDone, onExit }: GameProps) {
     reportLevel(def.id, false, def.maxLevel, { probe: true, skill: it.skill })
     await say(`probe.show.${host}`)
     if (!live.current) return
-    taught.current++
+    round.current.taught++
     await teach(it, false)
     if (!live.current) return
     await guided(reshuffle(it))

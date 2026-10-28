@@ -4,7 +4,8 @@ import { Shell, type GameProps } from '../Shell'
 import { Hand } from '../Demo'
 import { Sparkles } from '../../ui/Sparkles'
 import { game as gameDef, station as stationDef, ROUND_ITEMS, PHONICS_MAKERS, type PhonicsItem, type PhonicsOption } from '../../content/games'
-import { level, reportLevel, markPlayed, plays, isNew, teachable, withTargetFilter } from '../../lib/adaptive'
+import { level, reportLevel, markPlayed, plays } from '../../lib/adaptive'
+import { planPhonics, roundState } from '../pick'
 import { logAttempt, logTeach } from '../../lib/record'
 import type { Phase } from '../../lib/db'
 import { preload, say, sfx, stopSpeech } from '../../lib/audio'
@@ -19,9 +20,6 @@ import { migrateLegacy } from './migrate'
 import './phonics.css'
 
 type Mark = 'wrong' | 'correct' | 'hint'
-
-/** 一局最多教幾個新的音，其餘都是複習（PRD §5.8） */
-const MAX_TEACH = 2
 
 /** 一起練之後的自己答：重新洗牌，而且答案不要留在同一格 */
 function reshuffle(it: PhonicsItem): PhonicsItem {
@@ -66,7 +64,6 @@ export function PhonicsGame({ gameId, onDone, onExit }: GameProps) {
   const taps = useRef<{ pick: string; ms: number }[]>([])
   const shownAt = useRef(0)
   const hintUsed = useRef(false)
-  const recent = useRef<string[]>([])
   const firstTries = useRef(0)
   const idle = useIdle()
   const itemLevel = useRef(1)
@@ -76,8 +73,7 @@ export function PhonicsGame({ gameId, onDone, onExit }: GameProps) {
   const stepRef = useRef(0)
   /** 點名到一半孩子就點了：停止點名 */
   const nameRef = useRef(0)
-  const taught = useRef(0)
-  const firstPlay = useRef(plays(def.id) === 0)
+  const round = useRef(roundState(plays(def.id) === 0))
   const resolver = useRef<((ms: number) => void) | null>(null)
 
   useSubtitleTint()
@@ -183,23 +179,12 @@ export function PhonicsGame({ gameId, onDone, onExit }: GameProps) {
   const present = async (i: number) => {
     idxRef.current = i
     setIdx(i)
-    const isLast = i === ROUND_ITEMS - 1
-    const lvBase = level(def.id)
-    const lv = isLast && lvBase < def.maxLevel ? lvBase + 1 : lvBase
+    // 這題出哪個音、要不要先教（pick.ts，自動檢查 scripts/sim-teach.ts 用同一份）
+    const { it, lv, fresh, walk: walkThrough } = planPhonics(def, make, round.current, i)
     itemLevel.current = lv
-    const gen = () => make(lv, recent.current)
-    let it = gen()
-    // 這局已經教滿、負擔過重，或語言這條線本週的新概念額度用完：出學過的音
-    const ok = teachable(def.id, taught.current, MAX_TEACH)
-    for (let k = 0; k < 10 && !ok(it.skill); k++) it = withTargetFilter(ok, gen)
-    // 同時開放的音只有三、四個：只避開上一題的音，不然出題順序會變成固定輪流
-    recent.current = [it.itemId]
     preload([...it.prompt, ...it.names.map((n) => `ph.word.${n}`), ...it.after, ...introLines(it.unit), `teach.here.${host}`, `teach.turn.${host}`])
 
-    const fresh = isNew(it.skill)
-    const walkThrough = !fresh && firstPlay.current && i === 0
     if (fresh) {
-      taught.current++
       await teach(it, false)
       if (!live.current) return
     }

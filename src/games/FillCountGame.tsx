@@ -14,14 +14,13 @@ import { preload, say, sfx, stopSpeech } from '../lib/audio'
 import { pick } from '../lib/random'
 import { praiseKey, wait } from './lines'
 import { useIdle } from './idle'
-import { useNumberPicker } from './sheet/NumberFlow'
+import { NUMBER_RANGE, useNumberPicker } from './sheet/NumberFlow'
 import { DoneButton } from './sheet/DoneButton'
 import type { Mood } from '../art/Dino'
 import './sheet/sheet.css'
 
 const ROUNDS = 4
 /** 從 1–5 開始（一排 5 格），熟了延伸到 10（兩排，像十格框） */
-const RANGE: Record<number, [number, number]> = { 1: [1, 3], 2: [2, 5], 3: [4, 8], 4: [6, 10] }
 
 // 學習單座標 1000×600：上面是要數的東西，下面是一排（或兩排）圓圈，勾勾在右邊
 const CELL_R = 46
@@ -166,7 +165,7 @@ export function FillCountGame({ gameId, onDone, onExit }: GameProps) {
 
   const start = async (i: number) => {
     lv.current = level(def.id)
-    const [a, b] = RANGE[lv.current]
+    const [a, b] = NUMBER_RANGE.fill[lv.current]
     const { n: k, fresh } = picker.pick(a, b)
     const m = k > 5 || lv.current >= 3 ? 10 : 5
     nRef.current = k

@@ -8,8 +8,9 @@ import { Emoji } from '../../art/Emoji'
 import { ArrowArt } from '../../art/Arrow'
 import { Sparkles } from '../../ui/Sparkles'
 import { game as gameDef, type TeachSpec } from '../../content/games'
-import { BLOCK_ICON, DIRS, driveTarget, distMap, drivePuzzle, driveTeach, pickDriveSkill, runProgram, stepOf, type Cell, type Dir, type DrivePuzzle } from '../../content/code'
-import { isNew, level, markPlayed, mastered, plays, reportLevel, teachable, withTargetFilter } from '../../lib/adaptive'
+import { BLOCK_ICON, DIRS, driveTarget, distMap, drivePuzzle, driveTeach, runProgram, stepOf, type Cell, type Dir, type DrivePuzzle } from '../../content/code'
+import { markPlayed, plays, reportLevel } from '../../lib/adaptive'
+import { planDrive, roundState } from '../pick'
 import { logAttempt, logTeach } from '../../lib/record'
 import { themeNow } from '../../lib/theme-play'
 import type { Phase } from '../../lib/db'
@@ -21,8 +22,6 @@ import type { Mood } from '../../art/Dino'
 import './code.css'
 
 const ROUNDS = 4
-/** 一局最多教幾個新內容（PRD §5.8） */
-const MAX_TEACH = 2
 /** 車子走一格要多久（毫秒）：慢到孩子跟得上「卡片一張一張被執行」 */
 const STEP_MS = 620
 
@@ -101,13 +100,11 @@ export function DriveGame({ gameId, onDone, onExit }: GameProps) {
   const bumps = useRef(0)
   const hintUsed = useRef(false)
   const lv = useRef(1)
-  const recent = useRef<string[]>([])
   const recentTargets = useRef<DrivePuzzle['target'][]>([])
   // 主題式冒險：開的是說故事那隻恐龍的車（莫莫的公車旅行就開黃色公車），開場也改成請孩子幫牠開
   const [driver] = useState(() => themeNow()?.host ?? 'dodo')
-  const taught = useRef(0)
   const firstTries = useRef(0)
-  const firstPlay = useRef(plays(def.id) === 0)
+  const round = useRef(roundState(plays(def.id) === 0))
   const resolver = useRef<((ms: number) => void) | null>(null)
   const slotEls = useRef<(HTMLElement | null)[]>([])
   const rootEl = useRef<HTMLDivElement | null>(null)
@@ -213,21 +210,14 @@ export function DriveGame({ gameId, onDone, onExit }: GameProps) {
   const present = async (i: number) => {
     idxRef.current = i
     setIdx(i)
-    lv.current = level(def.id)
-    const make = () => pickDriveSkill(lv.current, recent.current)
-    // 開局先出已熟的；這局已經教滿（或負擔過重、思考這條線本週的新概念額度用完）就只出學過的。沒有符合的，pickTarget 會照常挑
-    let key = i === 0 ? withTargetFilter(mastered, make) : make()
-    const ok = teachable(def.id, taught.current, MAX_TEACH)
-    if (!ok(key)) key = withTargetFilter(ok, make)
-    recent.current = [key, ...recent.current].slice(0, 2)
+    // 這題練哪個技能、要不要先教（pick.ts，自動檢查 scripts/sim-teach.ts 用同一份）
+    const { key, lv: l, fresh, walk } = planDrive(def, round.current, i)
+    lv.current = l
     const p = drivePuzzle(lv.current, key, recentTargets.current)
     recentTargets.current = [p.target, ...recentTargets.current].slice(0, 2)
     preload([...promptOf(p), ...driveTeach(p).lines, ...p.solution.map((d) => `c.dir.${d}`), 'teach.here.bobo', 'teach.turn.bobo', 'c.drive.go', 'c.drive.made', 'c.drive.fix'])
 
-    const fresh = isNew(key)
-    const walk = !fresh && firstPlay.current && i === 0
     if (fresh) {
-      taught.current++
       await teach(p, false)
       if (!live.current) return
     }

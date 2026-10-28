@@ -12,7 +12,7 @@ import { preload, say, sfx, stopSpeech } from '../lib/audio'
 import { shuffle } from '../lib/random'
 import { praiseKey, wait } from './lines'
 import { useIdle } from './idle'
-import { range, useNumberPicker } from './sheet/NumberFlow'
+import { NUMBER_RANGE, range, useNumberPicker } from './sheet/NumberFlow'
 import type { Mood } from '../art/Dino'
 import './sheet/sheet.css'
 
@@ -20,7 +20,6 @@ const ROUNDS = 5
 /** 閃現多久（毫秒）：約 1.5 秒，來不及一個一個數，只能「一眼看出來」 */
 const FLASH_MS = 1500
 /** 第 1 級 1–3、第 2 級 1–4、之後 1–5；選項 2 → 3 → 3 → 4 個 */
-const RANGE: Record<number, [number, number]> = { 1: [1, 3], 2: [1, 4], 3: [1, 5], 4: [1, 5] }
 const OPTS: Record<number, number> = { 1: 2, 2: 3, 3: 3, 4: 4 }
 
 type Dot = [number, number]
@@ -206,7 +205,7 @@ export function SubitizeGame({ gameId, onDone, onExit }: GameProps) {
 
   const start = async (i: number) => {
     lv.current = level(def.id)
-    const [a, b] = RANGE[lv.current]
+    const [a, b] = NUMBER_RANGE.flash[lv.current]
     const { n: k, fresh } = picker.pick(a, b)
     nRef.current = k
     setN(k)

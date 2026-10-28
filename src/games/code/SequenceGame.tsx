@@ -6,8 +6,9 @@ import { Hand } from '../Demo'
 import { Emoji } from '../../art/Emoji'
 import { Sparkles } from '../../ui/Sparkles'
 import { game as gameDef, type TeachSpec, type Visual } from '../../content/games'
-import { pickStory, seqSkill, type Story } from '../../content/code'
-import { isNew, level, markPlayed, mastered, plays, reportLevel, teachable, withTargetFilter } from '../../lib/adaptive'
+import { seqSkill, type Story } from '../../content/code'
+import { markPlayed, plays, reportLevel } from '../../lib/adaptive'
+import { planSequence, roundState } from '../pick'
 import { logAttempt, logTeach } from '../../lib/record'
 import type { Phase } from '../../lib/db'
 import { preload, say, sfx, stopSpeech } from '../../lib/audio'
@@ -19,8 +20,6 @@ import type { Mood } from '../../art/Dino'
 import './code.css'
 
 const ROUNDS = 4
-/** 一局最多教幾個新故事（PRD §5.8） */
-const MAX_TEACH = 2
 
 /** 教學卡：故事照順序排開，一張一張指著念旁白 */
 const teachOf = (s: Story): TeachSpec => {
@@ -77,10 +76,8 @@ export function SequenceGame({ gameId, onDone, onExit }: GameProps) {
   const misses = useRef(0)
   const hintUsed = useRef(false)
   const lv = useRef(1)
-  const recent = useRef<Story[]>([])
-  const taught = useRef(0)
   const firstTries = useRef(0)
-  const firstPlay = useRef(plays(def.id) === 0)
+  const round = useRef({ ...roundState(plays(def.id) === 0), stories: [] as Story[] })
   const resolver = useRef<((ms: number) => void) | null>(null)
   const stripEl = useRef<HTMLDivElement | null>(null)
   const rootEl = useRef<HTMLDivElement | null>(null)
@@ -166,20 +163,12 @@ export function SequenceGame({ gameId, onDone, onExit }: GameProps) {
   const present = async (i: number) => {
     idxRef.current = i
     setIdx(i)
-    lv.current = level(def.id)
-    // 主題式冒險先挑主題的故事（等公車 → 公車來了），這一級沒有就照常挑
-    const make = () => pickStory(lv.current, recent.current)
-    // 開局先出已熟的故事；這局已經教滿（或負擔過重、本週新概念額度用完）就只出學過的
-    let s = i === 0 ? withTargetFilter(mastered, make) : make()
-    const ok = teachable(def.id, taught.current, MAX_TEACH)
-    if (!ok(seqSkill(s))) s = withTargetFilter(ok, make)
-    recent.current = [s, ...recent.current].slice(0, 2)
+    // 這題排哪個故事、要不要先教（pick.ts，自動檢查 scripts/sim-teach.ts 用同一份）
+    const { s, lv: l, fresh, walk } = planSequence(def, round.current, i)
+    lv.current = l
     preload([...teachOf(s).lines, 'c.seq.first', 'c.seq.next', 'teach.here.bobo', 'teach.turn.bobo'])
 
-    const fresh = isNew(seqSkill(s))
-    const walk = !fresh && firstPlay.current && i === 0
     if (fresh) {
-      taught.current++
       await teach(s, false)
       if (!live.current) return
     }

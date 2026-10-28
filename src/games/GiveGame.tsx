@@ -12,14 +12,13 @@ import type { Phase } from '../lib/db'
 import { preload, say, sfx, stopSpeech } from '../lib/audio'
 import { praiseKey, wait } from './lines'
 import { useIdle } from './idle'
-import { useNumberPicker } from './sheet/NumberFlow'
+import { NUMBER_RANGE, useNumberPicker } from './sheet/NumberFlow'
 import { DoneButton } from './sheet/DoneButton'
 import type { Mood } from '../art/Dino'
 import './sheet/sheet.css'
 
 const ROUNDS = 4
 /** 波波要的數量：從 1–3 開始，熟了延伸到 10 */
-const RANGE: Record<number, [number, number]> = { 1: [1, 3], 2: [2, 5], 3: [3, 7], 4: [5, 10] }
 
 // 學習單座標 1000×600：左邊是草窩，右邊是籃子，完成鍵在籃子下面
 const BASKET = { x: 580, y: 176, w: 370, h: 254 }
@@ -191,7 +190,7 @@ export function GiveGame({ gameId, onDone, onExit }: GameProps) {
 
   const start = async (i: number) => {
     lv.current = level(def.id)
-    const [a, b] = RANGE[lv.current]
+    const [a, b] = NUMBER_RANGE.give[lv.current]
     const { n: k, fresh } = picker.pick(a, b)
     nRef.current = k
     setN(k)

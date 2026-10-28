@@ -3,7 +3,8 @@ import { AnimatePresence, motion } from 'motion/react'
 import { Shell, type GameProps } from './Shell'
 import { Hand } from './Demo'
 import { game as gameDef } from '../content/games'
-import { level, markPlayed, needsDemo, plays, reportLevel, unlockedNumbers } from '../lib/adaptive'
+import { level, markPlayed, plays, reportLevel, unlockedNumbers } from '../lib/adaptive'
+import { planOrder, roundState } from './pick'
 import { logAttempt, logTeach } from '../lib/record'
 import { say, sfx, stopSpeech } from '../lib/audio'
 import { scatter } from './layout'
@@ -36,8 +37,7 @@ export function OrderGame({ gameId, onDone, onExit }: GameProps) {
   const busy = useRef(true)
   const nextRef = useRef(1)
   const idle = useIdle()
-  const demos = useRef(0)
-  const firstPlay = useRef(plays(def.id) === 0)
+  const round0 = useRef(roundState(plays(def.id) === 0))
   /** 示範中：手指指著哪個數字（null 表示沒有在示範） */
   const [finger, setFinger] = useState<number | null>(null)
   const [press, setPress] = useState(0)
@@ -45,7 +45,6 @@ export function OrderGame({ gameId, onDone, onExit }: GameProps) {
   /** 波波示範點 1、2、3，再把數字放回去換孩子 */
   const demo = async (n: number) => {
     const s = performance.now()
-    demos.current++
     setMood('happy')
     await say('teach.watch.bobo')
     const upto = Math.min(3, n)
@@ -71,7 +70,8 @@ export function OrderGame({ gameId, onDone, onExit }: GameProps) {
   const start = async (i: number) => {
     busy.current = true
     lv.current = level(def.id)
-    const n = Math.min([3, 4, 5, 6][lv.current - 1] + (lv.current === 4 ? Math.floor(Math.random() * 3) : 0), Math.max(5, unlockedNumbers()), 10)
+    // 這一輪排到幾、要不要先示範（pick.ts，自動檢查 scripts/sim-teach.ts 用同一份）
+    const { n, show } = planOrder(def.id, lv.current, unlockedNumbers(), round0.current, i)
     const layout = scatter(n, n > 5 ? 5 : 4, 2).map((p) => ({ ...p, y: 28 + p.y * 0.7 }))
     setK(n)
     setPos(layout)
@@ -81,7 +81,6 @@ export function OrderGame({ gameId, onDone, onExit }: GameProps) {
     taps.current = []
     wrongs.current = 0
     // 要示範的話，示範完才換孩子點；不示範就跟以前一樣，邊聽邊可以開始點
-    const show = demos.current < 1 && needsDemo(firstPlay.current && i === 0, `order:${n}`)
     busy.current = show
     nextRef.current = 1
     idle.stop()
