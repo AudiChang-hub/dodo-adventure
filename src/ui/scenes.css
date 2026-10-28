@@ -1,0 +1,28 @@
+/* ── 轉場的圖層（ui/Scenes.tsx）──────────────────────────────
+   整頁的每一層都是不透明的紙：新畫面在上面長出來時，下面不會透出另一層的東西或底色 */
+.scene {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  background: var(--paper);
+}
+/* 今日冒險裡的每一段：共用同一張故事背景（在外層），自己透明 */
+.scene.is-clear {
+  background: none;
+}
+
+/* 遊戲裡的教學卡（前景）與題目（背景）：疊在同一個位置 */
+.card-bg,
+.card-fg {
+  position: absolute;
+  inset: 0;
+}
+.card-fg {
+  z-index: 3;
+}
+
+/* 疊加層：遮罩和面板一起淡入淡出（ui/motion.ts 的 overlay） */
+.overlay-layer {
+  position: fixed;
+  inset: 0;
+}

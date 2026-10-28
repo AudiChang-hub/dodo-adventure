@@ -9,6 +9,7 @@ import { go } from '../lib/nav'
 import { say, sfx } from '../lib/audio'
 import { todayPlan, planDone } from '../lib/plan'
 import { useSettings } from '../lib/settings'
+import { useIntro } from '../ui/Scenes'
 
 // 六個站沿著小路一上一下排開；相鄰兩站高度錯開，站牌才不會擠在一起
 const SPOTS = [
@@ -23,6 +24,8 @@ const SPOTS = [
 export function MapScreen() {
   const settings = useSettings()
   const [open, setOpen] = useState(settings.freePlay === 'always')
+  // 站牌一個個彈出來只在 App 一打開就是地圖時做；從首頁長出來、從站點回來時站牌已經在定位
+  const intro = useIntro()
 
   useEffect(() => {
     todayPlan().then((p) => {
@@ -50,14 +53,15 @@ export function MapScreen() {
           key={s.id}
           className={`map-stop${open ? '' : ' locked'}`}
           style={{ left: `${SPOTS[i].x}%`, top: `${SPOTS[i].y}%` }}
-          initial={{ scale: 0, y: 30 }}
+          initial={intro ? { scale: 0, y: 30 } : false}
           animate={{ scale: 1, y: 0 }}
           transition={{ type: 'spring', stiffness: 240, damping: 15, delay: 0.1 * i }}
           whileTap={{ scale: 0.93 }}
-          onClick={() => {
+          onClick={(e) => {
             sfx.pop()
             if (!open) return void say('map.locked')
-            go({ name: 'station', station: s.id })
+            // 站點從這個站牌長出來；回地圖時收回這個站牌
+            go({ name: 'station', station: s.id }, { from: e.currentTarget.querySelector('.disc') ?? e.currentTarget })
           }}
           aria-label={s.name}
         >

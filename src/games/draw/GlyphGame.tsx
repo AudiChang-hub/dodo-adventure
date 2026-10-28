@@ -15,6 +15,7 @@ import { logAttempt, logTeach } from '../../lib/record'
 import { say, sfx, stopSpeech } from '../../lib/audio'
 import { praiseKey, wait } from '../lines'
 import { useIdle } from '../idle'
+import { Swap } from '../../ui/Scenes'
 
 const ROUNDS = 3
 const LANE = 20
@@ -253,7 +254,9 @@ export function GlyphGame({ gameId, onDone, onExit }: GameProps) {
   const tip = samples[Math.min(prog, samples.length - 1)] ?? st
   return (
     <Shell station="draw" mood="idle" progress={{ total: ROUNDS, done: r }} onExit={onExit} hideHost hintText={glyphToolHint(tool)}>
-      <div key={`${r}-${glyph}`} style={{ position: 'absolute', inset: '0 0 4%' }}>
+      {/* 換一回合：新的一回合蓋在舊的上面淡入，舊的（答對的樣子）等一下才淡掉，不會一下子變空（ui/Scenes.tsx 的 Swap） */}
+      <Swap id={`${r}-${glyph}`} style={{ inset: '0 0 4%' }}>
+        <>
         <svg viewBox="0 0 100 140" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%' }} aria-hidden="true">
           {strokes.map((d, i) => (
             <g key={i}>
@@ -297,7 +300,8 @@ export function GlyphGame({ gameId, onDone, onExit }: GameProps) {
         {/* 建議工具的大圖示：一直留到這個字描完 */}
         {(!done || demo) && <ToolBadge tool={tool} pulse={pulse} />}
         <Ink w={100} h={140} color="rgba(46,42,37,0.6)" size={3.2} ink={!demo} onDown={onDown} onMove={onMove} />
-      </div>
+        </>
+      </Swap>
     </Shell>
   )
 }

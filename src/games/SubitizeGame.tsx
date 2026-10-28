@@ -3,6 +3,8 @@ import { AnimatePresence, motion } from 'motion/react'
 import { Shell, type GameProps } from './Shell'
 import { Hand } from './Demo'
 import { SheetTeach } from './sheet/SheetTeach'
+import { CardStage, Swap } from '../ui/Scenes'
+import { REVEAL_MS } from '../ui/motion'
 import { Sparkles } from '../ui/Sparkles'
 import { game as gameDef, station as stationDef } from '../content/games'
 import { level, markPlayed, plays, reportLevel } from '../lib/adaptive'
@@ -15,6 +17,7 @@ import { useIdle } from './idle'
 import { PACE, nextPause } from './pace'
 import { NUMBER_RANGE, range, useNumberPicker } from './sheet/NumberFlow'
 import type { Mood } from '../art/Dino'
+import { FADE } from '../ui/motion'
 import './sheet/sheet.css'
 
 const ROUNDS = 5
@@ -127,6 +130,8 @@ export function SubitizeGame({ gameId, onDone, onExit }: GameProps) {
   const first = useRef(0)
   const firstPlay = useRef(plays(def.id) === 0)
   const resolver = useRef<((ms: number) => void) | null>(null)
+  /** 教學卡還蓋在題目上：一起練把題目換好之後才收起來（ui/Scenes.tsx 的 CardStage） */
+  const cardUp = useRef(false)
   const step = useRef(0)
   const flashing = useRef(false)
   const idle = useIdle()
@@ -157,12 +162,20 @@ export function SubitizeGame({ gameId, onDone, onExit }: GameProps) {
     idle.stop()
     locked.current = true
     setMood('happy')
+    cardUp.current = true
     setCard({ n: k, dots: DICE[k], short, k: step.current })
     const ms = await new Promise<number>((res) => (resolver.current = res))
     if (!live.current) return
-    setCard(null)
+    // 卡片先不收：一起練把點點卡擺好（樹葉蓋著）的同一刻才收
     void logTeach({ station: 'math', game: def.id, itemId: String(k), skill: `flash:${k}`, level: lv.current, ms, retaught: short })
-    await wait(PACE.TEACH_TO_GUIDED)
+  }
+
+  /** 教學卡收回主持的恐龍、題目拉遠回來；停頓和以前一樣（TEACH_TO_GUIDED），只是收卡的動畫也算在裡面 */
+  const reveal = async () => {
+    if (!cardUp.current) return
+    cardUp.current = false
+    setCard(null)
+    await wait(Math.max(PACE.TEACH_TO_GUIDED, REVEAL_MS))
   }
 
   const round = async (k: number, ph: Phase, afterGuide: boolean) => {
@@ -185,6 +198,8 @@ export function SubitizeGame({ gameId, onDone, onExit }: GameProps) {
     hintUsed.current = false
     setMood(ph === 'guided' ? 'happy' : 'idle')
     locked.current = true
+    await reveal()
+    if (!live.current || step.current !== my) return
     const done = ph === 'guided' ? new Promise<number>((res) => (resolver.current = res)) : null
     await say(...(afterGuide ? ['teach.turn.bobo'] : []), 'ws.flash.look')
     if (!live.current || step.current !== my) return
@@ -354,8 +369,10 @@ export function SubitizeGame({ gameId, onDone, onExit }: GameProps) {
   const guide = phase === 'guided'
   return (
     <Shell station="math" mood={mood} progress={{ total: ROUNDS, done: r }} onExit={onExit} onHost={onHost}>
-      <AnimatePresence mode="wait">
-        {card ? (
+      {/* 教學卡從主持的恐龍長出來、點點卡在後面退開；換一回合時新的蓋在舊的上面淡入（ui/Scenes.tsx） */}
+      <CardStage
+        card={
+          card && (
           <SheetTeach
             key={`teach-${card.k}`}
             items={[
@@ -367,9 +384,11 @@ export function SubitizeGame({ gameId, onDone, onExit }: GameProps) {
             short={card.short}
             onDone={release}
           />
-        ) : (
-          n > 0 && (
-            <motion.div key={`r-${r}`} className="sheet-area" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0, transition: { duration: 0.2 } }}>
+          )
+        }
+      >
+        {n > 0 && (
+          <Swap id={r} className="sheet-area">
               <div data-n={import.meta.env.DEV ? n : undefined} style={{ position: 'relative', width: 'min(100cqw, 166.67cqh)', aspectRatio: '5 / 3', containerType: 'size' }}>
                 <motion.div
                   className="flash-card"
@@ -418,7 +437,7 @@ export function SubitizeGame({ gameId, onDone, onExit }: GameProps) {
                           aria-label={String(x)}
                           initial={{ y: 40, opacity: 0 }}
                           animate={bad ? { x: [0, -12, 12, 0], opacity: 0.4, y: 0 } : dim ? { y: 0, opacity: 0.3, scale: 0.9 } : { y: 0, opacity: 1, scale: right === x ? 1.08 : 1 }}
-                          transition={{ type: 'spring', stiffness: 380, damping: 20, delay: bad || right !== null ? 0 : i * 0.07 }}
+                          transition={{ type: 'spring', stiffness: 380, damping: 20, delay: bad || right !== null ? 0 : i * 0.07, opacity: FADE }}
                           whileTap={{ scale: 0.94 }}
                           onPointerDown={() => tap(x)}
                         >
@@ -432,10 +451,9 @@ export function SubitizeGame({ gameId, onDone, onExit }: GameProps) {
                   </div>
                 )}
               </div>
-            </motion.div>
-          )
+          </Swap>
         )}
-      </AnimatePresence>
+      </CardStage>
     </Shell>
   )
 }

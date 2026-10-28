@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 import { animate, motion, useMotionValue, useTransform, type AnimationPlaybackControls } from 'motion/react'
 import { FriendActor } from '../ui/FriendActor'
+import { useIntro } from '../ui/Scenes'
+import { DUR, EASE } from '../ui/motion'
 import { friendInfo } from '../content/friends'
 import { db, today, type Friend } from '../lib/db'
 import { fnv1a } from '../lib/hash'
@@ -86,9 +88,11 @@ function Walker({ id, slot, count }: { id: string; slot: number; count: number }
     rest(6000)
   }
 
+  // App 一打開才一隻隻慢慢走出來；從別的畫面回到首頁時直接淡入（資料讀到就出現，不再等一秒多）
+  const intro = useIntro()
   const bob = f.move === 'fly' ? { y: ['0%', '-10%', '0%'] } : walking ? { y: f.move === 'drive' ? ['0%', '-2%', '0%'] : ['0%', '-7%', '0%'] } : { y: '0%' }
   return (
-    <motion.div className="home-friend" style={{ left, bottom: f.move === 'fly' ? '38%' : `${(slot % 2) * 10}%` }} initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 1.2 + slot * 0.4, duration: 0.8 }}>
+    <motion.div className="home-friend" style={{ left, bottom: f.move === 'fly' ? '38%' : `${(slot % 2) * 10}%` }} initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={intro ? { delay: 1.2 + slot * 0.4, duration: 0.8 } : { duration: DUR.swapIn, ease: EASE.out }}>
       <motion.div animate={bob} transition={{ duration: f.move === 'fly' ? 2.4 : 0.55, repeat: f.move === 'fly' || walking ? Infinity : 0, ease: 'easeInOut' }}>
         <motion.div
           key={look}

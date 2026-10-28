@@ -16,6 +16,8 @@ import { praiseKey, retryKey, wait } from './lines'
 import { useIdle } from './idle'
 import { PACE, nextPause } from './pace'
 import type { Mood } from '../art/Dino'
+import { Swap } from '../ui/Scenes'
+import { FADE } from '../ui/motion'
 
 const ROUNDS = 4
 
@@ -259,8 +261,10 @@ export function CountGame({ gameId, onDone, onExit }: GameProps) {
         idle.poke()
         void say(ask ? 'm.howmany' : 'm.count.go')
       }}>
+      {/* 換一回合：新的一回合蓋在舊的上面淡入，舊的（答對的樣子）等一下才淡掉，不會一下子變空（ui/Scenes.tsx 的 Swap） */}
       {round && (
-        <div key={r} style={{ position: 'absolute', inset: 0 }}>
+        <Swap id={r}>
+          <>
           {round.pos.map((p, i) => {
             const order = counted.indexOf(i)
             const pinged = ping?.i === i
@@ -271,7 +275,7 @@ export function CountGame({ gameId, onDone, onExit }: GameProps) {
                 style={{ position: 'absolute', left: `${p.x}%`, top: `${ask ? p.y * 0.55 : p.y}%`, width: round.n > 6 ? '12cqmin' : '17cqmin', aspectRatio: '1', translate: '-50% -50%' }}
                 initial={{ scale: 0, rotate: -20 }}
                 animate={{ scale: order >= 0 ? 0.92 : 1, rotate: 0, y: order >= 0 ? [0, -26, 0] : 0, opacity: order >= 0 ? 0.62 : 1 }}
-                transition={{ type: 'spring', stiffness: 320, damping: 16, delay: order >= 0 ? 0 : i * 0.06 }}
+                transition={{ type: 'spring', stiffness: 320, damping: 16, delay: order >= 0 ? 0 : i * 0.06, opacity: FADE }}
                 onPointerDown={() => tapObj(i)}
               >
                 {nextObj === i && <span className="nudge-glow" aria-hidden="true" />}
@@ -315,7 +319,8 @@ export function CountGame({ gameId, onDone, onExit }: GameProps) {
               ))}
             </div>
           )}
-        </div>
+          </>
+        </Swap>
       )}
     </Shell>
   )

@@ -9,6 +9,7 @@ import type { TeachSpec, Visual } from '../content/games'
 import { wait } from './lines'
 import { useIdle } from './idle'
 import { PACE } from './pace'
+import { FADE } from '../ui/motion'
 import './teach.css'
 
 interface Props {
@@ -21,7 +22,7 @@ interface Props {
   camera?: boolean
 }
 
-const spring = { type: 'spring', stiffness: 260, damping: 20 } as const
+const spring = { type: 'spring', stiffness: 260, damping: 20, opacity: FADE } as const
 
 /** 同一題裡最大的一組數量：讓並排的兩組圖示一樣大 */
 const fitOf = (vs: Visual[]) => Math.max(0, ...vs.map((v) => (v.t === 'group' ? v.count : 0)))

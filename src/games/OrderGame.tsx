@@ -12,6 +12,7 @@ import { praiseKey, retryKey, wait } from './lines'
 import { useIdle } from './idle'
 import { PACE, nextPause } from './pace'
 import type { Mood } from '../art/Dino'
+import { Swap } from '../ui/Scenes'
 
 const ROUNDS = 3
 const TINTS = ['#F6DE95', '#F3C1B2', '#C9E4D4', '#D3E3F3', '#E2DAF1', '#F8DCC8']
@@ -174,7 +175,9 @@ export function OrderGame({ gameId, onDone, onExit }: GameProps) {
         idle.poke()
         void say(`m.findnum.${Math.min(next, k)}`)
       }}>
-      <div key={r} style={{ position: 'absolute', inset: 0 }}>
+      {/* 換一回合：新的一回合蓋在舊的上面淡入，舊的（答對的樣子）等一下才淡掉，不會一下子變空（ui/Scenes.tsx 的 Swap） */}
+      <Swap id={r}>
+        <>
         <div style={{ position: 'absolute', top: '2%', left: '50%', translate: '-50% 0', display: 'flex', gap: '1.4cqmin', padding: '1.6cqmin 2.4cqmin', borderRadius: 999, background: 'rgba(251,248,242,.7)' }}>
           {Array.from({ length: k }, (_, i) => (
             <div key={i} style={{ width: '8.5cqmin', aspectRatio: '1', borderRadius: '2cqmin', background: i + 1 < next ? TINTS[i % TINTS.length] : 'rgba(46,42,37,.06)', display: 'grid', placeItems: 'center' }}>
@@ -208,7 +211,8 @@ export function OrderGame({ gameId, onDone, onExit }: GameProps) {
           )
         })}
         <AnimatePresence>{finger !== null && pos[finger - 1] && <Hand key="finger" x={pos[finger - 1].x + 2} y={pos[finger - 1].y + 5} tap={press} size="11cqmin" />}</AnimatePresence>
-      </div>
+        </>
+      </Swap>
     </Shell>
   )
 }

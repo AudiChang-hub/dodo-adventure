@@ -8,6 +8,7 @@ import { wait } from '../lines'
 import { useIdle } from '../idle'
 import { PACE } from '../pace'
 import '../teach.css'
+import { FADE } from '../../ui/motion'
 
 interface Props {
   /** 一個或兩個並排的例子；念第 i 句時指著第 i 個 */
@@ -19,7 +20,7 @@ interface Props {
   onDone: (ms: number) => void
 }
 
-const spring = { type: 'spring', stiffness: 260, damping: 20 } as const
+const spring = { type: 'spring', stiffness: 260, damping: 20, opacity: FADE } as const
 
 /**
  * 學習單題型的教學卡（PRD §5.8 我示範）。
@@ -85,15 +86,12 @@ export function SheetTeach({ items, lines: all, short, onDone }: Props) {
 
   const focus = Math.max(0, step)
   return (
-    <motion.div className="teach-layer" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0, transition: { duration: 0.22 } }}>
+    // 進出場由外層（ui/Scenes.tsx 的 CardStage）做：從主持的恐龍長出來、收回恐龍；這裡不另外淡入淡出，免得兩層動畫疊成兩段
+    <div className="teach-layer">
       <motion.div
         className={`teach-card${duo ? ' duo' : ''}${ready && !tapped ? ' ready' : ''}${nudge && !tapped ? ' nudge' : ''}`}
         role="button"
         aria-label="再聽一次"
-        initial={{ scale: 0.6, rotate: -4, y: 40 }}
-        animate={{ scale: 1, rotate: 0, y: 0 }}
-        exit={{ scale: 0.86, y: 24, transition: { duration: 0.22 } }}
-        transition={spring}
         whileTap={{ scale: 0.97 }}
         onPointerDown={tap}
       >
@@ -127,6 +125,6 @@ export function SheetTeach({ items, lines: all, short, onDone }: Props) {
           </div>
         )}
       </motion.div>
-    </motion.div>
+    </div>
   )
 }

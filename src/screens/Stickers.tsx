@@ -5,6 +5,7 @@ import { NextCard } from '../ui/NextCard'
 import { StickerPicker } from '../ui/StickerPicker'
 import { album, cardState, nextPick, onAchieve, starBadges, type CardState, type OwnedSticker } from '../lib/achievements'
 import { say, sfx } from '../lib/audio'
+import { turn as pageTurn } from '../ui/motion'
 import './stickers.css'
 
 // 貼紙本的內容只在拿到新貼紙、點過貼紙、星星變多時才變，快照存起來給 useSyncExternalStore
@@ -88,15 +89,16 @@ export function StickerBook() {
   return (
     <div className="sticker-book">
       <div className="book-spread">
-        <AnimatePresence initial={false} custom={dir} mode="popLayout">
+        {/* 翻頁：新的一頁蓋在上面從翻的方向滑進來，舊的等新的不透明了才淡掉（ui/motion.ts 的 turn），中間不會露出空白 */}
+        <AnimatePresence initial={false} custom={dir}>
           <motion.div
             key={at}
             className={`book-page${at < lead ? ' is-badges' : ''}`}
             custom={dir}
-            initial={{ x: `${dir * 40}%`, opacity: 0, rotate: dir * 1.5 }}
-            animate={{ x: 0, opacity: 1, rotate: 0 }}
-            exit={{ x: `${-dir * 40}%`, opacity: 0, rotate: -dir * 1.5 }}
-            transition={{ type: 'spring', stiffness: 220, damping: 28 }}
+            variants={pageTurn}
+            initial="initial"
+            animate="enter"
+            exit="exit"
             drag="x"
             dragConstraints={{ left: 0, right: 0 }}
             dragElastic={0.18}

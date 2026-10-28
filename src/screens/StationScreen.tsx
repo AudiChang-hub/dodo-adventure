@@ -10,11 +10,13 @@ import { level } from '../lib/adaptive'
 import { go } from '../lib/nav'
 import { say, sfx } from '../lib/audio'
 import type { StationId } from '../lib/db'
+import { useIntro } from '../ui/Scenes'
 
 /** 自由探索時的站點：列出這一站所有遊戲 */
 export function StationScreen({ id }: { id: StationId }) {
   const st = stationDef(id)
   const games = gamesOf(id)
+  const intro = useIntro()
   useEffect(() => {
     void say(`welcome.${id}`)
   }, [id])
@@ -36,13 +38,14 @@ export function StationScreen({ id }: { id: StationId }) {
             key={g.id}
             className="game-tile"
             aria-label={g.title}
-            initial={{ y: 40, opacity: 0 }}
+            initial={intro ? { y: 40, opacity: 0 } : false}
             animate={{ y: 0, opacity: 1 }}
             transition={{ type: 'spring', stiffness: 260, damping: 18, delay: 0.07 * i }}
             whileTap={{ scale: 0.94 }}
-            onClick={() => {
+            onClick={(e) => {
               sfx.pop()
-              go({ name: 'play', game: g.id, station: id })
+              // 遊戲從這張卡長出來；玩完回站點時收回這張卡
+              go({ name: 'play', game: g.id, station: id }, { from: e.currentTarget })
             }}
           >
             <Emoji name={g.icon} />

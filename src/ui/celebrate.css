@@ -77,14 +77,19 @@
 }
 
 /* ── 遮罩：每局回顧、里程碑共用 ─────────────────────────── */
-.cheer {
+/* 遮罩：回顧、里程碑、挑貼紙共用同一層，整段只淡入一次（Celebrate.tsx） */
+.cheer-scrim {
   position: fixed;
   inset: 0;
   z-index: 40;
-  display: grid;
-  place-items: center;
   /* 不用 backdrop-filter 模糊：平板上整頁模糊很吃效能，換成夠不透明的紙色遮罩 */
   background: rgba(243, 238, 228, 0.9);
+}
+.cheer {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
   overflow: hidden;
 }
 /* 跟遊戲舞台的主持恐龍（.stage-host）同一個位置、同一個大小：剛好蓋住遮罩後面那一隻，不會有重影 */
@@ -167,7 +172,8 @@
 
 /* ── 里程碑 ─────────────────────────────────────────────── */
 .cheer.is-milestone {
-  background: rgba(243, 238, 228, 0.95);
+  /* 疊在 0.9 的遮罩上：合起來約 0.95 */
+  background: rgba(243, 238, 228, 0.5);
 }
 /* 中間一圈很淡的暖光，慢慢地呼吸（6 秒一次，不閃） */
 .ms-glow {

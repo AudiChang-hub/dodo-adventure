@@ -59,7 +59,15 @@ async function migrate(p: Plan): Promise<Plan> {
  *   主題只決定故事和題目裡出現的東西（lib/theme-play.ts），不改排課，四條線的平衡不受影響。
  * 每天的站數（家長設定）和總時間（約 20 分鐘）不變；同一天的結果固定，排好就存起來。
  */
+/** 最近一次讀到、存下的今天的冒險：換到冒險畫面的第一幀就畫得出路線（不必先等資料庫，不會先閃一張空白） */
+let last: Plan | null = null
+export const cachedPlan = (): Plan | null => (last && last.date === today() ? last : null)
+
 export async function todayPlan(): Promise<Plan> {
+  return (last = await readPlan())
+}
+
+async function readPlan(): Promise<Plan> {
   const date = today()
   const saved = await getKV<Plan | null>(`plan:${date}`, null)
   if (saved) return migrate(saved)
@@ -79,6 +87,7 @@ export async function todayPlan(): Promise<Plan> {
 }
 
 export async function savePlan(p: Plan) {
+  last = p
   await setKV(`plan:${p.date}`, p)
 }
 

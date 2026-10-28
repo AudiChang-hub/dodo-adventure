@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { AnimatePresence, motion } from 'motion/react'
+import { motion } from 'motion/react'
 import { Shell, type GameProps } from '../Shell'
 import { Hand } from '../Demo'
 import { Sparkles } from '../../ui/Sparkles'
@@ -18,6 +18,9 @@ import { PhonicsIntro, introLines } from './PhonicsIntro'
 import { LetterPair, Pic, WordLabel } from './parts'
 import { useSubtitleTint } from './subtitleTint'
 import { migrateLegacy } from './migrate'
+import { CardStage, Swap, useSwapQuiet } from '../../ui/Scenes'
+import { REVEAL_MS } from '../../ui/motion'
+import { FADE } from '../../ui/motion'
 import './phonics.css'
 
 type Mark = 'wrong' | 'correct' | 'hint'
@@ -78,6 +81,8 @@ export function PhonicsGame({ gameId, onDone, onExit }: GameProps) {
   /** 這一題剛走過學習循環或一起練：答對後多停一下再換題 */
   const taughtItem = useRef(false)
   const resolver = useRef<((ms: number) => void) | null>(null)
+  /** 教學卡還蓋在題目上：一起練把題目換好之後才收起來（ui/Scenes.tsx 的 CardStage） */
+  const cardUp = useRef(false)
 
   useSubtitleTint()
 
@@ -122,12 +127,20 @@ export function PhonicsGame({ gameId, onDone, onExit }: GameProps) {
     idle.stop()
     locked.current = true
     setMood('happy')
+    cardUp.current = true
     setCard({ it, short, n: stepRef.current })
     const ms = await waitStep()
     if (!live.current) return
-    setCard(null)
+    // 卡片先不收：一起練把題目換好的同一刻才收（收回恐龍時直接看到新題目）
     void logTeach({ station: def.station, game: def.id, itemId: it.unit.letter, skill: it.skill, level: itemLevel.current, ms, retaught: short })
-    await wait(PACE.TEACH_TO_GUIDED)
+  }
+
+  /** 教學卡收回主持的恐龍、題目拉遠回來；停頓和以前一樣（TEACH_TO_GUIDED），只是收卡的動畫也算在裡面 */
+  const reveal = async () => {
+    if (!cardUp.current) return
+    cardUp.current = false
+    setCard(null)
+    await wait(Math.max(PACE.TEACH_TO_GUIDED, REVEAL_MS))
   }
 
   // ── 一起練：答案發光，點錯也沒關係 ─────────────────────────
@@ -141,6 +154,8 @@ export function PhonicsGame({ gameId, onDone, onExit }: GameProps) {
     setMarks({})
     setMood('happy')
     setView((v) => v + 1)
+    await reveal()
+    if (!live.current) return
     shownAt.current = performance.now()
     locked.current = false
     const done = waitStep()
@@ -165,6 +180,8 @@ export function PhonicsGame({ gameId, onDone, onExit }: GameProps) {
     setMarks({})
     setMood('idle')
     setView((v) => v + 1)
+    await reveal()
+    if (!live.current || stepRef.current !== my) return
     locked.current = false
     shownAt.current = performance.now()
     const challenge = isLast && itemLevel.current > level(def.id)
@@ -339,17 +356,17 @@ export function PhonicsGame({ gameId, onDone, onExit }: GameProps) {
   const guide = phase === 'guided'
   return (
     <Shell station={def.station} mood={mood} progress={{ total: ROUND_ITEMS, done: idx }} onExit={onExit} onHost={onHost}>
-      <AnimatePresence mode="wait">
-        {card ? (
-          <PhonicsIntro key={`teach-${card.n}`} unit={card.it.unit} short={card.short} onDone={release} />
-        ) : (
-          item && (
-            <motion.div key={`q-${view}`} style={{ position: 'absolute', inset: 0 }} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0, transition: { duration: 0.2 } }}>
+      {/* 學習循環的卡片從主持的恐龍長出來、題目在後面退開；換題時新題目蓋在舊的上面淡入（ui/Scenes.tsx） */}
+      <CardStage card={card && <PhonicsIntro key={`teach-${card.n}`} unit={card.it.unit} short={card.short} onDone={release} />}>
+        {item && (
+          <Swap id={view}>
+            {(quiet) => (
+            <>
               {item.stimulus && (
                 <motion.div
                   className="stimulus ph-stim"
-                  initial={{ y: -30, opacity: 0 }}
-                  animate={{ y: 0, opacity: 1 }}
+                  initial={quiet ? false : { y: -18 }}
+                  animate={{ y: 0 }}
                   transition={{ type: 'spring', stiffness: 300, damping: 22 }}
                   onPointerDown={() => {
                     idle.poke()
@@ -375,10 +392,11 @@ export function PhonicsGame({ gameId, onDone, onExit }: GameProps) {
                   />
                 ))}
               </div>
-            </motion.div>
-          )
+            </>
+            )}
+          </Swap>
         )}
-      </AnimatePresence>
+      </CardStage>
     </Shell>
   )
 }
@@ -387,11 +405,13 @@ function OptionTile({ o, i, mark, isAns, guide, named, burst, onTap }: { o: Phon
   const glow = guide && isAns && mark !== 'correct'
   const dim = guide && !isAns
   const reveal = mark === 'correct' && !!o.word
+  // 被教學卡蓋著時換上的題目：卡片收起來時已經在定位，不再自己彈進來
+  const quiet = useSwapQuiet()
   return (
     <motion.button
       className={`tile ph-tile${o.letter ? ' is-letter' : ''}${mark === 'correct' ? ' correct' : ''}${mark === 'hint' ? ' hint' : ''}${glow ? ' guide' : ''}${dim ? ' dim' : ''}${named ? ' named' : ''}`}
       aria-label={`選項 ${i + 1}`}
-      initial={{ y: 60, opacity: 0, scale: 0.85 }}
+      initial={quiet ? false : { y: 28, scale: 0.94 }}
       animate={
         mark === 'wrong'
           ? { x: [0, -14, 14, -9, 9, 0], opacity: 0.45, y: 0, scale: 0.94 }
@@ -406,7 +426,7 @@ function OptionTile({ o, i, mark, isAns, guide, named, burst, onTap }: { o: Phon
                   : { y: 0, opacity: 1, scale: 1 }
       }
       whileTap={{ scale: 0.94 }}
-      transition={{ type: 'spring', stiffness: 380, damping: 20, delay: mark || named ? 0 : 0.08 * i }}
+      transition={{ type: 'spring', stiffness: 380, damping: 20, delay: mark || named ? 0 : 0.08 * i, opacity: FADE }}
       onPointerDown={onTap}
     >
       <div className={`tile-in${reveal ? ' with-label' : ''}`}>

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { AnimatePresence, motion } from 'motion/react'
+import { motion } from 'motion/react'
 import { Shell, type GameProps } from './Shell'
 import { VisualView } from '../ui/Visual'
 import { Sparkles } from '../ui/Sparkles'
@@ -15,6 +15,8 @@ import { pick, sample, shuffle } from '../lib/random'
 import { retryKey, wait } from './lines'
 import { useIdle } from './idle'
 import type { Mood } from '../art/Dino'
+import { Swap } from '../ui/Scenes'
+import { FADE } from '../ui/motion'
 import './engine.css'
 
 export { isFluency } from '../lib/fluency'
@@ -196,16 +198,10 @@ export function FluencyGame({ gameId, onDone, onExit }: GameProps) {
         animate={{ scale: 0.6 + joy * 0.22, opacity: joy ? 0.25 + joy * 0.1 : 0 }}
         transition={{ type: 'spring', stiffness: 120, damping: 14 }}
       />
-      <AnimatePresence mode="wait">
-        {ready && q && (
-          <motion.div
-            key={`q-${view}`}
-            style={{ position: 'absolute', inset: 0 }}
-            initial={{ opacity: 0, x: 40 }}
-            animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, x: -40, transition: { duration: 0.16 } }}
-            transition={{ type: 'spring', stiffness: 420, damping: 32 }}
-          >
+      {/* 換題：新題目蓋在舊的上面淡入，舊的等一下才淡掉（ui/Scenes.tsx 的 Swap）；一題接一題，換上來就能點 */}
+      {ready && q && (
+        <Swap id={view} arm={false}>
+          <>
             {q.stimulus && (
               <div className="stimulus wide" onPointerDown={() => void say(q.prompt)}>
                 <VisualView v={q.stimulus} />
@@ -221,10 +217,10 @@ export function FluencyGame({ gameId, onDone, onExit }: GameProps) {
                     key={n}
                     className={`tile${ok ? ' correct' : ''}${hint && isAns && !ok ? ' hint' : ''}`}
                     aria-label={`選項 ${i + 1}`}
-                    initial={{ y: 40, opacity: 0, scale: 0.9 }}
+                    initial={{ y: 20, scale: 0.94 }}
                     animate={w ? { x: [0, -12, 12, -7, 7, 0], opacity: 0.45, y: 0, scale: 0.94 } : ok ? { scale: [1, 1.16, 1.06], y: -8, opacity: 1 } : { y: 0, opacity: 1, scale: 1 }}
                     whileTap={{ scale: 0.94 }}
-                    transition={{ type: 'spring', stiffness: 460, damping: 22, delay: w || ok ? 0 : 0.05 * i }}
+                    transition={{ type: 'spring', stiffness: 460, damping: 22, delay: w || ok ? 0 : 0.05 * i, opacity: FADE }}
                     onPointerDown={() => tap(n)}
                   >
                     <div className="tile-in">
@@ -235,9 +231,9 @@ export function FluencyGame({ gameId, onDone, onExit }: GameProps) {
                 )
               })}
             </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+          </>
+        </Swap>
+      )}
     </Shell>
   )
 }

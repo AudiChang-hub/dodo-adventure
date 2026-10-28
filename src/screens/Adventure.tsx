@@ -16,7 +16,7 @@ import { hasLine } from '../content/lines'
 import { go } from '../lib/nav'
 import { say, sfx, stopSpeech } from '../lib/audio'
 import { getKV, setKV, today } from '../lib/db'
-import { todayPlan, savePlan, planDone, hatchFriend, type Plan } from '../lib/plan'
+import { cachedPlan, todayPlan, savePlan, planDone, hatchFriend, type Plan } from '../lib/plan'
 import { noteActivity, isBreakDue, holdBedtime, bedtimeIfDue } from '../lib/session'
 import { useThemeScope } from '../lib/theme-play'
 import { pendingPicks } from '../lib/achievements'
@@ -24,6 +24,8 @@ import { EyeBreak } from '../ui/EyeBreak'
 import { wait } from '../games/lines'
 import { RouteMap, RouteStrip, stopIcon } from './Route'
 import { DayRecap } from './DayRecap'
+import { Scenes, type SceneMove } from '../ui/Scenes'
+import { DUR, EASE, RANGE } from '../ui/motion'
 
 type Phase = 'route' | 'travel' | 'play' | 'coplay' | 'egg' | 'finale' | 'hatch' | 'finish' | 'rest'
 
@@ -50,13 +52,24 @@ function ThemeScope({ theme, children }: { theme?: string; children: ReactNode }
  * 孩子端看不到也聽不到任何科目或站名；旁白都很短，點一下畫面就跳過。
  */
 export function Adventure() {
-  const [plan, setPlan] = useState<Plan | null>(null)
-  const [phase, setPhase] = useState<Phase>('route')
+  // 首頁已經讀過今天的冒險：第一幀就畫得出路線，不會先閃一張空白
+  const [plan, setPlan] = useState<Plan | null>(cachedPlan)
+  const [phase, setPhase] = useState<Phase>(() => {
+    const p = cachedPlan()
+    return p && planDone(p) ? (p.hatched ? 'finish' : 'hatch') : 'route'
+  })
   const [taps, setTaps] = useState(0)
   const [friend, setFriend] = useState<string | null>(null)
   const live = useRef(true)
   /** 爸爸回合是哪一站之後（站的 index），結束後接回蛋裂開 */
   const [coplayAt, setCoplayAt] = useState(-1)
+  /** 旁白卡（主題式冒險）或站牌：遊戲從它長出來 */
+  const story = useRef<HTMLDivElement>(null)
+  /** 畫面上現在是哪一段：換段的那一次 render 用它決定往前還是往回 */
+  const shownPhase = useRef<Phase>(phase)
+  useEffect(() => {
+    shownPhase.current = phase
+  }, [phase])
   /** 點畫面跳過旁白：這個階段後面的等待也一起略過 */
   const skipped = useRef(false)
   const skipFrom = useRef(0)
@@ -69,7 +82,8 @@ export function Adventure() {
   useEffect(() => {
     live.current = true
     todayPlan().then((p) => {
-      setPlan(p)
+      // 跟一開始用的那份一樣就不換：換了物件，路線那一段的旁白會被打斷重來
+      setPlan((cur) => (cur && JSON.stringify(cur) === JSON.stringify(p) ? cur : p))
       if (planDone(p)) setPhase(p.hatched ? 'finish' : 'hatch')
     })
     return () => {
@@ -238,32 +252,33 @@ export function Adventure() {
     go({ name: 'home' })
   }
 
-  if (!plan) return <div className="screen" />
-
-  if (phase === 'rest')
-    return (
-      <EyeBreak
-        onDone={() => {
-          if (!bedtimeIfDue()) setPhase('travel')
-        }}
-      />
-    )
-
-  if (phase === 'play' && item)
-    return (
-      <PlayingGame.Provider value={item.game}>
-        <PlayGame gameId={item.game} theme={plan.theme} onDone={onGameDone} onExit={exit} />
-      </PlayingGame.Provider>
-    )
-
-  if (phase === 'coplay' && coplayAt >= 0) {
-    const it = plan.items[coplayAt]
-    return (
-      <ThemeScope theme={plan.theme}>
-        <DadTurn gameId={it.game} station={it.station} onDone={() => void afterGame(plan)} onExit={() => go({ name: 'home' })} />
-      </ThemeScope>
-    )
+  // ── 轉場：每一段是一層（ui/Scenes.tsx） ──────────────────────
+  const sceneId =
+    phase === 'route'
+      ? 'route'
+      : phase === 'travel'
+        ? `travel-${cur}`
+        : phase === 'play'
+          ? `play-${cur}`
+          : phase === 'coplay'
+            ? `coplay-${coplayAt}`
+            : phase === 'egg' || phase === 'hatch'
+              ? `egg-${doneCount}`
+              : phase === 'rest'
+                ? `rest-${doneCount}`
+                : phase
+  /** 旁白卡進遊戲：遊戲從那張卡長出來；遊戲（爸爸回合、護眼休息）結束回到旅程：收回去，旅程拉遠回來 */
+  const move = (): SceneMove => {
+    const from = shownPhase.current
+    if (phase === 'play') {
+      const box = story.current?.getBoundingClientRect()
+      return { back: false, anchor: box ? { x: box.left + box.width / 2, y: box.top + box.height / 2 } : null }
+    }
+    const fromGame = from === 'play' || from === 'coplay' || from === 'rest'
+    return { back: fromGame, collapse: from === 'play', anchor: null }
   }
+
+  if (!plan) return <div className="screen" />
 
   const st = item ? stationDef(item.station) : null
   // 背景：主題式冒險整趟都是主題的顏色與場景；舊的冒險照站點換顏色
@@ -271,18 +286,53 @@ export function Adventure() {
   return (
     <div className="screen travel" style={{ background: bg, transition: 'background .6s' } as CSSProperties} onPointerDown={skip}>
       {th ? <ThemeScenery def={th} /> : phase !== 'route' && <Scenery station="home" />}
-      <AnimatePresence mode="wait">
+      {/* 每一段（路線、旁白卡、遊戲、蛋、終點、回顧）都是一層：新的蓋好了舊的才退，故事背景一直都在，不會露出空白 */}
+      <Scenes id={sceneId} move={move} className="scene is-clear">
+        {scene()}
+      </Scenes>
+    </div>
+  )
+
+  function scene() {
+    if (!plan) return null
+    if (phase === 'rest')
+      return (
+        <EyeBreak
+          onDone={() => {
+            if (!bedtimeIfDue()) setPhase('travel')
+          }}
+        />
+      )
+
+    if (phase === 'play' && item)
+      return (
+        <PlayingGame.Provider value={item.game}>
+          <PlayGame gameId={item.game} theme={plan.theme} onDone={onGameDone} onExit={exit} />
+        </PlayingGame.Provider>
+      )
+
+    if (phase === 'coplay' && coplayAt >= 0) {
+      const it = plan.items[coplayAt]
+      return (
+        <ThemeScope theme={plan.theme}>
+          <DadTurn gameId={it.game} station={it.station} onDone={() => void afterGame(plan)} onExit={() => go({ name: 'home' })} />
+        </ThemeScope>
+      )
+    }
+
+    return (
+      <>
         {phase === 'route' && (
-          <motion.div key="route" className="screen" exit={{ opacity: 0, transition: { duration: 0.3 } }}>
+          <div className="screen">
             <RouteMap plan={plan} />
-          </motion.div>
+          </div>
         )}
 
         {phase === 'travel' && th && item && (
-          <motion.div key={`t${cur}`} className="screen" exit={{ opacity: 0 }}>
+          <div className="screen">
             <RouteStrip plan={plan} />
-            {/* 故事的這一格：大大的圖在一張紙卡上，後面一圈淡淡的光 */}
-            <motion.div className="story-card" style={{ '--deep': th.deep, '--tint': th.tint } as CSSProperties} initial={{ scale: 0.6, opacity: 0, y: 24 }} animate={{ scale: 1, opacity: 1, y: 0 }} transition={{ type: 'spring', stiffness: 200, damping: 17, delay: 0.25 }}>
+            {/* 故事的這一格：大大的圖在一張紙卡上，後面一圈淡淡的光。跟著這一段一起出現（不另外淡入），只多一點點長大；遊戲從這張卡長出來 */}
+            <motion.div ref={story} className="story-card" style={{ '--deep': th.deep, '--tint': th.tint } as CSSProperties} initial={{ scale: RANGE.fromScale + 0.2, y: 16 }} animate={{ scale: 1, y: 0 }} transition={{ duration: DUR.enter + 0.2, ease: EASE.out }}>
               <span className="story-card-halo" />
               <motion.span className="story-card-pic" animate={{ y: [0, -6, 0] }} transition={{ duration: 3.2, repeat: Infinity, ease: 'easeInOut', delay: 1 }}>
                 <Emoji name={stopIcon(th, cur)} />
@@ -291,13 +341,13 @@ export function Adventure() {
             <motion.div style={{ position: 'absolute', bottom: '7vh', left: '50%', width: '40vmin', marginLeft: '-20vmin' }} initial={{ x: '-80vw' }} animate={{ x: 0 }} transition={{ type: 'spring', stiffness: 45, damping: 12 }}>
               <Ride who={th.host} width="100%" moving mood="happy" />
             </motion.div>
-          </motion.div>
+          </div>
         )}
 
         {phase === 'travel' && !th && st && item && (
-          <motion.div key={`t${cur}`} className="screen" exit={{ opacity: 0 }}>
+          <div className="screen">
             <RouteStrip plan={plan} />
-            <motion.div className="travel-badge" initial={{ scale: 0, rotate: -30 }} animate={{ scale: 1, rotate: 0 }} transition={{ type: 'spring', stiffness: 220, damping: 14, delay: 0.3 }}>
+            <motion.div ref={story} className="travel-badge" initial={{ scale: 0, rotate: -30 }} animate={{ scale: 1, rotate: 0 }} transition={{ type: 'spring', stiffness: 220, damping: 14, delay: 0.3 }}>
               <Emoji name={st.icon} />
             </motion.div>
             <motion.div className="travel-name" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.6 }}>
@@ -306,11 +356,11 @@ export function Adventure() {
             <motion.div style={{ position: 'absolute', bottom: '8vh', left: '50%', width: '40vmin', marginLeft: '-20vmin' }} initial={{ x: '-80vw' }} animate={{ x: 0 }} transition={{ type: 'spring', stiffness: 45, damping: 12 }}>
               <Ride who={st.host} width="100%" moving mood="happy" />
             </motion.div>
-          </motion.div>
+          </div>
         )}
 
         {phase === 'finale' && th && (
-          <motion.div key="finale" className="screen" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0, transition: { duration: 0.35 } }}>
+          <div className="screen">
             <div className="story-finale" style={{ '--deep': th.deep, '--tint': th.tint } as CSSProperties}>
               <motion.span className="story-finale-ring" initial={{ scale: 0.4, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ type: 'spring', stiffness: 140, damping: 16 }} />
               {th.finale.map((ic, i) => (
@@ -329,11 +379,11 @@ export function Adventure() {
             <motion.div style={{ position: 'absolute', bottom: '6vh', left: '50%', width: '34vmin', marginLeft: '-34vmin' }} initial={{ x: '-70vw' }} animate={{ x: 0 }} transition={{ type: 'spring', stiffness: 45, damping: 12, delay: 0.2 }}>
               <Ride who={th.host} width="100%" moving={false} mood="cheer" />
             </motion.div>
-          </motion.div>
+          </div>
         )}
 
         {(phase === 'egg' || phase === 'hatch') && (
-          <motion.div key="egg" className="screen" style={{ display: 'grid', placeItems: 'center' }} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+          <div className="screen" style={{ display: 'grid', placeItems: 'center' }}>
             <div style={{ position: 'relative' }} onPointerDown={phase === 'hatch' ? tapEgg : undefined}>
               <AnimatePresence>
                 {!friend && (
@@ -349,11 +399,11 @@ export function Adventure() {
                 </motion.div>
               )}
             </div>
-          </motion.div>
+          </div>
         )}
 
         {phase === 'finish' && (
-          <motion.div key="fin" className="screen" style={{ display: 'grid', placeItems: 'center', alignContent: 'center', gap: '4vh' }} initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+          <div className="screen" style={{ display: 'grid', placeItems: 'center', alignContent: 'center', gap: '4vh' }}>
             <DayRecap plan={plan} />
             <div style={{ display: 'flex', gap: '3vmin', alignItems: 'flex-end' }}>
               <div style={{ width: '18vmin' }}>{plan.hatched && <Emoji name={plan.hatched} />}</div>
@@ -366,9 +416,9 @@ export function Adventure() {
                 <path d="M8 22 L24 8 L40 22 V38 Q40 41 37 41 H11 Q8 41 8 38 Z" fill="#FBF8F2" />
               </svg>
             </button>
-          </motion.div>
+          </div>
         )}
-      </AnimatePresence>
-    </div>
-  )
+      </>
+    )
+  }
 }

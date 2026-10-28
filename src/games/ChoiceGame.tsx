@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { AnimatePresence, motion } from 'motion/react'
+import { motion } from 'motion/react'
 import { Shell, type GameProps } from './Shell'
 import { TeachCard } from './Teach'
 import { Hand } from './Demo'
@@ -20,6 +20,9 @@ import { challengeKey, praiseKey, retryKey, wait } from './lines'
 import { useIdle } from './idle'
 import { PACE, nextPause } from './pace'
 import type { Mood } from '../art/Dino'
+import { CardStage, Swap } from '../ui/Scenes'
+import { REVEAL_MS } from '../ui/motion'
+import { FADE } from '../ui/motion'
 import './engine.css'
 
 /** soft：延遲提示的淡淡一圈光；tease：Sam 教豆豆時，恐龍故意指錯的那一個 */
@@ -113,6 +116,8 @@ function ChoiceRound({ gameId, onDone, onExit }: GameProps) {
   /** 延遲提示：這題有沒有延遲提示、光是什麼時候亮的 */
   const delayRef = useRef<{ ms: number; glowAt: number | null } | null>(null)
   const resolver = useRef<((ms: number) => void) | null>(null)
+  /** 教學卡還蓋在題目上：一起練把題目換好之後才收起來（ui/Scenes.tsx 的 CardStage） */
+  const cardUp = useRef(false)
 
   const waitStep = () => new Promise<number>((res) => (resolver.current = res))
   const release = (ms = 0) => {
@@ -137,12 +142,20 @@ function ChoiceRound({ gameId, onDone, onExit }: GameProps) {
     idle.stop()
     locked.current = true
     setMood('happy')
+    cardUp.current = true
     setCard({ spec: it.teach!, short, n: stepRef.current })
     const ms = await waitStep()
     if (!live.current) return
-    setCard(null)
+    // 卡片先不收：一起練把題目換好的同一刻才收（收回恐龍時直接看到新題目，不會先閃回上一題或一片空白）
     void logTeach({ station: def.station, game: def.id, itemId: it.itemId, skill: it.skill, level: itemLevel.current, ms, retaught: short })
-    await wait(PACE.TEACH_TO_GUIDED)
+  }
+
+  /** 教學卡收回主持的恐龍、題目拉遠回來；停頓和以前一樣（TEACH_TO_GUIDED），只是收卡的動畫也算在裡面 */
+  const reveal = async () => {
+    if (!cardUp.current) return
+    cardUp.current = false
+    setCard(null)
+    await wait(Math.max(PACE.TEACH_TO_GUIDED, REVEAL_MS))
   }
 
   // ── 一起練：答案發光，點錯也沒關係 ─────────────────────────
@@ -156,6 +169,8 @@ function ChoiceRound({ gameId, onDone, onExit }: GameProps) {
     setMarks({})
     setMood('happy')
     setView((v) => v + 1)
+    await reveal()
+    if (!live.current) return
     shownAt.current = performance.now()
     locked.current = false
     const done = waitStep()
@@ -186,6 +201,8 @@ function ChoiceRound({ gameId, onDone, onExit }: GameProps) {
     setMarks(o.decoy ? { [o.decoy]: 'tease' } : {})
     setMood(o.decoy ? 'peek' : 'idle')
     setView((v) => v + 1)
+    await reveal()
+    if (!live.current || stepRef.current !== my) return
     locked.current = false
     shownAt.current = performance.now()
     const challenge = isLast && itemLevel.current > level(def.id)
@@ -451,17 +468,17 @@ function ChoiceRound({ gameId, onDone, onExit }: GameProps) {
   const fit = Math.max(0, ...(item?.options ?? []).map((o) => (o.v.t === 'group' ? o.v.count : 0)))
   return (
     <Shell station={def.station} mood={mood} progress={{ total: ROUND_ITEMS, done: idx }} onExit={onExit} onHost={onHost}>
-      <AnimatePresence mode="wait">
-        {card ? (
-          <TeachCard key={`teach-${card.n}`} spec={card.spec} short={card.short} onDone={release} />
-        ) : (
-          item && (
-            <motion.div key={`q-${view}`} style={{ position: 'absolute', inset: 0 }} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0, transition: { duration: 0.2 } }}>
+      {/* 教學卡從主持的恐龍長出來、題目在後面退開；換題時新題目蓋在舊的上面淡入（ui/Scenes.tsx） */}
+      <CardStage card={card && <TeachCard key={`teach-${card.n}`} spec={card.spec} short={card.short} camera onDone={release} />}>
+        {item && (
+          <Swap id={view}>
+            {(quiet) => (
+            <>
               {item.stimulus && (
                 <motion.div
                   className={`stimulus${item.stimulus.t === 'group' ? ' wide' : item.stimulus.t === 'seq' ? ' seq' : ''}`}
-                  initial={{ y: -30, opacity: 0 }}
-                  animate={{ y: 0, opacity: 1 }}
+                  initial={quiet ? false : { y: -18 }}
+                  animate={{ y: 0 }}
                   transition={{ type: 'spring', stiffness: 300, damping: 22 }}
                   onPointerDown={() => {
                     idle.poke()
@@ -483,7 +500,7 @@ function ChoiceRound({ gameId, onDone, onExit }: GameProps) {
                       key={o.id}
                       className={`tile${wide ? ' wide' : ''}${m === 'correct' ? ' correct' : ''}${m === 'hint' ? ' hint' : ''}${m === 'soft' ? ' soft' : ''}${m === 'tease' ? ' tease' : ''}${glow ? ' guide' : ''}${dim ? ' dim' : ''}`}
                       aria-label={`選項 ${i + 1}`}
-                      initial={{ y: 60, opacity: 0, scale: 0.85 }}
+                      initial={quiet ? false : { y: 28, scale: 0.94 }}
                       animate={
                         m === 'wrong'
                           ? { x: [0, -14, 14, -9, 9, 0], opacity: 0.45, y: 0, scale: 0.94 }
@@ -498,7 +515,7 @@ function ChoiceRound({ gameId, onDone, onExit }: GameProps) {
                                 : { y: 0, opacity: 1, scale: 1 }
                       }
                       whileTap={{ scale: 0.94 }}
-                      transition={{ type: 'spring', stiffness: 380, damping: 20, delay: m ? 0 : 0.08 * i }}
+                      transition={{ type: 'spring', stiffness: 380, damping: 20, delay: m ? 0 : 0.08 * i, opacity: FADE }}
                       onPointerDown={() => tap(o.id)}
                     >
                       <div className="tile-in">
@@ -516,10 +533,11 @@ function ChoiceRound({ gameId, onDone, onExit }: GameProps) {
                   )
                 })}
               </div>
-            </motion.div>
-          )
+            </>
+            )}
+          </Swap>
         )}
-      </AnimatePresence>
+      </CardStage>
     </Shell>
   )
 }

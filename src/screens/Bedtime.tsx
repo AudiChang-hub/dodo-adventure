@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react'
-import { motion } from 'motion/react'
+import { AnimatePresence, motion } from 'motion/react'
 import { Dino } from '../art/Dino'
-import { ParentCorner, ParentGate } from '../ui/ParentGate'
+import { GatePanel, ParentCorner } from '../ui/ParentGate'
+import { overlay, overlayPanel } from '../ui/motion'
 import { go } from '../lib/nav'
 import { say } from '../lib/audio'
 import { grantExtra } from '../lib/session'
@@ -42,40 +43,45 @@ export function Bedtime() {
       ))}
       {!gate && !menu && <ParentCorner onOpen={() => setGate(true)} color="rgba(243,238,228,0.5)" />}
       <div className="note">家長：按住右上角 3 秒可以延長時間</div>
-      {gate && (
-        <ParentGate
-          title="延長遊戲時間"
-          onCancel={() => setGate(false)}
-          onPass={() => {
-            setGate(false)
-            setMenu(true)
-          }}
-        />
-      )}
-      {menu && (
-        <div className="gate-backdrop">
-          <div className="gate">
-            <h2>要怎麼做呢？</h2>
-            <p>今天的時間已經用完了</p>
-            <div className="row stack">
-              {[10, 20].map((m) => (
-                <button
-                  key={m}
-                  className="primary"
-                  onClick={() => {
-                    grantExtra(m)
-                    go({ name: 'home' })
-                  }}
-                >
-                  再玩 {m} 分鐘
-                </button>
-              ))}
-              <button onClick={() => go({ name: 'parent' })}>進入家長區</button>
-              <button onClick={() => setMenu(false)}>維持休息</button>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* 閘門 → 延長時間的選單：同一層遮罩，只換面板（遮罩不會淡出又淡入） */}
+      <AnimatePresence>
+        {(gate || menu) && (
+          <motion.div key="gate" className="gate-backdrop" variants={overlay} initial="initial" animate="enter" exit="exit" onPointerDown={(e) => gate && e.target === e.currentTarget && setGate(false)}>
+            {gate ? (
+              <GatePanel
+                key="q"
+                title="延長遊戲時間"
+                onCancel={() => setGate(false)}
+                onPass={() => {
+                  setGate(false)
+                  setMenu(true)
+                }}
+              />
+            ) : (
+              <motion.div key="menu" className="gate" variants={overlayPanel} initial="initial" animate="enter">
+                <h2>要怎麼做呢？</h2>
+                <p>今天的時間已經用完了</p>
+                <div className="row stack">
+                  {[10, 20].map((m) => (
+                    <button
+                      key={m}
+                      className="primary"
+                      onClick={() => {
+                        grantExtra(m)
+                        go({ name: 'home' })
+                      }}
+                    >
+                      再玩 {m} 分鐘
+                    </button>
+                  ))}
+                  <button onClick={() => go({ name: 'parent' })}>進入家長區</button>
+                  <button onClick={() => setMenu(false)}>維持休息</button>
+                </div>
+              </motion.div>
+            )}
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   )
 }

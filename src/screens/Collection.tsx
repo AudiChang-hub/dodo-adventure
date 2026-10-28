@@ -13,6 +13,7 @@ import { db, type Friend } from '../lib/db'
 import { go } from '../lib/nav'
 import { say, sfx } from '../lib/audio'
 import { pick } from '../lib/random'
+import { useIntro } from '../ui/Scenes'
 import './friends.css'
 
 /** 進來一陣子都沒點：一隻朋友自己動一下，告訴孩子「可以點我」 */
@@ -21,11 +22,12 @@ const INVITE_MS = 6000
 /** 還沒孵出來的空格：點了蛋晃一晃，豆豆說去冒險就能孵出來 */
 function EggSlot({ i }: { i: number }) {
   const [n, setN] = useState(0)
+  const intro = useIntro()
   return (
     <motion.button
       className="friend-slot is-egg"
       aria-label="還沒孵出來的蛋"
-      initial={{ scale: 0 }}
+      initial={intro ? { scale: 0 } : false}
       animate={{ scale: 1 }}
       transition={{ type: 'spring', stiffness: 300, damping: 16, delay: 0.1 + i * 0.03 }}
       onClick={() => {
@@ -45,6 +47,7 @@ export function Collection() {
   const [friends, setFriends] = useState<Friend[] | null>(null)
   const [invite, setInvite] = useState<string | null>(null)
   const touched = useRef(false)
+  const intro = useIntro()
   /** 朋友／貼紙本（成就感強化）：同一頁切換，不用另開路由 */
   const [view, setView] = useState<'friends' | 'book'>('friends')
   /** 貼紙本的按鈕上有小紅點：有還沒點過的貼紙，或集滿了還沒挑的貼紙 */
@@ -105,7 +108,7 @@ export function Collection() {
       {view === 'book' && <StickerBook />}
       <div className="friend-grid" style={view === 'book' ? { display: 'none' } : undefined}>
         {list.map((f, i) => (
-          <motion.div key={f.id} className="friend-slot" initial={{ scale: 0, y: 20 }} animate={{ scale: 1, y: 0 }} transition={{ type: 'spring', stiffness: 300, damping: 16, delay: i * 0.03 }}>
+          <motion.div key={f.id} className="friend-slot" initial={intro ? { scale: 0, y: 20 } : false} animate={{ scale: 1, y: 0 }} transition={{ type: 'spring', stiffness: 300, damping: 16, delay: i * 0.03 }}>
             <motion.div className="friend-invite" animate={invite === f.id ? { rotate: [0, -10, 10, -6, 0], y: [0, -10, 0] } : {}} transition={{ duration: 0.9, repeat: invite === f.id ? 2 : 0, repeatDelay: 0.6 }}>
               <FriendActor id={f.id} label onReact={() => setInvite(null)} />
             </motion.div>

@@ -1,6 +1,6 @@
-import { useEffect, useState, useSyncExternalStore } from 'react'
-import { motion } from 'motion/react'
-import { useRoute, go, isChildPlay } from './lib/nav'
+import { useEffect, useRef, useState, useSyncExternalStore } from 'react'
+import { AnimatePresence, MotionConfig, motion } from 'motion/react'
+import { useRoute, go, isChildPlay, lastHow, type Route } from './lib/nav'
 import { Home } from './screens/Home'
 import { Adventure } from './screens/Adventure'
 import { MapScreen } from './screens/MapScreen'
@@ -15,14 +15,21 @@ import { isBreakDue, onBreakChange } from './lib/session'
 import { useSettings } from './lib/settings'
 import { EyeBreak } from './ui/EyeBreak'
 import { Subtitle } from './ui/Subtitle'
+import { Scenes } from './ui/Scenes'
+import { overlay } from './ui/motion'
 
 const isNight = () => {
   const h = new Date().getHours()
   return h >= 19 || h < 6
 }
 
-function Screen() {
-  const r = useRoute()
+/** 畫面的層級：往深的地方走是「往前」（從點的那張卡長出來），往淺的地方是「往回」（收回去） */
+const DEPTH: Record<Route['name'], number> = { home: 0, map: 1, collection: 1, adventure: 1, parent: 1, bedtime: 1, station: 2, play: 3 }
+
+const keyOf = (r: Route) => (r.name === 'play' ? `play-${r.game}` : r.name === 'station' ? `st-${r.station}` : r.name)
+
+/** 每一層畫面拿到的是它自己的路由：轉場時舊畫面還留在下面，不會讀到新路由變成新畫面 */
+function Screen({ r }: { r: Route }) {
   switch (r.name) {
     case 'home':
       return <Home />
@@ -50,33 +57,56 @@ export function App() {
   const { nightWarm } = useSettings()
   // 護眼休息只在兩個遊戲之間出現；冒險流程自己處理，避免打斷題目
   const showBreak = breakDue && (r.name === 'home' || r.name === 'map' || r.name === 'station' || r.name === 'collection')
-  const key = r.name === 'play' ? `play-${r.game}` : r.name === 'station' ? `st-${r.station}` : r.name
+  const key = keyOf(r)
+  // 上一個畫面：換畫面的那一次 render 用它判斷往前還是往回
+  const prev = useRef(r)
+
+  useEffect(() => {
+    prev.current = r
+  }, [r])
 
   useEffect(() => {
     stopSpeech()
   }, [key])
 
   return (
-    <>
-      {/* 只做淡入、不做淡出：淡出期間舊畫面會讀到新路由，也可能卡住 */}
-      <motion.div key={key} className="screen" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.3 }}>
-        <Screen />
-      </motion.div>
+    // 系統設定「減少動態效果」：motion 只保留淡入淡出，不做縮放、位移（CSS 動畫在 global.css 另外處理）
+    <MotionConfig reducedMotion="user">
+      {/* 整頁切換：新畫面從點的那張卡長出來、舊畫面等新的蓋好才退（ui/motion.ts 的 page） */}
+      <Scenes
+        id={key}
+        move={() => {
+          const how = lastHow()
+          return { back: how.back ?? DEPTH[r.name] < DEPTH[prev.current.name], anchor: how.anchor }
+        }}
+      >
+        <Screen r={r} />
+      </Scenes>
       {/* 字幕只靠播放事件運作，家長區不顯示 */}
       <Subtitle hidden={r.name === 'parent'} />
       {isChildPlay(r) && <ParentCorner onOpen={() => setGate(true)} />}
-      {gate && (
-        <ParentGate
-          onCancel={() => setGate(false)}
-          onPass={() => {
-            setGate(false)
-            go({ name: 'parent' })
-          }}
-        />
-      )}
-      {showBreak && <EyeBreak />}
+      <AnimatePresence>
+        {gate && (
+          <ParentGate
+            key="gate"
+            onCancel={() => setGate(false)}
+            onPass={() => {
+              setGate(false)
+              go({ name: 'parent' })
+            }}
+          />
+        )}
+      </AnimatePresence>
+      {/* 護眼休息：整個畫面一次淡入、一次淡出（ui/motion.ts 的 overlay）；裡面「看遠方時刻意淡掉」的設計不變 */}
+      <AnimatePresence>
+        {showBreak && (
+          <motion.div key="eyebreak" className="overlay-layer" style={{ zIndex: 120 }} variants={overlay} initial="initial" animate="enter" exit="exit">
+            <EyeBreak />
+          </motion.div>
+        )}
+      </AnimatePresence>
       {nightWarm && isNight() && <div className="night-warm" aria-hidden="true" />}
       <div className="paper-grain" aria-hidden="true" />
-    </>
+    </MotionConfig>
   )
 }

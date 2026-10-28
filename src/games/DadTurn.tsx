@@ -9,6 +9,7 @@ import { db, phaseOf, today, type StationId } from '../lib/db'
 import { logAttempt } from '../lib/record'
 import { say, sfx, stopSpeech } from '../lib/audio'
 import { wait } from './lines'
+import { DUR, EASE, RANGE, rise } from '../ui/motion'
 
 /** 爸爸沒有回應（孩子自己在玩）就安靜地跳過，不留下紀錄 */
 const SKIP_MS = 30_000
@@ -109,12 +110,13 @@ export function DadTurn({ gameId, station, onDone, onExit }: Props) {
     <Shell station={station} mood={result === 'yes' ? 'cheer' : 'happy'} onExit={onExit} onHost={() => void say(`coplay.turn.${host}`)} hint={false}>
       <AnimatePresence>
         {ask && (
-          <motion.div className="dad-turn" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.35 }}>
+          // 整塊一次淡入（ui/motion.ts 的 rise），大卡片跟著長大，自己不另外淡入（一個元素只變一次透明度）
+          <motion.div className="dad-turn" variants={rise} initial="initial" animate="enter">
             <motion.div
               className="dad-card"
-              initial={{ scale: 0.6, rotate: -6, opacity: 0 }}
-              animate={{ scale: 1, rotate: 0, opacity: 1 }}
-              transition={{ type: 'spring', stiffness: 220, damping: 16 }}
+              initial={{ scale: RANGE.fromScale, rotate: -6 }}
+              animate={{ scale: 1, rotate: 0 }}
+              transition={{ duration: DUR.enter, ease: EASE.out }}
               onPointerDown={() => {
                 // 孩子點大圖：動一下就好，不說答案（答案要由孩子說出來）
                 sfx.tap()

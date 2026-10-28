@@ -30,10 +30,15 @@
         font-family: 'Huninn', 'Noto Sans TC', 'PingFang TC', 'Microsoft JhengHei', sans-serif;
         -webkit-font-smoothing: antialiased;
         -webkit-tap-highlight-color: transparent;
-        transition: opacity 0.42s cubic-bezier(0.22, 1, 0.36, 1);
+        /* 收起來：跟全站轉場同一套（src/ui/motion.ts 的背景退場：等 0.15 秒、0.4 秒、EASE.in、推近 1.03）。
+           首頁在下面一開始就是不透明的，所以啟動畫面淡掉時看到的是首頁，不會先露出空白 */
+        transition:
+          opacity 0.4s cubic-bezier(0.4, 0, 1, 1) 0.15s,
+          transform 0.4s cubic-bezier(0.4, 0, 1, 1) 0.15s;
       }
       #boot.boot-out {
         opacity: 0;
+        transform: scale(1.03);
         pointer-events: none;
       }
       /* 正常啟動很快時不要閃一下：內容稍等再淡入 */
@@ -139,6 +144,9 @@
         }
       }
       @media (prefers-reduced-motion: reduce) {
+        #boot.boot-out {
+          transform: none;
+        }
         .boot-dino svg,
         .boot-dino::after,
         .boot-steps i {
@@ -522,7 +530,7 @@
             el.classList.add('boot-out')
             setTimeout(function () {
               if (!failed && el.parentNode) el.parentNode.removeChild(el)
-            }, 500)
+            }, 620)
           },
           /** 掛載前的錯誤（main.tsx 的 catch）或執行中當掉（ErrorBoundary） */
           fail: function (err, kind) {

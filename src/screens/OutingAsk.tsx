@@ -5,13 +5,13 @@ import { Sparkles } from '../ui/Sparkles'
 import { onSpeech, say, sfx } from '../lib/audio'
 import { markAsked, markPicked, recallIcon, recallToday, type RecallAsk } from '../lib/outing'
 import { vocab } from '../content/vocab'
+import { DUR, EASE as CURVE, FADE, rise } from '../ui/motion'
 import './outing.css'
 
 /** 打完招呼後停多久才問 */
 const AFTER_HELLO_MS = 900
 /** 沒點就安靜收起來：不再唸第二次（PRD §5.11、閒置規則：不嘮叨） */
 const QUIET_AFTER_MS = 20_000
-const EASE = [0.22, 1, 0.36, 1] as const
 
 /**
  * 回到 App 的那一刻（PRD §5.11）：豆豆從車上問「Did you see a | bus?」，旁邊浮出 2–3 張這週任務卡上的圖。
@@ -86,9 +86,10 @@ export function OutingAsk({ ready, away }: { ready: boolean; away: boolean }) {
           role="group"
           aria-label="今天看到了什麼"
           style={{ originX: 0.3, originY: 1 }}
-          initial={{ opacity: 0, scale: 0.86, y: 18 }}
-          animate={{ opacity: 1, scale: 1, y: 0, transition: { type: 'spring', stiffness: 170, damping: 19 } }}
-          exit={{ opacity: 0, scale: 0.94, y: 10, transition: { duration: 0.45, ease: EASE } }}
+          variants={rise}
+          initial="initial"
+          animate="enter"
+          exit="exit"
         >
           {ask.ids.map((id, i) => {
             const on = pick === id
@@ -98,12 +99,13 @@ export function OutingAsk({ ready, away }: { ready: boolean; away: boolean }) {
                 className={`outing-tile${on ? ' is-pick' : ''}`}
                 aria-label={vocab(id).en}
                 onClick={() => tap(id)}
-                initial={{ opacity: 0, y: 14 }}
+                // 跟著卡片一起淡入（自己不另外淡入，一個元素只變一次透明度），只多一點點依序往上
+                initial={{ y: 14 }}
                 animate={{
                   opacity: pick && !on ? 0.32 : 1,
                   y: 0,
                   scale: on ? 1.08 : pick ? 0.92 : 1,
-                  transition: pick ? { type: 'spring', stiffness: 260, damping: 16 } : { delay: 0.18 + i * 0.12, duration: 0.5, ease: EASE },
+                  transition: pick ? { type: 'spring', stiffness: 260, damping: 16, opacity: FADE } : { delay: 0.06 + i * 0.08, duration: DUR.enter, ease: CURVE.out },
                 }}
                 whileTap={pick ? undefined : { scale: 0.95 }}
               >

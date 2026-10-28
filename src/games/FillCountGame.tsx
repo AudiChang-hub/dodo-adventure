@@ -18,6 +18,8 @@ import { PACE, nextPause } from './pace'
 import { NUMBER_RANGE, useNumberPicker } from './sheet/NumberFlow'
 import { DoneButton } from './sheet/DoneButton'
 import type { Mood } from '../art/Dino'
+import { Swap, useSwapRef } from '../ui/Scenes'
+import { FADE } from '../ui/motion'
 import './sheet/sheet.css'
 
 const ROUNDS = 4
@@ -78,6 +80,8 @@ export function FillCountGame({ gameId, onDone, onExit }: GameProps) {
   const cellsRef = useRef(5)
   const phaseRef = useRef<Phase>('quiz')
   const board = useRef<HTMLDivElement>(null)
+  // 換一回合時新舊兩張學習單會疊著一下子：ref 跟著新的那一張
+  const boardRef = useSwapRef(board)
   const paint = useRef<{ pid: number; fill: boolean } | null>(null)
   const taps = useRef<{ pick: string; ms: number }[]>([])
   const t0 = useRef(0)
@@ -369,8 +373,9 @@ export function FillCountGame({ gameId, onDone, onExit }: GameProps) {
         idle.poke()
         void say('ws.fill.ask')
       }}>
-      <div className="sheet-area">
-        <div ref={board} className="sheet-board" data-n={import.meta.env.DEV ? n : undefined} style={{ touchAction: 'none' }} onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerCancel={up}>
+      {/* 換一回合：新的學習單蓋在舊的上面淡入，舊的（答對的樣子）等一下才淡掉，不會一下子變空（ui/Scenes.tsx 的 Swap） */}
+      <Swap id={r} className="sheet-area">
+        <div ref={boardRef} className="sheet-board" data-n={import.meta.env.DEV ? n : undefined} style={{ touchAction: 'none' }} onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerCancel={up}>
           <svg className="sheet-svg" viewBox="0 0 1000 600" aria-hidden="true">
             {/* 上下兩區之間一條淡淡的虛線，像學習單的分隔 */}
             <path d="M120 286 H820" stroke="rgba(46,42,37,0.1)" strokeWidth={4} strokeDasharray="14 14" strokeLinecap="round" />
@@ -381,7 +386,7 @@ export function FillCountGame({ gameId, onDone, onExit }: GameProps) {
               style={{ position: 'absolute', left: pct(o.x, 1000), top: pct(o.y, 600), width: pct(o.size, 1000), aspectRatio: '1', translate: '-50% -50%', pointerEvents: 'none' }}
               initial={{ scale: 0 }}
               animate={{ scale: i < filled ? 0.9 : 1, opacity: i < filled ? 0.7 : 1, y: party && i < n ? [0, -18, 0] : 0 }}
-              transition={{ type: 'spring', stiffness: 320, damping: 18, delay: i < filled ? 0 : i * 0.05, y: { duration: 0.4, delay: i * 0.05 } }}
+              transition={{ type: 'spring', stiffness: 320, damping: 18, delay: i < filled ? 0 : i * 0.05, opacity: FADE, y: { duration: 0.4, delay: i * 0.05 } }}
             >
               {nextObj === i && <span className="nudge-glow" aria-hidden="true" />}
               <Emoji name={icon} />
@@ -432,7 +437,7 @@ export function FillCountGame({ gameId, onDone, onExit }: GameProps) {
           )}
           <AnimatePresence>{finger && <Hand key="finger" x={(finger.x / 1000) * 100 + 0.8} y={(finger.y / 600) * 100 + 2} tap={finger.tap} size="9cqmin" cuff="#F0B088" />}</AnimatePresence>
         </div>
-      </div>
+      </Swap>
     </Shell>
   )
 }

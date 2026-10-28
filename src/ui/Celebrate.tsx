@@ -14,6 +14,7 @@ import { rand } from '../lib/random'
 import { wait } from '../games/lines'
 import { NextCard } from './NextCard'
 import { StickerPicker } from './StickerPicker'
+import { overlay, swap } from './motion'
 import './celebrate.css'
 
 /**
@@ -95,7 +96,7 @@ function RoundCheer({ s, host, onDone }: { s: RoundSummary; host: Speaker; onDon
   // 一排放得下：最多 8 張，在 1200 寬的平板上每張至少約 100px
   const size = `min(128px, ${(68 / Math.max(3, things.length)).toFixed(1)}vw)`
   return (
-    <motion.div className={`cheer${card ? ' has-card' : ''}`} onPointerDown={skip} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0, transition: { duration: 0.25 } }}>
+    <motion.div className={`cheer${card ? ' has-card' : ''}`} onPointerDown={skip} variants={swap} initial="initial" animate="enter" exit="exit">
       <motion.div className="cheer-strip" initial={{ y: 24, scale: 0.96 }} animate={{ y: 0, scale: 1 }} transition={{ type: 'spring', stiffness: 260, damping: 24 }}>
         {things.map((t, i) => (
           <motion.div
@@ -290,7 +291,7 @@ function MilestoneCheer({ ms, host, onDone }: { ms: Milestone[]; host: Speaker; 
 
   const prevFix = top.kind === 'fixes' ? ([0, 1, 3, 5, 10, 20, 30].filter((x) => x < top.n).pop() ?? 0) : 0
   return (
-    <motion.div className="cheer is-milestone" onPointerDown={skip} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0, transition: { duration: 0.3 } }}>
+    <motion.div className="cheer is-milestone" onPointerDown={skip} variants={swap} initial="initial" animate="enter" exit="exit">
       <div className="ms-glow" aria-hidden="true" />
       <Confetti />
       <div className="ms-center">
@@ -312,7 +313,11 @@ function MilestoneCheer({ ms, host, onDone }: { ms: Milestone[]; host: Speaker; 
   )
 }
 
-/** 每局結束：先回顧這一局（含貼紙卡），有里程碑再慶祝一次；貼紙卡集滿了就接著挑貼紙，最後才交回去（冒險的蛋裂開、或回站點） */
+/**
+ * 每局結束：先回顧這一局（含貼紙卡），有里程碑再慶祝一次；貼紙卡集滿了就接著挑貼紙，最後才交回去（冒險的蛋裂開、或回站點）。
+ * 轉場（ui/motion.ts）：紙色遮罩只淡入一次、整段一直都在；回顧 → 里程碑 → 挑貼紙在遮罩上原地換（swap），
+ * 不會「遮罩淡掉露出遊戲、再淡回來」。最後交回去時遮罩不另外淡出，跟著遊戲一起收回（整頁轉場）。
+ */
 export function Celebrate({ summary, onDone }: { summary: RoundSummary; onDone: () => void }) {
   const host = stationDef(gameDef(summary.game).station).host
   const wantPick = !!summary.card?.full
@@ -321,10 +326,12 @@ export function Celebrate({ summary, onDone }: { summary: RoundSummary; onDone: 
   const afterMilestone = () => (wantPick && pendingPicks() > 0 ? setStep('pick') : finish())
   const afterRound = () => (summary.milestones.length ? setStep('milestone') : afterMilestone())
   return (
-    <AnimatePresence mode="wait">
-      {step === 'round' && <RoundCheer key="r" s={summary} host={host} onDone={afterRound} />}
-      {step === 'milestone' && <MilestoneCheer key="m" ms={summary.milestones} host={host} onDone={afterMilestone} />}
-      {step === 'pick' && <StickerPicker key="p" onDone={finish} />}
-    </AnimatePresence>
+    <motion.div className="cheer-scrim" variants={overlay} initial="initial" animate="enter">
+      <AnimatePresence initial={false}>
+        {step === 'round' && <RoundCheer key="r" s={summary} host={host} onDone={afterRound} />}
+        {step === 'milestone' && <MilestoneCheer key="m" ms={summary.milestones} host={host} onDone={afterMilestone} />}
+        {step === 'pick' && <StickerPicker key="p" onDone={finish} />}
+      </AnimatePresence>
+    </motion.div>
   )
 }

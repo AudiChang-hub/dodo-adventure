@@ -13,6 +13,7 @@ import { logAttempt, logTeach } from '../../lib/record'
 import { say, sfx, stopSpeech } from '../../lib/audio'
 import { praiseKey, wait } from '../lines'
 import { useIdle } from '../idle'
+import { Swap } from '../../ui/Scenes'
 
 /**
  * 照運筆的發展順序（benchmark 手法 5）：直線（由上往下）→ 橫線（由左往右）→ 弧線 → 圓 →
@@ -196,7 +197,9 @@ export function TraceGame({ gameId, onDone, onExit }: GameProps) {
 
   return (
     <Shell station="draw" mood="idle" progress={{ total: ROUNDS, done: r }} onExit={onExit} hideHost>
-      <div key={r} style={{ position: 'absolute', inset: '0 3% 4%' }}>
+      {/* 換一回合：新的一回合蓋在舊的上面淡入，舊的（答對的樣子）等一下才淡掉，不會一下子變空（ui/Scenes.tsx 的 Swap） */}
+      <Swap id={r} style={{ inset: '0 3% 4%' }}>
+        <>
         <svg viewBox="0 0 1000 600" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%' }} aria-hidden="true">
           <path d={road.d} fill="none" stroke="#D9CFBE" strokeWidth={road.lane + 14} strokeLinecap="round" strokeLinejoin="round" />
           <path d={road.d} fill="none" stroke="#EFE8DA" strokeWidth={road.lane} strokeLinecap="round" strokeLinejoin="round" />
@@ -226,7 +229,8 @@ export function TraceGame({ gameId, onDone, onExit }: GameProps) {
           )}
         </svg>
         <Ink w={1000} h={600} color="rgba(46,42,37,0.55)" size={16} ink={!demo} onDown={onDown} onMove={onMove} onUp={onUp} />
-      </div>
+        </>
+      </Swap>
     </Shell>
   )
 }

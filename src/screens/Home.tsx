@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { motion } from 'motion/react'
 import { Ride } from '../art/Ride'
 import { Dino } from '../art/Dino'
@@ -16,6 +16,7 @@ import { audioReady, onUnlock } from '../lib/boot'
 import { useInstall } from '../lib/install'
 import { HomeFriends } from './HomeFriends'
 import { OutingAsk } from './OutingAsk'
+import { useIntro } from '../ui/Scenes'
 
 let greeted = false
 
@@ -25,6 +26,9 @@ export function Home() {
   const [leaving, setLeaving] = useState(false)
   const settings = useSettings()
   const install = useInstall()
+  // App 一打開的首頁才讓車子開進來、恐龍探頭；從別的畫面回來時大家已經在定位（整頁轉場只做一段）
+  const intro = useIntro()
+  const goBtn = useRef<HTMLButtonElement>(null)
 
   // 招呼說完了沒：出門任務卡的「Did you see a bus?」要等招呼說完才問（再回到首頁就不用等）
   const [helloDone, setHelloDone] = useState(greeted)
@@ -53,12 +57,13 @@ export function Home() {
     greeted = true
     if (done) {
       await say('adv.again')
-      return go({ name: 'map' })
+      return go({ name: 'map' }, { from: goBtn.current })
     }
     setLeaving(true)
     sfx.whoosh()
     void say('adv.go')
-    setTimeout(() => go({ name: 'adventure' }), 1100)
+    // 今日冒險從「出發」按鈕長出來；回首頁時收回這顆按鈕
+    setTimeout(() => go({ name: 'adventure' }, { from: goBtn.current }), 1100)
   }
 
   return (
@@ -112,7 +117,7 @@ export function Home() {
 
       <motion.div
         style={{ position: 'absolute', right: '-3vw', bottom: '30vh', width: '22vmin' }}
-        initial={{ x: 120 }}
+        initial={intro ? { x: 120 } : false}
         animate={{ x: 0 }}
         transition={{ delay: 0.6, type: 'spring', stiffness: 60, damping: 14 }}
       >
@@ -127,7 +132,7 @@ export function Home() {
 
       <motion.div
         style={{ position: 'absolute', left: '8vw', bottom: '10vh', width: '52vmin', zIndex: 2 }}
-        initial={{ x: '-60vw' }}
+        initial={intro ? { x: '-60vw' } : false}
         animate={leaving ? { x: '120vw', transition: { duration: 1.1, ease: [0.6, 0, 0.8, 0.4] } } : { x: 0, transition: { type: 'spring', stiffness: 50, damping: 13 } }}
       >
         <Ride who="dodo" width="100%" moving={leaving} mood={leaving ? 'cheer' : 'happy'} onTap={() => say('home.tapdodo')} />
@@ -135,7 +140,7 @@ export function Home() {
 
       <motion.div
         style={{ position: 'absolute', left: '-2vw', bottom: '-2vh', width: '20vmin', zIndex: 3 }}
-        initial={{ y: 100 }}
+        initial={intro ? { y: 100 } : false}
         animate={{ y: 0 }}
         transition={{ delay: 0.9, type: 'spring', stiffness: 70, damping: 12 }}
       >
@@ -143,10 +148,11 @@ export function Home() {
       </motion.div>
 
       <motion.button
+        ref={goBtn}
         className={`go-btn${done ? ' map' : ''}`}
         aria-label={done ? '去地圖' : '出發'}
         onClick={start}
-        initial={{ scale: 0 }}
+        initial={intro ? { scale: 0 } : false}
         animate={{ scale: [1, 1.04, 1] }}
         transition={{ scale: { duration: 2.2, repeat: Infinity, ease: 'easeInOut' } }}
       >
@@ -164,10 +170,10 @@ export function Home() {
       </motion.button>
 
       <div className="home-dock">
-        <button className="round-btn" aria-label="地圖" style={{ opacity: mapOpen ? 1 : 0.5 }} onClick={() => (mapOpen ? go({ name: 'map' }) : say('map.locked'))}>
+        <button className="round-btn" aria-label="地圖" style={{ opacity: mapOpen ? 1 : 0.5 }} onClick={(e) => (mapOpen ? go({ name: 'map' }, { from: e.currentTarget }) : say('map.locked'))}>
           <Emoji name="rainbow" size={54} />
         </button>
-        <button className="round-btn" aria-label="我的朋友" onClick={() => go({ name: 'collection' })}>
+        <button className="round-btn" aria-label="我的朋友" onClick={(e) => go({ name: 'collection' }, { from: e.currentTarget })}>
           <Emoji name="hatching-chick" size={56} />
           {friends > 0 && <span className="badge-count">{friends}</span>}
         </button>

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { AnimatePresence, LayoutGroup, motion } from 'motion/react'
+import { LayoutGroup, motion } from 'motion/react'
 import { Shell, type GameProps } from '../Shell'
 import { TeachCard } from '../Teach'
 import { Hand } from '../Demo'
@@ -18,6 +18,8 @@ import { useIdle } from '../idle'
 import { PACE, nextPause } from '../pace'
 import { hit, useTapDrag } from './drag'
 import type { Mood } from '../../art/Dino'
+import { CardStage, Swap, useSwapRef } from '../../ui/Scenes'
+import { FADE, REVEAL_MS } from '../../ui/motion'
 import './code.css'
 
 const ROUNDS = 4
@@ -82,8 +84,13 @@ export function SequenceGame({ gameId, onDone, onExit }: GameProps) {
   /** 這一題剛走過教學卡、示範或一起練：答對後多停一下再換題 */
   const taughtItem = useRef(false)
   const resolver = useRef<((ms: number) => void) | null>(null)
+  /** 教學卡還蓋在題目上：一起練把題目換好之後才收起來（ui/Scenes.tsx 的 CardStage） */
+  const cardUp = useRef(false)
   const stripEl = useRef<HTMLDivElement | null>(null)
+  // 換題時新舊兩塊會疊著一下子：ref 跟著新的那一塊，舊的卸載時不清掉
+  const stripRef = useSwapRef(stripEl)
   const rootEl = useRef<HTMLDivElement | null>(null)
+  const rootRef = useSwapRef(rootEl)
   const idle = useIdle()
 
   const waitStep = () => new Promise<number>((res) => (resolver.current = res))
@@ -130,12 +137,20 @@ export function SequenceGame({ gameId, onDone, onExit }: GameProps) {
     idle.stop()
     locked.current = true
     setMood('happy')
+    cardUp.current = true
     setCard({ spec: teachOf(s), short, n: stepRef.current })
     const ms = await waitStep()
     if (!live.current) return
-    setCard(null)
+    // 卡片先不收：一起練把故事擺好的同一刻才收（收回恐龍時直接看到新的一題）
     void logTeach({ station: def.station, game: def.id, itemId: s.id, skill: seqSkill(s), level: lv.current, ms, retaught: short })
-    await wait(PACE.TEACH_TO_GUIDED)
+  }
+
+  /** 教學卡收回主持的恐龍、題目拉遠回來；停頓和以前一樣（TEACH_TO_GUIDED），只是收卡的動畫也算在裡面 */
+  const reveal = async () => {
+    if (!cardUp.current) return
+    cardUp.current = false
+    setCard(null)
+    await wait(Math.max(PACE.TEACH_TO_GUIDED, REVEAL_MS))
   }
 
   /** 一起練或自己答：同一個故事、重新洗牌 */
@@ -145,6 +160,8 @@ export function SequenceGame({ gameId, onDone, onExit }: GameProps) {
     setPhase(ph)
     const order = setup(s, avoid)
     setMood(ph === 'guided' ? 'happy' : 'idle')
+    await reveal()
+    if (!live.current || stepRef.current !== my) return order
     locked.current = false
     t0.current = performance.now()
     const finished = ph === 'guided' ? waitStep() : null
@@ -343,15 +360,15 @@ export function SequenceGame({ gameId, onDone, onExit }: GameProps) {
 
   return (
     <Shell station={def.station} mood={mood} progress={{ total: ROUNDS, done: idx }} onExit={onExit} onHost={onHost}>
-      <AnimatePresence mode="wait">
-        {card ? (
-          <TeachCard key={`teach-${card.n}`} spec={card.spec} short={card.short} onDone={release} />
-        ) : (
-          st && (
-            <motion.div key={`s-${view}`} ref={rootEl} className="seq" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0, transition: { duration: 0.2 } }}>
+      {/* 教學卡從主持的恐龍長出來、故事在後面退開；換題時新的蓋在舊的上面淡入（ui/Scenes.tsx） */}
+      <CardStage card={card && <TeachCard key={`teach-${card.n}`} spec={card.spec} short={card.short} camera onDone={release} />}>
+        {st && (
+          <Swap id={view} className="seq" divRef={rootRef}>
+            {(quiet) => (
+            <>
               <LayoutGroup>
                 {/* 編號的格子：1、2、3…，故事從左讀到右 */}
-                <div ref={stripEl} className="seq-strip">
+                <div ref={stripRef} className="seq-strip">
                   {st.icons.map((_, i) => {
                     const k = placed[i]
                     return (
@@ -393,10 +410,10 @@ export function SequenceGame({ gameId, onDone, onExit }: GameProps) {
                         className={`seq-card${lit ? (guide ? ' guide' : ' hint') : ''}${dim ? ' dim' : ''}`}
                         aria-label={`圖 ${j + 1}`}
                         data-k={import.meta.env.DEV ? k : undefined}
-                        initial={{ y: 50, opacity: 0, scale: 0.85 }}
+                        initial={quiet ? false : { y: 28, scale: 0.94 }}
                         animate={shaking ? { x: [0, -14, 14, -9, 9, 0], y: 0, opacity: 1, scale: 1 } : { x: 0, y: 0, opacity: dim ? 0.38 : 1, scale: dim ? 0.9 : 1 }}
                         whileTap={{ scale: 0.94 }}
-                        transition={{ type: 'spring', stiffness: 360, damping: 22, delay: shaking ? 0 : 0.06 * j, layout: { type: 'spring', stiffness: 300, damping: 26 } }}
+                        transition={{ type: 'spring', stiffness: 360, damping: 22, delay: shaking ? 0 : 0.06 * j, opacity: FADE, layout: { type: 'spring', stiffness: 300, damping: 26 } }}
                         {...drag.bind(k)}
                       >
                         <div className="tile-in">
@@ -416,10 +433,11 @@ export function SequenceGame({ gameId, onDone, onExit }: GameProps) {
                   </div>
                 </div>
               )}
-            </motion.div>
-          )
+            </>
+            )}
+          </Swap>
         )}
-      </AnimatePresence>
+      </CardStage>
     </Shell>
   )
 }

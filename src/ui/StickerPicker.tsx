@@ -8,6 +8,7 @@ import { album, nextPick, pickOptions, placeSticker, type OwnedSticker } from '.
 import type { Stk } from '../lib/sticker-pick'
 import { say, sfx, stopSpeech } from '../lib/audio'
 import { wait } from '../games/lines'
+import { FADE, overlay } from './motion'
 import './sticker-ui.css'
 
 /**
@@ -172,11 +173,13 @@ export function StickerPicker({ onDone }: { onDone: () => void }) {
 
   if (!pick) return null
   return (
+    // 疊加層：整個挑貼紙的畫面一次淡入、一次淡出（ui/motion.ts 的 overlay）
     <motion.div
       className="picker"
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      exit={{ opacity: 0, transition: { duration: 0.3 } }}
+      variants={overlay}
+      initial="initial"
+      animate="enter"
+      exit="exit"
       onPointerDown={() => (lastTouch.current = performance.now())}
     >
       <div className="pk-glow" aria-hidden="true" />
@@ -216,7 +219,7 @@ export function StickerPicker({ onDone }: { onDone: () => void }) {
                     : { scale: sel === i ? 1.12 : sel != null ? 0.92 : 1, opacity: sel != null && sel !== i ? 0.5 : 1, y: sel === i ? -10 : 0, rotate: sel === i ? 0 : TILT[i] }
                 }
                 exit={{ scale: 0.4, opacity: 0, y: -20, transition: { duration: 0.22, delay: i * 0.03 } }}
-                transition={{ type: 'spring', stiffness: 280, damping: 20, delay: sel == null && phase === 'choose' ? i * DEAL_S : 0 }}
+                transition={{ type: 'spring', stiffness: 280, damping: 20, delay: sel == null && phase === 'choose' ? i * DEAL_S : 0, opacity: FADE }}
                 onClick={() => tapOption(i)}
               >
                 {sel === i && <span className="pk-halo" aria-hidden="true" />}

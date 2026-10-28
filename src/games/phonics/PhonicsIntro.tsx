@@ -114,15 +114,12 @@ export function PhonicsIntro({ unit, short, onDone }: Props) {
   const flown = step >= 4
   const longest = Math.max(...unit.keys.map((k) => k.w.length))
   return (
-    <motion.div className="teach-layer" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0, transition: { duration: 0.22 } }}>
+    // 進出場由外層（ui/Scenes.tsx 的 CardStage）做：從主持的恐龍長出來、收回恐龍；這裡不另外淡入淡出，免得兩層動畫疊成兩段
+    <div className="teach-layer">
       <motion.div
         className={`ph-card${short ? ' short' : ''}${room ? ' room' : ''}${ready && !tapped ? ' ready' : ''}${nudge && !tapped ? ' nudge' : ''}`}
         role="button"
         aria-label="再聽一次"
-        initial={{ scale: 0.6, rotate: -4, y: 40 }}
-        animate={{ scale: 1, rotate: 0, y: 0 }}
-        exit={{ scale: 0.86, y: 24, transition: { duration: 0.22 } }}
-        transition={spring}
         onPointerDown={tap}
       >
         {!short && (
@@ -177,6 +174,6 @@ export function PhonicsIntro({ unit, short, onDone }: Props) {
           </div>
         )}
       </motion.div>
-    </motion.div>
+    </div>
   )
 }

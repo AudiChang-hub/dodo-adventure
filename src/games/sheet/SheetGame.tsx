@@ -19,6 +19,9 @@ import { useIdle } from '../idle'
 import { PACE, nextPause } from '../pace'
 import { analyzeLasso, crayonLoop, dist, layout, smoothPath, winding, BOARD_H, BOARD_W, type P, type Spot } from './geom'
 import type { Mood } from '../../art/Dino'
+import { CardStage, Swap, useSwapRef } from '../../ui/Scenes'
+import { REVEAL_MS } from '../../ui/motion'
+import { FADE } from '../../ui/motion'
 import './sheet.css'
 
 export type SheetMode = 'tap' | 'lasso'
@@ -79,9 +82,12 @@ export function SheetGame({ gameId, onDone, onExit, mode }: GameProps & { mode: 
   /** 這一題剛走過教學卡、示範或一起練：答對後多停一下再換題 */
   const taughtItem = useRef(false)
   const resolver = useRef<((ms: number) => void) | null>(null)
+  /** 教學卡還蓋在題目上：一起練把題目換好之後才收起來（ui/Scenes.tsx 的 CardStage） */
+  const cardUp = useRef(false)
   const idle = useIdle()
   // 圈選
   const ink = useRef<InkHandle>(null)
+  const inkRef = useSwapRef(ink)
   const stroke = useRef<P[]>([])
   const strokeAt = useRef(0)
   const pointer = useRef('')
@@ -138,12 +144,20 @@ export function SheetGame({ gameId, onDone, onExit, mode }: GameProps & { mode: 
     idle.stop()
     locked.current = true
     setMood('happy')
+    cardUp.current = true
     setCard({ it, short, n: stepRef.current })
     const ms = await waitStep()
     if (!live.current) return
-    setCard(null)
+    // 卡片先不收：一起練把學習單擺好的同一刻才收（收回恐龍時直接看到新的一題）
     void logTeach({ station: def.station, game: def.id, itemId: it.itemId, skill: it.skill, level: itemLevel.current, ms, retaught: short })
-    await wait(PACE.TEACH_TO_GUIDED)
+  }
+
+  /** 教學卡收回主持的恐龍、題目拉遠回來；停頓和以前一樣（TEACH_TO_GUIDED），只是收卡的動畫也算在裡面 */
+  const reveal = async () => {
+    if (!cardUp.current) return
+    cardUp.current = false
+    setCard(null)
+    await wait(Math.max(PACE.TEACH_TO_GUIDED, REVEAL_MS))
   }
 
   // ── 圈選示範：Watch me! 筆沿著一圈畫過去，把第一個圈起來 ─────────
@@ -193,6 +207,8 @@ export function SheetGame({ gameId, onDone, onExit, mode }: GameProps & { mode: 
     setPhase('guided')
     lay(it)
     setMood('happy')
+    await reveal()
+    if (!live.current) return
     shownAt.current = performance.now()
     said.current = { around: false, close: false }
     locked.current = false
@@ -218,6 +234,8 @@ export function SheetGame({ gameId, onDone, onExit, mode }: GameProps & { mode: 
     setPhase('quiz')
     lay(it)
     setMood('idle')
+    await reveal()
+    if (!live.current || stepRef.current !== my) return
     locked.current = false
     shownAt.current = performance.now()
     if (afterGuide) await say(`teach.turn.${host}`, promptOf(it))
@@ -485,8 +503,10 @@ export function SheetGame({ gameId, onDone, onExit, mode }: GameProps & { mode: 
   const deep = stationDef(def.station).deep
   return (
     <Shell station={def.station} mood={mood} progress={{ total: ITEMS, done: idx }} onExit={onExit} onHost={onHost}>
-      <AnimatePresence mode="wait">
-        {card ? (
+      {/* 教學卡從主持的恐龍長出來、學習單在後面退開；換題時新的學習單蓋在舊的上面淡入（ui/Scenes.tsx） */}
+      <CardStage
+        card={
+          card && (
           <SheetTeach
             key={`teach-${card.n}`}
             items={card.it.teach.examples.map((v, i) => (
@@ -498,9 +518,12 @@ export function SheetGame({ gameId, onDone, onExit, mode }: GameProps & { mode: 
             short={card.short}
             onDone={release}
           />
-        ) : (
-          item && (
-            <motion.div key={`q-${view}`} className="sheet-area" initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, transition: { duration: 0.2 } }}>
+          )
+        }
+      >
+        {item && (
+          <Swap id={view} className="sheet-area">
+            {(quiet) => (
               <div className="sheet-board" onPointerDownCapture={(e) => (pointer.current = e.pointerType)}>
                 {item.things.map((t, i) => {
                   const s = spots[i]
@@ -518,7 +541,7 @@ export function SheetGame({ gameId, onDone, onExit, mode }: GameProps & { mode: 
                       // 開發模式才標出答案，方便自動測試
                       data-ok={import.meta.env.DEV ? String(t.ok) : undefined}
                       style={{ left: pct(s.x, BOARD_W), top: pct(s.y, BOARD_H), width: pct(s.size, BOARD_W), pointerEvents: mode === 'tap' ? 'auto' : 'none' }}
-                      initial={{ scale: 0, opacity: 0 }}
+                      initial={quiet ? false : { scale: 0.86 }}
                       animate={
                         shaking
                           ? { x: [0, -12, 12, -8, 8, 0], scale: 1, opacity: isWrong ? 0.4 : 1 }
@@ -528,7 +551,7 @@ export function SheetGame({ gameId, onDone, onExit, mode }: GameProps & { mode: 
                               ? { scale: 0.9, opacity: 0.32 }
                               : { scale: 1, opacity: isWrong ? 0.4 : 1 }
                       }
-                      transition={shaking ? { duration: 0.45 } : { type: 'spring', stiffness: 340, damping: 20, delay: isFound || isWrong ? 0 : 0.06 * i }}
+                      transition={shaking ? { duration: 0.45 } : { type: 'spring', stiffness: 340, damping: 20, delay: isFound || isWrong ? 0 : 0.06 * i, opacity: FADE }}
                       whileTap={mode === 'tap' ? { scale: 0.93 } : undefined}
                       onPointerDown={mode === 'tap' ? () => void pick([t.id]) : undefined}
                     >
@@ -605,12 +628,12 @@ export function SheetGame({ gameId, onDone, onExit, mode }: GameProps & { mode: 
                 {mode === 'tap' && firstLeft >= 0 && spots[firstLeft] && (
                   <Hand x={(spots[firstLeft].x / BOARD_W) * 100 + 3} y={(spots[firstLeft].y / BOARD_H) * 100 + 6} size="9cqmin" beckon />
                 )}
-                {mode === 'lasso' && <Ink ref={ink} w={BOARD_W} h={BOARD_H} color="rgba(46,42,37,0.62)" size={11} ink={!demo} onDown={onDown} onMove={onMove} onUp={onUp} />}
+                {mode === 'lasso' && <Ink ref={inkRef} w={BOARD_W} h={BOARD_H} color="rgba(46,42,37,0.62)" size={11} ink={!demo} onDown={onDown} onMove={onMove} onUp={onUp} />}
               </div>
-            </motion.div>
-          )
+            )}
+          </Swap>
         )}
-      </AnimatePresence>
+      </CardStage>
     </Shell>
   )
 }

@@ -16,6 +16,7 @@ import { wait } from '../lines'
 import { useIdle } from '../idle'
 import { planDots, roundState } from '../pick'
 import { PACE, nextPause } from '../pace'
+import { Swap } from '../../ui/Scenes'
 
 const ROUNDS = 2
 /** 筆或手指離點多近算碰到（viewBox 1000×600 的單位） */
@@ -394,11 +395,16 @@ export function DotsGame({ gameId, onDone, onExit }: GameProps) {
   const nextPt = target >= 0 ? pts[target] : null
   const home = pts[0]
   const homeNext = target === 0 && !reveal
+  // 示範的圖擦掉時（erasing），點點和家同時淡回來、而且已經是「還沒連」的樣子：圖 → 點點只換一次，中間不會露出空白
+  const back = reveal && !erasing
+  const dotStep = erasing ? 0 : step
   const breathe = { duration: 2.4, repeat: Infinity, ease: 'easeInOut' } as const
 
   return (
     <Shell station="draw" mood="idle" progress={{ total: ROUNDS, done: r }} onExit={onExit} hideHost>
-      <div key={r} style={{ position: 'absolute', inset: '0 4% 4%' }}>
+      {/* 換一回合：新的一回合蓋在舊的上面淡入，舊的（答對的樣子）等一下才淡掉，不會一下子變空（ui/Scenes.tsx 的 Swap） */}
+      <Swap id={r} style={{ inset: '0 4% 4%' }}>
+        <>
         <svg viewBox="0 0 1000 600" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', overflow: 'visible' }} aria-hidden="true">
           {/* 閉合後變成彩色 */}
           <motion.polygon
@@ -434,10 +440,10 @@ export function DotsGame({ gameId, onDone, onExit }: GameProps) {
           </motion.g>
 
           {/* 1、2、3… 的點 */}
-          <motion.g initial={false} animate={{ opacity: reveal ? 0 : 1 }} transition={{ duration: reveal ? 0.5 : 0.4, delay: reveal ? 0.25 : 0 }}>
+          <motion.g initial={false} animate={{ opacity: back ? 0 : 1 }} transition={{ duration: back ? 0.5 : ERASE / 1000, delay: back ? 0.25 : 0 }}>
             {pts.map(([x, y], i) => {
               if (i === 0) return null
-              const isDone = i <= step
+              const isDone = i <= dotStep
               const isNext = i === target && !reveal
               const lb = labelAt(pic, i)
               return (
@@ -481,7 +487,7 @@ export function DotsGame({ gameId, onDone, onExit }: GameProps) {
           </motion.g>
 
           {/* 家：起點也是終點。數字連完了它就亮起來，提示要回家 */}
-          <motion.g initial={false} animate={{ opacity: reveal ? 0 : 1 }} transition={{ duration: 0.5, delay: reveal ? 1.1 : 0 }}>
+          <motion.g initial={false} animate={{ opacity: back ? 0 : 1 }} transition={{ duration: back ? 0.5 : ERASE / 1000, delay: back ? 1.1 : 0 }}>
             {homeNext && <motion.circle cx={home[0]} cy={home[1]} fill={BUTTER} initial={{ r: HOME_R + 6, opacity: 0.55 }} animate={{ r: [HOME_R + 6, HOME_R + 24, HOME_R + 6], opacity: [0.55, 0.2, 0.55] }} transition={breathe} />}
             {homeNext && flash?.i === 0 && (
               <motion.circle key={`hf${flash.k}`} cx={home[0]} cy={home[1]} fill="none" stroke={BUTTER} strokeWidth={9} initial={{ r: HOME_R, opacity: 0.95 }} animate={{ r: HOME_R + 44, opacity: 0 }} transition={{ duration: 0.9, ease: [0.22, 1, 0.36, 1] }} />
@@ -509,7 +515,8 @@ export function DotsGame({ gameId, onDone, onExit }: GameProps) {
           </div>
         )}
         <Ink w={1000} h={600} ink={false} onDown={touch} onMove={touch} onUp={release} />
-      </div>
+        </>
+      </Swap>
     </Shell>
   )
 }
