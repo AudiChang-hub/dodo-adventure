@@ -7,12 +7,12 @@
 // 斷言：每一題「自己答」出題時，那個技能已經學過（seen > 0），或這一題本身剛走過教學卡／示範。
 // 圈圈看的 lasso:x 在「找出全部」學過 all:x 就算學過（同一個概念，只是換成用筆圈）。
 // 不在檢查範圍：畫畫小屋（描線、連點、著色）的路徑本身就畫在紙上，沒有「答案目標」；換爸爸問是爸爸在問。
-// 執行：npx tsx scripts/sim-teach.ts（有違規時 exit 1）
+// 執行：npx tsx scripts/sim-teach.ts [亂數種子]（有違規時 exit 1）
 import { GAMES, PHONICS_MAKERS, ROUND_ITEMS, game as gameOf, type GameDef } from '../src/content/games'
 import { SHEET_MAKERS } from '../src/content/games-worksheet'
 import { THEMES } from '../src/content/themes'
 import { enterTheme } from '../src/lib/theme-play'
-import { isNew, level, markPlayed, noteAttempt, plays, recordSkill, reportLevel, skill, unlockedNumbers } from '../src/lib/adaptive'
+import { gameLevel, level, markPlayed, noteAttempt, plays, recordSkill, reportLevel, skill, unlockedNumbers } from '../src/lib/adaptive'
 import { fluencyKey, fluencyTargets } from '../src/lib/fluency'
 import { NUMBER_RANGE, numberPicker } from '../src/games/sheet/NumberFlow'
 import { planChoice, planCount, planDrive, planOrder, planPhonics, planSequence, planSheet, roundState } from '../src/games/pick'
@@ -36,8 +36,8 @@ class FakeDate extends RealDate {
 globalThis.Date = FakeDate as DateConstructor
 const tick = (ms = 4000) => (clock += ms)
 
-// ── 固定亂數：每次跑結果一樣（題目產生器用 Math.random，也一起固定） ──────
-let seed = 20261028
+// ── 固定亂數：每次跑結果一樣（題目產生器用 Math.random，也一起固定）；換一個孩子：npx tsx scripts/sim-teach.ts 7 ──────
+let seed = Number(process.argv[2] ?? 20261028)
 const rnd = () => ((seed = (seed * 1664525 + 1013904223) >>> 0) / 2 ** 32)
 Math.random = rnd
 
@@ -50,6 +50,7 @@ interface Violation {
 }
 const violations: Violation[] = []
 let quizzes = 0
+let probes = 0
 let day = 0
 /** 印出第一次玩找顏色的那一局（家長回報的情境） */
 let trace: string[] | null = null
@@ -64,6 +65,7 @@ function teach(g: GameDef, k: string) {
 /** 自己答一題：先檢查，再依孩子的程度隨機答對答錯，更新熟練度與難度 */
 function quiz(g: GameDef, k: string, taughtNow: boolean, why: string, opts?: { probe: boolean }): boolean {
   quizzes++
+  if (opts?.probe) probes++
   const ok0 = learned(k) || taughtNow
   if (!ok0) violations.push({ day, game: g.id, skill: k, why })
   // 學過的八成答對；剛教完的七成；沒教過的只能猜
@@ -85,13 +87,7 @@ function playChoice(g: GameDef) {
   for (let i = 0; i < ROUND_ITEMS; i++) {
     const p = planChoice(g, st, i)
     if (p.fresh) teach(g, p.it.skill)
-    const ok = quiz(g, p.it.skill, p.fresh, p.probe ? '探測題直接考' : '選擇題', { probe: p.probe && !p.fresh })
-    // 探測題第一下就錯、而且是沒學過的：教學卡 → 一起練 → 自己答（ChoiceGame.probeMiss）
-    if (!ok && p.probe && isNew(p.it.skill) && p.it.teach) {
-      st.taught++
-      teach(g, p.it.skill)
-      quiz(g, p.it.skill, true, '探測答錯後', { probe: false })
-    }
+    quiz(g, p.it.skill, p.fresh, p.probe ? '探測題直接考' : '選擇題', { probe: p.probe })
   }
 }
 
@@ -245,6 +241,11 @@ for (day = 1; day <= DAYS; day++) {
 const by = new Map<string, number>()
 for (const v of violations) by.set(`${v.game}（${v.why}）`, (by.get(`${v.game}（${v.why}）`) ?? 0) + 1)
 console.log(`\n${DAYS} 天、${CHECKED.length} 個遊戲、${quizzes} 題自己答：沒教就考 ${violations.length} 題`)
+// 程度校準還在：探測題照樣出（只是都考學過的），各遊戲最後停在哪一級
+const placed = CHECKED.map((id) => gameLevel(gameOf(id).id)?.placed)
+  .map((p, k) => (p && !p.skipped ? `${CHECKED[k]} ${p.from}→${p.to}` : ''))
+  .filter(Boolean)
+console.log(`選擇題的探測題 ${probes} 題（都是學過的）；校準完成：${placed.join('、') || '（無）'}`)
 for (const [k, n] of [...by].sort((a, b) => b[1] - a[1])) console.log(`  ${String(n).padStart(4)}  ${k}`)
 for (const v of violations.slice(0, 12)) console.log(`  例：第 ${v.day} 天 ${v.game} ${v.skill}（${v.why}）`)
 if (violations.length) process.exit(1)

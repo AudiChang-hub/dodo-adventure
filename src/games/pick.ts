@@ -27,7 +27,7 @@ export const roundState = (firstPlay: boolean): RoundState => ({ taught: 0, demo
 export interface ChoicePlan {
   it: ChoiceItem
   lv: number
-  /** 程度校準的探測題：不先教，直接考比較難的 */
+  /** 程度校準的探測題：考學過的內容、但用比較難的題型（不先教）；一定是學過的 */
   probe: boolean
   /** 新內容：教學卡 → 一起練 → 自己答 */
   fresh: boolean
@@ -37,11 +37,8 @@ export interface ChoicePlan {
 
 export function planChoice(def: GameDef, st: RoundState, i: number): ChoicePlan {
   const isLast = i === ROUND_ITEMS - 1
-  // 第一次玩的第一題是「怎麼玩」的一起練，不算探測；之後的 2–3 題是探測題
-  const probe = isProbing(def.id) && !(st.firstPlay && i === 0)
   const lvBase = level(def.id)
-  // 最後一題是挑戰題：比目前難度高一級
-  let lv = isLast && !probe && lvBase < def.maxLevel ? lvBase + 1 : lvBase
+  let lv = lvBase
   const make = () => def.make!(lv, st.recent)
   /** 盡量出符合 ok 的題目：先用挑題篩選，沒有用（例如比多少不經過挑題）就多抽幾次 */
   const makeWhere = (ok: (k: string) => boolean) => {
@@ -49,6 +46,26 @@ export function planChoice(def: GameDef, st: RoundState, i: number): ChoicePlan 
     for (let k = 0; k < 10 && !ok(it.skill); k++) it = withTargetFilter(ok, make)
     return it
   }
+  const done = (it: ChoiceItem, probe: boolean): ChoicePlan => {
+    st.recent = [it.itemId, ...st.recent].slice(0, 3)
+    st.lastSkill = it.skill
+    // 新內容一律先教（這局教滿、額度用完時也一樣：真的找不到複習題，寧可多教一個，也不考沒教過的）
+    const fresh = !probe && !!it.teach && isNew(it.skill)
+    const walk = !fresh && !probe && st.firstPlay && i === 0
+    if (fresh) st.taught++
+    return { it, lv, probe, fresh, walk }
+  }
+
+  // 程度校準的探測題（第一次玩的第一題是「怎麼玩」的一起練，不算探測）：
+  // 只考學過的內容，而且不和上一題同一個（placement.ts「不教不考」）。找不到就當一般題目，探測不算這一題
+  if (isProbing(def.id) && !(st.firstPlay && i === 0)) {
+    const known = (k: string) => !isNew(k) && k !== st.lastSkill
+    const it = makeWhere(known)
+    if (known(it.skill)) return done(it, true)
+  }
+
+  // 最後一題是挑戰題：比目前難度高一級
+  if (isLast && lvBase < def.maxLevel) lv = lvBase + 1
   // 開局先出已熟的：讓孩子先答對、建立信心（功文式「從低一點開始」）
   let it = i === 0 ? makeWhere(mastered) : make()
   const ok = teachable(def.id, st.taught, MAX_TEACH)
@@ -61,14 +78,7 @@ export function planChoice(def: GameDef, st: RoundState, i: number): ChoicePlan 
       it = makeWhere(ok)
     }
   }
-  st.recent = [it.itemId, ...st.recent].slice(0, 3)
-  st.lastSkill = it.skill
-  // 真的找不到複習題時（例如比多少隨機出到沒學過的「少」），寧可多教一個，也不考沒教過的
-  // 探測題例外：先直接考，答錯才教（已經會的就不用教）
-  const fresh = !!it.teach && isNew(it.skill) && !probe
-  const walk = !fresh && !probe && st.firstPlay && i === 0
-  if (fresh) st.taught++
-  return { it, lv, probe, fresh, walk }
+  return done(it, false)
 }
 
 // ── 自然發音 ─────────────────────────────────────────────────
@@ -140,23 +150,40 @@ export function planSequence(def: GameDef, st: RoundState & { stories: Story[] }
 // ── 點點數數、照順序（示範型：波波先做一次給孩子看）────────────────
 /** 點點數數每一級的數量範圍 */
 export const COUNT_RANGE: Record<number, [number, number]> = { 1: [1, 3], 2: [2, 5], 3: [4, 8], 4: [6, 10] }
-/** 一局最多示範一次：數數的規則一樣，看一次就夠 */
-const MAX_DEMO = 1
 
-const needsDemo = (firstPlay: boolean, key: string) => firstPlay || isNew(key)
-
-export function planCount(_game: string, lv: number, st: RoundState, i: number) {
+/**
+ * 點點數數：新的數量一律先示範（原本一局只示範一次，第二個新的數量就直接考）。
+ * 一局最多兩個新數量，其餘出這一級範圍裡學過的；範圍裡一個都沒學過（例如探測剛升到 3 級）就照常出、照常示範。
+ * 第一次玩的第一輪就算數量學過了，也示範一次「怎麼玩」。
+ */
+export function planCount(game: string, lv: number, st: RoundState, i: number) {
   const [a, b] = COUNT_RANGE[lv]
-  const n = a + Math.floor(Math.random() * (b - a + 1))
-  const show = st.demos < MAX_DEMO && needsDemo(st.firstPlay && i === 0, `count:${n}`)
+  const all = Array.from({ length: b - a + 1 }, (_, k) => a + k)
+  const ok = teachable(game, st.taught, MAX_TEACH)
+  const fit = all.filter((n) => ok(`count:${n}`))
+  const pool = fit.length ? fit : all
+  const n = pool[Math.floor(Math.random() * pool.length)]
+  const fresh = isNew(`count:${n}`)
+  const show = fresh || (st.firstPlay && i === 0 && st.demos === 0)
+  if (fresh) st.taught++
   if (show) st.demos++
   return { n, show }
 }
 
-export function planOrder(_game: string, lv: number, unlocked: number, st: RoundState, i: number) {
-  const n = Math.min([3, 4, 5, 6][lv - 1] + (lv === 4 ? Math.floor(Math.random() * 3) : 0), Math.max(5, unlocked), 10)
-  const show = st.demos < 1 && needsDemo(st.firstPlay && i === 0, `order:${n}`)
+/**
+ * 照順序：排到 n 是這一級決定的；n 是新的長度就先示範（原本一局只示範一次）。
+ * 這局已經教滿兩個新長度（或額度用完）時，退回學過的最長那一個，不考沒教過的；一個都沒學過就照常示範。
+ */
+export function planOrder(game: string, lv: number, unlocked: number, st: RoundState, i: number) {
+  let n = Math.min([3, 4, 5, 6][lv - 1] + (lv === 4 ? Math.floor(Math.random() * 3) : 0), Math.max(5, unlocked), 10)
+  const ok = teachable(game, st.taught, MAX_TEACH)
+  if (!ok(`order:${n}`)) {
+    const known = Array.from({ length: n - 2 }, (_, k) => n - k).find((m) => !isNew(`order:${m}`))
+    if (known) n = known
+  }
+  const fresh = isNew(`order:${n}`)
+  const show = fresh || (st.firstPlay && i === 0 && st.demos === 0)
+  if (fresh) st.taught++
   if (show) st.demos++
   return { n, show }
 }
-

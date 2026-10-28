@@ -6,13 +6,14 @@ import { Hand } from './Demo'
 import { VisualView } from '../ui/Visual'
 import { Sparkles } from '../ui/Sparkles'
 import { game as gameDef, station as stationDef, ROUND_ITEMS, type ChoiceItem, type TeachSpec } from '../content/games'
-import { level, reportLevel, markPlayed, plays, isNew, mastered, skill, hintDelayMs, noteHintWait } from '../lib/adaptive'
+import { level, reportLevel, markPlayed, plays, mastered, skill, hintDelayMs, noteHintWait } from '../lib/adaptive'
 import { planChoice, roundState } from './pick'
 import { logAttempt, logTeach } from '../lib/record'
 import type { Phase } from '../lib/db'
 import { WAIT_WINDOW_MS } from '../lib/engine'
 import { canTease, teaseKey } from '../content/lines-engine'
 import { FluencyGame, isFluency } from './FluencyGame'
+import { FLUENCY_FALLBACK, fluencyTargets } from '../lib/fluency'
 import { preload, say, sfx, stopSpeech } from '../lib/audio'
 import { pick, shuffle } from '../lib/random'
 import { challengeKey, praiseKey, retryKey, wait } from './lines'
@@ -30,7 +31,7 @@ const PROTEGE_CHANCE = 0.3
 interface QuizOpts {
   /** 剛一起練完的自己答 */
   afterGuide?: boolean
-  /** 程度校準的探測題：不先教，直接考比較難的 */
+  /** 程度校準的探測題：用比較難的題型考學過的內容（pick.ts 保證是學過的） */
   probe?: boolean
   /** Sam 教豆豆：恐龍故意指著這個錯的選項 */
   decoy?: string
@@ -56,14 +57,18 @@ function reshuffle(it: ChoiceItem): ChoiceItem {
  * 熟練度與難度只採計「自己答」。
  */
 export function ChoiceGame(props: GameProps) {
-  // 功文式小練習也是選擇題（kind: 'choice'），由它自己的元件負責
+  // 功文式小練習也是選擇題（kind: 'choice'），由它自己的元件負責。
+  // 還沒有學過的數字題（例如第一天就從地圖點進數字快答）：改玩找數字，先教再考
+  // 進來的那一刻決定（玩到一半學會了也不換遊戲）
+  const [fallback] = useState(() => isFluency(props.gameId) && !fluencyTargets().length)
+  if (fallback) return <ChoiceRound {...props} gameId={FLUENCY_FALLBACK} />
   return isFluency(props.gameId) ? <FluencyGame {...props} /> : <ChoiceRound {...props} />
 }
 
 /**
  * 第二批（學習引擎）在原本的流程上加了：
  * - 開局第一題出已熟的內容，先答對、建立信心。
- * - 程度校準：第一次玩的前 2–3 題是探測題，直接考比較難的；答錯才教，答對就不用教。
+ * - 程度校準：前 2–3 題是探測題，用比較難的題型考「學過的」內容（不教不考，placement.ts）。
  * - 延遲提示：學習中（0–2 格）的題目，唸完題目幾秒後正確答案才淡淡亮起。
  * - Sam 教豆豆：已熟的內容偶爾由恐龍故意指錯，孩子點正確的來糾正。
  */
@@ -229,7 +234,6 @@ function ChoiceRound({ gameId, onDone, onExit }: GameProps) {
       `teach.here.${host}`,
       `teach.turn.${host}`,
       ...(decoy ? [`tease.try.${host}`, teaseKey(it.skill), `tease.thanks.${host}`, `tease.oops.${host}`] : []),
-      ...(probe ? [`probe.show.${host}`] : []),
     ])
 
     if (fresh) {
@@ -324,36 +328,6 @@ function ChoiceRound({ gameId, onDone, onExit }: GameProps) {
     if (live.current) next()
   }
 
-  /** 探測題沒答對：記一筆探測紀錄（不改熟練度）、難度往下調，接著照一般流程先教再考 */
-  const probeMiss = async (it: ChoiceItem, optId: string) => {
-    locked.current = true
-    stepRef.current++
-    idle.stop()
-    delayRef.current = null
-    probeRef.current = false
-    sfx.gentle()
-    setMarks((m) => ({ ...m, [optId]: 'wrong' }))
-    void logAttempt({
-      ...base(it),
-      phase: 'quiz',
-      taps: taps.current,
-      firstTryCorrect: false,
-      attempts: 1,
-      responseMs: taps.current[0].ms,
-      hintUsed: false,
-      metrics: { probe: 1 },
-    })
-    reportLevel(def.id, false, def.maxLevel, { probe: true, skill: it.skill })
-    await say(`probe.show.${host}`)
-    if (!live.current) return
-    round.current.taught++
-    await teach(it, false)
-    if (!live.current) return
-    await guided(reshuffle(it))
-    if (!live.current) return
-    await quiz(reshuffle(it), { afterGuide: true })
-  }
-
   /** Sam 教豆豆：點正確的就是糾正成功；點了恐龍指的（或其他錯的），恐龍自己發現、正確答案亮起 */
   const tapTease = async (it: ChoiceItem, optId: string) => {
     const decoy = decoyRef.current!
@@ -403,9 +377,6 @@ function ChoiceRound({ gameId, onDone, onExit }: GameProps) {
     if (phaseRef.current === 'guided') return tapGuided(it, optId)
     taps.current.push({ pick: optId, ms: Math.round(performance.now() - shownAt.current) })
     if (decoyRef.current) return tapTease(it, optId)
-
-    // 探測題第一下就錯、而且是沒學過的：表示還不會，直接教（不再試、不算答錯）
-    if (optId !== it.answer && probeRef.current && taps.current.length === 1 && it.teach && isNew(it.skill)) return probeMiss(it, optId)
 
     if (optId !== it.answer) {
       sfx.gentle()

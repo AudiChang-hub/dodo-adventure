@@ -98,7 +98,7 @@ export interface SkillInput {
  * - 已熟（3 格以上）的技能排到期複習：依序隔 1、2、4、7、14 個有玩的日子。
  *   到期那天答對就拉長間隔；答錯就降一格、隔天再考，間隔從頭開始。
  * - 延遲提示亮了才答對（softHint）：不算第一次答對，但也不退格。
- * - 探測題答錯、Sam 教豆豆：不改熟練度（前者還沒教過，後者是另一種題型）。
+ * - 探測題答錯、Sam 教豆豆：不改熟練度（前者是用比較難的題型考學過的內容，答錯不代表退步；後者是另一種題型）。
  */
 export function recordSkill(key: string, firstTry: boolean, info?: SkillInput) {
   const m = info?.metrics
@@ -224,7 +224,11 @@ export const lastPlayed = (game: string) => levels.get(game)?.lastTs ?? 0
 /** 這個遊戲玩過幾次（markPlayed 之前讀，0 代表第一次玩，一定要示範） */
 export const plays = (game: string) => levels.get(game)?.plays ?? 0
 
-/** 從沒在「自己答」出現過的內容：要先教才能考 */
+/**
+ * 從沒在「自己答」出現過的內容：要先教才能考。
+ * 教學卡、一起練都不算（seen 只在自己答時加一）；教完之後的那一題自己答做完，才算學過。
+ * 探測題只出學過的內容（games/pick.ts），所以不會有「探測猜對就算學過」的情況。
+ */
 export const isNew = (key: string) => skill(key).seen === 0
 
 /**
