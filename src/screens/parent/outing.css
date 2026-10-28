@@ -1,0 +1,550 @@
+/* ── 出門任務卡（PRD §5.11）──────────────────────────────────────
+   一張「車票」：上半是這週學了什麼，撕線下面是一站一站的任務（左邊一條捷運線，圓圈就是站）。
+   手機（#parent 直式約 390px）與平板都是同一張卡；截圖或列印都只要這一張。
+   三條主線用顏色＋形狀區分（語言 圓、數與規律 方、思考 菱形），不只靠顏色 */
+.outing {
+  --notch: #f6f2ea;
+  --lang-ink: #4f7aa6;
+  --lang-tint: #e4edf6;
+  --math-ink: #b06d43;
+  --math-tint: #f8e8db;
+  --think-ink: #6c5aa6;
+  --think-tint: #ebe6f4;
+}
+.outing-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 620px) minmax(220px, 280px);
+  gap: 28px;
+  align-items: start;
+}
+
+/* ── 車票 ── */
+.ticket {
+  position: relative;
+  background: var(--card);
+  border-radius: 26px;
+  box-shadow:
+    0 1px 0 var(--paper-edge),
+    0 34px 60px -44px rgba(46, 42, 37, 0.38);
+  overflow: hidden;
+}
+.ticket-top {
+  padding: 22px 26px 20px;
+  background:
+    radial-gradient(120% 90% at 100% 0%, rgba(207, 226, 240, 0.7), transparent 60%),
+    linear-gradient(170deg, #e8f0ee 0%, #f3efe6 100%);
+}
+.ticket-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+}
+.ticket-brand {
+  font-size: 12.5px;
+  letter-spacing: 0.14em;
+  color: var(--ink-soft);
+}
+.ticket-date {
+  font-family: 'Fredoka', sans-serif;
+  font-weight: 500;
+  font-size: 14px;
+  letter-spacing: 0.04em;
+  color: var(--ink-soft);
+  white-space: nowrap;
+}
+.ticket-title {
+  margin: 14px 0 12px;
+  font-family: 'Huninn', sans-serif;
+  font-size: 27px;
+  line-height: 1.4;
+  color: var(--ink);
+  text-wrap: balance;
+}
+.ticket-title.quiet {
+  color: var(--ink-soft);
+}
+/* 目標字：跟孩子端字幕同一種奶油色螢光筆 */
+.ticket-title em {
+  font-family: 'Fredoka', sans-serif;
+  font-weight: 600;
+  font-style: normal;
+  letter-spacing: 0.01em;
+  padding: 0 0.08em;
+  background: linear-gradient(transparent 60%, rgba(241, 210, 124, 0.6) 60%, rgba(241, 210, 124, 0.6) 92%, transparent 92%);
+}
+.ticket-words {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.ticket-words li {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+  padding: 5px 12px 6px 11px;
+  border-radius: 99px;
+  background: rgba(251, 248, 242, 0.78);
+  box-shadow: inset 0 0 0 1px rgba(46, 42, 37, 0.06);
+  font-size: 13px;
+  color: var(--ink-soft);
+}
+.ticket-words b {
+  font-family: 'Fredoka', sans-serif;
+  font-weight: 500;
+  font-size: 15.5px;
+  color: var(--ink);
+}
+.ticket-empty {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.7;
+  color: var(--ink-soft);
+}
+.ticket-progress {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 14px;
+  font-size: 13px;
+  color: var(--ink-soft);
+}
+.ticket-progress b {
+  font-family: 'Fredoka', sans-serif;
+  font-weight: 600;
+  font-size: 17px;
+  color: var(--ink);
+}
+.ticket-route {
+  width: 176px;
+  height: 44px;
+  flex: none;
+  margin: -10px 0 -6px -8px;
+}
+
+/* 撕線：兩側半圓缺口＋中間虛線 */
+.ticket-perf {
+  position: relative;
+  height: 24px;
+  margin-top: -12px;
+  margin-bottom: -12px;
+  z-index: 1;
+  background:
+    radial-gradient(circle at 0 50%, var(--notch) 10.5px, #e2d9c8 11px, #e2d9c8 11.8px, transparent 12.3px),
+    radial-gradient(circle at 100% 50%, var(--notch) 10.5px, #e2d9c8 11px, #e2d9c8 11.8px, transparent 12.3px);
+}
+.ticket-perf::before {
+  content: '';
+  position: absolute;
+  left: 20px;
+  right: 20px;
+  top: 50%;
+  border-top: 2px dashed #ddd3c1;
+}
+
+/* ── 一站一站的任務 ── */
+.ticket-stops {
+  list-style: none;
+  margin: 0;
+  padding: 18px 26px 6px;
+}
+.stop {
+  position: relative;
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr);
+  gap: 16px;
+}
+/* 捷運線：從第一站畫到最後一站 */
+.stop::before {
+  content: '';
+  position: absolute;
+  left: 20.5px;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  border-radius: 2px;
+  background: #e6ddcd;
+}
+.stop:first-child::before {
+  top: 40px;
+}
+.stop:last-child::before {
+  bottom: auto;
+  height: 40px;
+}
+.stop:only-child::before {
+  display: none;
+}
+.stop-mark {
+  position: relative;
+  z-index: 1;
+  width: 44px;
+  height: 44px;
+  margin-top: 18px;
+  border-radius: 50%;
+  background: var(--card);
+  box-shadow:
+    inset 0 0 0 2.5px #cdc1ad,
+    0 0 0 5px var(--card);
+  display: grid;
+  place-items: center;
+  color: var(--dodo-deep);
+  transition: transform 0.18s var(--ease-out), box-shadow 0.2s;
+}
+.stop-mark:hover {
+  box-shadow:
+    inset 0 0 0 2.5px var(--dodo-deep),
+    0 0 0 5px var(--card);
+}
+.stop-mark:active {
+  transform: scale(0.92);
+}
+.stop-mark:focus-visible {
+  outline: 3px solid var(--momo);
+  outline-offset: 4px;
+}
+.stop-num {
+  font-family: 'Fredoka', sans-serif;
+  font-weight: 500;
+  font-size: 17px;
+  color: var(--ink-soft);
+}
+.stop-ok {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+.stop-body {
+  padding: 18px 0 20px;
+  min-width: 0;
+}
+.stop + .stop .stop-body {
+  border-top: 1px solid #efe8dc;
+}
+.stop-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+.stop-icon {
+  flex: none;
+  width: 52px;
+  height: 52px;
+  padding: 9px;
+  border-radius: 16px;
+  display: grid;
+  place-items: center;
+  background: var(--tint);
+  color: var(--tone);
+}
+.stop-icon .glyph {
+  font-family: 'Fredoka', sans-serif;
+  font-weight: 600;
+  font-size: 22px;
+  line-height: 1;
+  letter-spacing: 0.02em;
+  color: var(--tone);
+}
+.stop-icon .glyph.num {
+  font-size: 28px;
+}
+.stop-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 10px;
+  margin-bottom: 3px;
+}
+.stop-concept {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  letter-spacing: 0.06em;
+  color: var(--tone);
+}
+.stop-concept::before {
+  content: '';
+  width: 7px;
+  height: 7px;
+  background: currentColor;
+  border-radius: var(--mark-r, 50%);
+  rotate: var(--mark-rot, 0deg);
+}
+.stop-where {
+  font-size: 12px;
+  color: var(--ink-faint);
+}
+.stop h4 {
+  margin: 0;
+  font-size: 17.5px;
+  font-weight: 500;
+  line-height: 1.35;
+  color: var(--ink);
+}
+/* 爸爸可以說的那句英文：像對話框裡的一句話 */
+.stop-say {
+  position: relative;
+  margin: 0 0 8px;
+  padding: 8px 14px 9px 30px;
+  border-radius: 14px;
+  background: #f6f1e7;
+  font-family: 'Fredoka', sans-serif;
+  font-weight: 500;
+  font-size: 18px;
+  line-height: 1.35;
+  color: var(--ink);
+  width: fit-content;
+  max-width: 100%;
+}
+.stop-say::before {
+  content: '“';
+  position: absolute;
+  left: 11px;
+  top: 3px;
+  font-size: 30px;
+  line-height: 1;
+  color: var(--tone);
+  opacity: 0.7;
+}
+.stop-dad {
+  margin: 0 0 6px;
+  font-size: 14.5px;
+  line-height: 1.75;
+  color: var(--ink-soft);
+}
+.stop-note {
+  margin: 0;
+  font-size: 12.5px;
+  line-height: 1.6;
+  color: var(--ink-faint);
+}
+.stop-when {
+  display: inline-block;
+  margin-left: 8px;
+  padding: 1px 9px;
+  border-radius: 99px;
+  background: #dcefe3;
+  color: #2f6b49;
+  font-size: 12px;
+}
+.stop.is-done h4 {
+  color: var(--ink-soft);
+}
+.stop.is-done .stop-icon {
+  opacity: 0.72;
+}
+
+/* 主線：顏色＋小標記的形狀 */
+.t-lang {
+  --tone: var(--lang-ink);
+  --tint: var(--lang-tint);
+}
+.t-math {
+  --tone: var(--math-ink);
+  --tint: var(--math-tint);
+  --mark-r: 1.5px;
+}
+.t-think {
+  --tone: var(--think-ink);
+  --tint: var(--think-tint);
+  --mark-r: 1px;
+  --mark-rot: 45deg;
+}
+
+.ticket-foot {
+  padding: 16px 26px 22px;
+  background: #f8f4ec;
+  border-top: 1px dashed #e4dccd;
+}
+.ticket-foot p {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.7;
+  color: var(--ink-faint);
+}
+.ticket-recall {
+  list-style: none;
+  margin: 0 0 12px;
+  padding: 0 0 12px;
+  border-bottom: 1px solid #ece4d6;
+  display: grid;
+  gap: 8px;
+}
+.ticket-recall li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13.5px;
+  line-height: 1.55;
+  color: var(--ink-soft);
+}
+.ticket-recall i,
+.ticket-recall b {
+  font-family: 'Fredoka', sans-serif;
+  font-style: normal;
+  font-weight: 500;
+  color: var(--ink);
+}
+.recall-pic {
+  flex: none;
+  width: 30px;
+  height: 30px;
+  border-radius: 10px;
+  background: var(--card);
+  box-shadow: inset 0 0 0 1px var(--paper-edge);
+  padding: 4px;
+}
+
+/* ── 右側：工具與說明 ── */
+.outing-aside {
+  position: sticky;
+  top: 0;
+  display: grid;
+  gap: 18px;
+}
+.outing-tools {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.outing-tools .btn + .btn {
+  margin-left: 0;
+}
+.outing-legend {
+  margin: 0;
+  display: grid;
+  gap: 12px;
+}
+.outing-legend dt {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 13.5px;
+  font-weight: 500;
+  color: var(--tone);
+}
+.outing-legend dt::before {
+  content: '';
+  width: 8px;
+  height: 8px;
+  background: currentColor;
+  border-radius: var(--mark-r, 50%);
+  rotate: var(--mark-rot, 0deg);
+}
+.outing-legend dd {
+  margin: 3px 0 0 15px;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--ink-soft);
+}
+.outing-fine {
+  margin: 0;
+  font-size: 12.5px;
+  line-height: 1.7;
+  color: var(--ink-faint);
+}
+
+@media (max-width: 1080px) {
+  .outing-layout {
+    grid-template-columns: minmax(0, 640px);
+  }
+  .outing-aside {
+    position: static;
+  }
+}
+@media (max-width: 560px) {
+  .ticket {
+    border-radius: 22px;
+  }
+  .ticket-top {
+    padding: 18px 18px 18px;
+  }
+  .ticket-title {
+    font-size: 23px;
+  }
+  .ticket-stops {
+    padding: 14px 16px 4px;
+  }
+  .stop {
+    grid-template-columns: 38px minmax(0, 1fr);
+    gap: 12px;
+  }
+  .stop::before {
+    left: 17.5px;
+  }
+  .stop-mark {
+    width: 38px;
+    height: 38px;
+  }
+  .stop-icon {
+    width: 46px;
+    height: 46px;
+    padding: 8px;
+  }
+  .stop-say {
+    font-size: 17px;
+  }
+  .ticket-foot {
+    padding: 14px 18px 20px;
+  }
+  .ticket-perf::before {
+    left: 16px;
+    right: 16px;
+  }
+}
+
+/* ── 列印：只印這張卡 ── */
+@media print {
+  @page {
+    margin: 12mm;
+  }
+  html:has(.outing),
+  html:has(.outing) body,
+  html:has(.outing) #root,
+  html:has(.outing) .screen {
+    position: static !important;
+    height: auto !important;
+    overflow: visible !important;
+    background: #fff !important;
+  }
+  html:has(.outing) .parent {
+    position: static;
+    display: block;
+    background: #fff;
+  }
+  html:has(.outing) .parent nav,
+  html:has(.outing) .paper-grain,
+  html:has(.outing) .night-warm,
+  .outing > h2,
+  .outing > .sub,
+  .outing-aside {
+    display: none !important;
+  }
+  html:has(.outing) .parent main {
+    padding: 0;
+    overflow: visible;
+  }
+  .outing {
+    --notch: #fff;
+  }
+  .outing-layout {
+    display: block;
+  }
+  .ticket {
+    max-width: 640px;
+    margin: 0 auto;
+    box-shadow: none;
+    border: 1px solid var(--paper-edge);
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  .stop {
+    break-inside: avoid;
+  }
+}

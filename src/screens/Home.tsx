@@ -13,6 +13,7 @@ import { useSettings } from '../lib/settings'
 import { audioReady, onUnlock } from '../lib/boot'
 import { useInstall } from '../lib/install'
 import { HomeFriends } from './HomeFriends'
+import { OutingAsk } from './OutingAsk'
 
 let greeted = false
 
@@ -23,17 +24,20 @@ export function Home() {
   const settings = useSettings()
   const install = useInstall()
 
+  // 招呼說完了沒：出門任務卡的「Did you see a bus?」要等招呼說完才問（再回到首頁就不用等）
+  const [helloDone, setHelloDone] = useState(greeted)
+
   useEffect(() => {
     todayPlan().then(setPlan)
     db.friends.count().then(setFriends)
-    if (!greeted && audioReady()) {
+    const hello = () => {
       greeted = true
-      void say('home.hello')
+      void say('home.hello').then(() => setHelloDone(true))
     }
+    if (!greeted && audioReady()) hello()
     return onUnlock(() => {
       if (greeted) return
-      greeted = true
-      void say('home.hello')
+      hello()
     })
   }, [])
 
@@ -110,6 +114,9 @@ export function Home() {
 
       {/* 今天出來玩的朋友：在車子和右下角按鈕之間的草地上慢慢走 */}
       <HomeFriends />
+
+      {/* 出門回來：豆豆問今天有沒有看到任務卡上的東西（一天最多一次，不點也沒關係） */}
+      <OutingAsk ready={helloDone} away={leaving} />
 
       <motion.div
         style={{ position: 'absolute', left: '8vw', bottom: '10vh', width: '52vmin', zIndex: 2 }}

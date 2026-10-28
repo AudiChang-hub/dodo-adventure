@@ -1,0 +1,77 @@
+/* ── 首頁：回到 App 時「Did you see a bus?」（PRD §5.11）──────────────
+   放在標題下方、豆豆的車上方的空草地天空：不蓋住「出發」、地圖與朋友；
+   對話框的小尾巴指向下面車上的豆豆，看得出是豆豆在問 */
+.outing-ask {
+  position: absolute;
+  left: 34px;
+  top: clamp(220px, 29vh, 290px);
+  z-index: 4;
+  display: flex;
+  gap: 14px;
+  padding: 16px;
+  border-radius: 34px;
+  background: rgba(251, 248, 242, 0.9);
+  box-shadow:
+    0 0 0 2px rgba(46, 42, 37, 0.04) inset,
+    0 8px 0 rgba(46, 42, 37, 0.05),
+    0 24px 48px -28px rgba(46, 42, 37, 0.4);
+  -webkit-backdrop-filter: blur(6px);
+  backdrop-filter: blur(6px);
+}
+.outing-ask::after {
+  content: '';
+  position: absolute;
+  left: 22%;
+  bottom: -15px;
+  width: 30px;
+  height: 30px;
+  border-radius: 0 0 8px 0;
+  background: inherit;
+  rotate: 45deg;
+  clip-path: polygon(100% 0, 100% 100%, 0 100%);
+}
+.outing-tile {
+  position: relative;
+  width: 128px;
+  height: 144px;
+  border-radius: 26px;
+  background: var(--card);
+  box-shadow:
+    0 6px 0 rgba(46, 42, 37, 0.09),
+    0 0 0 3px rgba(46, 42, 37, 0.04) inset;
+  display: grid;
+  grid-template-rows: 1fr auto;
+  justify-items: center;
+  padding: 13px 10px 9px;
+}
+.outing-pic {
+  width: 86px;
+  height: 86px;
+  display: block;
+}
+.outing-word {
+  font-family: 'Fredoka', sans-serif;
+  font-weight: 500;
+  font-size: 19px;
+  line-height: 1.1;
+  letter-spacing: 0.01em;
+  color: var(--ink-soft);
+  white-space: nowrap;
+}
+.outing-tile.is-pick {
+  background: #e6f3ea;
+  box-shadow:
+    0 6px 0 #b9dcc5,
+    0 0 0 5px var(--good) inset;
+}
+.outing-tile.is-pick .outing-word {
+  color: var(--ink);
+}
+.outing-check {
+  position: absolute;
+  right: -10px;
+  top: -10px;
+  width: 42px;
+  height: 42px;
+  filter: drop-shadow(0 3px 0 rgba(46, 42, 37, 0.12));
+}
