@@ -8,7 +8,7 @@ import { SheetTeach } from './SheetTeach'
 import { ThingView } from './ThingView'
 import { game as gameDef, station as stationDef } from '../../content/games'
 import { SHEET_MAKERS, type SheetItem } from '../../content/games-worksheet'
-import { level, reportLevel, markPlayed, plays, isNew, withTargetFilter } from '../../lib/adaptive'
+import { level, reportLevel, markPlayed, plays, isNew, teachable, withTargetFilter } from '../../lib/adaptive'
 import { logAttempt, logTeach } from '../../lib/record'
 import type { Phase } from '../../lib/db'
 import { preload, say, sfx, stopSpeech } from '../../lib/audio'
@@ -244,10 +244,9 @@ export function SheetGame({ gameId, onDone, onExit, mode }: GameProps & { mode: 
     itemLevel.current = lv
     const gen = () => make(lv, recent.current)
     let it = gen()
-    if (taught.current >= MAX_TEACH) {
-      const known = (k: string) => !isNew(k)
-      for (let k = 0; k < 10 && isNew(it.skill); k++) it = withTargetFilter(known, gen)
-    }
+    // 這局已經教滿、負擔過重，或這條主線本週的新概念額度用完：出學過的
+    const ok = teachable(def.id, taught.current, MAX_TEACH)
+    for (let k = 0; k < 10 && !ok(it.skill); k++) it = withTargetFilter(ok, gen)
     recent.current = [it.itemId, ...recent.current].slice(0, 3)
     preload([promptOf(it), hereKey, ...it.teach.lines, ...it.things.flatMap((t) => (t.say ? [t.say] : [])), `teach.turn.${host}`, `ws.done.${host}`])
 

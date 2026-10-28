@@ -19,6 +19,9 @@ import {
   speedCat,
   type LoadState,
 } from './engine'
+import { budgetOf, conceptIntros, noteIntro, type Budget, type Intro, type Intros } from './tracks'
+import { conceptOf, levelConcepts, trackOf, type TrackId } from '../content/tracks'
+import { weekTheme } from './settings'
 
 // 技能熟練度與遊戲難度都很小，開機時整份載入記憶體，題目產生器就能同步取用
 const skills = new Map<string, Skill>()
@@ -49,6 +52,7 @@ export async function loadAdaptive() {
   hintRecent = h.recent
   load = loadCheck(recent, today())
   await applyLoadDrop()
+  await loadIntros()
 }
 
 export function skill(key: string): Skill {
@@ -183,8 +187,13 @@ export function reportLevel(game: string, firstTry: boolean, maxLevel: number, o
     l.up++
     l.down = 0
     if (l.up >= 3 && l.level < maxLevel) {
-      l.level++
       l.up = 0
+      // 升級就是換一批新內容的遊戲（運筆、箭頭卡…）：這條線本週的新概念額度用完，先在這一級多練，下週再升
+      if (holdLevelUp(game, l.level + 1)) {
+        putLevel(l)
+        return null
+      }
+      l.level++
       change = 'up'
     }
   } else {
@@ -239,6 +248,65 @@ async function applyLoadDrop() {
   if ((await getKV<string>('engine:loadDrop', '')) === t) return
   for (const l of levels.values()) if (l.level > 1) putLevel({ ...l, level: l.level - 1, up: 0, down: 0 })
   await setKV('engine:loadDrop', t)
+}
+
+// ── 每條主線每週的新概念額度（PRD §5.10）──────────────────────
+/**
+ * 每個概念（例如字母音 b、數字 7、詞彙主題「交通工具」，定義見 content/tracks.ts）第一次出現的日期。
+ * 存在 KV 裡，開機不用重讀全部作答紀錄；規則改版（CONCEPT_VERSION）時才從作答紀錄重建一次。
+ * 不另外同步到雲端：家長區直接從作答紀錄算（lib/tracks.ts 的 conceptIntros），結果一樣。
+ */
+const INTRO_KEY = 'engine:concepts'
+const CONCEPT_VERSION = 1
+let intros: Intros = new Map()
+
+async function loadIntros() {
+  const saved = await getKV<{ v: number; rows: [string, Intro][] } | null>(INTRO_KEY, null)
+  if (saved?.v === CONCEPT_VERSION) intros = new Map(saved.rows)
+  else {
+    intros = conceptIntros(await db.attempts.toArray())
+    saveIntros()
+  }
+}
+
+const saveIntros = () => void setKV(INTRO_KEY, { v: CONCEPT_VERSION, rows: [...intros] })
+
+/** 每一筆作答（含教學卡）都呼叫：第一次出現的概念記下日期，之後的額度就算得到 */
+export function noteAttempt(a: Pick<Attempt, 'game' | 'skill' | 'phase' | 'firstTryCorrect' | 'level'>) {
+  if (noteIntro(intros, { ...a, date: today() }).length) saveIntros()
+}
+
+export const conceptIntrosNow = () => intros
+export const budget = (t: TrackId): Budget => budgetOf(t, intros, today())
+
+/**
+ * 這個新內容現在能不能教：
+ * - 負擔過重：全部暫停；
+ * - 概念已經教過（例如動物主題裡的新動物、在別的遊戲學過的數字 3）：可以，只是同一個概念的新內容；
+ * - 家長設定的本週主題：可以，那是學校正在教的，App 是幫忙複習；
+ * - 其他新概念：看這條主線最近 7 天的額度（一般 2 個，剛開始玩的頭 7 天 5 個）。
+ */
+export function canIntroduce(game: string, key: string): boolean {
+  if (load.overloaded) return false
+  const c = conceptOf(game, key)
+  if (!c || intros.has(c)) return true
+  if (c === `theme:${weekTheme()}`) return true
+  const t = trackOf(game)
+  return !t || budget(t).left > 0
+}
+
+/**
+ * 出題篩選：學過的內容，或（這局還沒教滿 max 個、而且 canIntroduce）可以教的新內容。
+ * 遊戲裡找不到符合的題目時（例如第一次玩的遊戲，什麼都還沒學過），照常教一個，不考沒教過的。
+ */
+export const teachable = (game: string, taught: number, max: number) => (key: string) => !isNew(key) || (taught < max && canIntroduce(game, key))
+
+/** 升到 next 級會不會全是沒教過的新概念、而這條線本週已經不能再教新的 */
+function holdLevelUp(game: string, next: number): boolean {
+  const cs = levelConcepts(game, next)
+  if (!cs || cs.some((c) => intros.has(c))) return false
+  const t = trackOf(game)
+  return load.overloaded || (!!t && budget(t).left <= 0)
 }
 
 // ── 延遲提示（benchmark 手法 3）──────────────────────────────

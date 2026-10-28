@@ -1,10 +1,12 @@
 import { db, getKV, setKV, today, type StationId } from './db'
-import { gamesOf } from '../content/games'
+import { GAMES } from '../content/games'
 import { FRIENDS } from '../content/park'
-import { lastPlayed } from './adaptive'
+import { trackOf } from '../content/tracks'
+import { conceptIntrosNow, isDue, lastPlayed, pauseNew, plays, skill } from './adaptive'
 import { fluencyReady, isFluency } from './fluency'
 import { getSettings } from './settings'
 import { pick } from './random'
+import { planDay, shiftDate, trackNeeds, MASTERY_DAYS } from './tracks'
 
 export interface Plan {
   date: string
@@ -13,28 +15,25 @@ export interface Plan {
 }
 
 /**
- * 第三格輪流的站：程式車庫、畫畫小屋、彩虹公園三天一輪。
- * 程式車庫是「思考」主線唯一的站（PRD §5.10），所以排在輪替的第一個：每三天至少來一次，
- * 每天的站數（家長設定）和總時間（約 20 分鐘）都不變
+ * 每天的冒險：依四條能力主線（PRD §5.10）的作答資料排，不再固定「英文、數學、輪流、國語」。
+ * 怎麼平衡寫在 lib/tracks.ts（trackNeeds 算哪條線落後、planDay 挑遊戲），這裡只負責讀資料和存檔。
+ * 每天的站數（家長設定）和總時間（約 20 分鐘）不變；同一天的結果固定，排好就存起來。
  */
-const ROTATE: StationId[] = ['code', 'draw', 'park']
-
-/** 每天的冒險：英文、數學、（程式／畫畫／公園輪流）、國語，每站挑最久沒玩的遊戲 */
 export async function todayPlan(): Promise<Plan> {
   const date = today()
   const saved = await getKV<Plan | null>(`plan:${date}`, null)
   if (saved) return saved
-  const dayIndex = Math.floor(Date.now() / 86_400_000)
-  const rot = (k: number) => ROTATE[(dayIndex + k) % ROTATE.length]
-  const order: StationId[] = ['english', 'math', rot(0), 'mandarin', rot(1)]
+  const attempts = await db.attempts.where('date').aboveOrEqual(shiftDate(date, -(MASTERY_DAYS - 1))).toArray()
+  const needs = trackNeeds({ attempts, date, boxOf: (k) => skill(k).box, intros: conceptIntrosNow(), isDue })
+  // 每個遊戲裡有幾個今天到期複習的技能：有到期的遊戲比較容易排到（已熟的內容改成複習）
+  const byGame = new Map<string, Set<string>>()
+  for (const a of attempts) byGame.set(a.game, (byGame.get(a.game) ?? new Set()).add(a.skill))
+  const dueIn = (g: string) => [...(byGame.get(g) ?? [])].filter(isDue).length
+  // 功文式小練習要有足夠已熟的數字題才排進來，不然就不是「做得到、越做越快」的練習
+  const games = GAMES.filter((g) => g.kind !== 'free' && trackOf(g.id) && (!isFluency(g.id) || fluencyReady()))
   const n = Math.max(2, Math.min(5, getSettings().activitiesPerDay))
-  const items = order.slice(0, n).map((station) => {
-    // 功文式小練習要有足夠已熟的數字題才排進來，不然就不是「做得到、越做越快」的練習
-    const games = gamesOf(station).filter((g) => g.kind !== 'free' && (!isFluency(g.id) || fluencyReady()))
-    const oldest = [...games].sort((a, b) => lastPlayed(a.id) - lastPlayed(b.id)).slice(0, 2)
-    return { game: pick(oldest).id, station, done: false }
-  })
-  const plan: Plan = { date, items, hatched: null }
+  const slots = planDay({ date, n, needs, games, lastPlayed, plays, dueIn, overloaded: pauseNew() })
+  const plan: Plan = { date, items: slots.map((x) => ({ game: x.game, station: x.station, done: false })), hatched: null }
   await setKV(`plan:${date}`, plan)
   return plan
 }

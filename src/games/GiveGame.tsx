@@ -93,7 +93,7 @@ export function GiveGame({ gameId, onDone, onExit }: GameProps) {
   const firstPlay = useRef(plays(def.id) === 0)
   const resolver = useRef<(() => void) | null>(null)
   const idle = useIdle()
-  const picker = useNumberPicker('give')
+  const picker = useNumberPicker('give', def.id)
   /** 每換一個步驟就加一，舊步驟的計時器看到不一樣就不動作 */
   const step = useRef(0)
 

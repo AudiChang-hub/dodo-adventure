@@ -88,7 +88,7 @@ export function FillCountGame({ gameId, onDone, onExit }: GameProps) {
   const resolver = useRef<(() => void) | null>(null)
   const step = useRef(0)
   const idle = useIdle()
-  const picker = useNumberPicker('fill')
+  const picker = useNumberPicker('fill', def.id)
 
   const setOrderBoth = (o: number[]) => {
     orderRef.current = o

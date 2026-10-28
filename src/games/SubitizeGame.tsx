@@ -130,7 +130,7 @@ export function SubitizeGame({ gameId, onDone, onExit }: GameProps) {
   const step = useRef(0)
   const flashing = useRef(false)
   const idle = useIdle()
-  const picker = useNumberPicker('flash')
+  const picker = useNumberPicker('flash', def.id)
 
   const release = (ms = 0) => {
     const f = resolver.current

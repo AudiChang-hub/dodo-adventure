@@ -6,7 +6,7 @@ import { Hand } from './Demo'
 import { VisualView } from '../ui/Visual'
 import { Sparkles } from '../ui/Sparkles'
 import { game as gameDef, station as stationDef, ROUND_ITEMS, type ChoiceItem, type TeachSpec } from '../content/games'
-import { level, reportLevel, markPlayed, plays, isNew, withTargetFilter, mastered, skill, isProbing, pauseNew, hintDelayMs, noteHintWait } from '../lib/adaptive'
+import { level, reportLevel, markPlayed, plays, isNew, withTargetFilter, mastered, skill, isProbing, teachable, hintDelayMs, noteHintWait } from '../lib/adaptive'
 import { logAttempt, logTeach } from '../lib/record'
 import type { Phase } from '../lib/db'
 import { WAIT_WINDOW_MS } from '../lib/engine'
@@ -218,7 +218,7 @@ function ChoiceRound({ gameId, onDone, onExit }: GameProps) {
     const probe = isProbing(def.id) && !(firstPlay.current && i === 0)
     const lvBase = level(def.id)
     // 最後一題是挑戰題：比目前難度高一級
-    const lv = isLast && !probe && lvBase < def.maxLevel ? lvBase + 1 : lvBase
+    let lv = isLast && !probe && lvBase < def.maxLevel ? lvBase + 1 : lvBase
     itemLevel.current = lv
     const make = () => def.make!(lv, recent.current)
     /** 盡量出符合 ok 的題目：先用挑題篩選，沒有用（例如比多少不經過挑題）就多抽幾次 */
@@ -229,9 +229,16 @@ function ChoiceRound({ gameId, onDone, onExit }: GameProps) {
     }
     // 開局先出已熟的：讓孩子先答對、建立信心（功文式「從低一點開始」）
     let it = i === 0 ? makeWhere(mastered) : make()
-    if (taught.current >= (pauseNew() ? 0 : MAX_TEACH) && isNew(it.skill)) {
-      // 這局已經教滿了（或負擔過重、暫停教新內容）：其餘出複習題，不考沒教過的
-      it = makeWhere((k) => !isNew(k))
+    const ok = teachable(def.id, taught.current, MAX_TEACH)
+    if (!ok(it.skill)) {
+      // 這局已經教滿了、負擔過重暫停教新內容，或這條主線本週的新概念額度用完：其餘出複習題，不考沒教過的
+      it = makeWhere(ok)
+      // 挑戰題（高一級）的內容全是新的（例如找規律 3 級才有的 AAB）：退回目前難度再找一次
+      if (!ok(it.skill) && lv > lvBase) {
+        lv = lvBase
+        itemLevel.current = lv
+        it = makeWhere(ok)
+      }
     }
     recent.current = [it.itemId, ...recent.current].slice(0, 3)
     // Sam 教豆豆：已熟、有「這是 X 嗎？」台詞的題目，一局最多 1 次，不放在第一題和挑戰題
