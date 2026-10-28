@@ -1,0 +1,43 @@
+/* 今日亮點（成就感強化）：一天一列，左邊日期、右邊一行一件事 */
+.parent .highlights {
+  display: grid;
+  gap: 14px;
+  margin-bottom: 34px;
+}
+.parent .hl-day {
+  display: grid;
+  grid-template-columns: 64px 1fr;
+  gap: 12px;
+  align-items: baseline;
+}
+.parent .hl-day + .hl-day {
+  padding-top: 14px;
+  border-top: 1px solid var(--paper-edge);
+}
+.parent .hl-day b {
+  font-weight: 500;
+  color: var(--ink-soft);
+}
+.parent .hl-day ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 6px;
+}
+.parent .hl-day li::before {
+  content: '★';
+  margin-right: 8px;
+  color: #c9a23e;
+}
+.parent .hl-day li.hl-fix::before {
+  content: '↻';
+  color: var(--dodo-deep);
+}
+/* 家長用手機直式看：日期放到上面一行 */
+@media (max-width: 600px) {
+  .parent .hl-day {
+    grid-template-columns: 1fr;
+    gap: 6px;
+  }
+}

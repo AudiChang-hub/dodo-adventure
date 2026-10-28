@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client'
 import { App } from './App'
 import { loadSettings } from './lib/settings'
 import { loadAdaptive } from './lib/adaptive'
+import { loadAchievements } from './lib/achievements'
 import { startSession } from './lib/session'
 import { installGuards } from './lib/lock'
 import { installFirstGesture } from './lib/boot'
@@ -19,7 +20,8 @@ if (import.meta.env.DEV) import('./lib/nav').then((m) => Object.assign(window, {
 installGuards()
 installFirstGesture()
 
-Promise.all([loadSettings(), loadAdaptive()]).then(async () => {
+// 成就（貼紙本）要在熟練度載入之後：第一次會把已經熟的技能補成貼紙
+Promise.all([loadSettings(), loadAdaptive().then(loadAchievements)]).then(async () => {
   await startSession()
   void initSync()
   createRoot(document.getElementById('root')!).render(

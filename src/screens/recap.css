@@ -1,0 +1,108 @@
+/* ── 今日冒險的結尾回顧（成就感強化）───────────────────────── */
+.recap {
+  display: grid;
+  justify-items: center;
+}
+/* 給爸爸看的那一行：跟遊戲裡的陪玩提示同一種低對比小字，放在回顧條下面 */
+.recap .recap-hint {
+  position: static;
+  max-width: min(640px, 80vw);
+  margin-top: 14px;
+  text-align: center;
+}
+.recap-strip {
+  display: flex;
+  align-items: center;
+  gap: clamp(10px, 1.6vw, 18px);
+  padding: 16px 18px 16px 24px;
+  border-radius: 99px;
+  background: rgba(251, 248, 242, 0.88);
+  box-shadow:
+    0 10px 0 rgba(46, 42, 37, 0.05),
+    0 26px 50px -30px rgba(46, 42, 37, 0.3);
+  max-width: 94vw;
+}
+.recap-stop {
+  position: relative;
+  width: clamp(64px, 8.4vmin, 84px);
+  aspect-ratio: 1;
+  flex: 0 0 auto;
+}
+.recap-stop-face {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: var(--paper);
+  display: grid;
+  place-items: center;
+  box-shadow: 0 0 0 4px var(--card), 0 0 0 6px rgba(46, 42, 37, 0.05);
+}
+.recap-stop-pic {
+  width: 64%;
+  height: 64%;
+}
+.recap-stop-star {
+  position: absolute;
+  right: -10%;
+  top: -12%;
+  width: 42%;
+}
+.recap-sep {
+  width: 2px;
+  height: 56px;
+  margin: 0 4px;
+  border-radius: 2px;
+  background: rgba(46, 42, 37, 0.08);
+}
+.recap-sticker {
+  width: clamp(76px, 10vmin, 100px);
+  flex: 0 0 auto;
+}
+.recap-strip .recap-dad {
+  position: relative;
+  flex: 0 0 auto;
+  width: clamp(88px, 11.5vmin, 112px);
+  height: clamp(88px, 11.5vmin, 112px);
+  margin-left: 8px;
+  padding: 16px;
+  background: var(--butter);
+  box-shadow: 0 6px 0 #c9a23e;
+}
+.recap-strip .recap-dad:active {
+  box-shadow: 0 2px 0 #c9a23e;
+}
+.recap-dad-wave {
+  position: absolute;
+  right: -8px;
+  top: -10px;
+  width: 42%;
+  transform-origin: 70% 90%;
+  animation: recap-wave 2.6s ease-in-out infinite;
+}
+@keyframes recap-wave {
+  0%,
+  60%,
+  100% {
+    rotate: 0deg;
+  }
+  70% {
+    rotate: 16deg;
+  }
+  80% {
+    rotate: -10deg;
+  }
+  90% {
+    rotate: 10deg;
+  }
+}
+/* 直式手機只求不壞版：一排放不下就換行 */
+@media (orientation: portrait) {
+  .recap-strip {
+    flex-wrap: wrap;
+    justify-content: center;
+    border-radius: 40px;
+  }
+  .recap .recap-hint {
+    display: none;
+  }
+}

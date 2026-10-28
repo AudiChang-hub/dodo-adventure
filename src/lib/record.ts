@@ -1,6 +1,7 @@
 import { db, today, uid, type Attempt, type Phase } from './db'
 import { sessionId } from './session'
-import { recordSkill } from './adaptive'
+import { mastered, recordSkill } from './adaptive'
+import { noteAttempt } from './achievements'
 import { requestSync } from './sync'
 
 export type AttemptInput = Omit<Attempt, 'id' | 'ts' | 'date' | 'sessionId' | 'synced' | 'phase'> & { phase: Phase }
@@ -10,7 +11,10 @@ export type AttemptInput = Omit<Attempt, 'id' | 'ts' | 'date' | 'sessionId' | 's
  * 教學卡與一起練也會留下紀錄（家長區看得到今天教了什麼），但另外標記階段。
  */
 export async function logAttempt(a: AttemptInput) {
+  const was = mastered(a.skill)
   if (a.phase === 'quiz') recordSkill(a.skill, a.firstTryCorrect, a)
+  // 成就感：自己改正、第一次熟練（貼紙）、這一局做了什麼。要在 await 之前，接下來的稱讚才讀得到
+  noteAttempt(a, !was && mastered(a.skill))
   await db.attempts.put({ ...a, id: uid(), ts: Date.now(), date: today(), sessionId: sessionId(), synced: 0 })
   requestSync()
 }
