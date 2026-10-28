@@ -112,6 +112,64 @@
   z-index: 6;
   filter: drop-shadow(0 14px 10px rgba(46, 42, 37, 0.22));
 }
+/* 波波的對話泡泡：舞台左邊那一欄、波波頭上（stage-main 的座標），尾巴往下指著波波；
+   上面是大大的數字，下面是要幾顆就幾個空蛋格（一排最多 5 個），放一顆填一格 */
+.give-want {
+  position: absolute;
+  left: 2cqw;
+  bottom: 32cqh;
+  z-index: 3;
+  transform-origin: 30% 100%;
+  pointer-events: none;
+}
+.give-want-in {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1cqh;
+  padding: 1.6cqh 1.6cqw 2cqh;
+  border-radius: 3.4cqh;
+  background: var(--card);
+  box-shadow:
+    0 0 0 4px rgba(201, 162, 62, 0.55),
+    0 8px 0 rgba(46, 42, 37, 0.08);
+  transition: box-shadow 0.3s var(--ease-out);
+}
+.give-want-in::after {
+  content: '';
+  position: absolute;
+  left: 34%;
+  bottom: -3.4cqh;
+  width: 4.2cqh;
+  height: 3.8cqh;
+  background: var(--card);
+  clip-path: polygon(0 0, 100% 0, 30% 100%);
+}
+.give-want.is-full .give-want-in {
+  box-shadow:
+    0 0 0 6px var(--good),
+    0 8px 0 rgba(46, 42, 37, 0.08);
+}
+.give-want-num {
+  font-family: 'Fredoka', sans-serif;
+  font-weight: 600;
+  font-size: 8cqh;
+  line-height: 1;
+  color: var(--ink);
+}
+.give-want-eggs {
+  display: grid;
+  gap: 1cqh 0.7cqw;
+}
+.give-want-slot {
+  position: relative;
+  width: 3.6cqw;
+}
+.give-want-egg {
+  position: absolute;
+  inset: 0;
+}
 
 /* ── 一眼看出幾個 ─────────────────────────────────────────── */
 .flash-card {

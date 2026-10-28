@@ -256,6 +256,14 @@
     0 8px 0 #4f8d68,
     0 0 0 9px rgba(111, 174, 134, 0.22);
 }
+/* 程式列滿了還在點卡盒：Go 外面擴散一圈（只往外、只變淡一次） */
+.go-ping {
+  position: absolute;
+  inset: -6px;
+  border-radius: 50%;
+  border: 7px solid var(--hint);
+  pointer-events: none;
+}
 .go-run.guide {
   animation: go-glow 1.5s ease-in-out infinite;
 }

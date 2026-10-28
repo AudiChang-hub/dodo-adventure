@@ -55,6 +55,17 @@ const PAD: Record<Dir, CSSProperties> = {
   down: { gridArea: '3 / 2' },
 }
 
+/**
+ * 程式列的卡被拿掉：fly（孩子拿掉、換卡、開錯自己跳走）就往右上的卡盒跳回去；換題清空就原地縮掉。
+ * 透明度只往下走一次（ui/motion.ts 規則 2）。
+ */
+const slotCardOut = {
+  exit: (fly: boolean) =>
+    fly
+      ? { x: '150%', y: '-170%', rotate: 24, scale: 0.6, opacity: 0, transition: { duration: 0.5, ease: [0.4, 0, 1, 1] as const, opacity: { duration: 0.5, ease: 'easeIn' as const } } }
+      : { scale: 0.4, opacity: 0, transition: { duration: 0.16 } },
+}
+
 const targetOf = (p: DrivePuzzle) => driveTarget(p.target)
 const promptOf = (p: DrivePuzzle) => [`c.drive.to.${p.target}`, ...(p.solution.length > 1 ? [`c.drive.cards.${p.solution.length}`] : [])]
 
@@ -97,6 +108,10 @@ export function DriveGame({ gameId, onDone, onExit }: GameProps) {
   const [trail, setTrail] = useState<Cell[]>([])
   const [runAt, setRunAt] = useState<number | null>(null)
   const [bug, setBug] = useState<number | null>(null)
+  /** 這幾格的卡被拿掉時「跳回卡盒」（往右上的卡盒飛走），而不是原地縮掉：看得到卡去哪了 */
+  const [fly, setFly] = useState<number[]>([])
+  /** 程式列滿了、一起練時又點了卡盒：Go 外面閃一圈，告訴孩子現在該按 Go */
+  const [goPing, setGoPing] = useState(0)
   const [hintOn, setHintOn] = useState(false)
   const [needSlot, setNeedSlot] = useState<number | null>(null)
   /** 在第幾個畫面（view）開到目的地：只在那個畫面放煙火 */
@@ -109,6 +124,9 @@ export function DriveGame({ gameId, onDone, onExit }: GameProps) {
   const running = useRef(false)
   const puzzleRef = useRef<DrivePuzzle | null>(null)
   const progRef = useRef<Slot[]>([])
+  const bugRef = useRef<number | null>(null)
+  /** 每一格放過幾次卡：同一個方向換上去也會有「舊的跳走、新的放進來」的動畫 */
+  const slotGen = useRef<number[]>([])
   const phaseRef = useRef<Phase>('quiz')
   const stepRef = useRef(0)
   const idxRef = useRef(0)
@@ -144,6 +162,10 @@ export function DriveGame({ gameId, onDone, onExit }: GameProps) {
     progRef.current = p
     setProg(p)
   }
+  const setBugBoth = (b: number | null) => {
+    bugRef.current = b
+    setBug(b)
+  }
   const mark = (pick: string) => taps.current.push({ pick, ms: Math.round(performance.now() - t0.current) })
 
   /** 換題（或重來）：車子回起點、程式列清空 */
@@ -151,10 +173,12 @@ export function DriveGame({ gameId, onDone, onExit }: GameProps) {
     puzzleRef.current = p
     setPuzzle(p)
     setProgBoth(Array(p.solution.length).fill(null))
+    slotGen.current = Array(p.solution.length).fill(0)
+    setFly([])
     setCar({ at: p.start, face: 1, bump: null, moving: false })
     setTrail([])
     setRunAt(null)
-    setBug(null)
+    setBugBoth(null)
     setHintOn(false)
     setNeedSlot(null)
     viewRef.current++
@@ -310,7 +334,7 @@ export function DriveGame({ gameId, onDone, onExit }: GameProps) {
 
   const changed = (p: Slot[]) => {
     setProgBoth(p)
-    setBug(null)
+    setBugBoth(null)
     setNeedSlot(null)
     setHintOn(false)
     // 一起練：卡片放滿了，換 Go 發光
@@ -320,7 +344,10 @@ export function DriveGame({ gameId, onDone, onExit }: GameProps) {
   const place = (slot: number, dir: Dir) => {
     if (guidedRejects(slot, dir)) return
     const p = [...progRef.current]
+    // 這一格本來有卡（滿了換卡）：舊的跳回卡盒，新的放進來
+    if (p[slot]) setFly([slot])
     p[slot] = dir
+    slotGen.current[slot] = (slotGen.current[slot] ?? 0) + 1
     mark(`${dir}@${slot}`)
     sfx.pop()
     void say(`c.dir.${dir}`)
@@ -332,8 +359,23 @@ export function DriveGame({ gameId, onDone, onExit }: GameProps) {
     if (!p[slot]) return
     mark(`-@${slot}`)
     p[slot] = null
+    setFly([slot])
     sfx.tap()
     changed(p)
+  }
+
+  /**
+   * 開錯之後：開錯的那張卡搖一搖，接著自己跳回卡盒，那一格空出來、亮起來（和「還有空格」時一樣的樣子）。
+   * 孩子不用先學會「點程式列的卡可以拿掉」，只要像第一次一樣點一張卡，它就會放進亮起來的那一格。
+   */
+  const popOut = (slot: number) => {
+    const p = [...progRef.current]
+    if (!p[slot]) return
+    p[slot] = null
+    setFly([slot])
+    sfx.whoosh()
+    changed(p)
+    setNeedSlot(slot)
   }
 
   const canTouch = () => !locked.current && !running.current && !card
@@ -344,12 +386,16 @@ export function DriveGame({ gameId, onDone, onExit }: GameProps) {
     onTap: (s) => {
       if (s.from === 'slot') return removeAt(s.i)
       const empty = progRef.current.indexOf(null)
-      // 放滿了：提醒按 Go（Go 也會輕輕跳一下）
-      if (empty < 0) {
+      if (empty >= 0) return place(empty, s.dir)
+      // 放滿了（家長回饋：開錯後點對的卡完全沒反應，孩子只好一直按 Go）：點了一定看得到變化
+      if (phaseRef.current === 'guided') {
+        // 一起練只會放對的卡，滿了就是該按 Go：Go 外面閃一圈
         sfx.gentle()
+        setGoPing((g) => g + 1)
         return void say('c.drive.go')
       }
-      place(empty, s.dir)
+      // 自己答：換掉開錯的那張；沒有標出錯的就換最後一張（舊的跳回卡盒，新的放進去）
+      place(bugRef.current ?? progRef.current.length - 1, s.dir)
     },
     onDrop: (s, x, y) => {
       const to = slotEls.current.findIndex((el) => hit(el, x, y))
@@ -363,6 +409,8 @@ export function DriveGame({ gameId, onDone, onExit }: GameProps) {
       const p = [...progRef.current]
       if (phaseRef.current === 'guided') return removeAt(s.i)
       ;[p[to], p[s.i]] = [p[s.i], p[to]]
+      // 兩格交換：卡片原地換位，不是跳回卡盒
+      setFly([])
       mark(`${s.dir}@${s.i}>${to}`)
       sfx.pop()
       changed(p)
@@ -390,7 +438,8 @@ export function DriveGame({ gameId, onDone, onExit }: GameProps) {
     stepRef.current++
     idle.stop()
     setHintOn(false)
-    setBug(null)
+    setBugBoth(null)
+    setNeedSlot(null)
     sfx.whoosh()
     const res = runProgram(p, prog)
     let face: 1 | -1 = 1
@@ -468,10 +517,17 @@ export function DriveGame({ gameId, onDone, onExit }: GameProps) {
     fails.current++
     // 自己答開錯兩次：重新教一次，再一起練（PRD §5.8）
     if (phaseRef.current === 'quiz' && fails.current >= 2) return reteach(p)
-    // 車子一回到起點就可以改卡，不用等波波說完
-    setBug(bugAt)
+    // 車子一回到起點就可以改卡，不用等波波說完（這時點卡盒的卡，會直接換掉搖的那張）
+    const my = stepRef.current
+    setBugBoth(bugAt)
     locked.current = false
-    await say('c.drive.fix')
+    await Promise.all([say('c.drive.fix'), wait(1500)])
+    if (!live.current) return
+    // 孩子還沒動手：開錯的卡自己跳回卡盒，空出來的那一格亮起來
+    if (stepRef.current === my && bugRef.current === bugAt && !running.current) {
+      popOut(bugAt)
+      await say('c.drive.need')
+    }
     if (live.current) idle.poke()
   }
 
@@ -643,15 +699,17 @@ export function DriveGame({ gameId, onDone, onExit }: GameProps) {
                         <span className="prog-num" aria-hidden="true">
                           {i + 1}
                         </span>
-                        <AnimatePresence>
+                        <AnimatePresence custom={fly.includes(i)}>
                           {d && (
                             <motion.button
-                              key={`${i}-${d}`}
+                              key={`${i}-${d}-${slotGen.current[i] ?? 0}`}
+                              custom={fly.includes(i)}
+                              variants={slotCardOut}
                               className={`arrow-card in-slot${bug === i || (isWant && hintOn) ? ' is-bug' : ''}`}
                               aria-label={`第 ${i + 1} 張：${d}（點一下拿掉）`}
                               initial={{ scale: 0.4, opacity: 0, y: 30 }}
                               animate={bug === i ? { scale: 1, opacity: 1, y: 0, rotate: [0, -8, 8, -6, 6, 0] } : { scale: runAt === i ? 1.1 : 1, opacity: 1, y: 0, rotate: 0 }}
-                              exit={{ scale: 0.4, opacity: 0, transition: { duration: 0.16 } }}
+                              exit="exit"
                               transition={bug === i ? { rotate: { duration: 0.7, repeat: Infinity, repeatDelay: 0.9 } } : { type: 'spring', stiffness: 420, damping: 22 }}
                               {...palette.bind({ from: 'slot', i, dir: d })}
                             >
@@ -674,6 +732,7 @@ export function DriveGame({ gameId, onDone, onExit }: GameProps) {
                   <svg viewBox="0 0 48 48" width="46%" aria-hidden="true">
                     <path d="M17 11 Q14 9.5 14 13 V35 Q14 38.5 17 37 L37 26 Q39.5 24 37 22 Z" fill="#FBF8F2" stroke="#FBF8F2" strokeWidth={3} strokeLinejoin="round" />
                   </svg>
+                  {goPing > 0 && <motion.span key={goPing} className="go-ping" aria-hidden="true" initial={{ scale: 0.9, opacity: 0.9 }} animate={{ scale: 1.6, opacity: 0 }} transition={{ duration: 0.7, ease: [0.22, 1, 0.36, 1] }} />}
                   {goGlow && <Hand x={66} y={62} size="9cqmin" beckon />}
                 </motion.button>
               </div>

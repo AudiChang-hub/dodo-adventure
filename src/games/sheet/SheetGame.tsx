@@ -168,8 +168,11 @@ export function SheetGame({ gameId, onDone, onExit, mode }: GameProps & { mode: 
     locked.current = true
     phaseRef.current = 'guided'
     setPhase('guided')
+    // 學習單在教學卡後面擺好，再把卡收回恐龍：筆的示範一定在孩子看得到的地方做（盤點：原本卡還蓋著就開始畫）
     const sh = lay(it)
     setMood('happy')
+    await reveal()
+    if (!live.current) return
     await wait(500)
     await say('teach.watch.bobo')
     if (!live.current) return
@@ -200,12 +203,13 @@ export function SheetGame({ gameId, onDone, onExit, mode }: GameProps & { mode: 
   }
 
   // ── 一起練：答案發光，其他變淡；點錯也沒關係 ─────────────────
-  const guided = async (it: SheetItem) => {
+  const guided = async (it: SheetItem, keep = false) => {
     const my = ++stepRef.current
     phaseRef.current = 'guided'
     taps.current = []
     setPhase('guided')
-    lay(it)
+    // 剛示範完（keep）：同一張學習單、同樣的位置直接接著一起練，孩子照著剛剛看到的圈
+    if (!keep) lay(it)
     setMood('happy')
     await reveal()
     if (!live.current) return
@@ -270,7 +274,7 @@ export function SheetGame({ gameId, onDone, onExit, mode }: GameProps & { mode: 
     }
     taughtItem.current = fresh || pen || walk
     if (fresh || pen || walk) {
-      await guided(it)
+      await guided(it, pen)
       if (!live.current) return
     }
     return quiz(it, fresh || pen || walk)

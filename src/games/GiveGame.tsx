@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type PointerEvent as RPointerEvent } from 'react'
-import { AnimatePresence, motion } from 'motion/react'
+import { AnimatePresence, motion, useAnimate } from 'motion/react'
 import { Shell, type GameProps } from './Shell'
 import { Hand } from './Demo'
 import { Egg } from '../art/Egg'
@@ -55,6 +55,61 @@ function slotOf(i: number) {
 
 const pct = (v: number, of: number) => `${(v / of) * 100}%`
 
+/** 蛋的外形（和 art/Egg 同一條線），對話泡泡裡的空位用 */
+const EGG_D = 'M100 14 C150 14 184 92 184 144 C184 194 148 222 100 222 C52 222 16 194 16 144 C16 92 50 14 100 14 Z'
+
+/**
+ * 波波頭上的對話泡泡：要幾顆蛋就畫幾個空的蛋形虛線框，旁邊寫大大的數字（盤點：要幾顆原本只有英文說）。
+ * 籃子裡放一顆，泡泡裡就填滿一格；剛好放滿，泡泡變成綠框；放太多，泡泡輕輕搖。
+ * 不靠語言也不只靠數字：3 歲孩子看的是「把空格填滿」，數字跟著一起出現、一起熟。
+ */
+function WantBubble({ k, have, ping }: { k: number; have: number; ping: number }) {
+  const [scope, animate] = useAnimate()
+  // 波波說「Give me N eggs!」時泡泡跳一下：聲音和泡泡連在一起
+  useEffect(() => {
+    if (ping && scope.current) void animate(scope.current, { scale: [1, 1.08, 1] }, { duration: 0.5, ease: [0.22, 1, 0.36, 1] })
+  }, [ping, animate, scope])
+  const rows = k > 5 ? 2 : 1
+  const perRow = Math.ceil(k / rows)
+  const over = have > k
+  const full = have === k
+  return (
+    <motion.div
+      className={`give-want${full ? ' is-full' : ''}`}
+      aria-label={`要 ${k} 顆蛋`}
+      animate={over ? { rotate: [0, -3, 3, -2, 2, 0] } : { rotate: 0 }}
+      transition={over ? { duration: 0.6, repeat: Infinity, repeatDelay: 0.7 } : { duration: 0.3 }}
+    >
+      <div ref={scope} className="give-want-in">
+        <span className="give-want-num">{k}</span>
+        <div className="give-want-eggs" style={{ gridTemplateColumns: `repeat(${perRow}, auto)` }}>
+          {Array.from({ length: k }, (_, i) => (
+            <div key={i} className="give-want-slot">
+              <svg viewBox="0 0 200 240" width="100%" aria-hidden="true" style={{ display: 'block', overflow: 'visible' }}>
+                <path d={EGG_D} fill="rgba(241,210,124,.22)" stroke="#C9A23E" strokeWidth={12} strokeDasharray="22 18" strokeLinecap="round" />
+              </svg>
+              <AnimatePresence>
+                {i < have && (
+                  <motion.div
+                    key="egg"
+                    className="give-want-egg"
+                    initial={{ scale: 0.3, opacity: 0, y: -10 }}
+                    animate={{ scale: 1, opacity: 1, y: 0 }}
+                    exit={{ scale: 0.3, opacity: 0, transition: { duration: 0.2 } }}
+                    transition={{ type: 'spring', stiffness: 420, damping: 18 }}
+                  >
+                    <Egg cracks={0} size="100%" />
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
+          ))}
+        </div>
+      </div>
+    </motion.div>
+  )
+}
+
 /**
  * 給波波 N 顆蛋（數量感，benchmark 手法 4）：波波說「Give me three eggs!」，
  * 孩子把蛋一顆一顆點進（或拖進）籃子，每放一顆波波就數一個，數好了按綠色勾勾。
@@ -74,6 +129,8 @@ export function GiveGame({ gameId, onDone, onExit }: GameProps) {
   const [glow, setGlow] = useState<'next' | 'extra' | 'done' | null>(null)
   const [finger, setFinger] = useState<{ x: number; y: number; tap: number } | null>(null)
   const [party, setParty] = useState(0)
+  /** 對話泡泡跳一下（波波說要幾顆的時候） */
+  const [askPing, setAskPing] = useState(0)
 
   const live = useRef(true)
   const locked = useRef(true)
@@ -136,6 +193,7 @@ export function GiveGame({ gameId, onDone, onExit }: GameProps) {
     locked.current = true
     setMood('happy')
     await say('teach.watch.bobo')
+    setAskPing((p) => p + 1)
     for (let i = 0; i < k; i++) {
       if (!live.current) return
       const id = eggsRef.current.find((e) => !bagRef.current.includes(e.id))!.id
@@ -178,10 +236,17 @@ export function GiveGame({ gameId, onDone, onExit }: GameProps) {
     t0.current = performance.now()
     const done = ph === 'guided' ? new Promise<void>((res) => (resolver.current = res)) : null
     const my = ++step.current
-    await say(...(afterGuide ? ['teach.turn.bobo'] : []), `ws.give.${k}`)
+    if (afterGuide) await say('teach.turn.bobo')
+    if (live.current && step.current === my) {
+      setAskPing((p) => p + 1)
+      await say(`ws.give.${k}`)
+    }
     if (live.current && step.current === my)
       idle.start({
-        repeat: () => void say(`ws.give.${k}`),
+        repeat: () => {
+          setAskPing((p) => p + 1)
+          void say(`ws.give.${k}`)
+        },
         hint: () => {
           // 第二段提醒：該做的那一步慢慢發光（下一顆蛋、多的蛋、或勾勾），不說話
           if (ph === 'quiz') hintUsed.current = true
@@ -310,7 +375,11 @@ export function GiveGame({ gameId, onDone, onExit }: GameProps) {
     idle.poke()
     const k = nRef.current
     const c = bagRef.current.length
-    if (c === 0) return void say(`ws.give.${k}`)
+    if (c === 0) {
+      // 籃子還是空的就按勾勾：泡泡跳一下，指回「要放這麼多」
+      setAskPing((p) => p + 1)
+      return void say(`ws.give.${k}`)
+    }
     taps.current.push({ pick: `done:${c}`, ms: Math.round(performance.now() - t0.current) })
     if (c === k) return finish()
     sfx.gentle()
@@ -319,6 +388,7 @@ export function GiveGame({ gameId, onDone, onExit }: GameProps) {
     if (c < k) {
       if (!guided) wrongs.current.few++
       setGlow('next')
+      setAskPing((p) => p + 1)
       await say(`ws.want.${k}`, 'ws.give.more')
     } else {
       if (!guided) wrongs.current.many++
@@ -382,6 +452,7 @@ export function GiveGame({ gameId, onDone, onExit }: GameProps) {
   return (
     <Shell station="math" mood={mood} progress={{ total: ROUNDS, done: r }} onExit={onExit} onHost={() => {
         idle.poke()
+        setAskPing((p) => p + 1)
         void say(`ws.give.${nRef.current}`)
       }}>
       <div className="sheet-area">
@@ -448,10 +519,13 @@ export function GiveGame({ gameId, onDone, onExit }: GameProps) {
             <BasketFront />
             {party > 0 && <Sparkles key={party} count={14} />}
           </div>
-          <DoneButton x={pct(DONE.x, 1000)} y={pct(DONE.y, 600)} glow={glow === 'done'} onPress={check} />
+          {/* 一起練：泡泡填滿了，換勾勾發光 */}
+          <DoneButton x={pct(DONE.x, 1000)} y={pct(DONE.y, 600)} glow={glow === 'done' || (phase === 'guided' && k > 0 && bag.length === k && !finger)} onPress={check} />
           <AnimatePresence>{finger && <Hand key="finger" x={(finger.x / 1000) * 100 + 0.8} y={(finger.y / 600) * 100 + 2} tap={finger.tap} size="9cqmin" cuff="#F0B088" />}</AnimatePresence>
         </div>
       </div>
+      {/* 對話泡泡在波波頭上（學習單外面、舞台左邊那一欄），不蓋到草窩和籃子 */}
+      {k > 0 && <WantBubble k={k} have={bag.length} ping={askPing} />}
     </Shell>
   )
 }

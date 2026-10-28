@@ -47,8 +47,19 @@ export function CountGame({ gameId, onDone, onExit }: GameProps) {
   const [wrong, setWrong] = useState<number[]>([])
   const [hint, setHint] = useState(false)
   const [mood, setMood] = useState<Mood>('idle')
-  /** 示範中：手指在第幾個物件上（null 表示沒有在示範） */
-  const [finger, setFinger] = useState<number | null>(null)
+  /** 示範中：手指在第幾個物件上，或在某個點（數字卡上，舞台的百分比座標）；null 表示沒有在示範 */
+  const [finger, setFinger] = useState<number | { x: number; y: number } | null>(null)
+  /** 示範第二步：手點下去的那張數字卡（變成答對的樣子） */
+  const [demoPick, setDemoPick] = useState<number | null>(null)
+  /**
+   * 輪到孩子時的「點這裡」（盤點：示範完畫面只剩物件，沒有任何提示）：
+   * hand＝剛示範過，手在下一個要數的物件上輕輕點；glow＝下一個要數的物件發光。孩子點了第一下就收起來。
+   */
+  const [lead, setLead] = useState<'hand' | 'glow' | null>(null)
+  /** 選數字那一步輪到孩子：數字卡輕輕呼吸、最後一個號碼牌跳一下，孩子點了第一張就停 */
+  const [askCue, setAskCue] = useState(false)
+  const tileEls = useRef(new Map<number, HTMLElement>())
+  const layerEl = useRef<HTMLElement | null>(null)
   const [press, setPress] = useState(0)
   const [ping, setPing] = useState<{ i: number; k: number } | null>(null)
   const live = useRef(true)
@@ -63,6 +74,8 @@ export function CountGame({ gameId, onDone, onExit }: GameProps) {
   /** 這一輪先示範過：答對後多停一下再換題 */
   const shown = useRef(false)
   const stage = useRef<'count' | 'ask' | 'done'>('count')
+  /** 這一輪孩子點過物件了沒（點過就不用再出「點這裡」） */
+  const tappedRef = useRef(false)
   const idle = useIdle()
   /** 閒置第二段提示：下一個要數的物件慢慢發光 */
   const [nudge, setNudge] = useState(false)
@@ -91,6 +104,17 @@ export function CountGame({ gameId, onDone, onExit }: GameProps) {
     await say(`teach.total.${rd.n}`)
   }
 
+  /** 數字卡在舞台上的位置（百分比）：用比例量，外層正在做縮放轉場（新畫面從 0.6 倍放大）也對得上 */
+  const tilePoint = (n: number) => {
+    const el = tileEls.current.get(n)
+    const box = layerEl.current
+    if (!el || !box) return null
+    const r = el.getBoundingClientRect()
+    const b = box.getBoundingClientRect()
+    if (!b.width || !b.height) return null
+    return { x: ((r.left + r.width * 0.56 - b.left) / b.width) * 100, y: ((r.top + r.height * 0.6 - b.top) / b.height) * 100 }
+  }
+
   const demo = async (rd: Round) => {
     const s = performance.now()
     setMood('happy')
@@ -98,9 +122,29 @@ export function CountGame({ gameId, onDone, onExit }: GameProps) {
     if (!live.current) return
     await countAlong(rd, true)
     if (!live.current) return
+    // 第二步也要示範（盤點：示範只數，沒做過「選數字」）：數字卡出來，手移到答案那張點下去
+    if (lv.current >= 2) {
+      setAsk(true)
+      await wait(650)
+      if (!live.current) return
+      void say('m.howmany')
+      await wait(450)
+      const pt = tilePoint(rd.n)
+      if (pt) setFinger(pt)
+      await wait(650)
+      if (!live.current) return
+      setPress((p) => p + 1)
+      setDemoPick(rd.n)
+      sfx.correct()
+      await wait(250)
+      await say(`m.num.${rd.n}`)
+      if (!live.current) return
+    }
     setFinger(null)
-    // 數好、標上數字的那一組停留一下，孩子看完整的結果
+    // 數好、標上數字（和選好數字）的那一組停留一下，孩子看完整的結果
     await wait(PACE.DEMO_HOLD)
+    setAsk(false)
+    setDemoPick(null)
     setCounted([])
     void logTeach({ station: 'math', game: def.id, itemId: String(rd.n), skill: `count:${rd.n}`, level: lv.current, ms: Math.round(performance.now() - s) })
     setMood('idle')
@@ -117,6 +161,9 @@ export function CountGame({ gameId, onDone, onExit }: GameProps) {
     setAsk(false)
     setWrong([])
     setHint(false)
+    setDemoPick(null)
+    setAskCue(false)
+    setLead(null)
     setMood('idle')
     taps.current = []
     extra.current = 0
@@ -126,6 +173,7 @@ export function CountGame({ gameId, onDone, onExit }: GameProps) {
     shown.current = show
     busy.current = show
     stage.current = 'count'
+    tappedRef.current = false
     idle.stop()
     setNudge(false)
     t0.current = performance.now()
@@ -138,6 +186,8 @@ export function CountGame({ gameId, onDone, onExit }: GameProps) {
       t0.current = performance.now()
       busy.current = false
     }
+    // 輪到孩子：剛示範過就讓手在第一個要數的上面輕輕點；沒示範就讓它發光（還沒開始點的話）
+    if (stage.current === 'count' && !tappedRef.current) setLead(show ? 'hand' : 'glow')
     // 還在數（孩子可能邊聽邊已經數完了）才開始閒置計時：再唸一次題目 → 下一個要數的慢慢發光
     if (stage.current === 'count') idle.start({ repeat: () => void say('m.count.go'), hint: () => setNudge(true) })
   }
@@ -200,8 +250,10 @@ export function CountGame({ gameId, onDone, onExit }: GameProps) {
       return
     }
     const next = [...counted, i]
+    tappedRef.current = true
     setCounted(next)
     setNudge(false)
+    setLead(null)
     sfx.count(next.length)
     if (next.length < round.n) return void say(`m.num.${next.length}`)
     busy.current = true
@@ -211,6 +263,7 @@ export function CountGame({ gameId, onDone, onExit }: GameProps) {
     if (lv.current >= 2) {
       stage.current = 'ask'
       setAsk(true)
+      setAskCue(true)
       busy.current = false
       t0.current = performance.now()
       await say('m.howmany')
@@ -223,6 +276,7 @@ export function CountGame({ gameId, onDone, onExit }: GameProps) {
     if (!round || busy.current) return
     idle.poke()
     if (wrong.includes(n)) return
+    setAskCue(false)
     taps.current.push({ pick: String(n), ms: Math.round(performance.now() - t0.current) })
     if (n === round.n) {
       busy.current = true
@@ -247,9 +301,9 @@ export function CountGame({ gameId, onDone, onExit }: GameProps) {
     busy.current = false
   }
 
-  // 閒置提示要發光的「下一個」：跟示範一樣，上排到下排、由左到右第一個還沒數的
+  // 閒置提示（或輪到孩子時的「點這裡」）要發光的「下一個」：跟示範一樣，上排到下排、由左到右第一個還沒數的
   const nextObj =
-    nudge && round && !ask
+    (nudge || lead) && round && !ask
       ? round.pos
           .map((p, i) => ({ p, i }))
           .filter((x) => !counted.includes(x.i))
@@ -268,6 +322,8 @@ export function CountGame({ gameId, onDone, onExit }: GameProps) {
           {round.pos.map((p, i) => {
             const order = counted.indexOf(i)
             const pinged = ping?.i === i
+            // 選數字輪到孩子：最後一個號碼牌跳一下（最後數到的數字就是答案）
+            const lastBadge = askCue && order === round.n - 1
             return (
               <motion.button
                 key={i}
@@ -285,7 +341,8 @@ export function CountGame({ gameId, onDone, onExit }: GameProps) {
                 {order >= 0 && (
                   <motion.span
                     initial={{ scale: 0 }}
-                    animate={{ scale: 1 }}
+                    animate={lastBadge ? { scale: [1, 1.35, 1] } : { scale: 1 }}
+                    transition={lastBadge ? { duration: 0.7, repeat: Infinity, repeatDelay: 1.1 } : undefined}
                     style={{ position: 'absolute', right: '-10%', top: '-12%', width: '44%', aspectRatio: '1', borderRadius: '50%', background: 'var(--ink)', color: 'var(--card)', display: 'grid', placeItems: 'center', fontFamily: 'Fredoka', fontWeight: 600, fontSize: 'min(5cqmin, 40px)' }}
                   >
                     {order + 1}
@@ -295,16 +352,30 @@ export function CountGame({ gameId, onDone, onExit }: GameProps) {
             )
           })}
           <AnimatePresence>
-            {finger !== null && round.pos[finger] && (
+            {typeof finger === 'number' && round.pos[finger] && (
               <Hand key="finger" x={round.pos[finger].x + 1.5} y={(ask ? round.pos[finger].y * 0.55 : round.pos[finger].y) + 4} tap={press} size="11cqmin" cuff="#F0B088" />
+            )}
+            {finger !== null && typeof finger === 'object' && <Hand key="finger" x={finger.x} y={finger.y} tap={press} size="11cqmin" cuff="#F0B088" />}
+            {/* 輪到孩子（剛示範過）：手在下一個要數的上面輕輕點 */}
+            {finger === null && lead === 'hand' && nextObj !== undefined && round.pos[nextObj] && (
+              <Hand key="lead" x={round.pos[nextObj].x + 1.5} y={round.pos[nextObj].y + 4} size="11cqmin" beckon />
             )}
           </AnimatePresence>
           {ask && (
-            <div className="options" style={{ top: '46%', alignItems: 'flex-start' }}>
+            <div
+              className="options"
+              style={{ top: '46%', alignItems: 'flex-start' }}
+              ref={(el) => {
+                if (el?.parentElement) layerEl.current = el.parentElement
+              }}
+            >
               {round.choices.map((n, i) => (
                 <motion.button
                   key={n}
-                  className={`tile${hint && n === round.n ? ' hint' : ''}`}
+                  ref={(el: HTMLButtonElement | null) => {
+                    if (el) tileEls.current.set(n, el)
+                  }}
+                  className={`tile${hint && n === round.n ? ' hint' : ''}${demoPick === n ? ' correct' : ''}${askCue && !hint ? ' cue' : ''}`}
                   style={{ width: 'min(24cqh, 18cqw)' }}
                   aria-label={String(n)}
                   initial={{ y: 40, opacity: 0 }}

@@ -20,6 +20,11 @@ export type Visual =
   // 程式車庫：箭頭卡、規律的一列（最後一格是「？」）
   | { t: 'arrow'; dir: Dir }
   | { t: 'seq'; items: Visual[] }
+  // 比多少、比大小的「題目徽章」：一大堆／一點點、變大／變小（ui/Visual.tsx 的 CueArt）
+  | { t: 'cue'; cue: Cue; icon: string }
+
+/** 比較題問的是哪一邊：more 一大堆、less 一點點、big 變大、small 變小 */
+export type Cue = 'more' | 'less' | 'big' | 'small'
 
 export interface ChoiceItem {
   itemId: string
@@ -34,6 +39,11 @@ export interface ChoiceItem {
   after?: string[]
   /** 新內容第一次出現時的教學卡（PRD §5.8：先教 → 一起練 → 自己答） */
   teach?: TeachSpec
+  /**
+   * 比較題的題目徽章（盤點：問「多」還是「少」、「大」還是「小」只能靠英文分辨）：
+   * 一起練、自己答時一直掛在選項上方；教學卡會先把同一個徽章貼在答案那一邊，教過才考。
+   */
+  cue?: Extract<Visual, { t: 'cue' }>
 }
 
 /**
@@ -49,6 +59,8 @@ export interface TeachSpec {
   lines: string[]
   /** 答錯兩次重教時的精簡版，預設只念第一句 */
   short?: string[]
+  /** 題目徽章：念第一句時貼到第一句指的那一個（focus[0]）上，之後一直留著（比多少、比大小） */
+  cue?: Visual
 }
 
 export type GameKind =
@@ -355,8 +367,10 @@ const mCompare = (level: number): ChoiceItem => {
   const icon = countIcon()
   const pair = shuffle([a, b])
   const target = askLess ? Math.min(a, b) : Math.max(a, b)
+  const cue = { t: 'cue', cue: askLess ? 'less' : 'more', icon } as const
   return {
     itemId: `${pair[0]}v${pair[1]}${askLess ? '<' : '>'}`,
+    cue,
     skill: askLess ? 'compare:less' : 'compare:more',
     prompt: [askLess ? 'm.less' : 'm.more'],
     options: pair.map((c) => ({ id: String(c), v: { t: 'group', icon, count: c } })),
@@ -367,6 +381,7 @@ const mCompare = (level: number): ChoiceItem => {
       visual: [{ t: 'group', icon, count: 6 }, { t: 'group', icon, count: 2 }],
       focus: askLess ? [1, 0] : [0, 1],
       lines: askLess ? ['teach.fewer', 'teach.more'] : ['teach.more', 'teach.fewer'],
+      cue,
     },
   }
 }
@@ -491,14 +506,16 @@ const pSize = (level: number): ChoiceItem => {
   const scales = level >= 3 ? shuffle([1, 0.68, 0.42]) : shuffle(level === 1 ? [1, 0.45] : [1, 0.6])
   const target = askSmall ? Math.min(...scales) : Math.max(...scales)
   const pair: Visual[] = [{ t: 'emoji', icon, scale: 1 }, { t: 'emoji', icon, scale: 0.45 }]
+  const cue = { t: 'cue', cue: askSmall ? 'small' : 'big', icon } as const
   return {
     itemId: `${icon}:${askSmall ? 'small' : 'big'}`,
+    cue,
     skill: askSmall ? 'size:small' : 'size:big',
     prompt: [askSmall ? 'p.smaller' : 'p.bigger'],
     options: scales.map((s) => ({ id: String(s), v: { t: 'emoji', icon, scale: s } })),
     answer: String(target),
     correction: [askSmall ? 'p.this.smaller' : 'p.this.bigger'],
-    teach: { visual: pair, focus: askSmall ? [1, 0] : [0, 1], lines: askSmall ? ['teach.smaller', 'teach.bigger'] : ['teach.bigger', 'teach.smaller'] },
+    teach: { visual: pair, focus: askSmall ? [1, 0] : [0, 1], lines: askSmall ? ['teach.smaller', 'teach.bigger'] : ['teach.bigger', 'teach.smaller'], cue },
   }
 }
 

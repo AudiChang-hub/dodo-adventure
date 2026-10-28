@@ -98,6 +98,7 @@ export function TeachCard({ spec, short, onDone, camera }: Props) {
   }
 
   const focus = spec.focus?.[Math.max(0, step)] ?? 0
+  const cueAt = spec.focus?.[0] ?? 0
   const showSide = !!spec.side && step >= sideAt
   const fit = fitOf(items)
 
@@ -134,6 +135,15 @@ export function TeachCard({ spec, short, onDone, camera }: Props) {
                   <VisualView v={v} fit={fit} />
                 </motion.div>
                 {duo && on && step >= 0 && !ready && <Hand x={50} y={88} size="22cqmin" />}
+                {/* 題目徽章（比多少、比大小）：念第一句時貼到第一句講的那一邊，之後一直留著——作答時題目上方的就是這一張 */}
+                {spec.cue && i === cueAt && step >= 0 && (
+                  <motion.div className="teach-cue" initial={{ scale: 0.3, rotate: -30, opacity: 0 }} animate={{ scale: 1, rotate: -6, opacity: 1 }} transition={{ type: 'spring', stiffness: 300, damping: 16, opacity: FADE }}>
+                    <i className="tape" aria-hidden="true" />
+                    <div className="teach-vis">
+                      <VisualView v={spec.cue} />
+                    </div>
+                  </motion.div>
+                )}
               </motion.div>
             )
           })}

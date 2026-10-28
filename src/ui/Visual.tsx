@@ -1,7 +1,7 @@
 import { motion } from 'motion/react'
 import { Emoji } from '../art/Emoji'
 import { ArrowArt } from '../art/Arrow'
-import type { Visual } from '../content/games'
+import type { Cue, Visual } from '../content/games'
 import type { ShapeId } from '../content/park'
 
 export function ShapeSvg({ shape, hex, size = '100%' }: { shape: ShapeId; hex: string; size?: number | string }) {
@@ -69,6 +69,79 @@ function SeqRow({ items, fill }: { items: Visual[]; fill?: Visual }) {
   )
 }
 
+/** 一大堆：三、二、一疊成一座小山（百分比座標，圖示的中心） */
+const PILE = [
+  { x: 22, y: 74 },
+  { x: 50, y: 76 },
+  { x: 78, y: 74 },
+  { x: 36, y: 52 },
+  { x: 64, y: 52 },
+  { x: 50, y: 29 },
+]
+const ARROW_INK = '#C9A23E'
+
+/** 四個角的箭頭：out＝往外（變大），in＝往中間（變小） */
+function CornerArrows({ out }: { out: boolean }) {
+  // 每條箭頭從 a 指向 b（viewBox 100×100）
+  const segs = [
+    [16, 16, 4, 4],
+    [84, 16, 96, 4],
+    [16, 84, 4, 96],
+    [84, 84, 96, 96],
+  ].map(([x0, y0, x1, y1]) => (out ? [x0, y0, x1, y1] : [x1, y1, x0, y0]))
+  return (
+    <svg viewBox="0 0 100 100" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', overflow: 'visible' }} aria-hidden="true">
+      {segs.map(([ax, ay, bx, by], i) => {
+        const ang = Math.atan2(by - ay, bx - ax)
+        const h = 7
+        const l = [bx - h * Math.cos(ang - 0.6), by - h * Math.sin(ang - 0.6)]
+        const r = [bx - h * Math.cos(ang + 0.6), by - h * Math.sin(ang + 0.6)]
+        return <path key={i} d={`M${ax} ${ay} L${bx} ${by} M${l[0]} ${l[1]} L${bx} ${by} L${r[0]} ${r[1]}`} fill="none" stroke={ARROW_INK} strokeWidth={4.5} strokeLinecap="round" strokeLinejoin="round" />
+      })}
+    </svg>
+  )
+}
+
+/**
+ * 比較題的題目徽章（不靠語言分辨這題問什麼）：
+ * - more：同一種東西疊成一大堆，一個一個掉下來疊上去
+ * - less：只有孤單的一個（和一大堆裡每一個一樣大，才不會跟「變小」搞混），旁邊空空的
+ * - big：東西從小長到很大，四個角的箭頭往外推
+ * - small：東西從大縮到很小，四個角的箭頭往裡收
+ * play 每變一次就重演一次（波波念題目的時候）。
+ */
+export function CueArt({ cue, icon, play = 0 }: { cue: Cue; icon: string; play?: number }) {
+  const box = { position: 'relative', width: '100cqmin', height: '100cqmin' } as const
+  const at = (x: number, y: number, size: number) => ({ position: 'absolute', left: `${x}%`, top: `${y}%`, width: `${size}%`, height: `${size}%`, translate: '-50% -50%' }) as const
+  if (cue === 'more')
+    return (
+      <div key={play} style={box}>
+        {PILE.map((p, i) => (
+          <motion.div key={i} style={at(p.x, p.y, 36)} initial={{ scale: 0, y: '-60%' }} animate={{ scale: 1, y: '0%' }} transition={{ type: 'spring', stiffness: 380, damping: 18, delay: 0.12 + i * 0.12 }}>
+            <Emoji name={icon} />
+          </motion.div>
+        ))}
+      </div>
+    )
+  if (cue === 'less')
+    return (
+      <div key={play} style={box}>
+        <motion.div style={at(50, 66, 36)} initial={{ scale: 0 }} animate={{ scale: 1, y: ['0%', '-18%', '0%'] }} transition={{ scale: { type: 'spring', stiffness: 380, damping: 18, delay: 0.12 }, y: { duration: 0.5, delay: 0.5 } }}>
+          <Emoji name={icon} />
+        </motion.div>
+      </div>
+    )
+  const big = cue === 'big'
+  return (
+    <div key={play} style={box}>
+      <CornerArrows out={big} />
+      <motion.div style={at(50, 52, big ? 78 : 24)} initial={{ scale: big ? 0.4 : 2.4 }} animate={{ scale: 1 }} transition={{ duration: 0.9, delay: 0.15, ease: [0.22, 1, 0.36, 1] }}>
+        <Emoji name={icon} />
+      </motion.div>
+    </div>
+  )
+}
+
 export function VisualView({ v, fit, fill }: { v: Visual; fit?: number; fill?: Visual }) {
   switch (v.t) {
     case 'emoji':
@@ -104,5 +177,7 @@ export function VisualView({ v, fit, fill }: { v: Visual; fit?: number; fill?: V
       )
     case 'seq':
       return <SeqRow items={v.items} fill={fill} />
+    case 'cue':
+      return <CueArt cue={v.cue} icon={v.icon} />
   }
 }

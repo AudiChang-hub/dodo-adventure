@@ -3,13 +3,13 @@ import { motion } from 'motion/react'
 import { Shell, type GameProps } from './Shell'
 import { TeachCard } from './Teach'
 import { Hand } from './Demo'
-import { VisualView } from '../ui/Visual'
+import { CueArt, VisualView } from '../ui/Visual'
 import { Sparkles } from '../ui/Sparkles'
 import { game as gameDef, station as stationDef, ROUND_ITEMS, type ChoiceItem, type TeachSpec } from '../content/games'
 import { level, reportLevel, markPlayed, plays, mastered, skill, hintDelayMs, noteHintWait } from '../lib/adaptive'
 import { planChoice, roundState } from './pick'
 import { logAttempt, logTeach } from '../lib/record'
-import type { Phase } from '../lib/db'
+import { getKV, setKV, type Phase } from '../lib/db'
 import { WAIT_WINDOW_MS } from '../lib/engine'
 import { canTease, teaseKey } from '../content/lines-engine'
 import { FluencyGame, isFluency } from './FluencyGame'
@@ -30,6 +30,12 @@ type Mark = 'wrong' | 'correct' | 'hint' | 'soft' | 'tease'
 
 /** Sam 教豆豆：一局最多 1 次，而且只有約三成的局會出現（頻率要低） */
 const PROTEGE_CHANCE = 0.3
+
+/**
+ * 比較題的題目徽章教過了沒（kv，家長重置學習進度時會一起清掉）。
+ * 徽章是 2026-10-28 才加的：已經學過「比多少」的孩子第一次看到徽章時，也先上一次教學卡，教過才考。
+ */
+const CUE_KEY = 'cues:seen'
 
 /** 這一題的特殊身分 */
 interface QuizOpts {
@@ -89,6 +95,8 @@ function ChoiceRound({ gameId, onDone, onExit }: GameProps) {
   const [marks, setMarks] = useState<Record<string, Mark>>({})
   const [mood, setMood] = useState<Mood>('idle')
   const [burst, setBurst] = useState(0)
+  /** 題目徽章重演一次（波波念題目、孩子點徽章的時候） */
+  const [cuePing, setCuePing] = useState(0)
 
   const live = useRef(true)
   const locked = useRef(true)
@@ -146,6 +154,10 @@ function ChoiceRound({ gameId, onDone, onExit }: GameProps) {
     setCard({ spec: it.teach!, short, n: stepRef.current })
     const ms = await waitStep()
     if (!live.current) return
+    if (it.cue && it.teach?.cue) {
+      const seen = await getKV<string[]>(CUE_KEY, [])
+      if (!seen.includes(it.cue.cue)) void setKV(CUE_KEY, [...seen, it.cue.cue])
+    }
     // 卡片先不收：一起練把題目換好的同一刻才收（收回恐龍時直接看到新題目，不會先閃回上一題或一片空白）
     void logTeach({ station: def.station, game: def.id, itemId: it.itemId, skill: it.skill, level: itemLevel.current, ms, retaught: short })
   }
@@ -175,9 +187,17 @@ function ChoiceRound({ gameId, onDone, onExit }: GameProps) {
     locked.current = false
     const done = waitStep()
     void (async () => {
+      setCuePing((c) => c + 1)
       await say(...it.prompt, `teach.here.${host}`)
       // 一起練的答案本來就在發光，所以第二段提醒什麼都不用做
-      if (live.current && stepRef.current === my) idle.start({ repeat: () => void say(...it.prompt, `teach.here.${host}`), hint: () => {} })
+      if (live.current && stepRef.current === my)
+        idle.start({
+          repeat: () => {
+            setCuePing((c) => c + 1)
+            void say(...it.prompt, `teach.here.${host}`)
+          },
+          hint: () => {},
+        })
     })()
     await done
   }
@@ -207,6 +227,7 @@ function ChoiceRound({ gameId, onDone, onExit }: GameProps) {
     shownAt.current = performance.now()
     const challenge = isLast && itemLevel.current > level(def.id)
     const ask = o.decoy ? [teaseKey(it.skill)] : it.prompt
+    if (!o.decoy) setCuePing((c) => c + 1)
     if (o.decoy) await say(`tease.try.${host}`, ...ask)
     else if (o.afterGuide) await say(`teach.turn.${host}`, ...ask)
     else if (challenge) await say(challengeKey(host), ...ask)
@@ -221,7 +242,10 @@ function ChoiceRound({ gameId, onDone, onExit }: GameProps) {
         setMarks((m) => (m[it.answer] ? m : { ...m, [it.answer]: 'soft' }))
       }, d.ms)
     idle.start({
-      repeat: () => void say(...ask),
+      repeat: () => {
+        setCuePing((c) => c + 1)
+        void say(...ask)
+      },
       // 答案慢慢發光，不說話；看了提示就不算第一次答對
       hint: () => {
         hintUsed.current = true
@@ -236,11 +260,15 @@ function ChoiceRound({ gameId, onDone, onExit }: GameProps) {
     setIdx(i)
     const isLast = i === ROUND_ITEMS - 1
     // 這題出什麼、要不要先教、是不是探測題（pick.ts，自動檢查 scripts/sim-teach.ts 用同一份）
-    const { it, lv, probe, fresh, walk: walkThrough } = planChoice(def, round.current, i)
+    const { it, lv, probe: probed, fresh, walk: walkThrough } = planChoice(def, round.current, i)
     itemLevel.current = lv
+    // 題目徽章第一次出現（這個技能以前學過、但還沒看過徽章）：照新內容的流程先教徽章，不當探測題
+    const cueNew = !!it.cue && !!it.teach && !fresh && !(await getKV<string[]>(CUE_KEY, [])).includes(it.cue.cue)
+    if (!live.current) return
+    const probe = probed && !cueNew
     // Sam 教豆豆：已熟、有「這是 X 嗎？」台詞的題目，一局最多 1 次，不放在第一題和挑戰題
     const tease =
-      !probe && !fresh && i > 0 && !isLast && protegeRound.current && !protegeUsed.current && mastered(it.skill) && canTease(it.skill) && it.options.length >= 2
+      !probe && !fresh && !cueNew && i > 0 && !isLast && protegeRound.current && !protegeUsed.current && mastered(it.skill) && canTease(it.skill) && it.options.length >= 2
     let decoy: string | undefined
     if (tease) {
       protegeUsed.current = true
@@ -256,12 +284,12 @@ function ChoiceRound({ gameId, onDone, onExit }: GameProps) {
       ...(decoy ? [`tease.try.${host}`, teaseKey(it.skill), `tease.thanks.${host}`, `tease.oops.${host}`] : []),
     ])
 
-    if (fresh) {
+    if (fresh || cueNew) {
       await teach(it, false)
       if (!live.current) return
     }
-    taughtItem.current = fresh || walkThrough
-    if (fresh || walkThrough) {
+    taughtItem.current = fresh || walkThrough || cueNew
+    if (fresh || walkThrough || cueNew) {
       await guided(it)
       if (!live.current) return
       return quiz(reshuffle(it), { afterGuide: true })
@@ -458,6 +486,7 @@ function ChoiceRound({ gameId, onDone, onExit }: GameProps) {
   const onHost = () => {
     if (card || !item) return
     idle.poke()
+    if (!decoyRef.current) setCuePing((c) => c + 1)
     if (phase === 'guided') void say(...item.prompt, `teach.here.${host}`)
     else if (decoyRef.current) void say(teaseKey(item.skill))
     else void say(...item.prompt)
@@ -489,7 +518,22 @@ function ChoiceRound({ gameId, onDone, onExit }: GameProps) {
                   <VisualView v={item.stimulus} fill={item.options.find((o) => marks[o.id] === 'correct')?.v} />
                 </motion.div>
               )}
-              <div className={`options${item.stimulus ? ' with-stim' : ''}`}>
+              {/* 比較題的題目徽章：一大堆／一點點、變大／變小，作答時一直掛在選項上方（教學卡貼過同一張） */}
+              {item.cue && (
+                <motion.button
+                  className="q-cue"
+                  aria-label="再聽一次題目"
+                  initial={quiet ? false : { y: -18 }}
+                  animate={{ y: 0 }}
+                  transition={{ type: 'spring', stiffness: 300, damping: 22 }}
+                  onPointerDown={onHost}
+                >
+                  <div className="q-cue-in">
+                    <CueArt cue={item.cue.cue} icon={item.cue.icon} play={cuePing} />
+                  </div>
+                </motion.button>
+              )}
+              <div className={`options${item.stimulus ? ' with-stim' : ''}${item.cue ? ' with-cue' : ''}`}>
                 {item.options.map((o, i) => {
                   const m = marks[o.id]
                   const isAns = o.id === item.answer
