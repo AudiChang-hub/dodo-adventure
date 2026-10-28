@@ -18,7 +18,7 @@ import { gameLevel, level, markPlayed, noteAttempt, plays, recordSkill, reportLe
 import { fluencyKey, fluencyTargets } from '../src/lib/fluency'
 import { NUMBER_RANGE, numberPicker } from '../src/games/sheet/NumberFlow'
 import { planChoice, planCount, planDots, planDrive, planOrder, planPhonics, planSequence, planSheet, roundState } from '../src/games/pick'
-import { seqSkill } from '../src/content/code'
+import { patternRounds, seqSkill } from '../src/content/code'
 
 // 學習引擎會順手寫 IndexedDB，Node 裡沒有：忽略那些錯誤（記憶體裡的狀態照常更新）
 process.on('unhandledRejection', () => {})
@@ -90,6 +90,18 @@ function playChoice(g: GameDef) {
     const p = planChoice(g, st, i)
     if (p.fresh) teach(g, p.it.skill)
     quiz(g, p.it.skill, p.fresh, p.probe ? '探測題直接考' : '選擇題', { probe: p.probe })
+  }
+}
+
+/** 找規律（PatternGame）：出題規則和選擇題一樣（planChoice），只是第一次玩一局 4 題 */
+function playPattern(g: GameDef) {
+  const st = roundState(plays(g.id) === 0)
+  const rounds = patternRounds(st.firstPlay)
+  markPlayed(g.id)
+  for (let i = 0; i < rounds; i++) {
+    const p = planChoice(g, st, i)
+    if (p.fresh) teach(g, p.it.skill)
+    quiz(g, p.it.skill, p.fresh, p.probe ? '探測題直接考' : '找規律', { probe: p.probe })
   }
 }
 
@@ -222,6 +234,8 @@ function play(id: string) {
       return playDots(g)
     case 'sequence':
       return playSequence(g)
+    case 'pattern':
+      return playPattern(g)
   }
 }
 

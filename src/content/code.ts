@@ -204,12 +204,17 @@ export function pickDriveSkill(level: number, recent: string[]): string {
 }
 
 // ── 找規律 ─────────────────────────────────────────────────
-// 規律的單位：AB → 車、恐龍、車、恐龍…；ABC 是三個一組。前面幾級用差很多的圖，最高級用同一類的圖
-export type PatternKind = 'AB' | 'AABB' | 'AAB' | 'ABB' | 'ABC'
-export const PATTERN_ZH: Record<PatternKind, string> = { AB: 'ABAB', AABB: 'AABB', AAB: 'AAB', ABB: 'ABB', ABC: 'ABC' }
+// 2026-10-28 重做（docs/玩法看得懂盤點.md 第 0 節）：豆豆的小火車拉著一節節車廂，最後一節是空位，接上對的車廂火車才開走。
+// 畫面在 games/code/PatternGame.tsx。由簡到難：
+//   1 級：形狀和顏色都不同的積木（紅圓、藍方），AB，2 選 1
+//   2 級：換成實物（水果、動物，只用第 1 層的字），AB，3 選 1（多一個和答案同一類的干擾，不能只看「是不是水果」）
+//   3 級：加入 AABB；4 級：加入 ABC。每一種規律第一次出現都重新示範（技能是 pattern:AB、pattern:AABB…）
+// 箭頭規律拿掉了（和開車的箭頭卡長得一樣、意思不同）；AAB、ABB 停在一組的中間，3 歲太難，也拿掉
+export type PatternKind = 'AB' | 'AABB' | 'ABC'
+export const PATTERN_ZH: Record<PatternKind, string> = { AB: 'ABAB', AABB: 'AABB', ABC: 'ABC' }
 
-/** thing：主題式冒險補的生活用品（雨傘、氣球），只在主題裡優先出，一般的規律題不會特別挑它們 */
-type Theme = 'vehicle' | 'animal' | 'food' | 'arrow' | 'shape' | 'thing'
+/** thing：主題式冒險補的生活用品（雨傘、氣球），只在主題裡優先出，一般的規律題不會特別挑它們；block：1 級的積木 */
+type Theme = 'vehicle' | 'animal' | 'food' | 'arrow' | 'shape' | 'thing' | 'block'
 export interface PatternTok {
   id: string
   en: string
@@ -247,35 +252,60 @@ export const PATTERN_TOKS: PatternTok[] = [
   ...DIRS.map((d): PatternTok => ({ id: d, en: d, theme: 'arrow', v: { t: 'arrow', dir: d } })),
   // 形狀（同一個顏色）：不用顏色排規律，因為 PRD §3 規定不能只靠顏色區分（墨水模式也要能玩）
   ...(['circle', 'triangle', 'square', 'star', 'heart'] as const).map((sh): PatternTok => ({ id: sh, en: sh, theme: 'shape', v: { t: 'shape', shape: sh, hex: '#F0B088' } })),
+  // 第 1 層的動物（docs/vocab-audit.json）：實物的規律只用孩子天天看到的東西
+  emojiTok('dog', 'dog', 'animal', 'dog-face'),
+  emojiTok('cat', 'cat', 'animal', 'cat-face'),
+  // 1 級的積木：形狀和顏色同時不同（PRD §3 不能只靠顏色；墨水模式看形狀也分得出來）。名字念形狀（Circle! Square!）
+  { id: 'redcircle', en: 'circle', theme: 'block', v: { t: 'shape', shape: 'circle', hex: '#DE6B5A' } },
+  { id: 'bluesquare', en: 'square', theme: 'block', v: { t: 'shape', shape: 'square', hex: '#5E93D1' } },
+  { id: 'yellowtriangle', en: 'triangle', theme: 'block', v: { t: 'shape', shape: 'triangle', hex: '#F2C84B' } },
 ]
 
-/** 每一級會出哪些規律 */
-function patternKinds(level: number): PatternKind[] {
-  if (level <= 1) return ['AB']
-  if (level === 2) return ['AB', 'AABB']
-  return ['AB', 'AABB', 'AAB', 'ABB', 'ABC']
+export const patternTok = (id: string) => PATTERN_TOKS.find((t) => t.id === id)
+
+/** 實物規律用的字：只用第 1 層（docs/vocab-audit.json 的 tier 1），水果、動物、兩種車 */
+const PATTERN_TIER1 = ['apple', 'banana', 'strawberry', 'grapes', 'duck', 'fish', 'dog', 'cat', 'car', 'bus']
+const OBJECT_TOKS = PATTERN_TOKS.filter((t) => PATTERN_TIER1.includes(t.id))
+const BLOCK_TOKS = PATTERN_TOKS.filter((t) => t.theme === 'block')
+
+/** 每一級會出哪些規律（tracks.ts 的 levelConcepts 也用這一份） */
+export function patternKinds(level: number): PatternKind[] {
+  if (level <= 2) return ['AB']
+  if (level === 3) return ['AB', 'AABB']
+  return ['AB', 'AABB', 'ABC']
 }
 
-/** 題目先排出幾個：一般停在一組剛好結束的地方；4 級停在一組的中間，要看得更仔細 */
-const SHOWN: Record<PatternKind, [number, number]> = { AB: [4, 5], AABB: [6, 5], AAB: [5, 4], ABB: [5, 4], ABC: [5, 4] }
+/**
+ * 一局幾題：第一次玩 4 題（盤點 8-4：第一次玩縮短），之後和其他選擇題一樣 6 題（pick.ts 的挑戰題在第 6 題）。
+ * PatternGame 和 scripts/sim-teach.ts 用同一份。
+ */
+export const patternRounds = (firstPlay: boolean) => (firstPlay ? 4 : 6)
+
+/** 選項有幾個：1 級 2 選 1，2 級起 3 選 1 */
+export const patternOptions = (level: number) => (level <= 1 ? 2 : 3)
 
 /**
- * 挑這一題的圖：低難度兩張圖來自不同類（車 vs 恐龍），4 級同一類（車 vs 公車）。
- * 主題式冒險：主題的圖先放（公車旅行：Bus! Star! Bus! Star!），一樣守「低難度不同類、4 級同一類」的規則。
+ * 題目先排出幾個（後面再接一個空位）：低難度停在一組剛好結束的地方（ABAB→A、AABBAA→B、ABCAB→C），
+ * 3 級起 AB 偶爾多排一個（ABABA→B），答案不會永遠是第一個。最長 6 節，加空位 7 節，車廂才夠大（至少 120px）。
+ */
+function shownCount(kind: PatternKind, level: number): number {
+  if (kind === 'AB') return level >= 3 && Math.random() < 0.4 ? 5 : 4
+  if (kind === 'AABB') return 6
+  return 5
+}
+
+/**
+ * 挑這一題的圖：1 級是積木；2 級起是實物，每一個來自不同類（水果 vs 動物），一眼就分得出來。
+ * 主題式冒險：主題的圖（只要是第 1 層的字）先放，一樣守「每一個不同類」。
  */
 function pickMembers(kind: PatternKind, level: number): PatternTok[] {
   const k = new Set(kind).size
-  const themes: Theme[] = level <= 1 ? ['vehicle', 'animal', 'food'] : level === 2 ? ['vehicle', 'animal', 'food', 'shape'] : ['vehicle', 'animal', 'food', 'shape', 'arrow']
-  const fav = shuffle(PATTERN_TOKS.filter((t) => themeNow()?.pattern.includes(t.id)))
-  if (level >= 4) {
-    const mine = fav.filter((t) => themes.includes(t.theme))
-    const th = mine.length ? mine[0].theme : pick(themes)
-    const same = PATTERN_TOKS.filter((t) => t.theme === th)
-    return [...mine.filter((t) => t.theme === th), ...shuffle(same.filter((t) => !mine.includes(t)))].slice(0, k)
-  }
+  if (level <= 1) return sample(BLOCK_TOKS, k)
+  const fav = shuffle(OBJECT_TOKS.filter((t) => themeNow()?.pattern.includes(t.id)))
   const out: PatternTok[] = []
   for (const t of fav) if (out.length < k && !out.some((o) => o.theme === t.theme)) out.push(t)
-  for (const th of shuffle(themes.filter((x) => !out.some((o) => o.theme === x)))) if (out.length < k) out.push(pick(PATTERN_TOKS.filter((t) => t.theme === th)))
+  const themes = [...new Set(OBJECT_TOKS.map((t) => t.theme))]
+  for (const th of shuffle(themes.filter((x) => !out.some((o) => o.theme === x)))) if (out.length < k) out.push(pick(OBJECT_TOKS.filter((t) => t.theme === th)))
   return out
 }
 
@@ -285,21 +315,27 @@ export function patternRow(kind: PatternKind, members: PatternTok[], n: number):
   return Array.from({ length: n }, (_, i) => members[idx(kind[i % kind.length])])
 }
 
-/** 找規律：排出一列，問「下一個是什麼？」；選項是規律裡的圖，3 選 1 時再加一個沒出現過的 */
+/**
+ * 找規律：排出一列車廂，最後一節是空位，問「下一節是什麼？」。
+ * 選項：規律裡的每一個，2 級起再加一個「和答案同一類」的干擾（答案是蘋果，干擾就是另一種水果），
+ * 孩子要看出「是哪一個」，不能只靠「水果那一個」或排除法猜。ABC 本身就有三個，不另外加。
+ * itemId 是「規律:圖-圖-圖…」，PatternGame 從這裡還原每一節是 A、B 還是 C（決定音高）。
+ */
 export function cPattern(level: number, recent: string[]): ChoiceItem {
   const kinds = patternKinds(level)
   const kind = pickTarget(kinds, (k) => `pattern:${k}`, kinds.length > 1 ? kinds.filter((k) => recent.some((r) => r.startsWith(`${k}:`))) : [])
   const members = pickMembers(kind, level)
-  const n = SHOWN[kind][level >= 4 ? 1 : 0]
+  const n = shownCount(kind, level)
   const row = patternRow(kind, members, n)
   const ans = patternRow(kind, members, n + 1)[n]
-  // 1 級 2 選 1（就是規律裡的兩張），之後 3 選 1
-  const nOpts = level <= 1 ? 2 : 3
+  const nOpts = patternOptions(level)
   const others = members.filter((m) => m.id !== ans.id)
-  const foreign = PATTERN_TOKS.filter((t) => !members.includes(t) && (level >= 3 ? t.theme === ans.theme || t.theme === others[0]?.theme : t.theme !== 'arrow'))
-  const opts = [ans, ...others, ...sample(foreign.length ? foreign : PATTERN_TOKS.filter((t) => !members.includes(t)), nOpts)].slice(0, nOpts)
-  // 一起練的教學卡：用最基本的長度（剛好結束一組）指著念，最後一個就是答案
-  const basic = SHOWN[kind][0]
+  const pool = level <= 1 ? BLOCK_TOKS : OBJECT_TOKS
+  const near = pool.filter((t) => !members.includes(t) && t.theme === ans.theme)
+  const foreign = near.length ? near : pool.filter((t) => !members.includes(t))
+  const opts = [ans, ...others, ...sample(foreign, nOpts)].slice(0, nOpts)
+  // 給 pick.ts 判斷「新內容要先教」用（找規律的示範是 PatternGame 在畫面上做，不用教學卡）
+  const basic = kind === 'AB' ? 4 : kind === 'AABB' ? 6 : 5
   const teachRow = patternRow(kind, members, basic + 1)
   return {
     itemId: `${kind}:${row.map((t) => t.id).join('-')}`,

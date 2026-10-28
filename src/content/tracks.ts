@@ -7,7 +7,7 @@ import { VOCAB, THEME_LABEL, type VocabTheme } from './vocab'
 import { COLORS, SHAPES, SOLIDS } from './park'
 import { PHONICS } from './letters'
 import { CATEGORIES } from './worksheet-data'
-import { DIR_ZH, PATTERN_ZH, story, driveSkills, storiesFor, type Dir, type PatternKind } from './code'
+import { DIR_ZH, PATTERN_ZH, story, driveSkills, storiesFor, patternKinds, type Dir, type PatternKind } from './code'
 
 export type TrackId = 'lang' | 'num' | 'think' | 'hand'
 
@@ -165,7 +165,7 @@ export function levelConcepts(game: string, level: number): string[] | null {
   if (lc) return [lc]
   if (game === 'c-drive') return [...new Set(driveSkills(level).map((k) => conceptOf(game, k)!))]
   if (game === 'c-seq') return [...new Set(storiesFor(level).map((s) => `seq:${s.icons.length}`))]
-  if (game === 'c-pattern') return (level <= 1 ? ['AB'] : level === 2 ? ['AB', 'AABB'] : Object.keys(PATTERN_ZH)).map((k) => `pattern:${k}`)
+  if (game === 'c-pattern') return patternKinds(level).map((k) => `pattern:${k}`)
   return null
 }
 
