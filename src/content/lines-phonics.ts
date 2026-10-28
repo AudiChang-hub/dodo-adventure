@@ -1,7 +1,7 @@
 // 字母森林：自然發音的台詞（PRD §6.1b）。全部用 ph. 開頭，字幕會把字表裡的字的開頭字母上色（見 subtitles.ts）。
 // 「這個音」的寫法都實測過，理由寫在 letters.ts 的【語音】。
 import { def } from './registry'
-import { PHONICS, PHONICS_WORDS, cueText, cueWord, upper, wordId, type SoundUnit } from './letters'
+import { DEFERRED_PHONICS, PHONICS, PHONICS_WORDS, cueText, cueWord, upper, wordId, type SoundUnit } from './letters'
 
 const cap = (s: string) => s[0].toUpperCase() + s.slice(1)
 
@@ -37,6 +37,9 @@ for (const u of PHONICS) {
   def(`en.where.sound.${l}`, 'dodo', isSound ? `Find the letter that says | ${cue}!` : `Find the letter at the start of | ${cue}!`)
   for (const { w } of [...u.keys, ...u.review]) def(`ph.${l}.echo.${wordId(w)}`, 'dodo', echoText(u, w))
 }
+
+// 延後的音（o、j、v、y）：字母森林不教，只留貼紙本點舊貼紙時唸的那一句
+for (const u of DEFERRED_PHONICS) def(`ph.${u.letter}.says`, 'dodo', u.cue.kind === 'sound' ? `${upper(u.letter)} says | ${cueText(u)}!` : `${upper(u.letter)}, like | ${cueText(u)}!`)
 
 // 哪個跟 bus 開頭一樣？
 for (const { w } of PHONICS_WORDS) def(`ph.same.${wordId(w)}`, 'dodo', `Which one starts like | ${w}?`)

@@ -12,9 +12,10 @@ const NUM = [
 ]
 
 // ── 朋友會說話（benchmark 手法 7）：名字加重，叫聲或特徵另外一句 ─────────
-// 收集品就變成詞彙複習；key 是 park.ts 的 FRIENDS 圖示名稱
+// 收集品就變成詞彙複習；key 是 park.ts 的 FRIENDS 圖示名稱。
+// 「這是 ___」全站只用一種說法（2026-10-28 單字盤點第 4 章）：朋友的名字也說 This is a | dinosaur!，不說 I'm a ___!
 for (const [id, f] of Object.entries(FRIEND_INFO)) {
-  def(`friend.name.${id}`, f.voice, `I’m ${f.an ? 'an' : 'a'} | ${f.name}!`)
+  def(`friend.name.${id}`, f.voice, `This is ${f.an ? 'an' : 'a'} | ${f.name}!`)
   def(`friend.sound.${id}`, f.voice, f.sound)
 }
 // 再點一次的第二種反應：愛心飄出來
@@ -25,18 +26,19 @@ const tickle: Record<Speaker, string[]> = {
 }
 for (const [s, list] of Object.entries(tickle) as [Speaker, string[]][]) list.slice(0, TICKLE_COUNT).forEach((t, i) => def(`friend.tickle.${s}.${i}`, s, t))
 /** 點還沒孵出來的蛋：去冒險就能孵出來 */
-def('friend.egg', 'dodo', 'Let’s go on an adventure to hatch it!')
+def('friend.egg', 'dodo', 'Let’s go! The egg will crack!')
 
 /** 收集頁偶爾數一數：波波最愛數東西 */
 export const FRIEND_COUNT_MAX = 30
 for (let n = 1; n <= FRIEND_COUNT_MAX; n++) def(`friend.count.${n}`, 'bobo', n === 1 ? 'You have | one friend!' : `You have | ${NUM[n]} friends!`)
 
 // ── 過程型稱讚（稱讚努力，不稱讚聰明）──────────────────────────
+// 同一個意思只用一種說法（2026-10-28 單字盤點第 4 章）：You kept trying!；key 的數量不變
 export const EFFORT_COUNT = 4
 const effort: Record<Speaker, string[]> = {
-  dodo: ['You kept trying!', 'You kept going!', 'You tried again!', 'You worked so hard!'],
-  bobo: ['You kept trying!', 'You did not give up!', 'You tried again!', 'You worked hard!'],
-  momo: ['You kept trying.', 'You took your time.', 'You tried again.', 'You worked so hard.'],
+  dodo: Array<string>(EFFORT_COUNT).fill('You kept trying!'),
+  bobo: Array<string>(EFFORT_COUNT).fill('You kept trying!'),
+  momo: Array<string>(EFFORT_COUNT).fill('You kept trying.'),
 }
 for (const [s, list] of Object.entries(effort) as [Speaker, string[]][]) list.forEach((t, i) => def(`effort.${s}.${i}`, s, t))
 

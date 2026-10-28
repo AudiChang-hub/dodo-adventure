@@ -7,7 +7,7 @@ import { VOCAB, THEME_LABEL, type VocabTheme } from './vocab'
 import { COLORS, SHAPES, SOLIDS } from './park'
 import { PHONICS } from './letters'
 import { CATEGORIES } from './worksheet-data'
-import { DIR_ZH, PATTERN_ZH, story, driveSkills, storiesFor, type Dir, type PatternKind } from './code'
+import { DIR_ZH, PATTERN_ZH, story, driveSkills, storiesFor, patternKinds, type Dir, type PatternKind } from './code'
 
 export type TrackId = 'lang' | 'num' | 'think' | 'hand'
 
@@ -139,7 +139,8 @@ export function conceptOf(game: string, skill: string): string | null {
 
 const numConcept = (n: number) => (!(n > 0) ? null : n <= 10 ? `n:${n}` : n <= 15 ? 'n:11-15' : 'n:16-20')
 
-const SOLID_BASIC = ['cube', 'sphere', 'cylinder']
+// 2026-10-28 單字盤點：立體形狀只出 block（正方體）、ball（球）；圓柱、圓錐、三角柱延後（solids:2 暫時不會出現）
+const SOLID_BASIC = ['cube', 'sphere']
 
 /** 「找出全部」系列共用 all: 開頭的技能代碼，要看是哪個遊戲 */
 function allConcept(game: string, v: string): string | null {
@@ -165,7 +166,7 @@ export function levelConcepts(game: string, level: number): string[] | null {
   if (lc) return [lc]
   if (game === 'c-drive') return [...new Set(driveSkills(level).map((k) => conceptOf(game, k)!))]
   if (game === 'c-seq') return [...new Set(storiesFor(level).map((s) => `seq:${s.icons.length}`))]
-  if (game === 'c-pattern') return (level <= 1 ? ['AB'] : level === 2 ? ['AB', 'AABB'] : Object.keys(PATTERN_ZH)).map((k) => `pattern:${k}`)
+  if (game === 'c-pattern') return patternKinds(level).map((k) => `pattern:${k}`)
   return null
 }
 
@@ -188,7 +189,6 @@ export function trackConcepts(t: TrackId): string[] {
         'shapes:1',
         'shapes:2',
         'solids:1',
-        'solids:2',
         ...Object.keys(PATTERN_ZH).map((k) => `pattern:${k}`),
       ]
     case 'think':
@@ -229,7 +229,7 @@ export function conceptLabel(c: string): string {
     case 'shapes':
       return v === '1' ? '平面形狀（圓、三角、正方、星）' : '平面形狀（愛心、長方形）'
     case 'solids':
-      return v === '1' ? '立體形狀（正方體、球、圓柱）' : '立體形狀（圓錐、三角柱）'
+      return v === '1' ? '立體形狀（積木、球）' : '立體形狀（圓柱、圓錐、三角柱，延後）'
     case 'n':
       return `數字 ${v}`
     case 'compare':

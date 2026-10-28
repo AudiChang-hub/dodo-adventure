@@ -16,4 +16,4 @@ for (const t of THEMES) {
 
 // 箭頭卡開車：主題式冒險裡開的是說故事那隻恐龍的車（主持一樣是波波）
 def('c.intro.drive.momo', 'bobo', 'Help Momo drive! Use the arrow cards!')
-def('c.intro.drive.bobo', 'bobo', "Let's drive my jeep! Use the arrow cards!")
+def('c.intro.drive.bobo', 'bobo', "Let's drive my car! Use the arrow cards!")

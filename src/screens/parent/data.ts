@@ -13,6 +13,8 @@ export interface ParentData {
   milestones: Milestone[]
   /** 貼紙卡現在的進度（幾顆星、幾張還沒挑）；雲端是舊版資料時沒有 */
   card: CardProgress | null
+  /** 雲端備份的「他不認得」勾選（只有雲端資料有；這台裝置的直接讀 lib/words.ts） */
+  unknownWords?: Record<string, number>
   source: 'local' | 'cloud'
 }
 

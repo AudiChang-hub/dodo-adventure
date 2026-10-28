@@ -3,6 +3,7 @@ import { db, type Attempt, type Drawing, type Session } from './db'
 import { env } from './env'
 import { achieveForSync, type CardProgress, type Milestone } from './achievements'
 import { wipeCloudLearning, type WipeFs, type WipeResult } from './reset-cloud'
+import { UNKNOWN_KV } from './words'
 
 const cfg = {
   apiKey: env('VITE_FIREBASE_API_KEY'),
@@ -137,8 +138,17 @@ async function upload() {
         await (table as typeof db.attempts).bulkUpdate(chunk.map((r) => ({ key: r.id, changes: { synced: 1 as const } })))
       }
     }
-    const [skills, levels, friends, settings] = await Promise.all([db.skills.toArray(), db.levels.toArray(), db.friends.toArray(), db.kv.get('settings')])
-    await fs.setDoc(fs.doc(store, 'users', uid, 'meta', 'state'), { skills, levels, friends, settings: settings?.value ?? null, achieve: achieveForSync(), updated: Date.now() })
+    const [skills, levels, friends, settings, unknown] = await Promise.all([db.skills.toArray(), db.levels.toArray(), db.friends.toArray(), db.kv.get('settings'), db.kv.get(UNKNOWN_KV)])
+    // unknownWords：家長在「單字清單」勾的「他不認得」（家長設定，跟 settings 一樣備份；重置學習進度時本機保留，下次同步再寫回來）
+    await fs.setDoc(fs.doc(store, 'users', uid, 'meta', 'state'), {
+      skills,
+      levels,
+      friends,
+      settings: settings?.value ?? null,
+      unknownWords: unknown?.value ?? {},
+      achieve: achieveForSync(),
+      updated: Date.now(),
+    })
     set({ status: 'idle', last: Date.now() })
   } catch (e) {
     set({ status: 'error', error: friendly(e) })
@@ -176,6 +186,8 @@ export interface CloudBundle {
   milestones: Milestone[]
   /** 貼紙卡的進度（v2 之前上傳的資料沒有） */
   card: CardProgress | null
+  /** 家長勾的「他不認得」：字 → 勾選時間（舊資料沒有） */
+  unknownWords: Record<string, number>
 }
 
 /** 家長用手機看報告時，從雲端讀回資料 */
@@ -195,6 +207,7 @@ export async function fetchCloud(): Promise<CloudBundle | null> {
     skills: (meta.data()?.skills as CloudBundle['skills']) ?? [],
     milestones: (meta.data()?.achieve?.log as Milestone[]) ?? [],
     card: (meta.data()?.achieve?.card as CardProgress | undefined) ?? null,
+    unknownWords: (meta.data()?.unknownWords as Record<string, number> | undefined) ?? {},
   }
 }
 

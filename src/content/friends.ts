@@ -29,7 +29,7 @@ export const FRIEND_INFO: Record<string, FriendInfo> = {
   owl: { name: 'owl', an: true, move: 'hop', voice: 'momo', sound: 'Hoot, hoot.', vocab: 'owl' },
   fox: { name: 'fox', move: 'hop', voice: 'dodo', sound: 'Yip, yip!', vocab: 'fox' },
   koala: { name: 'koala', move: 'hop', voice: 'momo', sound: 'I love trees.', vocab: 'koala' },
-  panda: { name: 'panda', move: 'hop', voice: 'momo', sound: 'I love bamboo.', vocab: 'panda' },
+  panda: { name: 'panda', move: 'hop', voice: 'momo', sound: 'I love to eat!', vocab: 'panda' },
   'rabbit-face': { name: 'rabbit', move: 'hop', voice: 'dodo', sound: 'Hop, hop!', vocab: 'rabbit' },
   lion: { name: 'lion', move: 'hop', voice: 'bobo', sound: 'Roar!', vocab: 'lion' },
   'tiger-face': { name: 'tiger', move: 'hop', voice: 'bobo', sound: 'I have stripes!', vocab: 'tiger' },
@@ -46,7 +46,8 @@ export const FRIEND_INFO: Record<string, FriendInfo> = {
   helicopter: { name: 'helicopter', move: 'fly', voice: 'dodo', sound: 'Whirr, whirr!', vocab: 'helicopter' },
   rocket: { name: 'rocket', move: 'fly', voice: 'bobo', sound: 'Blast off!', vocab: 'rocket' },
   tractor: { name: 'tractor', move: 'drive', voice: 'bobo', sound: 'Chug, chug!', vocab: 'tractor' },
-  sailboat: { name: 'sailboat', move: 'drive', voice: 'momo', sound: 'I float on the water.', vocab: 'sailboat' },
+  // 一張圖一個名字：帆船的圖在動物村叫 boat
+  sailboat: { name: 'boat', move: 'drive', voice: 'momo', sound: 'I float on the water.', vocab: 'boat' },
   'police-car': { name: 'police car', move: 'drive', voice: 'bobo', sound: 'Wee-woo, wee-woo!', vocab: 'police-car' },
   bus: { name: 'bus', move: 'drive', voice: 'dodo', sound: 'Beep, beep!', vocab: 'bus' },
   ambulance: { name: 'ambulance', an: true, move: 'drive', voice: 'momo', sound: 'I help people.', vocab: 'ambulance' },

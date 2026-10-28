@@ -31,4 +31,11 @@ def('stk.pick.later', 'dodo', 'Okay! Your sticker will wait for you!')
 def('stk.wait', 'dodo', 'Look! || A sticker is waiting for you!')
 
 // ── 點貼紙念它的英文名字（順便學詞彙）──────────────────────────────
-for (const a of STICKER_ART) def(`stk.art.${a.id}`, 'dodo', a.en)
+// 「這是 ___」全站只用一種說法（2026-10-28 單字盤點第 4 章）：This is a | dog! ／ These are | grapes!
+const PLURAL = new Set(['grapes', 'cherries'])
+const PROPER = new Set(['T-rex'])
+for (const a of STICKER_ART) {
+  const raw = a.en.replace(/!$/, '')
+  const name = PROPER.has(raw) ? raw : raw.toLowerCase()
+  def(`stk.art.${a.id}`, 'dodo', PLURAL.has(name) ? `These are | ${name}!` : `This is ${/^[aeiou]/i.test(name) ? 'an' : 'a'} | ${name}!`)
+}

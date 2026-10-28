@@ -12,10 +12,8 @@ const SPEAKERS: Speaker[] = ['dodo', 'bobo', 'momo']
 // ── Sam 教豆豆（benchmark 手法 9）────────────────────────────
 // 主持的恐龍故意指錯：「Hmm... is this B?」（指著 D），孩子點真正的 B 來糾正。
 // 語氣是疑問、不是肯定；加重的目標字和題目句同一段音檔（Where is | B?），不會多出新音檔。
-for (const { letter, word } of LETTERS) {
-  def(`tease.letter.${letter}`, 'dodo', `Hmm... is this | ${letter}?`)
-  def(`tease.word.${letter}`, 'dodo', `Hmm... is this the | ${word}?`)
-}
+// 舊版字母表的 tease.word.*（Hmm... is this the | queen?）沒有遊戲會唸，2026-10-28 單字盤點時刪掉
+for (const { letter } of LETTERS) def(`tease.letter.${letter}`, 'dodo', `Hmm... is this | ${letter}?`)
 for (let n = 1; n <= 20; n++) def(`tease.num.${n}`, 'bobo', `Hmm... is this | ${NUM[n]}?`)
 for (const c of COLORS) def(`tease.color.${c.id}`, 'bobo', `Hmm... is this | ${c.en}?`)
 for (const s of SHAPES) def(`tease.shape.${s.id}`, 'bobo', `Hmm... is this the | ${s.en}?`)
@@ -23,7 +21,7 @@ for (const v of VOCAB) def(`tease.vocab.${v.id}`, 'momo', v.id === 'grapes' ? `H
 
 const tease: Record<Speaker, { try: string; thanks: string; oops: string; show: string }> = {
   dodo: { try: 'Let me try!', thanks: `Oh! Thank you, ${N}!`, oops: "Hmm... I don't think so. Let's look again!", show: 'Let me show you!' },
-  bobo: { try: 'My turn! Let me try!', thanks: `Oh! You're right, ${N}! Thank you!`, oops: "Hmm... I don't think so. Let's look again!", show: 'Let me show you!' },
+  bobo: { try: 'Let me try!', thanks: `Oh! You're right, ${N}! Thank you!`, oops: "Hmm... I don't think so. Let's look again!", show: 'Let me show you!' },
   momo: { try: 'Let me try.', thanks: `Oh, thank you, ${N}.`, oops: "Hmm... I don't think so. Let's look again.", show: 'Let me show you.' },
 }
 for (const s of SPEAKERS) {
