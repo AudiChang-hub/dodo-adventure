@@ -1,0 +1,205 @@
+/* ── 找規律：小火車（PatternGame.tsx）────────────────────────────
+   上半是鐵軌和火車（車頭在左、往左開），下半是月台上等著被接上去的車廂。
+   車廂和空位一樣大（--car），選項飛進空位時大小不變；最長 7 節時車廂也有 120px 以上（PRD §3 觸控區）。
+   畫面從字幕路（.stage-main 的上緣）下面開始，左下角留給主持的恐龍。 */
+.pt {
+  --car: min(25cqh, calc(93cqw / (var(--n) * 1.06 + 1.5)));
+  --rail-at: 56cqh;
+  position: absolute;
+  inset: 0;
+}
+
+/* 鐵軌：兩條軌道＋枕木 */
+.pt-rails {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: calc(var(--rail-at) - 2.2cqh);
+  height: 2.6cqh;
+  background:
+    linear-gradient(rgba(46, 42, 37, 0.32), rgba(46, 42, 37, 0.32)) 0 18% / 100% 4px no-repeat,
+    linear-gradient(rgba(46, 42, 37, 0.32), rgba(46, 42, 37, 0.32)) 0 82% / 100% 4px no-repeat,
+    repeating-linear-gradient(90deg, rgba(156, 115, 86, 0.38) 0 1.6cqh, transparent 1.6cqh 4.4cqh);
+  border-radius: 6px;
+  pointer-events: none;
+}
+
+.pt-train {
+  position: absolute;
+  left: 2.5cqw;
+  bottom: var(--rail-at);
+  z-index: 3;
+}
+.pt-cars {
+  display: flex;
+  align-items: flex-end;
+  gap: calc(var(--car) * 0.06);
+  transform-origin: 20% 100%;
+}
+.pt-loco {
+  width: calc(var(--car) * 1.45);
+  flex: none;
+}
+.pt-car,
+.pt-slot {
+  position: relative;
+  width: var(--car);
+  flex: none;
+  padding: 0;
+  border: 0;
+  background: none;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+.pt-hop {
+  width: 100%;
+  transform-origin: 50% 100%;
+}
+
+/* 車廂：車身前緣蓋住貨物的下緣 */
+.pt-wagon {
+  position: relative;
+  width: 100%;
+}
+/* 貨物只讓車身蓋住一點點：圖示的下緣（車輪、腳）還看得到，一眼認得出是什麼 */
+.pt-cargo {
+  position: absolute;
+  left: 15%;
+  width: 70%;
+  top: -22%;
+  aspect-ratio: 1;
+  display: grid;
+  place-items: center;
+}
+.pt-cargo > svg {
+  width: 100%;
+  height: 100%;
+}
+
+/* 空位：虛線的空車廂，一直輕輕呼吸（1 → 1.08，每 1.2 秒）；閒置 5 秒、答錯時更明顯 */
+.pt-slot {
+  transform-origin: 50% 50%;
+  border-radius: 18%;
+}
+.pt-slot.pulse-1 {
+  animation: pt-breathe 1.2s ease-in-out infinite;
+}
+.pt-slot.pulse-2 {
+  animation: pt-breathe-strong 0.9s ease-in-out infinite;
+}
+.pt-slot.pulse-2::before,
+.pt-slot.pulse-1::before {
+  content: '';
+  position: absolute;
+  inset: -12% -10% -6%;
+  border-radius: 26%;
+  background: radial-gradient(closest-side, rgba(241, 210, 124, 0.55), rgba(241, 210, 124, 0));
+  pointer-events: none;
+  opacity: 0.6;
+}
+.pt-slot.pulse-2::before {
+  opacity: 1;
+  inset: -22% -20% -14%;
+}
+@keyframes pt-breathe {
+  50% {
+    transform: scale(1.08);
+  }
+}
+@keyframes pt-breathe-strong {
+  50% {
+    transform: scale(1.15);
+  }
+}
+
+/* 火車頭的白煙：每一團從煙囪冒出來、往後上方飄、慢慢變淡（每一團只淡出一次） */
+.pt-puff {
+  transform-box: fill-box;
+  transform-origin: center;
+  opacity: 0;
+  animation: pt-puff 0.84s ease-out infinite;
+}
+@keyframes pt-puff {
+  0% {
+    transform: translate(0, 0) scale(0.45);
+    opacity: 0.95;
+  }
+  100% {
+    transform: translate(34px, -30px) scale(1.5);
+    opacity: 0;
+  }
+}
+
+/* 月台 */
+.pt-platform {
+  position: absolute;
+  left: 24cqw;
+  right: 2cqw;
+  bottom: 2.5cqh;
+  height: 10cqh;
+  border-radius: 3cqh;
+  background: rgba(251, 248, 242, 0.62);
+  box-shadow:
+    0 7px 0 rgba(46, 42, 37, 0.08),
+    0 0 0 2px rgba(46, 42, 37, 0.04) inset;
+  pointer-events: none;
+}
+.pt-dock {
+  position: absolute;
+  left: 24cqw;
+  right: 2cqw;
+  bottom: 8cqh;
+  display: flex;
+  justify-content: center;
+  align-items: flex-end;
+  gap: max(5cqw, calc(var(--car) * 0.4));
+}
+.pt-opt {
+  position: relative;
+  width: var(--car);
+  flex: none;
+  padding: 0;
+  border: 0;
+  background: none;
+  touch-action: none;
+  -webkit-tap-highlight-color: transparent;
+  cursor: pointer;
+}
+/* 加大一點觸控範圍（看不見） */
+.pt-opt::after {
+  content: '';
+  position: absolute;
+  inset: -14% -12% -10%;
+}
+.pt-opt-rail {
+  position: absolute;
+  left: -10%;
+  right: -10%;
+  bottom: -1.2cqh;
+  height: 1.4cqh;
+  border-top: 4px solid rgba(46, 42, 37, 0.28);
+  border-bottom: 4px solid rgba(46, 42, 37, 0.28);
+  border-radius: 3px;
+}
+.pt-opt.is-away {
+  visibility: hidden;
+}
+.pt-opt.is-wrong {
+  filter: saturate(0.3);
+}
+/* 一起練：對的那一節發光 */
+.pt-opt.is-guide::before {
+  content: '';
+  position: absolute;
+  inset: -18% -16% -12%;
+  border-radius: 28%;
+  background: radial-gradient(closest-side, rgba(241, 210, 124, 0.85), rgba(241, 210, 124, 0));
+  animation: pt-glow 1.5s ease-in-out infinite;
+  pointer-events: none;
+}
+@keyframes pt-glow {
+  50% {
+    transform: scale(1.08);
+    opacity: 0.75;
+  }
+}

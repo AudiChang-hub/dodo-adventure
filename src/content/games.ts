@@ -55,8 +55,8 @@ export type GameKind =
   | 'choice' | 'phonics' | 'count' | 'order' | 'trace' | 'dots' | 'coloring' | 'free' | 'glyph'
   // 工作線 B：學習單題型
   | 'findall' | 'lasso' | 'fill' | 'give' | 'subitize'
-  // 程式車庫：箭頭卡開車、排順序（找規律是選擇題，用 choice）
-  | 'drive' | 'sequence'
+  // 程式車庫：箭頭卡開車、排順序、找規律（出題照選擇題的 planChoice，畫面是接火車車廂）
+  | 'drive' | 'sequence' | 'pattern'
 
 export interface GameDef {
   id: string
@@ -542,7 +542,7 @@ export const GAMES: GameDef[] = [
   // ── 工作線 B ──
   // ── 程式車庫（PRD §10）── 題目產生器與資料在 code.ts
   { id: 'c-drive', station: 'code', kind: 'drive', title: '箭頭卡開車', icon: 'automobile', intro: 'c.intro.drive', maxLevel: 4 },
-  { id: 'c-pattern', station: 'code', kind: 'choice', title: '找規律', icon: 'puzzle-piece', intro: 'c.intro.pattern', maxLevel: 4, make: cPattern },
+  { id: 'c-pattern', station: 'code', kind: 'pattern', title: '找規律', icon: 'puzzle-piece', intro: 'c.intro.pattern', maxLevel: 4, make: cPattern },
   { id: 'c-seq', station: 'code', kind: 'sequence', title: '排順序', icon: 'hatching-chick', intro: 'c.intro.seq', maxLevel: 4 },
 ]
 

@@ -20,6 +20,7 @@ import { GiveGame } from './GiveGame'
 import { SubitizeGame } from './SubitizeGame'
 import { DriveGame } from './code/DriveGame'
 import { SequenceGame } from './code/SequenceGame'
+import { PatternGame } from './code/PatternGame'
 
 const BY_KIND = {
   choice: ChoiceGame,
@@ -40,6 +41,7 @@ const BY_KIND = {
   // 程式車庫
   drive: DriveGame,
   sequence: SequenceGame,
+  pattern: PatternGame,
 }
 
 export function PlayGame(props: GameProps) {

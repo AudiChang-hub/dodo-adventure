@@ -1,0 +1,73 @@
+/* ── 排順序（2026-10-28 改）：空格跟圖卡一樣大、下一格脈動；圖卡位置固定 ──
+   排在 code.css 之後，蓋過舊的格子樣式。 */
+.seq-stage {
+  position: absolute;
+  inset: 0;
+  /* 圖卡、空格同一個大小；手機直式（家長遠端看）時以寬度為準，不會擠出畫面 */
+  --seq-size: min(25cqh, 19cqw);
+}
+.seq-stage .seq-card {
+  width: var(--seq-size);
+}
+.seq-slot {
+  width: var(--seq-size);
+  aspect-ratio: 1;
+  border: 5px dashed rgba(46, 42, 37, 0.3);
+  border-radius: 24%;
+  background: rgba(255, 255, 255, 0.28);
+  transform-origin: 50% 50%;
+}
+.seq-slot.is-full {
+  border-color: transparent;
+  background: none;
+}
+.seq-slot.is-next {
+  border-color: rgba(79, 99, 119, 0.85);
+  background: rgba(255, 255, 255, 0.6);
+}
+.seq-slot.is-next.pulse-1 {
+  animation: seq-breathe 1.2s ease-in-out infinite;
+}
+.seq-slot.is-next.pulse-2 {
+  animation: seq-breathe-strong 0.9s ease-in-out infinite;
+  box-shadow: 0 0 0 8px rgba(241, 210, 124, 0.55);
+}
+@keyframes seq-breathe {
+  50% {
+    transform: scale(1.08);
+  }
+}
+@keyframes seq-breathe-strong {
+  50% {
+    transform: scale(1.14);
+  }
+}
+.seq-slot .prog-num {
+  bottom: -5cqh;
+  font-size: 3.6cqh;
+  color: var(--ink-soft);
+}
+/* 放好的圖卡：剛好蓋滿格子（含虛線框），跟搬過來的那一張一樣大 */
+.seq-hop {
+  position: absolute;
+  inset: -5px;
+}
+.seq-stage .seq-card.in-slot {
+  position: absolute;
+  inset: 0;
+  width: auto;
+}
+/* 圖卡原本的位置：拿走之後留一個淡淡的位子 */
+.seq-spot {
+  width: var(--seq-size);
+  aspect-ratio: 1;
+  border-radius: 24%;
+  background: rgba(46, 42, 37, 0.05);
+}
+.seq-card.is-away {
+  visibility: hidden;
+}
+.seq-stage .seq-ghost .seq-card {
+  width: 100%;
+  height: 100%;
+}
