@@ -5,7 +5,8 @@ import { Palette, CheckButton, PALETTE } from './Palette'
 import { PICTURES } from './pictures'
 import { svgThumb, saveDrawing } from './save'
 import { game as gameDef } from '../../content/games'
-import { markPlayed, pickTarget } from '../../lib/adaptive'
+import { markPlayed, pickPreferred } from '../../lib/adaptive'
+import { themeNow } from '../../lib/theme-play'
 import { logAttempt } from '../../lib/record'
 import { say, sfx, stopSpeech } from '../../lib/audio'
 import { wait } from '../lines'
@@ -13,7 +14,8 @@ import { wait } from '../lines'
 /** 著色：點一下就整塊塗滿，3 歲孩子不會因為塗出線外而挫折 */
 export function ColoringGame({ gameId, onDone, onExit }: GameProps) {
   const def = gameDef(gameId)
-  const [pic] = useState(() => pickTarget(PICTURES, (p) => `coloring:${p.id}`))
+  // 主題式冒險塗主題的圖（公車旅行塗公車）
+  const [pic] = useState(() => pickPreferred(PICTURES.filter((p) => p.id === themeNow()?.coloring), PICTURES, (p) => `coloring:${p.id}`))
   const [fills, setFills] = useState<Record<string, string>>({})
   const [color, setColor] = useState(PALETTE[0])
   const [splash, setSplash] = useState<string | null>(null)
@@ -88,7 +90,7 @@ export function ColoringGame({ gameId, onDone, onExit }: GameProps) {
               />
             ))}
             {pic.deco.map((d, i) => (
-              <path key={i} d={d} fill={i === 0 && pic.id === 'dodo' ? '#2E2A25' : 'none'} stroke="#2E2A25" strokeWidth={2.4} strokeLinecap="round" pointerEvents="none" />
+              <path key={i} d={d} fill={pic.ink?.includes(i) ? '#2E2A25' : 'none'} stroke="#2E2A25" strokeWidth={2.4} strokeLinecap="round" pointerEvents="none" />
             ))}
           </g>
         </svg>

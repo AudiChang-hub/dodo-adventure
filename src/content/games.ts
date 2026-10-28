@@ -3,7 +3,8 @@ import type { StationId } from '../lib/db'
 import { PHONICS, CONFUSE, LOOKALIKE_LOWER, phonicsSkill, wordsOf, wordId, type PhonicsWord, type SoundUnit } from './letters'
 import { VOCAB, AMBIGUOUS, CAT_EXAMPLES, vocab, type Tag } from './vocab'
 import { COLORS, COLOR_EXAMPLES, SHAPES, SIZE_ICONS, COUNT_ICONS, type ShapeId } from './park'
-import { pickTarget, unlockedNumbers, mastered, skill, isNew } from '../lib/adaptive'
+import { pickTarget, pickPreferred, unlockedNumbers, mastered, skill, isNew } from '../lib/adaptive'
+import { themeNow, themed as themeList } from '../lib/theme-play'
 import { weekTheme } from '../lib/settings'
 import { pick, rand, sample, shuffle } from '../lib/random'
 import { cPattern, type Dir } from './code'
@@ -91,6 +92,18 @@ export const station = (id: StationId) => STATIONS.find((s) => s.id === id)!
 /** 選項數：第 1 級 2 個、第 2 級 3 個、之後 4 個 */
 const optCount = (level: number) => Math.min(4, level + 1)
 
+// ── 主題式冒險（content/themes.ts）──────────────────────────────
+// 今日冒險的那一站有主題時，題目裡的東西優先用主題的（數公車、找公車上的詞、bus 的開頭音）；
+// 挑哪個技能照舊（pickPreferred：主題裡沒有能出的、或主題外有到期複習，就用一般的）。
+/** 要數的東西：主題的（公車、恐龍蛋），沒有主題就用原本那一批 */
+const countIcon = () => pick(themeList(COUNT_ICONS, (t) => t.count))
+/** 這一批內容裡主題優先的（沒有主題是空的，pickPreferred 就照常挑） */
+const themeFav = <T extends { id: string }>(pool: readonly T[], ids: (t: NonNullable<ReturnType<typeof themeNow>>) => readonly string[] | undefined): T[] => {
+  const t = themeNow()
+  const want = t ? (ids(t) ?? []) : []
+  return pool.filter((x) => want.includes(x.id))
+}
+
 // ── 字母森林：自然發音（PRD §6.1b）────────────────────────────
 // 不考字母名稱，考「哪個字是這個音開頭」。熟練度記在字母音上（phonics:b），三個遊戲共用：
 // 任何一個遊戲遇到新的音，都先跑一次完整的學習循環（PhonicsIntro）再一起練、自己答。
@@ -156,7 +169,19 @@ function soundsLike(x: UnitWord, u: SoundUnit) {
 function answerWord(u: SoundUnit, exclude: string[] = []): PhonicsWord {
   const base = familiar(u) && u.review.length ? u.review : u.keys
   const pool = base.filter((x) => !exclude.includes(x.w))
+  // 主題的字優先（公車旅行的 b 用 bus），但不是每一題：同一個音一局出好幾次時還是要換字
+  const fav = themeWords(pool)
+  if (fav.length && Math.random() < THEME_WORD_SHARE) return pick(fav)
   return pick(pool.length ? pool : wordsOf(u).filter((x) => !exclude.includes(x.w)))
+}
+
+/** 主題的字出成答案的機會 */
+const THEME_WORD_SHARE = 0.6
+/** 主題式冒險：主題的音出題的機會（其餘照原本挑，到期複習、還不熟的音不會被擠掉） */
+const THEME_SOUND_SHARE = 0.5
+const themeWords = <T extends PhonicsWord>(ws: readonly T[]): T[] => {
+  const t = themeNow()
+  return t ? ws.filter((x) => t.words.includes(x.w)) : []
 }
 
 /** 干擾圖：別的音開頭的字，優先用已經開放的音的關鍵字（孩子叫得出名字）；最高難度放聽起來相近的音 */
@@ -167,7 +192,9 @@ function distractorWords(u: SoundUnit, n: number, level: number): PhonicsWord[] 
   const out: UnitWord[] = []
   const add = (cu: SoundUnit) => {
     const cands = cu.keys.map((k) => ({ ...k, unit: cu })).filter(ok)
-    if (cands.length) out.push(pick(cands))
+    // 主題的字當干擾也好：公車旅行裡 bus 的旁邊放 taxi、car
+    const fav = themeWords(cands)
+    if (cands.length) out.push(pick(fav.length ? fav : cands))
   }
   if (level >= 4)
     for (const c of CONFUSE[u.letter] ?? '') {
@@ -187,11 +214,10 @@ function distractorWords(u: SoundUnit, n: number, level: number): PhonicsWord[] 
  */
 function pickSound(pool: SoundUnit[], recent: string[]): SoundUnit {
   const key = (x: SoundUnit) => phonicsSkill(x.letter)
-  const t = pickTarget(
-    pool,
-    key,
-    pool.filter((x) => recent.some((r) => r.split(':')[0] === x.letter)),
-  )
+  const avoid = pool.filter((x) => recent.some((r) => r.split(':')[0] === x.letter))
+  // 主題式冒險：開放中的音有主題的字（公車旅行的 b、t、c），一半的題目先出它們
+  const fav = pool.filter((u) => themeWords(wordsOf(u)).length)
+  const t = fav.length && Math.random() < THEME_SOUND_SHARE ? pickPreferred(fav, pool, key, avoid) : pickTarget(pool, key, avoid)
   return isNew(key(t)) ? (pool.find((x) => isNew(key(x))) ?? t) : t
 }
 
@@ -218,7 +244,8 @@ const phStart = (level: number, recent: string[]): PhonicsItem => {
 /** 哪個跟 bus 開頭一樣？ */
 const phSame = (level: number, recent: string[]): PhonicsItem => {
   const u = pickSound(unlockedSounds(), recent)
-  const stim = pick(u.keys)
+  const keyFav = themeWords(u.keys)
+  const stim = pick(keyFav.length ? keyFav : u.keys)
   const ans = answerWord(u, [stim.w])
   const opts = shuffle([ans, ...distractorWords(u, optCount(level) - 1, level)]).map(pictureOpt)
   return {
@@ -297,7 +324,7 @@ const mFind = (level: number, recent: string[]): ChoiceItem => {
     correction: [`m.thisis.${n}`],
     teach:
       n <= 10
-        ? { visual: [{ t: 'number', n }, { t: 'group', icon: pick(COUNT_ICONS), count: n }], focus: [0, 1], lines: [`teach.num.${n}`, `teach.count.${n}`] }
+        ? { visual: [{ t: 'number', n }, { t: 'group', icon: countIcon(), count: n }], focus: [0, 1], lines: [`teach.num.${n}`, `teach.count.${n}`] }
         : { visual: { t: 'number', n }, lines: [`teach.num.${n}`] },
   }
 }
@@ -306,7 +333,7 @@ const mMatch = (level: number, recent: string[]): ChoiceItem => {
   const max = Math.min(10, [3, 5, unlockedNumbers(), unlockedNumbers()][level - 1] ?? 5)
   const n = pickTarget(range(1, Math.max(2, max)), (x) => `count:${x}`, recent.map(Number))
   const opts = shuffle([n, ...numDistractors(n, optCount(level) - 1, Math.max(max, 4), level >= 3)])
-  const icon = pick(COUNT_ICONS)
+  const icon = countIcon()
   return {
     itemId: String(n),
     skill: `count:${n}`,
@@ -324,7 +351,7 @@ const mCompare = (level: number): ChoiceItem => {
   const a = 1 + rand(10 - gap)
   const b = Math.min(10, a + gap + (level <= 2 ? rand(2) : 0))
   const askLess = level >= 3 && Math.random() < 0.5
-  const icon = pick(COUNT_ICONS)
+  const icon = countIcon()
   const pair = shuffle([a, b])
   const target = askLess ? Math.min(a, b) : Math.max(a, b)
   return {
@@ -357,10 +384,11 @@ function themed<T extends { theme: string }>(pool: readonly T[]): T[] {
 const themedVocab = () => themed(VOCAB)
 
 const zFind = (level: number, recent: string[]): ChoiceItem => {
-  const v = pickTarget(themedVocab(), (x) => `vocab:${x.id}`, VOCAB.filter((x) => recent.includes(x.id)))
+  const pool = themedVocab()
+  const v = pickPreferred(themeFav(pool, (t) => t.vocab), pool, (x) => `vocab:${x.id}`, VOCAB.filter((x) => recent.includes(x.id)))
   // 低難度用不同類別當干擾（貓 vs 汽車），高難度用同一類（貓 vs 狗）
-  const pool = VOCAB.filter((x) => x.id !== v.id && (level >= 3 ? x.theme === v.theme : x.theme !== v.theme))
-  const opts = shuffle([v, ...sample(pool.length >= 3 ? pool : VOCAB.filter((x) => x.id !== v.id), optCount(level) - 1)])
+  const others = VOCAB.filter((x) => x.id !== v.id && (level >= 3 ? x.theme === v.theme : x.theme !== v.theme))
+  const opts = shuffle([v, ...sample(others.length >= 3 ? others : VOCAB.filter((x) => x.id !== v.id), optCount(level) - 1)])
   return {
     itemId: v.id,
     skill: `vocab:${v.id}`,
@@ -374,9 +402,13 @@ const zFind = (level: number, recent: string[]): ChoiceItem => {
 
 const zCategory = (level: number, recent: string[]): ChoiceItem => {
   const tags: Tag[] = ['fly', 'water', 'wheels', 'eat', 'legs4']
-  const tag = pickTarget(tags.slice(0, level >= 3 ? 5 : 4), (t) => `cat:${t}`, recent as Tag[])
+  const open = tags.slice(0, level >= 3 ? 5 : 4)
+  const tag = pickPreferred(open.filter((t) => themeNow()?.tags?.includes(t)), open, (t) => `cat:${t}`, recent as Tag[])
   const ok = (x: (typeof VOCAB)[number]) => !AMBIGUOUS[tag].includes(x.id)
-  const ans = pick(themed(VOCAB.filter((x) => x.tags.includes(tag) && ok(x))))
+  const yes = themed(VOCAB.filter((x) => x.tags.includes(tag) && ok(x)))
+  // 主題的東西當答案：公車旅行問「哪個有輪子」，答案是公車、計程車
+  const fav = themeFav(yes, (t) => t.vocab)
+  const ans = pick(fav.length ? fav : yes)
   const wrong = sample(VOCAB.filter((x) => !x.tags.includes(tag) && ok(x)), optCount(level) - 1)
   const opts = shuffle([ans, ...wrong])
   return {
@@ -393,7 +425,8 @@ const zCategory = (level: number, recent: string[]): ChoiceItem => {
 
 const zSound = (level: number, recent: string[]): ChoiceItem => {
   const pool = VOCAB.filter((x) => x.sound)
-  const v = pickTarget(themed(pool), (x) => `sound:${x.id}`, pool.filter((x) => recent.includes(x.id)))
+  const weighted = themed(pool)
+  const v = pickPreferred(themeFav(weighted, (t) => t.vocab), weighted, (x) => `sound:${x.id}`, pool.filter((x) => recent.includes(x.id)))
   const opts = shuffle([v, ...sample(pool.filter((x) => x.id !== v.id), optCount(level) - 1)])
   return {
     itemId: v.id,
@@ -409,7 +442,7 @@ const zSound = (level: number, recent: string[]): ChoiceItem => {
 // ── 彩虹公園 ───────────────────────────────────────────────
 const pColor = (level: number, recent: string[]): ChoiceItem => {
   const pool = COLORS.slice(0, level >= 3 ? 8 : 5)
-  const c = pickTarget(pool, (x) => `color:${x.id}`, pool.filter((x) => recent.includes(x.id)))
+  const c = pickPreferred(pool.filter((x) => themeNow()?.colors.includes(x.id)), pool, (x) => `color:${x.id}`, pool.filter((x) => recent.includes(x.id)))
   const opts = shuffle([c, ...sample(pool, optCount(level) - 1, [c])])
   const shape = level >= 4 ? (pick(SHAPES).id as ShapeId) : null
   return {
@@ -441,7 +474,7 @@ const pShape = (level: number, recent: string[]): ChoiceItem => {
 }
 
 const pSize = (level: number): ChoiceItem => {
-  const icon = pick(SIZE_ICONS)
+  const icon = pick(themeList(SIZE_ICONS, (t) => t.count))
   const askSmall = level >= 2 && Math.random() < 0.5
   const scales = level >= 3 ? shuffle([1, 0.68, 0.42]) : shuffle(level === 1 ? [1, 0.45] : [1, 0.6])
   const target = askSmall ? Math.min(...scales) : Math.max(...scales)

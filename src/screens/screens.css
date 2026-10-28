@@ -305,3 +305,100 @@
   font-size: 15px;
   color: rgba(243, 238, 228, 0.55);
 }
+
+/* ── 主題式冒險：轉場的故事卡、故事的終點 ─────────────────────── */
+/* 一張大大的紙卡放這一站的故事圖；後面一圈主題色的光慢慢呼吸（只用來引導視線，不閃爍） */
+.story-card {
+  position: absolute;
+  top: 14vh;
+  left: 50%;
+  margin-left: calc(clamp(220px, 34vmin, 320px) / -2);
+  width: clamp(220px, 34vmin, 320px);
+  aspect-ratio: 1;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--card);
+  box-shadow:
+    0 0 0 10px color-mix(in srgb, var(--card) 55%, transparent),
+    0 26px 44px -26px color-mix(in srgb, var(--deep) 70%, transparent);
+}
+.story-card-halo {
+  position: absolute;
+  inset: -16%;
+  border-radius: 50%;
+  background: radial-gradient(closest-side, color-mix(in srgb, var(--deep) 20%, transparent), transparent);
+  z-index: -1;
+  animation: story-breathe 4.2s ease-in-out infinite;
+}
+.story-card-pic {
+  display: block;
+  width: 62%;
+  filter: drop-shadow(0 8px 6px rgba(46, 42, 37, 0.1));
+}
+@keyframes story-breathe {
+  50% {
+    transform: scale(1.06);
+    opacity: 0.7;
+  }
+}
+
+.story-finale {
+  position: absolute;
+  top: 12vh;
+  left: 50%;
+  width: clamp(300px, 48vmin, 440px);
+  margin-left: calc(clamp(300px, 48vmin, 440px) / -2);
+  aspect-ratio: 1;
+}
+.story-finale-ring {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: radial-gradient(circle at 50% 38%, var(--card), color-mix(in srgb, var(--tint) 70%, var(--card)) 70%);
+  box-shadow:
+    0 0 0 12px color-mix(in srgb, var(--card) 60%, transparent),
+    0 34px 60px -34px color-mix(in srgb, var(--deep) 80%, transparent);
+}
+.story-finale-pic {
+  position: absolute;
+  display: block;
+  filter: drop-shadow(0 10px 8px rgba(46, 42, 37, 0.12));
+}
+.story-finale-pic.n1 {
+  width: 62%;
+  left: 19%;
+  top: 17%;
+}
+.story-finale-pic.n2.i0 {
+  width: 52%;
+  left: 34%;
+  top: 22%;
+  z-index: 1;
+}
+.story-finale-pic.n2.i1 {
+  width: 40%;
+  left: 12%;
+  top: 34%;
+}
+.story-finale-pic.n3.i0 {
+  width: 46%;
+  left: 27%;
+  top: 30%;
+  z-index: 1;
+}
+.story-finale-pic.n3.i1 {
+  width: 36%;
+  left: 8%;
+  top: 18%;
+}
+.story-finale-pic.n3.i2 {
+  width: 36%;
+  left: 56%;
+  top: 16%;
+}
+@media (prefers-reduced-motion: reduce) {
+  .story-card-halo {
+    animation: none;
+  }
+}

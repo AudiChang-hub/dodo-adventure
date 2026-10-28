@@ -184,7 +184,7 @@ export function TrackCard({ d }: { d: ParentData }) {
         </p>
         {theme && (
           <p>
-            <b>本週主題：{THEME_LABEL[theme]}</b>（到 {md(shiftDate(themeEnds(s)!, -1))}）——動物村會多出這一類的英文詞，主題裡的新詞不佔新概念額度。
+            <b>本週主題：{THEME_LABEL[theme]}</b>（到 {md(shiftDate(themeEnds(s)!, -1))}）——動物村會多出這一類的英文詞，每天的冒險故事也優先挑相關的主題（例如動物 → 農場、動物園）。
           </p>
         )}
         {span && (

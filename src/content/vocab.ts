@@ -42,6 +42,13 @@ export const VOCAB: VocabEntry[] = [
   { id: 'butterfly', en: 'butterfly', zh: '蝴蝶', icon: 'butterfly', theme: 'animal', tags: ['fly'] },
   { id: 'owl', en: 'owl', zh: '貓頭鷹', icon: 'owl', theme: 'animal', sound: 'Hoot, hoot!', tags: ['fly'] },
   { id: 'mouse', en: 'mouse', zh: '老鼠', icon: 'mouse-face', theme: 'animal', sound: 'Squeak, squeak!', tags: ['legs4'] },
+  // 主題式冒險（content/themes.ts）補的動物：農場、海洋、動物園
+  { id: 'horse', en: 'horse', zh: '馬', icon: 'horse', theme: 'animal', sound: 'Neigh!', tags: ['legs4'] },
+  { id: 'goat', en: 'goat', zh: '山羊', icon: 'goat', theme: 'animal', tags: ['legs4'] },
+  { id: 'octopus', en: 'octopus', zh: '章魚', icon: 'octopus', theme: 'animal', tags: ['water'] },
+  { id: 'crab', en: 'crab', zh: '螃蟹', icon: 'crab', theme: 'animal', tags: ['water'] },
+  { id: 'zebra', en: 'zebra', zh: '斑馬', icon: 'zebra', theme: 'animal', tags: ['legs4'] },
+  { id: 'penguin', en: 'penguin', zh: '企鵝', icon: 'penguin', theme: 'animal', tags: [] },
 
   { id: 'car', en: 'car', zh: '汽車', icon: 'automobile', theme: 'vehicle', sound: 'Beep beep!', tags: ['wheels'] },
   { id: 'bus', en: 'bus', zh: '公車', icon: 'bus', theme: 'vehicle', tags: ['wheels'] },
@@ -62,6 +69,8 @@ export const VOCAB: VocabEntry[] = [
   { id: 'trex', en: 'T-rex', zh: '暴龍', icon: 't-rex', theme: 'dino', sound: 'Stomp, stomp, rawr!', tags: [] },
   { id: 'sauropod', en: 'long-neck dinosaur', zh: '長頸龍', icon: 'sauropod', theme: 'dino', tags: ['legs4'] },
   { id: 'dragon', en: 'dragon', zh: '恐龍', icon: 'dragon', theme: 'dino', tags: ['legs4'] },
+  // 恐龍谷的火山：不是恐龍，但只會和恐龍一起出現（同一類的干擾）
+  { id: 'volcano', en: 'volcano', zh: '火山', icon: 'volcano', theme: 'dino', tags: [] },
 
   { id: 'apple', en: 'apple', zh: '蘋果', icon: 'red-apple', theme: 'food', tags: ['eat'] },
   { id: 'banana', en: 'banana', zh: '香蕉', icon: 'banana', theme: 'food', tags: ['eat'] },
@@ -70,6 +79,7 @@ export const VOCAB: VocabEntry[] = [
   { id: 'watermelon', en: 'watermelon', zh: '西瓜', icon: 'watermelon', theme: 'food', tags: ['eat'] },
   { id: 'carrot', en: 'carrot', zh: '紅蘿蔔', icon: 'carrot', theme: 'food', tags: ['eat'] },
   { id: 'cookie', en: 'cookie', zh: '餅乾', icon: 'cookie', theme: 'food', tags: ['eat'] },
+  { id: 'cake', en: 'cake', zh: '蛋糕', icon: 'birthday-cake', theme: 'food', tags: ['eat'] },
 
   // ── 生活用品（功能分類用；en 一律用單數，教學句會念「This is a …」）──
   { id: 'umbrella', en: 'umbrella', zh: '雨傘', icon: 'umbrella', theme: 'home', tags: [], uses: ['rain'] },
@@ -86,6 +96,7 @@ export const VOCAB: VocabEntry[] = [
   { id: 'dress', en: 'dress', zh: '洋裝', icon: 'dress', theme: 'home', tags: [], uses: ['wear'] },
   { id: 'scarf', en: 'scarf', zh: '圍巾', icon: 'scarf', theme: 'home', tags: [], uses: ['wear'] },
   { id: 'shoe', en: 'shoe', zh: '鞋子', icon: 'running-shoe', theme: 'home', tags: [], uses: ['wear'] },
+  { id: 'gift', en: 'present', zh: '禮物', icon: 'wrapped-gift', theme: 'home', tags: [] },
 ]
 
 export const TAG_QUESTION: Record<Tag, string> = {
@@ -108,12 +119,12 @@ export const vocab = (id: string) => VOCAB.find((v) => v.id === id)!
 
 /** 分類題中容易讓孩子混淆的項目：不出成答案，也不出成干擾選項 */
 export const AMBIGUOUS: Record<Tag, string[]> = {
-  fly: ['duck', 'chicken', 'dragon'],
+  fly: ['duck', 'chicken', 'dragon', 'penguin'],
   // 浴缸、海綿、雨具都和水有關，「哪個在水裡」不能拿它們當干擾
-  water: ['duck', 'frog', 'turtle', 'elephant', 'bathtub', 'sponge', 'shower', 'umbrella', 'raincoat', 'boot'],
+  water: ['duck', 'frog', 'turtle', 'elephant', 'bathtub', 'sponge', 'shower', 'umbrella', 'raincoat', 'boot', 'penguin'],
   wheels: ['plane'],
   // 床和泰迪熊也有四隻腳
-  legs4: ['frog', 'turtle', 'mouse', 'dragon', 'sauropod', 'bed', 'teddy'],
+  legs4: ['frog', 'turtle', 'mouse', 'dragon', 'sauropod', 'bed', 'teddy', 'crab', 'octopus'],
   eat: [],
 }
 
@@ -124,10 +135,10 @@ export const USE_TAGS: UseTag[] = ['rain', 'eat', 'wear', 'bath', 'bed']
 
 /** 不出成干擾的項目：下雨天也會穿 T 恤、鞋子；洗澡前後也會刷牙；魚和雞也能吃 */
 export const USE_AMBIGUOUS: Record<UseTag, string[]> = {
-  rain: ['tshirt', 'cap', 'dress', 'scarf', 'shoe', 'duck', 'frog', 'fish', 'boat', 'whale', 'turtle'],
-  bath: ['toothbrush', 'duck', 'fish', 'frog', 'boat', 'whale', 'turtle'],
+  rain: ['tshirt', 'cap', 'dress', 'scarf', 'shoe', 'duck', 'frog', 'fish', 'boat', 'whale', 'turtle', 'octopus', 'crab', 'penguin'],
+  bath: ['toothbrush', 'duck', 'fish', 'frog', 'boat', 'whale', 'turtle', 'octopus', 'crab', 'penguin'],
   bed: ['owl', 'panda', 'cat', 'dog'],
-  eat: ['fish', 'chicken', 'duck', 'cow', 'pig', 'sheep'],
+  eat: ['fish', 'chicken', 'duck', 'cow', 'pig', 'sheep', 'goat', 'crab', 'octopus'],
   wear: ['umbrella'],
 }
 

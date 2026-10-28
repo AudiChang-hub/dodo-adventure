@@ -7,6 +7,7 @@ import { letterEntry } from './letters'
 import { VOCAB } from './vocab'
 import { COLORS, SHAPES, COUNT_ICONS } from './park'
 import { pick } from '../lib/random'
+import { themeNow } from '../lib/theme-play'
 
 // ── 陪玩提示：一行、短、只寫給大人看 ─────────────────────────────
 const GAME_HINTS: Record<string, string[]> = {
@@ -46,8 +47,14 @@ const STATION_HINTS: Record<StationId, string[]> = {
 
 const GENERIC_HINTS = ['問他：這是什麼？', '他答對時，說說他做了什麼：你看得好仔細！', '他卡住時，先等 5 秒，不急著說答案']
 
+/** 主題式冒險裡，陪玩提示說今天主題的機會 */
+const THEME_HINT_SHARE = 0.35
+
 /** 這個遊戲的陪玩提示（每次進遊戲隨機挑一句） */
 export function coplayHint(gameId: string | null, station: StationId): string {
+  // 主題式冒險：有時候提示今天的主題，爸爸在路上、家裡可以接著玩（今天的主題是公車：路上看到公車…）
+  const th = themeNow()
+  if (th && Math.random() < THEME_HINT_SHARE) return `今天的主題是${th.zh}：${th.dad}`
   const list = (gameId && GAME_HINTS[gameId]) || STATION_HINTS[station] || GENERIC_HINTS
   return pick(list)
 }

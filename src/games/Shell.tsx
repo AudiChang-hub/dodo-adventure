@@ -2,6 +2,8 @@ import { createContext, useContext, useEffect, useState, type CSSProperties, typ
 import { Dino, type Mood } from '../art/Dino'
 import { HoldButton } from '../ui/Hold'
 import { Scenery } from '../ui/Scenery'
+import { ThemeScenery } from '../ui/ThemeScenery'
+import { themeNow } from '../lib/theme-play'
 import { ProgressStars } from '../ui/ProgressStars'
 import { station as stationDef } from '../content/games'
 import { coplayHint } from '../content/coplay'
@@ -45,6 +47,8 @@ export interface GameProps {
   gameId: string
   onDone: (r: GameResult) => void
   onExit: () => void
+  /** 主題式冒險的主題（content/themes.ts）。PlayGame 會在遊戲期間設成 themeNow()，各遊戲不用自己傳 */
+  theme?: string
 }
 
 export function HomeIcon() {
@@ -84,11 +88,13 @@ interface Props {
 /** 每個遊戲共用的舞台：上方返回鍵與進度、左下角是主持的恐龍（點它會再說一次題目） */
 export function Shell({ station, mood, progress, onExit, onHost, children, hideHost, hint = true, hintText }: Props) {
   const st = stationDef(station)
+  // 主題式冒險：每一站都是同一個故事的場景（公車旅行的街道），不分站點的顏色和背景，孩子不會覺得「現在換到數學了」
+  const [th] = useState(themeNow)
   // 遊戲在畫面上的時候，每日時間到了也先等它玩完（在兩個遊戲之間才去睡覺）
   useEffect(() => holdBedtime(), [])
   return (
-    <div className="stage" style={{ '--stage': st.tint, '--deep': st.deep } as CSSProperties}>
-      <Scenery station={station} />
+    <div className="stage" style={{ '--stage': th?.tint ?? st.tint, '--deep': th?.deep ?? st.deep } as CSSProperties}>
+      {th ? <ThemeScenery def={th} /> : <Scenery station={station} />}
       <div className="stage-top">
         <HoldButton label="回首頁（按住）" onHold={onExit}>
           <HomeIcon />

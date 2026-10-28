@@ -1,14 +1,16 @@
-import { useEffect, useRef, useState, type CSSProperties } from 'react'
+import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
 import { Ride } from '../art/Ride'
 import { Egg } from '../art/Egg'
 import { Emoji } from '../art/Emoji'
 import { Scenery } from '../ui/Scenery'
+import { ThemeScenery } from '../ui/ThemeScenery'
 import { Sparkles } from '../ui/Sparkles'
 import { PlayGame } from '../games/PlayGame'
 import { PlayingGame } from '../games/Shell'
 import { DadTurn } from '../games/DadTurn'
 import { station as stationDef } from '../content/games'
+import { theme as themeDef } from '../content/themes'
 import { STORY_EGG_COUNT } from '../content/lines-friends'
 import { hasLine } from '../content/lines'
 import { go } from '../lib/nav'
@@ -16,22 +18,35 @@ import { say, sfx, stopSpeech } from '../lib/audio'
 import { getKV, setKV, today } from '../lib/db'
 import { todayPlan, savePlan, planDone, hatchFriend, type Plan } from '../lib/plan'
 import { noteActivity, isBreakDue, holdBedtime, bedtimeIfDue } from '../lib/session'
+import { useThemeScope } from '../lib/theme-play'
 import { EyeBreak } from '../ui/EyeBreak'
 import { wait } from '../games/lines'
-import { RouteMap, RouteStrip } from './Route'
+import { RouteMap, RouteStrip, stopIcon } from './Route'
 import { DayRecap } from './DayRecap'
 
-type Phase = 'route' | 'travel' | 'play' | 'coplay' | 'egg' | 'hatch' | 'finish' | 'rest'
+type Phase = 'route' | 'travel' | 'play' | 'coplay' | 'egg' | 'finale' | 'hatch' | 'finish' | 'rest'
 
 /** 開局的路線至少展示這麼久（毫秒），讓孩子看得到「今天有 4 站」 */
 const ROUTE_MS = 3000
 /** 爸爸回合：一天最多幾次、每站結束後出現的機率（第一站是暖身，不出現） */
 const COPLAY_PER_DAY = 1
 const COPLAY_CHANCE = 0.5
+/** 旁白開始多久之後才能點畫面跳過（避免轉場時手還放在螢幕上就跳過） */
+const SKIP_AFTER_MS = 700
+
+/** 爸爸回合也在故事裡：背景、題目的東西照主題（DadTurn 自己不知道主題） */
+function ThemeScope({ theme, children }: { theme?: string; children: ReactNode }) {
+  useThemeScope(theme)
+  return children
+}
 
 /**
  * 今日冒險：今天的路線 → 轉場 → 遊戲 →（偶爾）換爸爸問 → 蛋裂開一點 → 下一站…最後孵出新朋友。
  * 每日時間到了不在題目中途結束，而是在兩站之間（蛋裂開之後）才去睡覺。
+ *
+ * 主題式冒險（plan.theme，2026-10-28 起每天都是）：路線是故事的一格一格（公車站牌 → 公車 → …→ 動物園），
+ * 轉場不報站名，而是說故事的恐龍念一句旁白；最後一站之後先到故事的終點（We made it to the zoo!），再孵蛋、回顧。
+ * 孩子端看不到也聽不到任何科目或站名；旁白都很短，點一下畫面就跳過。
  */
 export function Adventure() {
   const [plan, setPlan] = useState<Plan | null>(null)
@@ -41,10 +56,14 @@ export function Adventure() {
   const live = useRef(true)
   /** 爸爸回合是哪一站之後（站的 index），結束後接回蛋裂開 */
   const [coplayAt, setCoplayAt] = useState(-1)
+  /** 點畫面跳過旁白：這個階段後面的等待也一起略過 */
+  const skipped = useRef(false)
+  const skipFrom = useRef(0)
 
   const cur = plan?.items.findIndex((i) => !i.done) ?? -1
   const item = plan && cur >= 0 ? plan.items[cur] : null
   const doneCount = plan?.items.filter((i) => i.done).length ?? 0
+  const th = themeDef(plan?.theme)
 
   useEffect(() => {
     live.current = true
@@ -57,6 +76,26 @@ export function Adventure() {
       stopSpeech()
     }
   }, [])
+
+  // 每換一個階段，重新開始算「可以跳過」的時間
+  useEffect(() => {
+    skipped.current = false
+    skipFrom.current = performance.now() + SKIP_AFTER_MS
+  }, [phase])
+
+  /** 等一下；被點畫面跳過時立刻結束 */
+  const hold = async (ms: number) => {
+    const end = performance.now() + ms
+    while (!skipped.current && performance.now() < end) await wait(Math.min(80, end - performance.now()))
+  }
+
+  /** 路線、轉場、故事終點：點一下畫面就跳過旁白（say 被 stopSpeech 打斷會提早結束） */
+  const skip = () => {
+    if (skipped.current || performance.now() < skipFrom.current) return
+    if (phase !== 'route' && phase !== 'travel' && phase !== 'finale') return
+    skipped.current = true
+    stopSpeech()
+  }
 
   // 冒險在畫面上就先擋住「時間到」：由冒險自己在兩站之間檢查。
   // 收尾畫面（finish）說完那句話才放開，之後一般的計時就會送去睡覺
@@ -72,7 +111,7 @@ export function Adventure() {
     }
   }, [phase])
 
-  // 開局：先看今天的路線（約 3 秒），說「今天有四站」，再出發
+  // 開局：先看今天的路線（約 3 秒）。主題式冒險念故事的標題與開場；中途回來只念標題
   useEffect(() => {
     if (phase !== 'route' || !plan || planDone(plan)) return
     let cancelled = false
@@ -80,10 +119,12 @@ export function Adventure() {
       const t = performance.now()
       await wait(500)
       if (cancelled) return
-      const n = plan.items.length
-      const k = `route.stops.${n}`
-      await say(...(doneCount === 0 && hasLine(k) ? [k] : []), 'adv.go')
-      await wait(Math.max(0, ROUTE_MS - (performance.now() - t)))
+      if (th) await say(`theme.${th.id}.title`, ...(doneCount === 0 ? [`theme.${th.id}.intro`] : []))
+      else {
+        const k = `route.stops.${plan.items.length}`
+        await say(...(doneCount === 0 && hasLine(k) ? [k] : []), 'adv.go')
+      }
+      await hold(Math.max(0, ROUTE_MS - (performance.now() - t)))
       if (!cancelled && live.current) setPhase('travel')
     })()
     return () => {
@@ -92,22 +133,40 @@ export function Adventure() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [phase, plan])
 
-  // 轉場：主持的恐龍開車進場、報站名，說完自動開始
+  // 轉場：主持的恐龍開車進場、報站名（主題式冒險：說故事的一句），說完自動開始
   useEffect(() => {
     if (phase !== 'travel' || !item) return
     let cancelled = false
     ;(async () => {
       sfx.whoosh()
-      await wait(700)
+      await hold(700)
       if (cancelled) return
-      await say(`station.${item.station}`)
-      await wait(500)
+      await say(th ? `theme.${th.id}.stop.${Math.min(cur, th.stops.length - 1)}` : `station.${item.station}`)
+      await hold(500)
       if (!cancelled && live.current) setPhase('play')
     })()
     return () => {
       cancelled = true
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [phase, item])
+
+  // 故事的終點：目的地大大地出現、說故事的恐龍開到、念結尾，再去孵蛋
+  useEffect(() => {
+    if (phase !== 'finale' || !th) return
+    let cancelled = false
+    ;(async () => {
+      await hold(900)
+      if (cancelled) return
+      sfx.done()
+      await say(`theme.${th.id}.end`)
+      await hold(700)
+      if (!cancelled && live.current) setPhase('hatch')
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [phase, th])
 
   useEffect(() => {
     if (phase === 'hatch') void say('egg.ready')
@@ -148,8 +207,8 @@ export function Adventure() {
     await say(`story.egg.${(done - 1 + STORY_EGG_COUNT) % STORY_EGG_COUNT}`)
     await wait(500)
     if (!live.current) return
-    // 全部走完就孵蛋（故事的結尾一定讓它說完）；時間到了就在兩站之間去睡覺
-    if (planDone(next)) return setPhase('hatch')
+    // 全部走完就到故事的終點、孵蛋（故事的結尾一定讓它說完）；時間到了就在兩站之間去睡覺
+    if (planDone(next)) return setPhase(themeDef(next.theme) ? 'finale' : 'hatch')
     if (bedtimeIfDue()) return
     setPhase(isBreakDue() ? 'rest' : 'travel')
   }
@@ -191,20 +250,25 @@ export function Adventure() {
   if (phase === 'play' && item)
     return (
       <PlayingGame.Provider value={item.game}>
-        <PlayGame gameId={item.game} onDone={onGameDone} onExit={exit} />
+        <PlayGame gameId={item.game} theme={plan.theme} onDone={onGameDone} onExit={exit} />
       </PlayingGame.Provider>
     )
 
   if (phase === 'coplay' && coplayAt >= 0) {
     const it = plan.items[coplayAt]
-    return <DadTurn gameId={it.game} station={it.station} onDone={() => void afterGame(plan)} onExit={() => go({ name: 'home' })} />
+    return (
+      <ThemeScope theme={plan.theme}>
+        <DadTurn gameId={it.game} station={it.station} onDone={() => void afterGame(plan)} onExit={() => go({ name: 'home' })} />
+      </ThemeScope>
+    )
   }
 
   const st = item ? stationDef(item.station) : null
+  // 背景：主題式冒險整趟都是主題的顏色與場景；舊的冒險照站點換顏色
+  const bg = th ? th.tint : phase === 'route' ? 'var(--paper)' : (st?.tint ?? 'var(--paper)')
   return (
-    <div className="screen travel" style={{ background: phase === 'route' ? 'var(--paper)' : (st?.tint ?? 'var(--paper)'), transition: 'background .6s' } as CSSProperties}>
-      {/* 路線圖自己就是一條路，不再疊首頁的地面 */}
-      {phase !== 'route' && <Scenery station="home" />}
+    <div className="screen travel" style={{ background: bg, transition: 'background .6s' } as CSSProperties} onPointerDown={skip}>
+      {th ? <ThemeScenery def={th} /> : phase !== 'route' && <Scenery station="home" />}
       <AnimatePresence mode="wait">
         {phase === 'route' && (
           <motion.div key="route" className="screen" exit={{ opacity: 0, transition: { duration: 0.3 } }}>
@@ -212,7 +276,23 @@ export function Adventure() {
           </motion.div>
         )}
 
-        {phase === 'travel' && st && item && (
+        {phase === 'travel' && th && item && (
+          <motion.div key={`t${cur}`} className="screen" exit={{ opacity: 0 }}>
+            <RouteStrip plan={plan} />
+            {/* 故事的這一格：大大的圖在一張紙卡上，後面一圈淡淡的光 */}
+            <motion.div className="story-card" style={{ '--deep': th.deep, '--tint': th.tint } as CSSProperties} initial={{ scale: 0.6, opacity: 0, y: 24 }} animate={{ scale: 1, opacity: 1, y: 0 }} transition={{ type: 'spring', stiffness: 200, damping: 17, delay: 0.25 }}>
+              <span className="story-card-halo" />
+              <motion.span className="story-card-pic" animate={{ y: [0, -6, 0] }} transition={{ duration: 3.2, repeat: Infinity, ease: 'easeInOut', delay: 1 }}>
+                <Emoji name={stopIcon(th, cur)} />
+              </motion.span>
+            </motion.div>
+            <motion.div style={{ position: 'absolute', bottom: '7vh', left: '50%', width: '40vmin', marginLeft: '-20vmin' }} initial={{ x: '-80vw' }} animate={{ x: 0 }} transition={{ type: 'spring', stiffness: 45, damping: 12 }}>
+              <Ride who={th.host} width="100%" moving mood="happy" />
+            </motion.div>
+          </motion.div>
+        )}
+
+        {phase === 'travel' && !th && st && item && (
           <motion.div key={`t${cur}`} className="screen" exit={{ opacity: 0 }}>
             <RouteStrip plan={plan} />
             <motion.div className="travel-badge" initial={{ scale: 0, rotate: -30 }} animate={{ scale: 1, rotate: 0 }} transition={{ type: 'spring', stiffness: 220, damping: 14, delay: 0.3 }}>
@@ -223,6 +303,29 @@ export function Adventure() {
             </motion.div>
             <motion.div style={{ position: 'absolute', bottom: '8vh', left: '50%', width: '40vmin', marginLeft: '-20vmin' }} initial={{ x: '-80vw' }} animate={{ x: 0 }} transition={{ type: 'spring', stiffness: 45, damping: 12 }}>
               <Ride who={st.host} width="100%" moving mood="happy" />
+            </motion.div>
+          </motion.div>
+        )}
+
+        {phase === 'finale' && th && (
+          <motion.div key="finale" className="screen" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0, transition: { duration: 0.35 } }}>
+            <div className="story-finale" style={{ '--deep': th.deep, '--tint': th.tint } as CSSProperties}>
+              <motion.span className="story-finale-ring" initial={{ scale: 0.4, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ type: 'spring', stiffness: 140, damping: 16 }} />
+              {th.finale.map((ic, i) => (
+                <motion.span
+                  key={ic}
+                  className={`story-finale-pic n${th.finale.length} i${i}`}
+                  initial={{ scale: 0, y: 40, rotate: i % 2 ? 12 : -12 }}
+                  animate={{ scale: 1, y: 0, rotate: 0 }}
+                  transition={{ type: 'spring', stiffness: 240, damping: 13, delay: 0.25 + i * 0.18 }}
+                >
+                  <Emoji name={ic} />
+                </motion.span>
+              ))}
+              <Sparkles count={14} />
+            </div>
+            <motion.div style={{ position: 'absolute', bottom: '6vh', left: '50%', width: '34vmin', marginLeft: '-34vmin' }} initial={{ x: '-70vw' }} animate={{ x: 0 }} transition={{ type: 'spring', stiffness: 45, damping: 12, delay: 0.2 }}>
+              <Ride who={th.host} width="100%" moving={false} mood="cheer" />
             </motion.div>
           </motion.div>
         )}

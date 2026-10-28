@@ -6,8 +6,8 @@ import { Hand } from '../Demo'
 import { Emoji } from '../../art/Emoji'
 import { Sparkles } from '../../ui/Sparkles'
 import { game as gameDef, type TeachSpec, type Visual } from '../../content/games'
-import { seqSkill, storiesFor, type Story } from '../../content/code'
-import { isNew, level, markPlayed, mastered, pickTarget, plays, reportLevel, teachable, withTargetFilter } from '../../lib/adaptive'
+import { pickStory, seqSkill, type Story } from '../../content/code'
+import { isNew, level, markPlayed, mastered, plays, reportLevel, teachable, withTargetFilter } from '../../lib/adaptive'
 import { logAttempt, logTeach } from '../../lib/record'
 import type { Phase } from '../../lib/db'
 import { preload, say, sfx, stopSpeech } from '../../lib/audio'
@@ -167,8 +167,8 @@ export function SequenceGame({ gameId, onDone, onExit }: GameProps) {
     idxRef.current = i
     setIdx(i)
     lv.current = level(def.id)
-    const pool = storiesFor(lv.current)
-    const make = () => pickTarget(pool, seqSkill, recent.current)
+    // 主題式冒險先挑主題的故事（等公車 → 公車來了），這一級沒有就照常挑
+    const make = () => pickStory(lv.current, recent.current)
     // 開局先出已熟的故事；這局已經教滿（或負擔過重、本週新概念額度用完）就只出學過的
     let s = i === 0 ? withTargetFilter(mastered, make) : make()
     const ok = teachable(def.id, taught.current, MAX_TEACH)

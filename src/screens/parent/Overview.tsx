@@ -4,6 +4,7 @@ import { lastDays, minutesByDay, pct, skillLabel, STATION_NAME, type ParentData 
 import { isDueAt, isScored } from '../../lib/engine'
 import { LoadAlert, playDayIndex } from './EngineCards'
 import { CurriculumCard, TrackCard } from './Tracks'
+import { ThemeTodayCard } from './ThemeToday'
 
 /**
  * 今天新教了什麼：今天的教學紀錄（不含答錯後的重教），每個技能一筆，
@@ -121,6 +122,8 @@ export function Overview({ d }: { d: ParentData }) {
           </div>
         </div>
       </div>
+
+      <ThemeTodayCard d={d} />
 
       <TrackCard d={d} />
 

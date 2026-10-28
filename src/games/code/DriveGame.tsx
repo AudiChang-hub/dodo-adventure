@@ -8,9 +8,10 @@ import { Emoji } from '../../art/Emoji'
 import { ArrowArt } from '../../art/Arrow'
 import { Sparkles } from '../../ui/Sparkles'
 import { game as gameDef, type TeachSpec } from '../../content/games'
-import { BLOCK_ICON, DIRS, TARGETS, distMap, drivePuzzle, driveTeach, pickDriveSkill, runProgram, stepOf, type Cell, type Dir, type DrivePuzzle } from '../../content/code'
+import { BLOCK_ICON, DIRS, driveTarget, distMap, drivePuzzle, driveTeach, pickDriveSkill, runProgram, stepOf, type Cell, type Dir, type DrivePuzzle } from '../../content/code'
 import { isNew, level, markPlayed, mastered, plays, reportLevel, teachable, withTargetFilter } from '../../lib/adaptive'
 import { logAttempt, logTeach } from '../../lib/record'
+import { themeNow } from '../../lib/theme-play'
 import type { Phase } from '../../lib/db'
 import { preload, say, sfx, stopSpeech } from '../../lib/audio'
 import { praiseKey, wait } from '../lines'
@@ -37,7 +38,7 @@ const PAD: Record<Dir, CSSProperties> = {
   down: { gridArea: '3 / 2' },
 }
 
-const targetOf = (p: DrivePuzzle) => TARGETS.find((t) => t.id === p.target)!
+const targetOf = (p: DrivePuzzle) => driveTarget(p.target)
 const promptOf = (p: DrivePuzzle) => [`c.drive.to.${p.target}`, ...(p.solution.length > 1 ? [`c.drive.cards.${p.solution.length}`] : [])]
 
 /**
@@ -102,6 +103,8 @@ export function DriveGame({ gameId, onDone, onExit }: GameProps) {
   const lv = useRef(1)
   const recent = useRef<string[]>([])
   const recentTargets = useRef<DrivePuzzle['target'][]>([])
+  // 主題式冒險：開的是說故事那隻恐龍的車（莫莫的公車旅行就開黃色公車），開場也改成請孩子幫牠開
+  const [driver] = useState(() => themeNow()?.host ?? 'dodo')
   const taught = useRef(0)
   const firstTries = useRef(0)
   const firstPlay = useRef(plays(def.id) === 0)
@@ -252,7 +255,7 @@ export function DriveGame({ gameId, onDone, onExit }: GameProps) {
     // 延到下一輪才開始：StrictMode 開發模式會先掛載、卸載再掛載一次，避免兩條流程同時跑
     const boot = window.setTimeout(async () => {
       markPlayed(def.id)
-      await say(def.intro)
+      await say(driver === 'dodo' ? def.intro : `c.intro.drive.${driver}`)
       if (live.current) present(0)
     }, 0)
     return () => {
@@ -556,7 +559,7 @@ export function DriveGame({ gameId, onDone, onExit }: GameProps) {
                     transition={{ type: 'spring', stiffness: 150, damping: 20, x: { duration: 0.42 }, y: { duration: 0.42 }, rotate: { duration: 0.42 } }}
                   >
                     <div style={{ transform: `scaleX(${car.face})`, transition: 'transform .25s' }}>
-                      <Ride who="dodo" width="100%" moving={car.moving} mood={mood === 'cheer' ? 'cheer' : 'happy'} />
+                      <Ride who={driver} width="100%" moving={car.moving} mood={mood === 'cheer' ? 'cheer' : 'happy'} />
                     </div>
                   </motion.div>
                   </div>

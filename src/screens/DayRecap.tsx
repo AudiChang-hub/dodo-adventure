@@ -3,6 +3,8 @@ import { motion } from 'motion/react'
 import { Emoji } from '../art/Emoji'
 import { PicView, StarShape, Sticker } from '../ui/StickerArt'
 import { game as gameDef } from '../content/games'
+import { theme as themeDef } from '../content/themes'
+import { stopIcon } from './Route'
 import { hasLine } from '../content/lines'
 import { stickerOfMilestone, todayMilestones, isSelfFix } from '../lib/achievements'
 import { db, today } from '../lib/db'
@@ -57,6 +59,8 @@ function todayItems(): Item[] {
  * 和一個「給爸爸看」的按鈕：按了，豆豆把今天學會的念給爸爸聽，念到哪一張，那一張就跳一下。
  */
 export function DayRecap({ plan }: { plan: Plan }) {
+  // 主題式冒險：走過的站用故事的圖（和路線上的一樣），孩子看得出「這是今天的公車旅行」
+  const th = themeDef(plan.theme)
   const [items] = useState(todayItems)
   const [active, setActive] = useState(-1)
   const [fixes, setFixes] = useState(0)
@@ -95,7 +99,11 @@ export function DayRecap({ plan }: { plan: Plan }) {
   }
 
   // 給爸爸看的一行中文：說得出孩子今天做了什麼，比「好棒」更具體
-  const zh = [items.length ? `今天：${items.map((x) => x.zh).join('、')}` : `今天走完 ${plan.items.length} 站`, fixes > 0 ? `錯了自己改對 ${fixes} 次` : '']
+  const zh = [
+    th ? `今天的故事是「${th.zh}」` : '',
+    items.length ? `今天：${items.map((x) => x.zh).join('、')}` : `今天走完 ${plan.items.length} 站`,
+    fixes > 0 ? `錯了自己改對 ${fixes} 次` : '',
+  ]
     .filter(Boolean)
     .join('；')
 
@@ -106,7 +114,7 @@ export function DayRecap({ plan }: { plan: Plan }) {
           <motion.div key={i} className="recap-stop" initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ type: 'spring', stiffness: 340, damping: 16, delay: 0.3 + i * 0.1 }}>
             <span className="recap-stop-face">
               <span className="recap-stop-pic">
-                <PicView pic={{ t: 'emoji', icon: gameDef(it.game).icon }} />
+                <PicView pic={{ t: 'emoji', icon: th ? stopIcon(th, i) : gameDef(it.game).icon }} />
               </span>
             </span>
             <span className="recap-stop-star">

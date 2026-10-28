@@ -1,7 +1,7 @@
 import { LETTERS, PHONICS, phonicsSkill } from '../../content/letters'
 import { VOCAB, THEME_LABEL, type VocabTheme } from '../../content/vocab'
 import { GAMES, unlockedSounds } from '../../content/games'
-import { DIRS, DIR_ZH, PATTERN_ZH, STORIES, seqSkill, type PatternKind } from '../../content/code'
+import { ALL_STORIES, DIRS, DIR_ZH, PATTERN_ZH, STORIES, seqSkill, type PatternKind } from '../../content/code'
 import { gameLevel, level, unlockedNumbers } from '../../lib/adaptive'
 import { isQuiz } from '../../lib/db'
 import { pct, STATION_NAME, type ParentData } from './data'
@@ -130,7 +130,8 @@ export function Progress({ d }: { d: ParentData }) {
         </div>
         <p className="sub" style={{ margin: '10px 0 6px' }}>排順序（{STORIES.filter((st) => box(seqSkill(st)) >= 3).length}/{STORIES.length} 個故事已熟練）</p>
         <p style={{ margin: 0, color: 'var(--ink-soft)' }}>
-          {STORIES.filter((st) => d.skills.get(seqSkill(st))?.seen)
+          {/* 主題式冒險的故事也列出來（玩過才會出現），分母仍是一般的故事 */}
+          {ALL_STORIES.filter((st) => d.skills.get(seqSkill(st))?.seen)
             .map((st) => `${st.zh}${box(seqSkill(st)) >= 3 ? ' ✓' : ''}`)
             .join('、') || <span className="empty">還沒玩過。</span>}
         </p>

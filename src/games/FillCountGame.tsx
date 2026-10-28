@@ -6,6 +6,7 @@ import { Emoji } from '../art/Emoji'
 import { Sparkles } from '../ui/Sparkles'
 import { game as gameDef, station as stationDef } from '../content/games'
 import { FILL_ICONS } from '../content/worksheet-data'
+import { themed } from '../lib/theme-play'
 import { level, markPlayed, plays, reportLevel } from '../lib/adaptive'
 import { logAttempt, logTeach } from '../lib/record'
 import type { Phase } from '../lib/db'
@@ -172,7 +173,8 @@ export function FillCountGame({ gameId, onDone, onExit }: GameProps) {
     cellsRef.current = m
     setN(k)
     setCells(m)
-    setIcon(pick(FILL_ICONS))
+    // 主題式冒險塗主題的東西（一格一台公車）
+    setIcon(pick(themed(FILL_ICONS, (t) => t.count)))
     setOrderBoth([])
     setScaffold(false)
     setGlow(null)

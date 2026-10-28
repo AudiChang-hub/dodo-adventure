@@ -366,6 +366,32 @@ export function pickTarget<T>(items: readonly T[], keyOf: (t: T) => string, avoi
   })
 }
 
+/** 主題外有到期複習、主題裡沒有時，這一題先複習的機會 */
+const REVIEW_OVER_THEME = 0.5
+
+/**
+ * 主題式冒險：先從主題的內容（prefer，必須是 items 裡的同一批東西）挑，挑法和 pickTarget 一樣（到期複習優先、越不熟越常出）。
+ * 退回全部內容的情況（學習的正確性比主題純度重要）：
+ * - 主題裡沒有現在能出的：例如 withTargetFilter 規定這局只出學過的，主題的東西卻都還沒教過，或剛剛才出過；
+ * - 主題外有到期該複習的、主題裡沒有：一半的機會先複習，到期複習不會因為換主題就一直往後延。
+ */
+export function pickPreferred<T>(prefer: readonly T[], items: readonly T[], keyOf: (t: T) => string, avoid: T[] = []): T {
+  const ok = targetFilter
+  // 剛出過的主題內容也先避開：主題只有一兩個能出的時候（一個音、一張圖），就和一般的輪流
+  const mine = items.filter((t) => prefer.includes(t) && !avoid.includes(t))
+  const fav = ok ? mine.filter((t) => ok(keyOf(t))) : mine
+  if (!fav.length) {
+    // 篩選條件連主題外也沒有符合的（例如「開局先出已熟的」但還沒有任何已熟的）：pickTarget 本來就會忽略它，那就留在主題裡挑
+    if (ok && mine.length && !items.some((t) => ok(keyOf(t)))) return pickTarget(mine, keyOf)
+    return pickTarget(items, keyOf, avoid)
+  }
+  const day = dayIndex()
+  const due = (t: T) => isDueAt(skill(keyOf(t)), day)
+  const dueOut = items.some((t) => !fav.includes(t) && (!ok || ok(keyOf(t))) && due(t))
+  if (dueOut && !fav.some(due) && Math.random() < REVIEW_OVER_THEME) return pickTarget(items, keyOf, avoid)
+  return pickTarget(fav, keyOf)
+}
+
 const ratio = (keys: string[]) => keys.filter(mastered).length / keys.length
 
 /** 字母一組一組解鎖：前面每一組都有八成熟了才開下一組 */

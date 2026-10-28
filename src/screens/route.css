@@ -57,3 +57,35 @@
 .route-chip.egg {
   width: 34px;
 }
+
+/* ── 主題式冒險：標題卡與故事小路線 ───────────────────────────── */
+.route-theme-title {
+  font-family: 'Fredoka', sans-serif;
+  font-weight: 600;
+  font-size: 38px;
+  letter-spacing: 0.01em;
+  fill: var(--ink);
+}
+.route-theme-sub {
+  font-family: 'Huninn', sans-serif;
+  font-size: 15px;
+  letter-spacing: 0.08em;
+  fill: var(--ink-faint);
+}
+/* 還沒走到的站淡一點；走過的有小勾（不能只靠深淺區分） */
+.route-chip.theme .route-chip-pic {
+  transition: opacity 0.4s;
+}
+.route-chip.theme:not(.is-done):not(.is-now) .route-chip-pic {
+  opacity: 0.42;
+}
+.route-chip.theme.is-now {
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--deep) 45%, transparent);
+}
+.route-chip-tick {
+  position: absolute;
+  right: -1px;
+  bottom: -1px;
+  width: 17px;
+  height: 17px;
+}

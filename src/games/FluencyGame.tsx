@@ -5,6 +5,7 @@ import { VisualView } from '../ui/Visual'
 import { Sparkles } from '../ui/Sparkles'
 import { game as gameDef, type Visual } from '../content/games'
 import { COUNT_ICONS } from '../content/park'
+import { themed } from '../lib/theme-play'
 import { QUICK_CHEERS } from '../content/lines-engine'
 import { markPlayed } from '../lib/adaptive'
 import { fluencyKey, fluencyTargets, type FluencyTarget } from '../lib/fluency'
@@ -32,7 +33,7 @@ function makeQ(t: FluencyTarget): Q {
   const near = [t.n - 2, t.n - 1, t.n + 1, t.n + 2].filter((x) => x >= 1 && x <= (t.kind === 'count' ? 10 : 20))
   const options = shuffle([t.n, ...sample(near, 2)])
   return t.kind === 'count'
-    ? { t, stimulus: { t: 'group', icon: pick(COUNT_ICONS), count: t.n }, prompt: 'm.howmany', options }
+    ? { t, stimulus: { t: 'group', icon: pick(themed(COUNT_ICONS, (th) => th.count)), count: t.n }, prompt: 'm.howmany', options }
     : { t, prompt: `m.findnum.${t.n}`, options }
 }
 
