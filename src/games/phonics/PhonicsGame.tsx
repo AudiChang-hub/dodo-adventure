@@ -3,7 +3,8 @@ import { motion } from 'motion/react'
 import { Shell, type GameProps } from '../Shell'
 import { Hand } from '../Demo'
 import { Sparkles } from '../../ui/Sparkles'
-import { game as gameDef, station as stationDef, ROUND_ITEMS, PHONICS_MAKERS, type PhonicsItem, type PhonicsOption } from '../../content/games'
+import { game as gameDef, station as stationDef, ROUND_ITEMS, PHONICS_MAKERS, type PhonicsItem, type PhonicsOption, type WordCard } from '../../content/games'
+import { TeachCard } from '../Teach'
 import { level, reportLevel, markPlayed, plays } from '../../lib/adaptive'
 import { planPhonics, roundState } from '../pick'
 import { logAttempt, logTeach } from '../../lib/record'
@@ -56,7 +57,8 @@ export function PhonicsGame({ gameId, onDone, onExit }: GameProps) {
   const [idx, setIdx] = useState(0)
   const [item, setItem] = useState<PhonicsItem | null>(null)
   const [phase, setPhase] = useState<Phase>('quiz')
-  const [card, setCard] = useState<{ it: PhonicsItem; short: boolean; n: number } | null>(null)
+  /** word：單字卡（新的複習字、補上的干擾字），沒有就是學習循環 */
+  const [card, setCard] = useState<{ it: PhonicsItem; short: boolean; n: number; word?: WordCard } | null>(null)
   const [view, setView] = useState(0)
   const [marks, setMarks] = useState<Record<string, Mark>>({})
   const [naming, setNaming] = useState<string | null>(null)
@@ -135,6 +137,19 @@ export function PhonicsGame({ gameId, onDone, onExit }: GameProps) {
     void logTeach({ station: def.station, game: def.id, itemId: it.unit.letter, skill: it.skill, level: itemLevel.current, ms, retaught: short })
   }
 
+  // ── 單字卡：自己答之前先教這個字（看圖、聽名字、開頭音上色）───────────
+  const teachWord = async (it: PhonicsItem, w: WordCard) => {
+    stepRef.current++
+    idle.stop()
+    locked.current = true
+    setMood('happy')
+    cardUp.current = true
+    setCard({ it, short: false, n: stepRef.current, word: w })
+    const ms = await waitStep()
+    if (!live.current) return
+    void logTeach({ station: def.station, game: def.id, itemId: `word:${w.key}`, skill: it.skill, level: itemLevel.current, ms })
+  }
+
   /** 教學卡收回主持的恐龍、題目拉遠回來；停頓和以前一樣（TEACH_TO_GUIDED），只是收卡的動畫也算在裡面 */
   const reveal = async () => {
     if (!cardUp.current) return
@@ -200,16 +215,22 @@ export function PhonicsGame({ gameId, onDone, onExit }: GameProps) {
     idxRef.current = i
     setIdx(i)
     // 這題出哪個音、要不要先教（pick.ts，自動檢查 scripts/sim-teach.ts 用同一份）
-    const { it, lv, fresh, walk: walkThrough } = planPhonics(def, make, round.current, i)
+    const { it, lv, fresh, walk: walkThrough, cards } = planPhonics(def, make, round.current, i)
     itemLevel.current = lv
-    preload([...it.prompt, ...it.names.map((n) => `ph.word.${n}`), ...it.after, ...introLines(it.unit), `teach.here.${host}`, `teach.turn.${host}`])
+    preload([...it.prompt, ...it.names.map((n) => `ph.word.${n}`), ...it.after, ...introLines(it.unit), ...cards.flatMap((c) => c.lines), `teach.here.${host}`, `teach.turn.${host}`])
 
     if (fresh) {
       await teach(it, false)
       if (!live.current) return
     }
-    taughtItem.current = fresh || walkThrough
-    if (fresh || walkThrough) {
+    // 這一題要考的字還沒教過（新的複習字…）：一張一張先教，再一起練
+    for (const c of cards) {
+      await teachWord(it, c)
+      if (!live.current) return
+    }
+    const taughtNow = fresh || cards.length > 0
+    taughtItem.current = taughtNow || walkThrough
+    if (taughtNow || walkThrough) {
       await guided(it)
       if (!live.current) return
       return quiz(reshuffle(it), true)
@@ -357,7 +378,16 @@ export function PhonicsGame({ gameId, onDone, onExit }: GameProps) {
   return (
     <Shell station={def.station} mood={mood} progress={{ total: ROUND_ITEMS, done: idx }} onExit={onExit} onHost={onHost}>
       {/* 學習循環的卡片從主持的恐龍長出來、題目在後面退開；換題時新題目蓋在舊的上面淡入（ui/Scenes.tsx） */}
-      <CardStage card={card && <PhonicsIntro key={`teach-${card.n}`} unit={card.it.unit} short={card.short} onDone={release} />}>
+      <CardStage
+        card={
+          card &&
+          (card.word ? (
+            <TeachCard key={`word-${card.n}`} spec={{ visual: { t: 'emoji', icon: card.word.word.icon }, lines: card.word.lines }} camera onDone={release} />
+          ) : (
+            <PhonicsIntro key={`teach-${card.n}`} unit={card.it.unit} short={card.short} onDone={release} />
+          ))
+        }
+      >
         {item && (
           <Swap id={view}>
             {(quiet) => (

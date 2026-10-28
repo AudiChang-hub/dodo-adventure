@@ -8,6 +8,7 @@ import { Records } from './Records'
 import { Gallery } from './Gallery'
 import { Outing } from './Outing'
 import { SettingsPanel } from './SettingsPanel'
+import { WordList } from './WordList'
 import { RESET_DONE_KEY } from '../../lib/reset'
 import { CHILD_ZH } from '../../lib/env'
 import './parent.css'
@@ -18,6 +19,7 @@ const TABS = [
   ['outing', '出門任務卡'],
   ['progress', '學習進度'],
   ['records', '作答紀錄'],
+  ['words', '單字清單'],
   ['gallery', '作品集'],
   ['settings', '設定與同步'],
 ] as const
@@ -54,6 +56,7 @@ export function Parent() {
       records: (d) => <Records d={d} />,
       gallery: (d) => <Gallery d={d} />,
       outing: (d) => <Outing d={d} />,
+      words: (d) => <WordList d={d} />,
     }
     return views[tab](data)
   }, [tab, data, error])

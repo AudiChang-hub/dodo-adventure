@@ -4,8 +4,8 @@
 // 同一個概念只有一張：數數量（count）、塗格子（fill）、給蛋（give）、一眼看幾個（flash）的 5，都是「數到 5」這一張。
 import type { Visual } from './games'
 import { STICKER_ART_ICONS, artOf } from './sticker-art'
-import { PHONICS, PHONICS_WORDS, upper, wordId } from './letters'
-import { VOCAB, CAT_EXAMPLES, vocab, type Tag } from './vocab'
+import { ALL_PHONICS, PHONICS_WORDS, upper, wordId } from './letters'
+import { ALL_VOCAB, CAT_EXAMPLES, vocab, type Tag } from './vocab'
 import { COLORS, SHAPES, SOLIDS, type ShapeId, type SolidId } from './park'
 import { ALL_STORIES, DIRS, DIR_ZH, PATTERN_TOKS, story, type Dir } from './code'
 
@@ -79,7 +79,8 @@ const COUNT_KINDS = new Set(['count', 'fill', 'give', 'flash'])
 export function stickerFor(skill: string): StickerDef | null {
   const [kind, v = ''] = skill.split(':')
   if (kind === 'phonics') {
-    const u = PHONICS.find((x) => x.letter === v)
+    // 延後的音（o、j、v、y）之前得到的貼紙也照樣顯示
+    const u = ALL_PHONICS.find((x) => x.letter === v)
     if (!u) return null
     return { id: skill, pic: { t: 'pair', ch: `${upper(v)}${v}`, icon: u.keys[0]?.icon }, tint: TINT.mint, lines: [`ph.${v}.says`], zh: `字母音 ${v}` }
   }
@@ -111,7 +112,7 @@ export function stickerFor(skill: string): StickerDef | null {
   }
   if (kind === 'all' && isSolid(v)) return { id: `solid:${v}`, pic: { t: 'solid', solid: v, hex: '#8FCBAA' }, tint: TINT.butter, lines: [`ws.thisis.${v}`], zh: `立體形狀 ${SOLIDS.find((s) => s.id === v)!.zh}` }
   if (kind === 'vocab' || kind === 'sound') {
-    const e = VOCAB.find((x) => x.id === v)
+    const e = ALL_VOCAB.find((x) => x.id === v)
     return e ? { id: `vocab:${v}`, pic: { t: 'emoji', icon: e.icon }, tint: TINT.sky, lines: [`teach.vocab.${v}`], short: `z.itis.${v}`, zh: `詞彙 ${e.zh}` } : null
   }
   if (kind === 'cat' && isTag(v)) return { id: skill, pic: { t: 'emoji', icon: vocab(CAT_EXAMPLES[v][0]).icon }, tint: TINT.sky, lines: [`teach.cat.${v}.0`, `teach.cat.${v}.1`], zh: `分類 ${CAT_ZH[v]}` }
@@ -156,10 +157,10 @@ export function thingPic(a: { skill: string; answer: string; itemId: string }): 
   if (kind === 'phonics') {
     const w = PHONICS_WORDS.find((x) => wordId(x.w) === a.answer)
     if (w) return { t: 'emoji', icon: w.icon }
-    return { t: 'pair', ch: `${upper(v)}${v}`, icon: PHONICS.find((x) => x.letter === v)?.keys[0]?.icon }
+    return { t: 'pair', ch: `${upper(v)}${v}`, icon: ALL_PHONICS.find((x) => x.letter === v)?.keys[0]?.icon }
   }
   if (kind === 'cat') {
-    const e = VOCAB.find((x) => x.id === a.answer)
+    const e = ALL_VOCAB.find((x) => x.id === a.answer)
     if (e) return { t: 'emoji', icon: e.icon }
   }
   if (kind === 'compare') return { t: 'group', icon: 'strawberry', count: Math.min(5, num(a.answer) || 2) }

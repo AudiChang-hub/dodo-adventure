@@ -23,10 +23,11 @@ const A = (cat: ArtCat, rows: [string, string, string][]): ArtDef[] => rows.map(
 
 export const STICKER_ART: ArtDef[] = [
   ...A('dino', [
-    ['t-rex', 'T. rex!', '暴龍'],
-    ['sauropod', 'Long-neck dinosaur!', '長頸龍'],
+    ['t-rex', 'T-rex!', '暴龍'],
+    // 2026-10-28 單字盤點：同一張長脖子恐龍的圖全站只叫 dinosaur；龍頭和龍都叫 dragon（不叫 baby dragon）
+    ['sauropod', 'Dinosaur!', '恐龍'],
     ['dragon', 'Dragon!', '龍'],
-    ['dragon-face', 'Baby dragon!', '小龍'],
+    ['dragon-face', 'Dragon!', '龍'],
     ['mammoth', 'Mammoth!', '長毛象'],
     ['crocodile', 'Crocodile!', '鱷魚'],
     ['lizard', 'Lizard!', '蜥蜴'],
@@ -47,7 +48,7 @@ export const STICKER_ART: ArtDef[] = [
     ['airplane', 'Airplane!', '飛機'],
     ['helicopter', 'Helicopter!', '直升機'],
     ['rocket', 'Rocket!', '火箭'],
-    ['sailboat', 'Sailboat!', '帆船'],
+    ['sailboat', 'Boat!', '船'],
     ['bicycle', 'Bike!', '腳踏車'],
     ['motorcycle', 'Motorcycle!', '摩托車'],
   ]),
@@ -62,8 +63,8 @@ export const STICKER_ART: ArtDef[] = [
     ['koala', 'Koala!', '無尾熊'],
     ['penguin', 'Penguin!', '企鵝'],
     ['unicorn', 'Unicorn!', '獨角獸'],
-    ['rabbit-face', 'Bunny!', '兔子'],
-    ['dog-face', 'Puppy!', '小狗'],
+    ['rabbit-face', 'Rabbit!', '兔子'],
+    ['dog-face', 'Dog!', '狗'],
     ['fox', 'Fox!', '狐狸'],
     ['owl', 'Owl!', '貓頭鷹'],
   ]),
@@ -110,7 +111,7 @@ export const STICKER_ART: ArtDef[] = [
     ['balloon', 'Balloon!', '氣球'],
     ['teddy-bear', 'Teddy bear!', '泰迪熊'],
     ['kite', 'Kite!', '風箏'],
-    ['soccer-ball', 'Soccer ball!', '足球'],
+    ['soccer-ball', 'Ball!', '球'],
   ]),
 ]
 

@@ -225,10 +225,11 @@ export const PATTERN_TOKS: PatternTok[] = [
   emojiTok('bus', 'bus', 'vehicle', 'bus'),
   emojiTok('firetruck', 'fire truck', 'vehicle', 'fire-engine'),
   emojiTok('tractor', 'tractor', 'vehicle', 'tractor'),
-  emojiTok('plane', 'plane', 'vehicle', 'airplane'),
+  // 一張圖一個名字（2026-10-28 單字盤點）：airplane、dinosaur 和動物村同名
+  emojiTok('plane', 'airplane', 'vehicle', 'airplane'),
   emojiTok('boat', 'boat', 'vehicle', 'sailboat'),
   emojiTok('trex', 'T-rex', 'animal', 't-rex'),
-  emojiTok('dino', 'dino', 'animal', 'sauropod'),
+  emojiTok('dino', 'dinosaur', 'animal', 'sauropod'),
   emojiTok('fish', 'fish', 'animal', 'fish'),
   emojiTok('frog', 'frog', 'animal', 'frog'),
   emojiTok('duck', 'duck', 'animal', 'duck'),
@@ -338,7 +339,7 @@ export const STORIES: Story[] = [
   { id: 'rain', zh: '下雨後出彩虹', icons: ['cloud-with-rain', 'rainbow'], lines: ['First, | rain.', 'Then, a | rainbow!'] },
   { id: 'bug', zh: '毛毛蟲變蝴蝶', icons: ['bug', 'butterfly'], lines: ['First, a | caterpillar.', 'Then, a | butterfly!'] },
   { id: 'bed', zh: '刷牙再睡覺', icons: ['toothbrush', 'bed'], lines: ['First, brush your | teeth.', 'Then, go to | bed!'] },
-  { id: 'dino', zh: '恐龍蛋孵出恐龍', icons: ['egg', 'sauropod'], lines: ['First, an | egg.', 'Then, a baby | dino!'] },
+  { id: 'dino', zh: '恐龍蛋孵出恐龍', icons: ['egg', 'sauropod'], lines: ['First, an | egg.', 'Then, a baby | dinosaur!'] },
 
   { id: 'chick', zh: '蛋孵出小雞', icons: ['egg', 'hatching-chick', 'baby-chick'], lines: ['First, an | egg.', 'Crack, | crack!', 'Hello, baby | chick!'], easy: true },
   { id: 'clouds', zh: '雲到彩虹（三步）', icons: ['cloud', 'cloud-with-rain', 'rainbow'], lines: ['Clouds | come.', 'Rain | falls.', 'A | rainbow!'], easy: true },

@@ -19,24 +19,26 @@ export const CATEGORIES = {
     plural: 'apples',
     targets: ['red-apple', 'green-apple'],
     easy: ['soccer-ball', 'basketball', 'tennis', 'baseball'],
-    hard: ['tomato', 'peach', 'cherries', 'soccer-ball', 'baseball'],
+    // 櫻桃不常吃、又是複數（2026-10-28 單字盤點）：高難度改用番茄、桃子、球
+    hard: ['tomato', 'peach', 'soccer-ball', 'baseball'],
     examples: ['red-apple', 'green-apple'],
     teach: ['This is an | apple.', 'This is an apple, | too!'],
   },
-  // 學習單原題：找出小雞（避開倉鼠）
+  // 學習單原題是「找出小雞（避開倉鼠）」；倉鼠的圖像老鼠，又不是孩子會的字，改用差很多的東西
   chick: {
     plural: 'chicks',
     targets: ['baby-chick', 'front-facing-baby-chick', 'hatching-chick'],
-    easy: ['hamster', 'fish', 'turtle', 'snail'],
-    hard: ['hamster', 'lemon', 'duck', 'chicken'],
+    easy: ['soccer-ball', 'fish', 'turtle', 'automobile'],
+    hard: ['lemon', 'duck', 'chicken', 'snail'],
     examples: ['baby-chick', 'front-facing-baby-chick'],
     teach: ['This is a | chick.', 'This is a chick, | too!'],
   },
   bug: {
     plural: 'bugs',
-    targets: ['lady-beetle', 'beetle', 'ant'],
+    // 甲蟲（beetle）陌生、圖小：只留瓢蟲和螞蟻
+    targets: ['lady-beetle', 'ant'],
     easy: ['red-apple', 'automobile', 'star', 'teddy-bear'],
-    hard: ['frog', 'turtle', 'mouse-face', 'cherries', 'snail'],
+    hard: ['frog', 'turtle', 'mouse-face', 'snail'],
     examples: ['lady-beetle', 'ant'],
     teach: ['A ladybug is a | bug.', 'An ant is a bug, | too!'],
   },
@@ -50,7 +52,8 @@ export const CATEGORIES = {
   },
   fruit: {
     plural: 'fruit',
-    targets: ['banana', 'grapes', 'strawberry', 'watermelon', 'red-apple', 'peach', 'cherries', 'tangerine'],
+    // 橘子（tangerine）不放：orange 同時是顏色，點到也不唸名字
+    targets: ['banana', 'grapes', 'strawberry', 'watermelon', 'red-apple', 'peach'],
     easy: ['automobile', 'dog-face', 'soccer-ball', 'bed'],
     hard: ['carrot', 'cookie', 'teddy-bear', 'soccer-ball'],
     examples: ['banana', 'grapes'],
@@ -69,7 +72,10 @@ export const CATEGORIES = {
 
 export type CategoryId = keyof typeof CATEGORIES
 
-/** 類別題的干擾裡、不在詞彙表的圖示的名稱：點錯時說「That's a | ball.」 */
+/**
+ * 學習單上、不在詞彙表的圖示的名稱：點錯時說「This is a | ball.」（只有教過的字才唸，見 games-worksheet.ts）。
+ * 橘子（tangerine）刻意不給名字：orange 同時是顏色。
+ */
 export const SHEET_NAMES: Record<string, string> = {
   'soccer-ball': 'ball',
   basketball: 'ball',
@@ -77,10 +83,7 @@ export const SHEET_NAMES: Record<string, string> = {
   baseball: 'ball',
   tomato: 'tomato',
   peach: 'peach',
-  cherries: 'cherries',
-  tangerine: 'orange',
   lemon: 'lemon',
-  hamster: 'hamster',
   snail: 'snail',
   star: 'star',
   'teddy-bear': 'teddy bear',
@@ -91,13 +94,12 @@ export const SHEET_NAMES: Record<string, string> = {
   'front-facing-baby-chick': 'chick',
   'hatching-chick': 'chick',
   'lady-beetle': 'ladybug',
-  beetle: 'beetle',
   ant: 'ant',
   'racing-car': 'race car',
 }
 
-/** 複數名詞：念「Those are | cherries.」 */
-export const PLURAL_NAMES = new Set(['cherries', 'grapes'])
+/** 複數名詞：念「These are | grapes.」 */
+export const PLURAL_NAMES = new Set(['cherries', 'grapes', 'socks', 'noodles'])
 
 /** 顏色題：低難度只出四個主要顏色 */
 export const SHEET_COLORS_EASY = ['red', 'yellow', 'blue', 'green'] as const
@@ -123,20 +125,32 @@ export const SHAPE_LOOKALIKE: Record<string, string[]> = {
   heart: ['circle', 'star'],
 }
 
-/** 功能分類的題目與教學句（動物村，莫莫說） */
+/**
+ * 功能分類的題目（動物村，莫莫說）。句型和「動動腦」同一種：Which one can we | eat?（找出全部是 Which ones）。
+ * 不用 things、use 這種抽象字（2026-10-28 單字盤點第 4 章）。
+ */
 export const USE_QUESTION: Record<string, string> = {
-  rain: 'Find the things for a | rainy day!',
-  bath: 'Find the things for | bath time!',
-  bed: 'Find the things for | bedtime!',
-  eat: 'Find the things we can | eat!',
-  wear: 'Find the things we can | wear!',
+  rain: 'Which ones are for a | rainy day?',
+  bath: 'Which ones are for | bath time?',
+  bed: 'Which ones are for | bedtime?',
+  eat: 'Which ones can we | eat?',
+  wear: 'Which ones can we | wear?',
 }
+/**
+ * 功能分類的教學句：第一個例子、第二個例子（「…, too.」）各一句。{a} 是 a／an，{w} 是名字。
+ * 例子是哪個字見 vocab.ts 的 USE_EXAMPLES（家長勾掉的字不當例子，換下一個候選字，句子跟著換）。
+ */
 export const USE_TEACH: Record<string, [string, string]> = {
-  rain: ['On a rainy day, we use an | umbrella.', 'We wear | boots, too.'],
-  bath: ['At bath time, we sit in the | bathtub.', 'We wash with a | sponge.'],
-  bed: ['At bedtime, we sleep in a | bed.', 'We hug a | teddy bear.'],
-  eat: ['We can eat an | apple.', 'We can eat a | cookie, too.'],
-  wear: ['We wear a | T-shirt.', 'We wear a | cap, too.'],
+  rain: ['On a rainy day, we use {a} | {w}.', 'We use {a} {w}, | too.'],
+  bath: ['At bath time, we use {a} | {w}.', 'We use {a} {w}, | too.'],
+  bed: ['At bedtime, we use {a} | {w}.', 'We use {a} {w}, | too.'],
+  eat: ['We can eat {a} | {w}.', 'We can eat {a} {w}, | too.'],
+  wear: ['We wear {a} | {w}.', 'We wear {a} {w}, | too.'],
+}
+/** 舊版預設例子的句子比較生動，預設的那兩個字照舊用 */
+export const USE_TEACH_DEFAULT: Record<string, Record<string, string>> = {
+  bath: { bathtub: 'At bath time, we sit in the | bathtub.' },
+  bed: { bed: 'At bedtime, we sleep in a | bed.', teddy: 'We hug a | teddy bear.' },
 }
 
 /** 「塗格子」要數的東西（學習單原題是甲蟲與貓） */

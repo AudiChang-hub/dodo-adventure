@@ -1,0 +1,179 @@
+/* ── 家長區：單字清單 ─────────────────────────────────────── */
+.parent .words-tier h3 {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 12px;
+  margin-bottom: 14px;
+}
+.parent .words-tier h3 small {
+  font-size: 13px;
+  font-weight: 400;
+  color: var(--ink-soft);
+}
+
+.parent .words {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+}
+.parent .word {
+  list-style: none;
+  display: grid;
+  grid-template-columns: 48px 1fr auto;
+  grid-template-rows: auto auto;
+  align-items: center;
+  column-gap: 12px;
+  row-gap: 6px;
+  padding: 10px 12px;
+  border-radius: 14px;
+  background: #fff;
+  box-shadow: inset 0 0 0 1px #efe9de;
+  transition: background 0.25s var(--ease-out), box-shadow 0.25s var(--ease-out);
+}
+.parent .word-pic {
+  grid-row: 1 / span 2;
+  width: 48px;
+  height: 48px;
+  display: grid;
+  place-items: center;
+  transition: opacity 0.25s var(--ease-out), filter 0.25s var(--ease-out);
+}
+.parent .word-names {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  line-height: 1.25;
+}
+.parent .word-names b {
+  font-family: 'Fredoka', sans-serif;
+  font-weight: 500;
+  font-size: 17px;
+  overflow-wrap: anywhere;
+}
+.parent .word-names span {
+  font-size: 13px;
+  color: var(--ink-soft);
+}
+.parent .word-state {
+  justify-self: end;
+  font-size: 12px;
+  padding: 1px 8px;
+  border-radius: 99px;
+  background: var(--paper);
+  color: var(--ink-soft);
+  white-space: nowrap;
+}
+.parent .word-state.on {
+  background: #dcefe3;
+  color: #2f6b49;
+}
+.parent .word-flag {
+  grid-column: 2 / span 2;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--ink-soft);
+  cursor: pointer;
+  /* 手機上手指點得到：整列都是可點的範圍 */
+  min-height: 30px;
+}
+.parent .word-flag input {
+  width: 18px;
+  height: 18px;
+  margin: 0;
+  accent-color: #c2725f;
+  cursor: pointer;
+}
+.parent .word-flag input:disabled,
+.parent .word-flag input:disabled + span {
+  cursor: default;
+}
+/* 勾了「他不認得」：圖變淡、加上斜紋（不只靠顏色） */
+.parent .word.is-unknown {
+  background: repeating-linear-gradient(-45deg, #fbeee8 0 8px, #f8e6de 8px 16px);
+  box-shadow: inset 0 0 0 1px #edcdc0;
+}
+.parent .word.is-unknown .word-pic {
+  opacity: 0.55;
+  filter: grayscale(0.6);
+}
+.parent .word.is-unknown .word-flag {
+  color: #8a3f2a;
+  font-weight: 500;
+}
+
+.parent .words-filter {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 4px 0 18px;
+}
+.parent .words-filter button {
+  height: 36px;
+  padding: 0 16px;
+  border-radius: 99px;
+  font-size: 14px;
+  color: var(--ink-soft);
+  background: var(--card);
+  box-shadow: inset 0 0 0 1px var(--paper-edge);
+}
+.parent .words-filter button.on {
+  background: var(--ink);
+  color: var(--card);
+  box-shadow: none;
+}
+.parent .words-note {
+  font-size: 14px;
+  color: var(--ink-soft);
+  background: #fbf3d8;
+  border-radius: 12px;
+  padding: 10px 14px;
+  margin: 0 0 14px;
+}
+
+/* 最常答錯的字 */
+.parent .missed {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+}
+.parent .missed li {
+  list-style: none;
+  display: grid;
+  grid-template-columns: 44px 1fr auto;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  border-radius: 14px;
+  background: #fff;
+  box-shadow: inset 0 0 0 1px #efe9de;
+}
+.parent .missed .word-pic {
+  grid-row: auto;
+  width: 44px;
+  height: 44px;
+}
+.parent .missed-n {
+  font-size: 14px;
+  color: #8a3f2a;
+  white-space: nowrap;
+}
+.parent .missed-n small {
+  color: var(--ink-soft);
+  font-size: 12px;
+}
+
+@media (max-width: 760px) {
+  .parent .words {
+    grid-template-columns: 1fr;
+  }
+  .parent .missed {
+    grid-template-columns: 1fr;
+  }
+}
