@@ -17,6 +17,8 @@ interface Props {
   short?: boolean
   /** 孩子點了內容、再聽一次之後才結束；ms 是念完到孩子點下去的時間 */
   onDone: (ms: number) => void
+  /** 外層自己做鏡頭過場（開車：卡片從車子長出來、收回車子裡）：卡片本身不另外淡入淡出、彈進彈出，免得兩層動畫疊成兩段 */
+  camera?: boolean
 }
 
 const spring = { type: 'spring', stiffness: 260, damping: 20 } as const
@@ -28,7 +30,7 @@ const fitOf = (vs: Visual[]) => Math.max(0, ...vs.map((v) => (v.t === 'group' ? 
  * 教學卡（PRD §5.8 我示範）：主持的恐龍把內容大大地拿出來、念教學句。
  * 念完之後出現「點我」的手，孩子點一下內容會再聽一次，然後才繼續——確保孩子真的看過、聽過。
  */
-export function TeachCard({ spec, short, onDone }: Props) {
+export function TeachCard({ spec, short, onDone, camera }: Props) {
   const lines = short ? (spec.short ?? spec.lines.slice(0, 1)) : spec.lines
   const items = Array.isArray(spec.visual) ? spec.visual : [spec.visual]
   const duo = items.length > 1
@@ -99,14 +101,14 @@ export function TeachCard({ spec, short, onDone }: Props) {
   const fit = fitOf(items)
 
   return (
-    <motion.div className="teach-layer" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0, transition: { duration: 0.22 } }}>
+    <motion.div className="teach-layer" initial={camera ? false : { opacity: 0 }} animate={{ opacity: 1 }} exit={camera ? undefined : { opacity: 0, transition: { duration: 0.22 } }}>
       <motion.div
         className={`teach-card${duo ? ' duo' : ''}${ready && !tapped ? ' ready' : ''}${nudge && !tapped ? ' nudge' : ''}${spec.side ? ' has-side' : ''}`}
         role="button"
         aria-label="再聽一次"
-        initial={{ scale: 0.6, rotate: -4, y: 40 }}
+        initial={camera ? false : { scale: 0.6, rotate: -4, y: 40 }}
         animate={{ scale: 1, rotate: 0, y: 0 }}
-        exit={{ scale: 0.86, y: 24, transition: { duration: 0.22 } }}
+        exit={camera ? undefined : { scale: 0.86, y: 24, transition: { duration: 0.22 } }}
         transition={spring}
         whileTap={{ scale: 0.97 }}
         onPointerDown={tap}

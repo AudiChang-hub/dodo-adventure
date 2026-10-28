@@ -6,6 +6,12 @@
   position: absolute;
   inset: 0;
 }
+/* 教學卡的鏡頭：從車子長出來、收回車子裡（transform-origin 由 DriveGame 依車子位置給） */
+.drive-teach-cam {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+}
 
 /* ── 路面 ── */
 /* 上緣讓給字幕（約到 11cqh），左下角讓給主持的波波 */
@@ -21,6 +27,8 @@
 .drive-board {
   --cell: min(calc(53cqh / var(--rows)), calc(44cqw / var(--cols)), 20cqh);
   position: relative;
+  /* 升級換格子數時，新舊兩塊路面疊在同一格裡交接 */
+  grid-area: 1 / 1;
   width: calc(var(--cell) * var(--cols));
   height: calc(var(--cell) * var(--rows));
   display: grid;
@@ -40,6 +48,7 @@
   border-radius: calc(var(--cell) * 0.18);
   background: #f4f1ea;
   box-shadow: 0 0 0 2px rgba(46, 42, 37, 0.03) inset;
+  transition: background 0.4s var(--ease-out);
 }
 /* 每格中間淡淡的十字：看得出是一格一格的路，數得出走幾步 */
 .road-tile::after {
@@ -59,8 +68,13 @@
 .road-tile.is-block::after {
   display: none;
 }
-/* 起點：停車格的虛線框，開錯時車子就退回這裡 */
+/* 起點：停車格的虛線框，開錯時車子就退回這裡（放在 drive-layer 裡，換題時跟著移到新的起點） */
 .park-mark {
+  position: absolute;
+  translate: -50% -50%;
+}
+.park-mark::after {
+  content: '';
   position: absolute;
   inset: 12%;
   border-radius: 18%;
