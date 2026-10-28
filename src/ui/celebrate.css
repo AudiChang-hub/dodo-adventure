@@ -283,16 +283,13 @@
   gap: 14px;
   z-index: 1;
 }
-.ms-book {
-  position: absolute;
-  right: 4vw;
-  bottom: 5vh;
-  width: clamp(76px, 10vmin, 104px);
-  aspect-ratio: 1;
-  padding: 1.4%;
-  border-radius: 50%;
-  background: var(--card);
-  box-shadow: 0 6px 0 rgba(46, 42, 37, 0.08);
+/* 每局回顧下面的貼紙卡（2026-10-28）：回顧的長條在上、卡片在下，兩個一起置中 */
+.cheer.has-card {
+  align-content: center;
+  gap: clamp(30px, 6.5vh, 60px);
+}
+.cheer-card {
+  position: relative;
   z-index: 1;
 }
 

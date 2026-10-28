@@ -3,6 +3,7 @@ import { Emoji } from '../art/Emoji'
 import { Solid } from '../art/Solid'
 import { VisualView } from './Visual'
 import type { Pic, StickerDef } from '../content/stickers'
+import { stickerSvg } from '../content/sticker-look'
 import './celebrate.css'
 
 /** 一張小圖（貼紙、每局回顧都用它）：放在任何大小的容器裡，自己以容器為準縮放 */
@@ -75,8 +76,17 @@ interface StickerProps {
   className?: string
 }
 
-/** 一張貼紙：白色的割線邊、淡色的底、中間是圖；遊戲徽章多一排星星 */
+/**
+ * 隨機外觀的貼紙（主角 + 種子，sticker-look.ts）。ghost：蓋著的貼紙，只看得到外框和主角的剪影。
+ * SVG 字串有快取，同一張貼紙在畫面上出現幾次都只產生一次。
+ */
+export const ArtSticker = memo(function ArtSticker({ art, seed, ghost, style, className }: { art: string; seed: number; ghost?: boolean; style?: CSSProperties; className?: string }) {
+  return <span className={`art-sticker${ghost ? ' is-ghost' : ''}${className ? ` ${className}` : ''}`} style={style} dangerouslySetInnerHTML={{ __html: stickerSvg(art, seed, ghost) }} />
+})
+
+/** 一張貼紙：白色的割線邊、淡色的底、中間是圖；遊戲徽章多一排星星。挑選式貼紙（def.art）畫成隨機外觀 */
 export function Sticker({ def, stars, style, className }: StickerProps) {
+  if (def.art != null && def.seed != null) return <ArtSticker art={def.art} seed={def.seed} style={style} className={className} />
   return (
     <span className={`sticker${stars ? ' is-badge' : ''}${className ? ` ${className}` : ''}`} style={{ '--tint': def.tint, ...style } as CSSProperties}>
       <span className="sticker-face">

@@ -8,22 +8,31 @@ import type { StickerDef } from '../content/stickers'
 import { game as gameDef, station as stationDef } from '../content/games'
 import { hasLine, type Speaker } from '../content/lines'
 import { ACH_COUNT } from '../content/lines-achieve'
-import { roundLine, stickerOfMilestone, type Milestone, type RoundSummary } from '../lib/achievements'
+import { CARD_GOAL, pendingPicks, roundLine, stickerOfMilestone, type Milestone, type RoundSummary } from '../lib/achievements'
 import { say, sfx, stopSpeech } from '../lib/audio'
 import { rand } from '../lib/random'
 import { wait } from '../games/lines'
+import { NextCard } from './NextCard'
+import { StickerPicker } from './StickerPicker'
 import './celebrate.css'
 
 /**
  * 每局結束的慶祝（成就感強化）。家長說過 App 太吵，所以：
- * - 每局回顧約 2.5 秒、里程碑約 3 秒，只說一句（里程碑多一句貼紙的名字），點一下就跳過；
+ * - 每局回顧約 2.5 秒、里程碑約 3 秒，只說一句（里程碑多一句學會的東西的名字），點一下就跳過；
  * - 沒有閃爍、沒有快速變色；只有真正的里程碑才有慢慢飄落的紙片。
+ *
+ * 貼紙（2026-10-28）：每局回顧下面多一張「下一張貼紙」的進度卡，這一關的星星飛進去，再說一句「再 N 顆星就有貼紙」
+ * （回顧的上限從 3.8 秒放寬到 6.2 秒，一樣點一下就跳過）。卡片集滿時，等回顧和里程碑都結束、
+ * 交回冒險（蛋裂開、下一站）之前，才打開挑貼紙的畫面：題目進行中絕不打斷，也不會等到一天結束才給（3 歲要馬上看到「做了就拿到」）。
+ * 挑選沒有時間上限（孩子自己決定），但隨時可以「等一下再選」，貼紙會留在貼紙本、今日回顧裡。
  */
 
 /** 剛出現的這段時間不接受「點一下跳過」：孩子答完最後一題的手常常還在點 */
 const GRACE_MS = 500
 const ROUND_MIN_MS = 2200
 const ROUND_MAX_MS = 3800
+/** 有貼紙卡的回顧：多了星星飛進卡片和一句話 */
+const ROUND_CARD_MAX_MS = 6200
 const MILESTONE_MIN_MS = 2600
 const MILESTONE_MAX_MS = 4600
 
@@ -49,6 +58,8 @@ function useSkip(finish: () => void) {
 // ── 每局回顧：這一局做了什麼，一題一張圖，每張都有一顆星星 ─────────────
 function RoundCheer({ s, host, onDone }: { s: RoundSummary; host: Speaker; onDone: () => void }) {
   const things = s.things.slice(-8)
+  const card = s.card
+  const [fly, setFly] = useState(false)
   const finish = useOnce(onDone)
   const skip = useSkip(finish)
 
@@ -56,11 +67,20 @@ function RoundCheer({ s, host, onDone }: { s: RoundSummary; host: Speaker; onDon
     let alive = true
     const t0 = performance.now()
     const timers = things.map((_, i) => window.setTimeout(() => sfx.chime(i), 330 + i * 130))
-    const cap = window.setTimeout(finish, ROUND_MAX_MS)
+    const cap = window.setTimeout(finish, card ? ROUND_CARD_MAX_MS : ROUND_MAX_MS)
     ;(async () => {
       await wait(250)
       if (!alive) return
       await say(roundLine(s, host))
+      if (!alive) return
+      // 貼紙卡：這一關的星星飛進卡片，再說「再 N 顆星就有貼紙」（集滿了：Five stars! You get a sticker!）
+      if (card) {
+        setFly(true)
+        await wait(620 + card.gained.length * 380 + 150)
+        if (!alive) return
+        await say(card.full ? `stk.card.full.${host}` : `stk.card.left.${host}.${card.left}`)
+        await wait(card.full ? 500 : 250)
+      }
       await wait(Math.max(250, ROUND_MIN_MS - (performance.now() - t0)))
       if (alive) finish()
     })()
@@ -75,7 +95,7 @@ function RoundCheer({ s, host, onDone }: { s: RoundSummary; host: Speaker; onDon
   // 一排放得下：最多 8 張，在 1200 寬的平板上每張至少約 100px
   const size = `min(128px, ${(68 / Math.max(3, things.length)).toFixed(1)}vw)`
   return (
-    <motion.div className="cheer" onPointerDown={skip} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0, transition: { duration: 0.25 } }}>
+    <motion.div className={`cheer${card ? ' has-card' : ''}`} onPointerDown={skip} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0, transition: { duration: 0.25 } }}>
       <motion.div className="cheer-strip" initial={{ y: 24, scale: 0.96 }} animate={{ y: 0, scale: 1 }} transition={{ type: 'spring', stiffness: 260, damping: 24 }}>
         {things.map((t, i) => (
           <motion.div
@@ -103,6 +123,12 @@ function RoundCheer({ s, host, onDone }: { s: RoundSummary; host: Speaker; onDon
           </motion.div>
         ))}
       </motion.div>
+      {/* 下一張貼紙的進度：蓋著的貼紙 + 5 個星星格，這一關的星星（加速的星星下面有個小圖）一顆顆飛進來 */}
+      {card && (
+        <motion.div className="cheer-card" initial={{ y: 30, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ type: 'spring', stiffness: 220, damping: 22, delay: 0.35 }}>
+          <NextCard stars={card.before} goal={CARD_GOAL} feature={card.feature} gain={card.gained} play={fly} />
+        </motion.div>
+      )}
       <motion.div className="cheer-host" initial={{ y: '40%', opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ type: 'spring', stiffness: 200, damping: 20, delay: 0.1 }}>
         <Dino who={host} mood="cheer" size="100%" />
       </motion.div>
@@ -111,9 +137,9 @@ function RoundCheer({ s, host, onDone }: { s: RoundSummary; host: Speaker; onDon
 }
 
 // ── 里程碑：學會了、升級了、修好好幾個程式 ──────────────────────────
-const RANK: Record<Milestone['kind'], number> = { master: 0, level: 1, fixes: 2 }
+const RANK: Record<Milestone['kind'], number> = { master: 0, level: 1, fixes: 2, sticker: 3 }
 
-/** 拿到貼紙時念它的名字：只念一句短的（貼紙本裡點它才念完整的） */
+/** 學會的那一刻念它的名字：只念一句短的 */
 const nameLine = (d: StickerDef | null) => (d ? [d.short ?? d.lines[0]].filter(Boolean) : [])
 
 /** 慢慢飄落的紙片：只在里程碑出現，顏色是紙感的淡色 */
@@ -146,7 +172,7 @@ function Confetti() {
   )
 }
 
-/** 以前（大人陪著、手指著）→ 現在（自己來）：小小的「以前」卡片、虛線箭頭、大大的貼紙 */
+/** 以前（大人陪著、手指著）→ 現在（自己來）：小小的「以前」卡片、虛線箭頭、大大的「學會了」圓牌 */
 function MasterStage({ m }: { m: Extract<Milestone, { kind: 'master' }> }) {
   const st = stickerOfMilestone(m)!
   return (
@@ -230,12 +256,10 @@ function FixStage({ m, prev }: { m: Extract<Milestone, { kind: 'fixes' }>; prev:
 function MilestoneCheer({ ms, host, onDone }: { ms: Milestone[]; host: Speaker; onDone: () => void }) {
   const sorted = useMemo(() => [...ms].sort((a, b) => RANK[a.kind] - RANK[b.kind] || b.ts - a.ts), [ms])
   const top = sorted[0]
-  /** 其他一起拿到的貼紙：小小的排在下面，一起飛進貼紙本 */
+  /** 這一關其他一起學會的：小小的排在下面（v2 起學會的東西不再變成貼紙，不飛進貼紙本，改成貼紙卡上的加速星星） */
   const extra = useMemo(() => sorted.slice(1).map(stickerOfMilestone).filter((x) => !!x), [sorted])
-  const [toBook, setToBook] = useState(false)
   const finish = useOnce(onDone)
   const skip = useSkip(finish)
-  const hasSticker = top.kind !== 'level' || extra.length > 0
 
   useEffect(() => {
     let alive = true
@@ -247,18 +271,14 @@ function MilestoneCheer({ ms, host, onDone }: { ms: Milestone[]; host: Speaker; 
         ? [`ach.master.${host}.${rand(ACH_COUNT.master)}`, ...nameLine(stickerOfMilestone(top))]
         : top.kind === 'level'
           ? [`ach.level.${host}.${Math.min(6, top.to)}`]
-          : [`ach.fixes.${top.n}`]
+          : top.kind === 'fixes'
+            ? [`ach.fixes.${top.n}`]
+            : []
     ;(async () => {
       await wait(350)
       if (!alive) return
       await say(...lines.filter(hasLine))
-      await wait(Math.max(120, MILESTONE_MIN_MS - 600 - (performance.now() - t0)))
-      if (!alive) return
-      // 貼紙飛進右下角的貼紙本：知道它被收好了、之後找得到
-      if (hasSticker) {
-        setToBook(true)
-        await wait(580)
-      }
+      await wait(Math.max(300, MILESTONE_MIN_MS - (performance.now() - t0)))
       if (alive) finish()
     })()
     return () => {
@@ -269,26 +289,20 @@ function MilestoneCheer({ ms, host, onDone }: { ms: Milestone[]; host: Speaker; 
   }, [])
 
   const prevFix = top.kind === 'fixes' ? ([0, 1, 3, 5, 10, 20, 30].filter((x) => x < top.n).pop() ?? 0) : 0
-  const fly = toBook ? { x: '34vw', y: '30vh', scale: 0.18, opacity: 0.2, rotate: 20 } : { x: 0, y: 0, scale: 1, opacity: 1, rotate: 0 }
   return (
     <motion.div className="cheer is-milestone" onPointerDown={skip} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0, transition: { duration: 0.3 } }}>
       <div className="ms-glow" aria-hidden="true" />
       <Confetti />
-      <motion.div className="ms-center" animate={top.kind === 'level' ? undefined : fly} transition={{ duration: 0.65, ease: [0.5, 0, 0.3, 1] }}>
+      <div className="ms-center">
         {top.kind === 'master' && <MasterStage m={top} />}
         {top.kind === 'level' && <LevelStage m={top} />}
         {top.kind === 'fixes' && <FixStage m={top} prev={prevFix} />}
-      </motion.div>
+      </div>
       {extra.length > 0 && (
-        <motion.div className="ms-extra" initial={{ opacity: 0, y: 20 }} animate={toBook ? { ...fly } : { opacity: 1, y: 0 }} transition={toBook ? { duration: 0.65, ease: [0.5, 0, 0.3, 1] } : { delay: 1.2 }}>
+        <motion.div className="ms-extra" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 1.2 }}>
           {extra.slice(0, 5).map((d, i) => (
             <Sticker key={d.id} def={d} style={{ width: 84, rotate: `${(i % 2 ? 1 : -1) * 5}deg` } as CSSProperties} />
           ))}
-        </motion.div>
-      )}
-      {hasSticker && (
-        <motion.div className="ms-book" initial={{ opacity: 0, scale: 0.6 }} animate={toBook ? { opacity: 1, scale: [1, 1.22, 1], rotate: [0, -8, 0] } : { opacity: 1, scale: 1 }} transition={toBook ? { delay: 0.5, duration: 0.45 } : { delay: 0.6 }}>
-          <Emoji name="open-book" />
         </motion.div>
       )}
       <motion.div className="cheer-host" initial={{ y: '40%', opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ type: 'spring', stiffness: 200, damping: 20, delay: 0.15 }}>
@@ -298,15 +312,19 @@ function MilestoneCheer({ ms, host, onDone }: { ms: Milestone[]; host: Speaker; 
   )
 }
 
-/** 每局結束：先回顧這一局，有里程碑再慶祝一次，最後才交回去（冒險的蛋裂開、或回站點） */
+/** 每局結束：先回顧這一局（含貼紙卡），有里程碑再慶祝一次；貼紙卡集滿了就接著挑貼紙，最後才交回去（冒險的蛋裂開、或回站點） */
 export function Celebrate({ summary, onDone }: { summary: RoundSummary; onDone: () => void }) {
   const host = stationDef(gameDef(summary.game).station).host
-  const [step, setStep] = useState<'round' | 'milestone'>(summary.things.length ? 'round' : 'milestone')
+  const wantPick = !!summary.card?.full
+  const [step, setStep] = useState<'round' | 'milestone' | 'pick'>(summary.things.length ? 'round' : 'milestone')
   const finish = useOnce(onDone)
-  const afterRound = () => (summary.milestones.length ? setStep('milestone') : finish())
+  const afterMilestone = () => (wantPick && pendingPicks() > 0 ? setStep('pick') : finish())
+  const afterRound = () => (summary.milestones.length ? setStep('milestone') : afterMilestone())
   return (
     <AnimatePresence mode="wait">
-      {step === 'round' ? <RoundCheer key="r" s={summary} host={host} onDone={afterRound} /> : <MilestoneCheer key="m" ms={summary.milestones} host={host} onDone={finish} />}
+      {step === 'round' && <RoundCheer key="r" s={summary} host={host} onDone={afterRound} />}
+      {step === 'milestone' && <MilestoneCheer key="m" ms={summary.milestones} host={host} onDone={afterMilestone} />}
+      {step === 'pick' && <StickerPicker key="p" onDone={finish} />}
     </AnimatePresence>
   )
 }

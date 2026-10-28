@@ -54,11 +54,12 @@ const done: Record<Speaker, string[]> = {
 const roundCode = ['You fixed your code, and the car made it!', 'You found the bug, and fixed it!']
 
 // ── 里程碑：學會一個東西、升一級、修好好幾個程式 ────────────────
-// 很短的一句，接著念貼紙的名字（S, like Ssssnake!）：整段慶祝控制在 3 秒多一點
+// 很短的一句，接著念學會的東西的名字（S, like Ssssnake!）：整段慶祝控制在 3 秒多一點。
+// 學會的東西不再直接變成貼紙（2026-10-28 改成集星星挑貼紙），所以不說 A new sticker!
 const master: Record<Speaker, string[]> = {
-  dodo: ['All by yourself!', 'You learned it!', 'A new sticker!'],
-  bobo: ['All by yourself!', 'You learned it!', 'A new sticker!'],
-  momo: ['All by yourself.', 'You learned it.', 'A new sticker.'],
+  dodo: ['All by yourself!', 'You learned it!', 'Now you know it!'],
+  bobo: ['All by yourself!', 'You learned it!', 'Now you know it!'],
+  momo: ['All by yourself.', 'You learned it.', 'Now you know it.'],
 }
 
 for (const s of SPEAKERS) {
@@ -73,10 +74,8 @@ code.forEach((t, i) => def(`ach.code.${i}`, 'bobo', t))
 roundCode.forEach((t, i) => def(`ach.round.code.bobo.${i}`, 'bobo', t))
 for (const n of FIX_STEPS) def(`ach.fixes.${n}`, 'bobo', n === 1 ? 'You fixed your | first program!' : `You fixed | ${word(n)} programs!`)
 
-// ── 貼紙本：點貼紙時說它是什麼（其餘沿用教學卡的句子）────────────
+// ── 貼紙本：點 v1 舊貼紙時說它是什麼（其餘沿用教學卡的句子；挑選式貼紙的台詞在 lines-stickers.ts）────────────
 def('ach.book.hi', 'dodo', 'These are your stickers! Tap one!')
-def('ach.book.empty', 'dodo', 'Play and learn, and you get stickers!')
-def('ach.book.slot', 'dodo', 'A new sticker goes here!')
 for (let n = 1; n <= 20; n++) {
   def(`stk.num.${n}`, 'bobo', `Number | ${NUM[n]}!`)
   def(`stk.count.${n}`, 'bobo', `You counted | ${NUM[n]}!`)

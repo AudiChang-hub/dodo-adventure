@@ -41,3 +41,77 @@
     gap: 6px;
   }
 }
+
+/* ── 貼紙怎麼拿（2026-10-28）：規則、現在的貼紙卡、最近拿到的貼紙與原因 ─────────── */
+.parent .stk-rules {
+  margin-bottom: 34px;
+  line-height: 1.7;
+}
+.parent .stk-rules ol {
+  margin: 0;
+  padding-left: 1.4em;
+  display: grid;
+  gap: 8px;
+}
+.parent .stk-rules b {
+  font-weight: 500;
+}
+.parent .stk-pace {
+  margin: 14px 0 0;
+  color: var(--ink-soft);
+  font-size: 0.92em;
+}
+.parent .stk-now {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 14px;
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid var(--paper-edge);
+}
+.parent .stk-now-label {
+  color: var(--ink-soft);
+}
+.parent .stk-now-stars {
+  display: flex;
+  gap: 4px;
+}
+.parent .stk-now-stars > span {
+  width: 26px;
+  height: 26px;
+}
+.parent .stk-recent {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 250px), 1fr));
+  gap: 12px;
+  margin-bottom: 34px;
+}
+.parent .stk-item {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin: 0;
+  min-width: 0;
+}
+.parent .stk-pic {
+  flex: 0 0 64px;
+  width: 64px;
+}
+.parent .stk-meta {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+  line-height: 1.45;
+}
+.parent .stk-meta b {
+  font-weight: 500;
+}
+.parent .stk-meta small {
+  color: var(--ink-faint);
+}
+.parent .stk-meta span {
+  color: var(--ink-soft);
+  font-size: 0.9em;
+  overflow-wrap: anywhere;
+}

@@ -19,6 +19,7 @@ import { getKV, setKV, today } from '../lib/db'
 import { todayPlan, savePlan, planDone, hatchFriend, type Plan } from '../lib/plan'
 import { noteActivity, isBreakDue, holdBedtime, bedtimeIfDue } from '../lib/session'
 import { useThemeScope } from '../lib/theme-play'
+import { pendingPicks } from '../lib/achievements'
 import { EyeBreak } from '../ui/EyeBreak'
 import { wait } from '../games/lines'
 import { RouteMap, RouteStrip, stopIcon } from './Route'
@@ -104,7 +105,8 @@ export function Adventure() {
     if (phase !== 'finish') return release
     let cancelled = false
     // 成就感：說完「今天好棒」，邀請孩子拿給爸爸看（回顧畫面上有爸爸的按鈕）
-    void say('adv.done', 'ach.showdad').then(() => !cancelled && release())
+    // 還有集滿了沒挑的貼紙（之前按了等一下再選）：提醒一句，回顧上有一張發光的卡片
+    void say('adv.done', 'ach.showdad', ...(pendingPicks() > 0 ? ['stk.wait'] : [])).then(() => !cancelled && release())
     return () => {
       cancelled = true
       release()
