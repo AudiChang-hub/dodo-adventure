@@ -6,7 +6,7 @@ import { HomeIcon } from '../games/Shell'
 import { FriendActor } from '../ui/FriendActor'
 import { Emoji } from '../art/Emoji'
 import { StickerBook } from './Stickers'
-import { freshCount } from '../lib/achievements'
+import { freshCount, pendingPicks } from '../lib/achievements'
 import { FRIENDS } from '../content/park'
 import { FRIEND_COUNT_MAX } from '../content/lines-friends'
 import { db, type Friend } from '../lib/db'
@@ -47,7 +47,8 @@ export function Collection() {
   const touched = useRef(false)
   /** 朋友／貼紙本（成就感強化）：同一頁切換，不用另開路由 */
   const [view, setView] = useState<'friends' | 'book'>('friends')
-  const [fresh] = useState(freshCount)
+  /** 貼紙本的按鈕上有小紅點：有還沒點過的貼紙，或集滿了還沒挑的貼紙 */
+  const [fresh] = useState(() => freshCount() + pendingPicks())
   const switchTo = (v: 'friends' | 'book') => {
     if (v === view) return
     sfx.tap()
@@ -84,7 +85,7 @@ export function Collection() {
         </HoldButton>
         <div className="collection-title" aria-hidden="true">
           {view === 'book' ? '我的貼紙' : '我的朋友'}
-          {view === 'book' && <small>點貼紙，聽聽它是什麼</small>}
+          {view === 'book' && <small>點貼紙聽英文名字；集滿 5 顆星就能挑一張新的</small>}
           {view === 'friends' && friends && friends.length > 0 && (
             <small>
               {list.length} / {FRIENDS.length}　點朋友，牠會說自己的英文名字

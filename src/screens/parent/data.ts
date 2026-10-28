@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { db, phaseOf, today, type Attempt, type Drawing, type Phase, type Session, type StationId } from '../../lib/db'
 import { fetchCloud } from '../../lib/sync'
-import { localMilestones, type Milestone } from '../../lib/achievements'
+import { localCard, localMilestones, type CardProgress, type Milestone } from '../../lib/achievements'
 import { DIR_ZH, PATTERN_ZH, story, type Dir, type PatternKind } from '../../content/code'
 
 export interface ParentData {
@@ -11,6 +11,8 @@ export interface ParentData {
   skills: Map<string, { box: number; seen: number; firstTry: number }>
   /** 成就感強化的里程碑（學會、升級、修好程式），「今日亮點」用 */
   milestones: Milestone[]
+  /** 貼紙卡現在的進度（幾顆星、幾張還沒挑）；雲端是舊版資料時沒有 */
+  card: CardProgress | null
   source: 'local' | 'cloud'
 }
 
@@ -36,7 +38,7 @@ export function useParentData(source: 'local' | 'cloud', reloadKey: number) {
         db.drawings.orderBy('ts').reverse().toArray(),
         db.skills.toArray(),
       ])
-      if (!cancelled) setData({ attempts, sessions, drawings, skills: new Map(skills.map((s) => [s.key, s])), milestones: localMilestones(), source })
+      if (!cancelled) setData({ attempts, sessions, drawings, skills: new Map(skills.map((s) => [s.key, s])), milestones: localMilestones(), card: localCard(), source })
     })()
     return () => {
       cancelled = true

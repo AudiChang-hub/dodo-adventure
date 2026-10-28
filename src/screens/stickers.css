@@ -1,59 +1,75 @@
-/* ── 貼紙本（成就感強化）──────────────────────────────────
-   跟朋友收集頁同一個位置與格線；底下是淡淡的方格紙，像一本貼紙簿 */
+/* ── 貼紙本（2026-10-28 改版：自由的相簿，一頁一頁往後貼）──────────────
+   跟朋友收集頁同一個位置；一頁是一張奶油色的紙，底下墊著一層厚紙板，像一本攤開的貼紙簿 */
 .sticker-book {
   position: absolute;
-  inset: 92px 4% 0;
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(132px, 1fr));
-  gap: 30px 26px;
-  align-content: start;
-  justify-items: center;
-  overflow-y: auto;
-  padding: 70px 18px 56px;
-  scrollbar-width: none;
+  inset: 104px 0 0;
 }
 .collection.is-book {
   background:
     radial-gradient(120% 70% at 50% 110%, #e6ddcb 0%, transparent 60%),
-    linear-gradient(rgba(46, 42, 37, 0.035) 1px, transparent 1px) 0 0 / 28px 28px,
-    linear-gradient(90deg, rgba(46, 42, 37, 0.035) 1px, transparent 1px) 0 0 / 28px 28px,
     var(--paper);
 }
-.book-slot {
-  position: relative;
-  width: min(124px, 100%);
-  aspect-ratio: 1;
+.book-spread {
+  position: absolute;
+  inset: 12px clamp(150px, 13vw, 190px) 64px;
 }
-.book-sticker {
+.book-page {
+  position: absolute;
+  inset: 0;
+  border-radius: 30px;
+  background:
+    linear-gradient(rgba(46, 42, 37, 0.035) 1px, transparent 1px) 0 0 / 28px 28px,
+    linear-gradient(90deg, rgba(46, 42, 37, 0.035) 1px, transparent 1px) 0 0 / 28px 28px,
+    var(--card);
+  box-shadow:
+    0 0 0 11px #ece4d4,
+    0 16px 0 11px rgba(46, 42, 37, 0.05),
+    0 40px 70px -34px rgba(46, 42, 37, 0.35);
+  touch-action: pan-y;
+  cursor: grab;
+}
+/* 星星徽章那一頁：淡淡的奶油黃，跟貼紙頁分得出來 */
+.book-page.is-badges {
+  background:
+    radial-gradient(circle at 1px 1px, rgba(201, 162, 62, 0.16) 1.5px, transparent 2px) 0 0 / 26px 26px,
+    #fbf4de;
+}
+.book-next {
   display: block;
   width: 100%;
 }
-/* 還沒點過的新貼紙：外圈一圈暖色的光，慢慢呼吸（不閃） */
-.book-slot.is-fresh::before {
-  content: '';
+.book-turn {
   position: absolute;
-  inset: -12px;
+  top: calc(50% - 32px);
+  translate: 0 -50%;
+  width: 120px;
+  height: 120px;
+  z-index: 2;
+}
+.book-turn.is-prev {
+  left: clamp(18px, 2.4vw, 40px);
+}
+.book-turn.is-next {
+  right: clamp(18px, 2.4vw, 40px);
+}
+.book-dots {
+  position: absolute;
+  left: 50%;
+  bottom: 22px;
+  translate: -50% 0;
+  display: flex;
+  gap: 10px;
+}
+.book-dots i {
+  width: 11px;
+  height: 11px;
   border-radius: 50%;
-  background: radial-gradient(closest-side, rgba(241, 210, 124, 0.55), rgba(241, 210, 124, 0));
-  animation: book-fresh 2.8s ease-in-out infinite;
-  pointer-events: none;
+  background: var(--paper-edge);
+  transition: background 0.3s, scale 0.3s var(--ease-spring);
 }
-@keyframes book-fresh {
-  50% {
-    opacity: 0.35;
-    scale: 1.08;
-  }
-}
-.book-slot.is-empty {
-  display: grid;
-  place-items: center;
-}
-.book-empty {
-  width: 88%;
-  aspect-ratio: 1;
-  border-radius: 50%;
-  border: 3px dashed rgba(46, 42, 37, 0.14);
-  background: rgba(251, 248, 242, 0.5);
+.book-dots i.on {
+  background: var(--ink-soft);
+  scale: 1.25;
 }
 
 /* ── 收集頁上方的切換：朋友／貼紙本 ─────────────────────── */

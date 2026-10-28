@@ -1,12 +1,14 @@
-import { useEffect, useRef, useState } from 'react'
-import { motion } from 'motion/react'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { AnimatePresence, motion } from 'motion/react'
 import { Emoji } from '../art/Emoji'
 import { PicView, StarShape, Sticker } from '../ui/StickerArt'
+import { NextCard } from '../ui/NextCard'
+import { StickerPicker } from '../ui/StickerPicker'
 import { game as gameDef } from '../content/games'
 import { theme as themeDef } from '../content/themes'
 import { stopIcon } from './Route'
 import { hasLine } from '../content/lines'
-import { stickerOfMilestone, todayMilestones, isSelfFix } from '../lib/achievements'
+import { CARD_GOAL, nextPick, stickerOfMilestone, todayMilestones, isSelfFix } from '../lib/achievements'
 import { db, today } from '../lib/db'
 import { say, sfx, stopSpeech } from '../lib/audio'
 import type { Plan } from '../lib/plan'
@@ -49,19 +51,25 @@ function todayItems(): Item[] {
     const d = stickerOfMilestone(m)
     if (!d || seen.has(d.id)) continue
     seen.add(d.id)
-    out.push({ key: m.id, node: <Sticker def={d} />, lines: d.lines, zh: d.zh })
+    out.push({ key: m.id, node: <Sticker def={d} />, lines: d.lines, zh: m.kind === 'sticker' ? `挑了貼紙「${d.zh}」` : d.zh })
   }
   return out.slice(0, MAX_STICKERS)
 }
 
 /**
- * 今日冒險的結尾（成就感強化）：今天走過的站（每站一顆星）、今天拿到的貼紙，
+ * 今日冒險的結尾（成就感強化）：今天走過的站（每站一顆星）、今天拿到的貼紙與學會的東西，
  * 和一個「給爸爸看」的按鈕：按了，豆豆把今天學會的念給爸爸聽，念到哪一張，那一張就跳一下。
+ * 還有集滿了沒挑的貼紙（之前按了「等一下再選」）：多一張發光的卡片，點了就去挑。
  */
 export function DayRecap({ plan }: { plan: Plan }) {
   // 主題式冒險：走過的站用故事的圖（和路線上的一樣），孩子看得出「這是今天的公車旅行」
   const th = themeDef(plan.theme)
-  const [items] = useState(todayItems)
+  /** 挑完貼紙後重新整理今天的清單 */
+  const [rev, setRev] = useState(0)
+  const [picking, setPicking] = useState(false)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const items = useMemo(todayItems, [rev])
+  const waiting = useMemo(nextPick, [rev])
   const [active, setActive] = useState(-1)
   const [fixes, setFixes] = useState(0)
   const token = useRef(0)
@@ -134,6 +142,23 @@ export function DayRecap({ plan }: { plan: Plan }) {
             {x.node}
           </motion.div>
         ))}
+        {waiting && (
+          <motion.button
+            className="recap-wait"
+            aria-label="挑一張貼紙"
+            initial={{ scale: 0 }}
+            animate={{ scale: 1 }}
+            transition={{ type: 'spring', stiffness: 300, damping: 15, delay: 1.1 }}
+            whileTap={{ scale: 0.94 }}
+            onClick={() => {
+              stopSpeech()
+              sfx.pop()
+              setPicking(true)
+            }}
+          >
+            <NextCard layout="slot" stars={CARD_GOAL} goal={CARD_GOAL} feature={waiting.feature} ready />
+          </motion.button>
+        )}
         <motion.button
           className="round-btn recap-dad"
           aria-label="給爸爸看"
@@ -154,8 +179,18 @@ export function DayRecap({ plan }: { plan: Plan }) {
       </motion.div>
       <p className="coplay-hint recap-hint" aria-hidden="true">
         <span className="coplay-tag">給爸爸看</span>
-        {zh}。點爸爸的按鈕，讓豆豆說給你聽。
+        {zh}。點爸爸的按鈕，讓豆豆說給你聽。{waiting ? '發光的卡片是還沒挑的貼紙，點了就能挑。' : ''}
       </p>
+      <AnimatePresence>
+        {picking && (
+          <StickerPicker
+            onDone={() => {
+              setPicking(false)
+              setRev((r) => r + 1)
+            }}
+          />
+        )}
+      </AnimatePresence>
     </div>
   )
 }

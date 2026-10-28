@@ -58,6 +58,12 @@
   width: clamp(76px, 10vmin, 100px);
   flex: 0 0 auto;
 }
+/* 集滿了還沒挑的貼紙：直的進度卡，整張卡都可以點（至少 120px） */
+.recap-wait {
+  position: relative;
+  flex: 0 0 auto;
+  width: clamp(120px, 14vmin, 140px);
+}
 .recap-strip .recap-dad {
   position: relative;
   flex: 0 0 auto;

@@ -1,7 +1,7 @@
 import { useSyncExternalStore } from 'react'
 import { db, type Attempt, type Drawing, type Session } from './db'
 import { env } from './env'
-import { achieveForSync, type Milestone } from './achievements'
+import { achieveForSync, type CardProgress, type Milestone } from './achievements'
 import { wipeCloudLearning, type WipeFs, type WipeResult } from './reset-cloud'
 
 const cfg = {
@@ -174,6 +174,8 @@ export interface CloudBundle {
   skills: { key: string; box: number; seen: number; firstTry: number }[]
   /** 成就感強化的里程碑（家長區「今日亮點」） */
   milestones: Milestone[]
+  /** 貼紙卡的進度（v2 之前上傳的資料沒有） */
+  card: CardProgress | null
 }
 
 /** 家長用手機看報告時，從雲端讀回資料 */
@@ -192,6 +194,7 @@ export async function fetchCloud(): Promise<CloudBundle | null> {
     drawings: rows<Drawing>(d),
     skills: (meta.data()?.skills as CloudBundle['skills']) ?? [],
     milestones: (meta.data()?.achieve?.log as Milestone[]) ?? [],
+    card: (meta.data()?.achieve?.card as CardProgress | undefined) ?? null,
   }
 }
 

@@ -1,0 +1,336 @@
+/* ── 挑選式貼紙：隨機外觀的貼紙、進度卡、貼紙本的一頁、挑選畫面 ──────────────
+   紙感螢幕：靠明度與柔和的陰影分層；動畫只有位移、縮放、慢慢呼吸，不閃爍、不快速變色 */
+
+.art-sticker {
+  display: block;
+  width: 100%;
+  aspect-ratio: 1;
+}
+
+/* ── 進度卡：蓋著的貼紙 + 5 個星星格 ─────────────────────── */
+.ncard {
+  position: relative;
+  /* 發光的暖光（z-index: -1）留在卡片自己的層裡，不會被後面的紙蓋住 */
+  isolation: isolate;
+  display: flex;
+  align-items: center;
+  gap: clamp(14px, 2vw, 24px);
+  padding: clamp(14px, 2.2vh, 20px) clamp(20px, 2.6vw, 30px) clamp(14px, 2.2vh, 20px) clamp(14px, 1.8vw, 20px);
+  border-radius: 34px;
+  background: var(--card);
+  box-shadow:
+    0 10px 0 rgba(46, 42, 37, 0.05),
+    0 24px 44px -26px rgba(46, 42, 37, 0.28);
+}
+/* 縫線：一圈極淡的虛線，像一張集點卡 */
+.ncard::before {
+  content: '';
+  position: absolute;
+  inset: 8px;
+  border-radius: 27px;
+  border: 2px dashed rgba(46, 42, 37, 0.08);
+  pointer-events: none;
+}
+.ncard-ghost {
+  position: relative;
+  flex: 0 0 auto;
+  width: clamp(104px, 15vmin, 140px);
+}
+.ncard-spark {
+  position: absolute;
+  right: -10%;
+  top: -12%;
+  width: 38%;
+}
+.ncard-stars {
+  display: flex;
+  gap: clamp(8px, 1.2vw, 14px);
+}
+.ncard-star {
+  position: relative;
+  width: clamp(50px, 8vmin, 68px);
+  aspect-ratio: 1;
+}
+.ncard-star-on {
+  position: absolute;
+  inset: 0;
+}
+.ncard-why {
+  position: absolute;
+  left: 50%;
+  bottom: -46%;
+  width: 54%;
+  translate: -50% 0;
+  padding: 7%;
+  border-radius: 50%;
+  background: var(--card);
+  box-shadow: 0 2px 0 rgba(46, 42, 37, 0.08);
+}
+/* 集滿：後面一圈暖光，慢慢呼吸（不閃） */
+.ncard-halo {
+  position: absolute;
+  inset: -26px;
+  border-radius: 56px;
+  background: radial-gradient(closest-side, rgba(241, 210, 124, 0.5), rgba(241, 210, 124, 0));
+  animation: ncard-breathe 2.8s ease-in-out infinite;
+  pointer-events: none;
+  z-index: -1;
+}
+@keyframes ncard-breathe {
+  50% {
+    opacity: 0.45;
+    scale: 1.04;
+  }
+}
+/* 直的：貼紙本裡「下一張」的那一格 */
+.ncard.is-slot {
+  flex-direction: column;
+  gap: 4%;
+  width: 100%;
+  padding: 6% 5% 10%;
+  border-radius: 26px;
+  background: rgba(251, 248, 242, 0.55);
+  box-shadow: none;
+}
+.ncard.is-slot::before {
+  inset: 0;
+  border-radius: 26px;
+  border-width: 3px;
+  border-color: rgba(46, 42, 37, 0.12);
+}
+.ncard.is-slot .ncard-ghost {
+  width: 78%;
+}
+.ncard.is-slot .ncard-stars {
+  gap: 3%;
+  width: 100%;
+  justify-content: center;
+}
+.ncard.is-slot .ncard-star {
+  width: 17%;
+}
+.ncard.is-slot .ncard-halo {
+  inset: -12px;
+  border-radius: 34px;
+}
+
+/* ── 貼紙本的一頁 ───────────────────────────────────────── */
+.al-page {
+  position: absolute;
+  inset: 0;
+  container-type: size;
+}
+.al-item,
+.al-next {
+  position: absolute;
+  width: min(15.5cqw, 40cqh);
+  aspect-ratio: 1;
+  translate: -50% -50%;
+}
+.al-sticker {
+  display: block;
+  width: 100%;
+}
+/* v1 的圓形舊貼紙、星星徽章：圖畫滿整格，縮成跟隨機貼紙（外框只佔 viewBox 約 8 成）看起來一樣大 */
+.al-sticker > .sticker {
+  width: 78%;
+  margin: 11%;
+}
+/* 還沒點過的貼紙（v1 的舊貼紙、升級的徽章）：外圈一圈暖光，慢慢呼吸 */
+.al-item.is-fresh::before {
+  content: '';
+  position: absolute;
+  inset: -12px;
+  border-radius: 50%;
+  background: radial-gradient(closest-side, rgba(241, 210, 124, 0.55), rgba(241, 210, 124, 0));
+  animation: ncard-breathe 2.8s ease-in-out infinite;
+  pointer-events: none;
+}
+/* 貼上去那一下：一圈淡淡的波紋 */
+.al-press {
+  position: absolute;
+  inset: -8%;
+  border-radius: 50%;
+  border: 4px solid rgba(241, 210, 124, 0.8);
+  pointer-events: none;
+}
+.al-next {
+  width: min(15cqw, 42cqh);
+}
+.al-next > button {
+  display: block;
+  width: 100%;
+}
+
+/* ── 挑選畫面 ───────────────────────────────────────────── */
+.picker {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  background:
+    radial-gradient(90% 70% at 46% 42%, #fbf6ea 0%, rgba(251, 246, 234, 0) 70%),
+    linear-gradient(rgba(46, 42, 37, 0.03) 1px, transparent 1px) 0 0 / 30px 30px,
+    linear-gradient(90deg, rgba(46, 42, 37, 0.03) 1px, transparent 1px) 0 0 / 30px 30px,
+    var(--paper);
+}
+/* 中間一圈很淡的暖光，40 秒轉一圈、6 秒呼吸一次（不閃） */
+.pk-glow {
+  position: absolute;
+  left: 44%;
+  top: 46%;
+  width: 92vmin;
+  aspect-ratio: 1;
+  translate: -50% -50%;
+  border-radius: 50%;
+  background:
+    repeating-conic-gradient(from 0deg, rgba(241, 210, 124, 0.12) 0deg 9deg, transparent 9deg 24deg),
+    radial-gradient(closest-side, rgba(241, 210, 124, 0.28), rgba(241, 210, 124, 0) 100%);
+  -webkit-mask: radial-gradient(closest-side, #000 30%, transparent 100%);
+  mask: radial-gradient(closest-side, #000 30%, transparent 100%);
+  animation: ms-turn 40s linear infinite, ms-breathe 6s ease-in-out infinite;
+  pointer-events: none;
+}
+.pk-reveal {
+  position: absolute;
+  left: 44%;
+  top: 46%;
+  width: clamp(220px, 36vmin, 320px);
+  translate: -50% -50%;
+  perspective: 900px;
+}
+.pk-flip {
+  position: relative;
+  transform-style: preserve-3d;
+}
+.pk-face {
+  display: block;
+  backface-visibility: hidden;
+}
+.pk-face.is-front {
+  position: absolute;
+  inset: 0;
+  transform: rotateY(180deg);
+}
+.pk-grid {
+  --o: clamp(160px, 28vmin, 240px);
+  position: relative;
+  z-index: 1;
+  display: grid;
+  grid-template-columns: repeat(3, var(--o));
+  gap: clamp(18px, 4vmin, 44px) clamp(30px, 5.4vw, 64px);
+  /* 往左一點讓出右邊的按鈕，往下一點讓出上方的字幕 */
+  translate: -6% 4%;
+}
+.pk-opt {
+  position: relative;
+  width: var(--o);
+  aspect-ratio: 1;
+  /* 點的範圍比貼紙大一圈，手指不用很準 */
+  padding: 4%;
+  touch-action: manipulation;
+}
+.pk-halo {
+  position: absolute;
+  inset: -18%;
+  border-radius: 50%;
+  background: radial-gradient(closest-side, rgba(241, 210, 124, 0.6), rgba(241, 210, 124, 0));
+  animation: ncard-breathe 2.4s ease-in-out infinite;
+  pointer-events: none;
+  z-index: -1;
+}
+.pk-grid.is-placing {
+  pointer-events: none;
+}
+.pk-side {
+  position: absolute;
+  right: clamp(22px, 3.4vw, 46px);
+  top: 50%;
+  translate: 0 -46%;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: clamp(16px, 3vh, 26px);
+}
+.pk-btn {
+  position: relative;
+  width: var(--tap);
+  height: var(--tap);
+  max-width: 132px;
+  max-height: 132px;
+  min-width: 120px;
+  min-height: 120px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: var(--card);
+  box-shadow:
+    0 6px 0 var(--paper-edge),
+    0 18px 30px -18px rgba(46, 42, 37, 0.3);
+  transition: box-shadow 0.18s var(--ease-out), translate 0.18s var(--ease-out);
+}
+.pk-btn:active {
+  translate: 0 4px;
+  box-shadow: 0 2px 0 var(--paper-edge);
+}
+.pk-btn-pic {
+  width: 50%;
+  opacity: 0.85;
+}
+.pk-btn.is-ok {
+  background: var(--good);
+  box-shadow:
+    0 6px 0 #4f8d67,
+    0 0 0 8px rgba(251, 248, 242, 0.7);
+}
+.pk-btn.is-later {
+  background: var(--coral);
+  box-shadow:
+    0 6px 0 #c7735d,
+    0 18px 30px -18px rgba(46, 42, 37, 0.3);
+}
+.pk-host {
+  position: absolute;
+  left: 1.5vw;
+  bottom: -1vh;
+  width: clamp(140px, 17vw, 220px);
+  z-index: 1;
+  pointer-events: none;
+}
+.pk-hint {
+  top: 22px;
+  right: 108px;
+}
+/* 收進貼紙本：中間飛起來的那張，和滑上來的一頁 */
+.pk-place {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  display: grid;
+  place-items: center;
+}
+.pk-hero {
+  position: absolute;
+  left: 50%;
+  top: 40%;
+  width: clamp(200px, 32vmin, 290px);
+  margin: calc(clamp(200px, 32vmin, 290px) / -2) 0 0 calc(clamp(200px, 32vmin, 290px) / -2);
+  z-index: 2;
+}
+.pk-book {
+  position: relative;
+  width: min(78vw, 980px);
+  height: min(58vh, 520px);
+  border-radius: 28px;
+  background:
+    linear-gradient(rgba(46, 42, 37, 0.035) 1px, transparent 1px) 0 0 / 26px 26px,
+    linear-gradient(90deg, rgba(46, 42, 37, 0.035) 1px, transparent 1px) 0 0 / 26px 26px,
+    var(--card);
+  box-shadow:
+    0 0 0 10px #ece4d4,
+    0 18px 0 10px rgba(46, 42, 37, 0.06),
+    0 40px 70px -30px rgba(46, 42, 37, 0.35);
+}

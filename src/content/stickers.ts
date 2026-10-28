@@ -1,7 +1,9 @@
-// 成就感強化：貼紙本的貼紙、每局結束時「這一局做了什麼」的小圖。
-// 貼紙是「學會的東西」：一個技能第一次熟練（自己答、連續答對）就貼一張，之後不會因為退步而拿走。
+// 成就感強化：學會的東西（里程碑的圖）、貼紙本的貼紙、每局結束時「這一局做了什麼」的小圖。
+// 「學會的東西」：一個技能第一次熟練（自己答、連續答對）就慶祝一次。v1 時它直接變成一張貼紙；
+// v2（2026-10-28）起貼紙改成集星星自己挑（sticker-art.ts），學會的東西改給加速的星星，v1 拿到的舊貼紙照樣留在貼紙本。
 // 同一個概念只有一張：數數量（count）、塗格子（fill）、給蛋（give）、一眼看幾個（flash）的 5，都是「數到 5」這一張。
 import type { Visual } from './games'
+import { STICKER_ART_ICONS, artOf } from './sticker-art'
 import { PHONICS, PHONICS_WORDS, upper, wordId } from './letters'
 import { VOCAB, CAT_EXAMPLES, vocab, type Tag } from './vocab'
 import { COLORS, SHAPES, SOLIDS, type ShapeId, type SolidId } from './park'
@@ -42,6 +44,9 @@ export interface StickerDef {
   short?: string
   /** 家長區「今日亮點」用的中文 */
   zh: string
+  /** 挑選式貼紙的主角（sticker-art.ts）與外觀種子：有的話畫成隨機外觀的貼紙，沒有的話是圓形的舊貼紙 */
+  art?: string
+  seed?: number
 }
 
 const hexOf = (id: string) => COLORS.find((c) => c.id === id)?.hex ?? '#F0B088'
@@ -137,6 +142,13 @@ export const fixSticker = (n: number): StickerDef => ({
   zh: `自己修好 ${n} 個程式`,
 })
 
+// ── 挑選式貼紙（集滿 5 顆星自己挑的：主角在 sticker-art.ts，隨機外觀在 sticker-look.ts）──────────
+/** 主角 + 種子 → 貼紙（StickerArt 看到 art 就用 stickerSvg 畫隨機外觀，不是圓形的舊貼紙） */
+export function artSticker(id: string, seed: number): StickerDef {
+  const a = artOf(id)
+  return { id: `art:${id}:${seed}`, art: id, seed, pic: { t: 'emoji', icon: id }, tint: '#FFFDF8', lines: [`stk.art.${id}`], zh: a?.zh ?? id }
+}
+
 // ── 每局結束：這一局做了什麼（一題一張小圖）──────────────────
 /** 一題的答案畫成什麼：盡量用孩子剛剛點到的那張圖 */
 export function thingPic(a: { skill: string; answer: string; itemId: string }): Pic {
@@ -167,4 +179,4 @@ export function thingPic(a: { skill: string; answer: string; itemId: string }): 
 }
 
 /** 給 scripts/build-emoji.ts：這裡用到、別處沒有打包的圖示 */
-export const ACHIEVE_ICONS = ['wrench', 'flexed-biceps', 'open-book', 'man', 'waving-hand', 'hatching-chick', 'sparkles', 'glowing-star', 'strawberry', 'sailboat', 'house', 'basket', 'crayon', 'framed-picture', 'pencil', ...ALL_STORIES.map((s) => s.icons[s.icons.length - 1])]
+export const ACHIEVE_ICONS = ['wrench', 'flexed-biceps', 'open-book', 'man', 'waving-hand', 'hatching-chick', 'sparkles', 'glowing-star', 'strawberry', 'sailboat', 'house', 'basket', 'crayon', 'framed-picture', 'pencil', ...STICKER_ART_ICONS, ...ALL_STORIES.map((s) => s.icons[s.icons.length - 1])]
