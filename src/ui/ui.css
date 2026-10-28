@@ -35,6 +35,11 @@
   container-type: size;
   min-height: 0;
 }
+/* 字幕常駐（2026-10-28 家長回饋：句子唸完還要留在畫面上）：上方那一排（返回鍵、進度點、陪玩小字）下面
+   留一條字幕的路，題目、教學卡、選項、畫布都從這條路下面開始，字幕不會蓋到它們（高度對應 ui/subtitle.css 的膠囊） */
+.stage > .stage-main {
+  margin-top: var(--sub-lane, 62px);
+}
 .stage-host {
   position: absolute;
   left: 1.5vw;

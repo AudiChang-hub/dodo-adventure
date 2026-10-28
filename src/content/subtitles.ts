@@ -52,5 +52,8 @@ export function tintWord(target: string, word: string): boolean {
 /** 答案補上後保留多久（毫秒），之後才換成正在唸的句子 */
 export const REVEAL_HOLD_MS = 1500
 
-/** 一般句子唸完後停留多久才淡出（毫秒）；問題句會一直留著等孩子作答 */
-export const LINGER_MS = 1600
+/**
+ * 還在等孩子作答時，中間插進來的一句（再試一次、發呆提醒）唸完後停留多久，才換回問題句（毫秒）。
+ * 其他句子唸完後一直留在畫面上，直到下一句來取代（2026-10-28 家長回饋：句子還沒看完就消失）。
+ */
+export const BACK_TO_QUESTION_MS = 1600

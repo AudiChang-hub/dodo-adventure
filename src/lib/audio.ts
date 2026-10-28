@@ -128,8 +128,10 @@ export type SpeechEvent =
   | { type: 'whole'; key: string; line: Line }
   /** 這句唸完了 */
   | { type: 'end'; key: string }
-  /** 被 stopSpeech 打斷，字幕要清掉 */
+  /** 被 stopSpeech 打斷（離開畫面、遊戲結束），字幕要收起來 */
   | { type: 'stop' }
+  /** 被 hushSpeech 打斷（同一個畫面裡點一下跳過）：聲音停了，字幕留著等下一句 */
+  | { type: 'cut' }
 
 type SpeechListener = (e: SpeechEvent) => void
 const speechListeners = new Set<SpeechListener>()
@@ -154,9 +156,12 @@ export function audioClock(): number {
 // ── 播放 ───────────────────────────────────────────────────
 let current: { stop: () => void } | null = null
 let token = 0
+/** 正在進行的那一次 say 的 token；0 表示現在沒在說話（給「點字幕重播」判斷） */
+let busy = 0
 
 function halt() {
   token++
+  busy = 0
   current?.stop()
   current = null
   speechSynthesis?.cancel()
@@ -168,14 +173,38 @@ export function stopSpeech() {
   emit({ type: 'stop' })
 }
 
+/** 同一個畫面裡跳過正在說的話（點一下跳過、換一張貼紙）：聲音停下，字幕留著，等下一句來取代 */
+export function hushSpeech() {
+  halt()
+  emit({ type: 'cut' })
+}
+
+/** 現在有沒有在說話（包含正在載入音檔、段與段之間的停頓） */
+export const isSpeaking = () => busy !== 0
+
+/**
+ * 點字幕重播：把這一句再唸一次。只在沒有說話的時候才唸，不會打斷遊戲正在等的台詞；
+ * 之後遊戲要說新的話時，照常把重播打斷。回傳有沒有開始唸。
+ */
+export function replayLine(key: string): boolean {
+  if (busy) return false
+  void say(key)
+  return true
+}
+
 /** 依序說出多句台詞；被新的 say 或 stopSpeech 打斷時提早結束 */
 export async function say(...keys: string[]): Promise<void> {
   // 不發 stop：字幕要接著顯示下一句，問題句的答案也要能補上
   halt()
   const my = token
-  for (const k of keys) {
-    if (my !== token) return
-    await playLine(k, line(k), my)
+  busy = my
+  try {
+    for (const k of keys) {
+      if (my !== token) return
+      await playLine(k, line(k), my)
+    }
+  } finally {
+    if (busy === my) busy = 0
   }
 }
 
