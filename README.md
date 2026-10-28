@@ -17,14 +17,18 @@
 ```bash
 npm install
 cp .env.example .env.local   # 填入孩子的稱呼
-npm run audio                # 產生所有語音（需要 Python 與 pip install edge-tts）
+pip install -r scripts/requirements.txt   # 語音產生用：edge-tts、praat-parselmouth、imageio-ffmpeg（內含 ffmpeg）、numpy
+npm run audio                # 產生所有語音（約 2000 段，全部重產約 15 分鐘，要連網）
 npm run dev
 ```
 
 - `npm run emoji`：內容新增圖示後，重新產生 `src/art/emoji.generated.ts`。
 - `npm run icons`：由 `public/icon.svg` 產生 PWA 圖示。
 - 台詞都定義在 `src/content/lines.ts`；新增或修改台詞後重跑 `npm run audio`，只會產生有變動的音檔。
-- 字幕逐字亮起用的 `public/audio/timings.json` 會跟音檔一起產生（edge-tts 的 WordBoundary）；已有音檔但缺時間資料的，重跑 `npm run audio` 會只補時間、不重產音檔。
+- 字幕逐字亮起用的 `public/audio/timings.json` 會跟音檔一起產生（edge-tts 的 WordBoundary，停頓後第一個字的開始時間校正到實際出聲處）；已有音檔但缺時間資料的，重跑 `npm run audio` 會只補時間、不重產音檔。
+- 語調是「E4 溫和版」：情緒句前面自動加溫和的感嘆詞（規則在 `src/content/interjections.ts`），合成參數在 `src/content/voices.ts` 的 `E4`，
+  `scripts/gen_audio.py` 合成後修剪頭尾靜音、再用 Praat 不對稱放大起伏。改了這些參數，檔名的雜湊會跟著變，重跑 `npm run audio` 就會重產。
+  自然發音的示範（`ph.*`、`en.where.sound.*`）不加感嘆詞、不做放大，沿用原本實測過的音檔。放大失敗的段會保留未放大的聲音，記在 `scripts/.cache/fx-report.json`。
 
 ## 部署（GitHub Pages）
 

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type CSSProperties } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
-import { segments, type Line } from '../content/lines'
+import { plainText, segments, type Line } from '../content/lines'
 import { isBlankQuestion, revealsAnswer, LINGER_MS, REVEAL_HOLD_MS } from '../content/subtitles'
 import { audioClock, onSpeakLevel, onSpeech, type SpeechEvent, type WordTiming } from '../lib/audio'
 import './subtitle.css'
@@ -274,7 +274,7 @@ export function Subtitle({ hidden }: { hidden: boolean }) {
           <motion.div
             key={v.live.id}
             data-line={v.live.id}
-            className={`sub-pill${v.mode === 'reveal' ? ' is-reveal' : ''}${v.live.line.text.length > LONG_CHARS ? ' is-long' : ''}`}
+            className={`sub-pill${v.mode === 'reveal' ? ' is-reveal' : ''}${plainText(v.live.line).length > LONG_CHARS ? ' is-long' : ''}`}
             style={{ '--who': `var(--${v.live.line.speaker}-deep)` } as CSSProperties}
             initial={{ opacity: 0, y: -10, scale: 0.97 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
