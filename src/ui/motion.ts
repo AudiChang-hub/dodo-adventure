@@ -85,6 +85,13 @@ export const RANGE = {
  */
 export const FADE: Transition = { duration: DUR.swapIn, ease: EASE.out }
 
+/**
+ * 單向淡掉、之後就卸載（例：連點成圖沒連到下一個點的墨跡）：只從現在的透明度往 0 走一次，不先閃一下。
+ * 比換內容的淡出慢一點，紙感螢幕上看得出是「慢慢不見」，不是被擦掉。
+ */
+export const FADE_OUT_S = 0.5
+export const FADE_OUT: Transition = { duration: FADE_OUT_S, ease: EASE.in }
+
 /** 秒 → 毫秒（流程裡 await wait() 用） */
 export const ms = (s: number) => Math.round(s * 1000)
 

@@ -90,10 +90,13 @@ export const Ink = forwardRef<InkHandle, Props>(function Ink({ w, h, color = '#2
     ctx.fill(toPath(out))
   }
 
+  // 2026-10-28 修：量版面大小要用 clientWidth／clientHeight（不受外層 transform 影響），不能用 getBoundingClientRect。
+  // 整頁轉場（ui/Scenes.tsx）讓新畫面從 0.6 長到 1，遊戲剛掛上時外層正被縮放；以前在那一刻量到縮小的框，
+  // 之後 ResizeObserver 不會因為 transform 再觸發，手指的座標就一直被放大、偏到別的地方（連點成圖的線跑到空白處、碰不到點）。
   const setup = () => {
     const el = base.current?.parentElement
     if (!el || !base.current || !live.current) return
-    const r = el.getBoundingClientRect()
+    const r = { width: el.clientWidth, height: el.clientHeight }
     const dpr = Math.min(2, devicePixelRatio || 1)
     const scale = Math.min(r.width / w, r.height / h)
     const g = { scale, ox: (r.width - w * scale) / 2, oy: (r.height - h * scale) / 2, dpr }
@@ -147,11 +150,14 @@ export const Ink = forwardRef<InkHandle, Props>(function Ink({ w, h, color = '#2
   }))
 
   const toPt = (e: PointerEvent | React.PointerEvent): Pt => {
-    const r = live.current!.getBoundingClientRect()
+    const c = live.current!
+    const r = c.getBoundingClientRect()
     const g = geo.current
+    // 畫面上的框（含外層正在做的縮放）÷ 版面大小 = 外層現在的縮放；先換回版面座標，轉場中途也對得上
+    const k = c.offsetWidth ? r.width / c.offsetWidth : 1
     return {
-      x: (e.clientX - r.left - g.ox) / g.scale,
-      y: (e.clientY - r.top - g.oy) / g.scale,
+      x: ((e.clientX - r.left) / k - g.ox) / g.scale,
+      y: ((e.clientY - r.top) / k - g.oy) / g.scale,
       p: e.pointerType === 'pen' ? Math.max(0.05, e.pressure || 0.5) : 0.5,
     }
   }
@@ -165,8 +171,10 @@ export const Ink = forwardRef<InkHandle, Props>(function Ink({ w, h, color = '#2
 
   const down = (e: React.PointerEvent) => {
     if (e.pointerType === 'touch' && penNearby() && active.current === null) {
-      const r = live.current!.getBoundingClientRect()
-      setGhost((g) => ({ x: e.clientX - r.left, y: e.clientY - r.top, n: (g?.n ?? 0) + 1 }))
+      const c = live.current!
+      const r = c.getBoundingClientRect()
+      const k = c.offsetWidth ? r.width / c.offsetWidth : 1
+      setGhost((g) => ({ x: (e.clientX - r.left) / k, y: (e.clientY - r.top) / k, n: (g?.n ?? 0) + 1 }))
       clearTimeout(ghostTimer.current)
       ghostTimer.current = window.setTimeout(() => setGhost(null), 900)
       return
