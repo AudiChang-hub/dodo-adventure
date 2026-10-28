@@ -18,6 +18,7 @@ import { preload, say, sfx, stopSpeech } from '../lib/audio'
 import { pick, shuffle } from '../lib/random'
 import { challengeKey, praiseKey, retryKey, wait } from './lines'
 import { useIdle } from './idle'
+import { PACE, nextPause } from './pace'
 import type { Mood } from '../art/Dino'
 import './engine.css'
 
@@ -101,6 +102,8 @@ function ChoiceRound({ gameId, onDone, onExit }: GameProps) {
   const stepRef = useRef(0)
   // 必須在 markPlayed 之前讀：第一次玩的遊戲，第一題一定先一起練一次
   const round = useRef(roundState(plays(def.id) === 0))
+  /** 這一題剛走過教學卡或一起練：答對後多停一下再換題 */
+  const taughtItem = useRef(false)
   /** 這一題是探測題 */
   const probeRef = useRef(false)
   /** Sam 教豆豆：恐龍指著的錯誤選項 */
@@ -139,7 +142,7 @@ function ChoiceRound({ gameId, onDone, onExit }: GameProps) {
     if (!live.current) return
     setCard(null)
     void logTeach({ station: def.station, game: def.id, itemId: it.itemId, skill: it.skill, level: itemLevel.current, ms, retaught: short })
-    await wait(260)
+    await wait(PACE.TEACH_TO_GUIDED)
   }
 
   // ── 一起練：答案發光，點錯也沒關係 ─────────────────────────
@@ -240,6 +243,7 @@ function ChoiceRound({ gameId, onDone, onExit }: GameProps) {
       await teach(it, false)
       if (!live.current) return
     }
+    taughtItem.current = fresh || walkThrough
     if (fresh || walkThrough) {
       await guided(it)
       if (!live.current) return
@@ -248,8 +252,9 @@ function ChoiceRound({ gameId, onDone, onExit }: GameProps) {
     return quiz(it, { probe, decoy })
   }
 
-  const next = async () => {
-    await wait(350)
+  /** 答對（或重教完）到下一題：剛教的新內容多停一下，複習題維持輕快 */
+  const next = async (ms = nextPause(taughtItem.current)) => {
+    await wait(ms)
     if (!live.current) return
     const n = idxRef.current + 1
     if (n >= ROUND_ITEMS) return onDone({ items: ROUND_ITEMS, firstTry: firstTries.current })
@@ -298,7 +303,8 @@ function ChoiceRound({ gameId, onDone, onExit }: GameProps) {
       hintUsed: true,
     })
     await say(praiseKey(host, english))
-    await wait(250)
+    // 答對的動畫跑完、孩子看清楚了，才換「Your turn!」
+    await wait(PACE.GUIDED_TO_QUIZ)
     if (live.current) release()
   }
 
@@ -325,7 +331,8 @@ function ChoiceRound({ gameId, onDone, onExit }: GameProps) {
     await teach(it, true)
     if (!live.current) return
     await guided(reshuffle(it))
-    if (live.current) next()
+    // 一起練答對時已經停過了（GUIDED_TO_QUIZ），不用再多等
+    if (live.current) next(PACE.NEXT_REVIEW)
   }
 
   /** Sam 教豆豆：點正確的就是糾正成功；點了恐龍指的（或其他錯的），恐龍自己發現、正確答案亮起 */

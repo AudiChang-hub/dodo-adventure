@@ -14,6 +14,7 @@ import { pick, shuffle } from '../lib/random'
 import { scatter } from './layout'
 import { praiseKey, retryKey, wait } from './lines'
 import { useIdle } from './idle'
+import { PACE, nextPause } from './pace'
 import type { Mood } from '../art/Dino'
 
 const ROUNDS = 4
@@ -57,6 +58,8 @@ export function CountGame({ gameId, onDone, onExit }: GameProps) {
   const first = useRef(0)
   const retaught = useRef(false)
   const round0 = useRef(roundState(plays(def.id) === 0))
+  /** 這一輪先示範過：答對後多停一下再換題 */
+  const shown = useRef(false)
   const stage = useRef<'count' | 'ask' | 'done'>('count')
   const idle = useIdle()
   /** 閒置第二段提示：下一個要數的物件慢慢發光 */
@@ -94,7 +97,8 @@ export function CountGame({ gameId, onDone, onExit }: GameProps) {
     await countAlong(rd, true)
     if (!live.current) return
     setFinger(null)
-    await wait(350)
+    // 數好、標上數字的那一組停留一下，孩子看完整的結果
+    await wait(PACE.DEMO_HOLD)
     setCounted([])
     void logTeach({ station: 'math', game: def.id, itemId: String(rd.n), skill: `count:${rd.n}`, level: lv.current, ms: Math.round(performance.now() - s) })
     setMood('idle')
@@ -117,6 +121,7 @@ export function CountGame({ gameId, onDone, onExit }: GameProps) {
     retaught.current = false
     // 要示範的話，示範完才換孩子點；不示範就跟以前一樣，邊聽邊可以開始點
     const show = plan.show
+    shown.current = show
     busy.current = show
     stage.current = 'count'
     idle.stop()
@@ -176,7 +181,8 @@ export function CountGame({ gameId, onDone, onExit }: GameProps) {
     setMood('cheer')
     sfx.correct()
     await say(praiseKey('bobo'))
-    await wait(300)
+    // 剛示範的新數量多停一下，複習題維持輕快
+    await wait(nextPause(shown.current))
     if (!live.current) return
     if (r + 1 >= ROUNDS) return onDone({ items: ROUNDS, firstTry: first.current })
     setR(r + 1)

@@ -17,6 +17,7 @@ import type { Phase } from '../../lib/db'
 import { preload, say, sfx, stopSpeech } from '../../lib/audio'
 import { praiseKey, wait } from '../lines'
 import { useIdle } from '../idle'
+import { PACE, nextPause } from '../pace'
 import { hit, useTapDrag } from './drag'
 import type { Mood } from '../../art/Dino'
 import './code.css'
@@ -105,6 +106,8 @@ export function DriveGame({ gameId, onDone, onExit }: GameProps) {
   const [driver] = useState(() => themeNow()?.host ?? 'dodo')
   const firstTries = useRef(0)
   const round = useRef(roundState(plays(def.id) === 0))
+  /** 這一題剛走過教學卡、示範或一起練：答對後多停一下再換題 */
+  const taughtItem = useRef(false)
   const resolver = useRef<((ms: number) => void) | null>(null)
   const slotEls = useRef<(HTMLElement | null)[]>([])
   const rootEl = useRef<HTMLDivElement | null>(null)
@@ -164,7 +167,7 @@ export function DriveGame({ gameId, onDone, onExit }: GameProps) {
     if (!live.current) return
     setCard(null)
     void logTeach({ station: def.station, game: def.id, itemId: p.itemId, skill: p.skill, level: lv.current, ms, retaught: short })
-    await wait(260)
+    await wait(PACE.TEACH_TO_GUIDED)
   }
 
   // ── 一起練：該放的卡發光、其他變淡；放錯的卡不會被放進去 ─────────
@@ -221,6 +224,7 @@ export function DriveGame({ gameId, onDone, onExit }: GameProps) {
       await teach(p, false)
       if (!live.current) return
     }
+    taughtItem.current = fresh || walk
     if (fresh || walk) {
       await guided(p)
       if (!live.current) return
@@ -232,8 +236,9 @@ export function DriveGame({ gameId, onDone, onExit }: GameProps) {
     return quiz(p)
   }
 
-  const next = async () => {
-    await wait(450)
+  /** 答對（或重教完）到下一題：剛教的新內容多停一下，複習題維持輕快 */
+  const next = async (ms = nextPause(taughtItem.current)) => {
+    await wait(ms)
     if (!live.current) return
     const n = idxRef.current + 1
     if (n >= ROUNDS) return onDone({ items: ROUNDS, firstTry: firstTries.current })
@@ -403,7 +408,8 @@ export function DriveGame({ gameId, onDone, onExit }: GameProps) {
     })
     if (ph === 'guided') {
       await say('c.drive.made', praiseKey('bobo'))
-      await wait(250)
+      // 開到的動畫跑完、孩子看清楚了，才換「Your turn!」
+      await wait(PACE.GUIDED_TO_QUIZ)
       return release()
     }
     if (firstTry) firstTries.current++
@@ -456,7 +462,8 @@ export function DriveGame({ gameId, onDone, onExit }: GameProps) {
     await teach(p, true)
     if (!live.current) return
     await guided(p)
-    if (live.current) next()
+    // 一起練開到時已經停過了（GUIDED_TO_QUIZ），不用再多等
+    if (live.current) next(PACE.NEXT_REVIEW)
   }
 
   // 孩子主動點波波：再說一次要開去哪裡

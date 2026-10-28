@@ -16,6 +16,7 @@ import { preload, say, sfx, stopSpeech } from '../../lib/audio'
 import { shuffle } from '../../lib/random'
 import { praiseKey, retryKey, wait } from '../lines'
 import { useIdle } from '../idle'
+import { PACE, nextPause } from '../pace'
 import { analyzeLasso, crayonLoop, dist, layout, smoothPath, winding, BOARD_H, BOARD_W, type P, type Spot } from './geom'
 import type { Mood } from '../../art/Dino'
 import './sheet.css'
@@ -75,6 +76,8 @@ export function SheetGame({ gameId, onDone, onExit, mode }: GameProps & { mode: 
   /** 每換一個步驟就加一，舊步驟的計時器看到不一樣就不動作 */
   const stepRef = useRef(0)
   const round = useRef(roundState(plays(def.id) === 0))
+  /** 這一題剛走過教學卡、示範或一起練：答對後多停一下再換題 */
+  const taughtItem = useRef(false)
   const resolver = useRef<((ms: number) => void) | null>(null)
   const idle = useIdle()
   // 圈選
@@ -140,7 +143,7 @@ export function SheetGame({ gameId, onDone, onExit, mode }: GameProps & { mode: 
     if (!live.current) return
     setCard(null)
     void logTeach({ station: def.station, game: def.id, itemId: it.itemId, skill: it.skill, level: itemLevel.current, ms, retaught: short })
-    await wait(260)
+    await wait(PACE.TEACH_TO_GUIDED)
   }
 
   // ── 圈選示範：Watch me! 筆沿著一圈畫過去，把第一個圈起來 ─────────
@@ -173,7 +176,7 @@ export function SheetGame({ gameId, onDone, onExit, mode }: GameProps & { mode: 
     setFound([sh.things[i].id])
     setBurst({ id: sh.things[i].id, k: Date.now() })
     await say(numKey(1))
-    await wait(700)
+    await wait(PACE.DEMO_HOLD)
     if (!live.current) return
     setDemo(null)
     setFound([])
@@ -247,6 +250,7 @@ export function SheetGame({ gameId, onDone, onExit, mode }: GameProps & { mode: 
       await penShow(it)
       if (!live.current) return
     }
+    taughtItem.current = fresh || pen || walk
     if (fresh || pen || walk) {
       await guided(it)
       if (!live.current) return
@@ -254,8 +258,9 @@ export function SheetGame({ gameId, onDone, onExit, mode }: GameProps & { mode: 
     return quiz(it, fresh || pen || walk)
   }
 
-  const next = async () => {
-    await wait(350)
+  /** 答對（或重教完）到下一題：剛教的新概念多停一下，複習題維持輕快 */
+  const next = async (ms = nextPause(taughtItem.current)) => {
+    await wait(ms)
     if (!live.current) return
     const n = idxRef.current + 1
     if (n >= ITEMS) return onDone({ items: ITEMS, firstTry: firstTries.current })
@@ -317,7 +322,8 @@ export function SheetGame({ gameId, onDone, onExit, mode }: GameProps & { mode: 
     await teach(it, true)
     if (!live.current) return
     await guided(it)
-    if (live.current) next()
+    // 一起練答對時已經停過了（GUIDED_TO_QUIZ），不用再多等
+    if (live.current) next(PACE.NEXT_REVIEW)
   }
 
   const finishQuiz = async (it: SheetItem) => {
@@ -401,7 +407,8 @@ export function SheetGame({ gameId, onDone, onExit, mode }: GameProps & { mode: 
         ...(mode === 'lasso' ? { metrics: lassoMetrics() } : {}),
       })
       await say(praiseKey(host))
-      await wait(250)
+      // 答對的動畫跑完、孩子看清楚了，才換「Your turn!」
+      await wait(PACE.GUIDED_TO_QUIZ)
       if (live.current) release()
       return
     }

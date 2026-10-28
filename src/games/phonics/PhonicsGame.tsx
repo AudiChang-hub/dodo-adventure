@@ -12,6 +12,7 @@ import { preload, say, sfx, stopSpeech } from '../../lib/audio'
 import { shuffle } from '../../lib/random'
 import { challengeKey, praiseKey, retryKey, wait } from '../lines'
 import { useIdle } from '../idle'
+import { PACE, nextPause } from '../pace'
 import type { Mood } from '../../art/Dino'
 import { PhonicsIntro, introLines } from './PhonicsIntro'
 import { LetterPair, Pic, WordLabel } from './parts'
@@ -74,6 +75,8 @@ export function PhonicsGame({ gameId, onDone, onExit }: GameProps) {
   /** 點名到一半孩子就點了：停止點名 */
   const nameRef = useRef(0)
   const round = useRef(roundState(plays(def.id) === 0))
+  /** 這一題剛走過學習循環或一起練：答對後多停一下再換題 */
+  const taughtItem = useRef(false)
   const resolver = useRef<((ms: number) => void) | null>(null)
 
   useSubtitleTint()
@@ -124,7 +127,7 @@ export function PhonicsGame({ gameId, onDone, onExit }: GameProps) {
     if (!live.current) return
     setCard(null)
     void logTeach({ station: def.station, game: def.id, itemId: it.unit.letter, skill: it.skill, level: itemLevel.current, ms, retaught: short })
-    await wait(260)
+    await wait(PACE.TEACH_TO_GUIDED)
   }
 
   // ── 一起練：答案發光，點錯也沒關係 ─────────────────────────
@@ -188,6 +191,7 @@ export function PhonicsGame({ gameId, onDone, onExit }: GameProps) {
       await teach(it, false)
       if (!live.current) return
     }
+    taughtItem.current = fresh || walkThrough
     if (fresh || walkThrough) {
       await guided(it)
       if (!live.current) return
@@ -196,8 +200,9 @@ export function PhonicsGame({ gameId, onDone, onExit }: GameProps) {
     return quiz(it, false)
   }
 
-  const next = async () => {
-    await wait(350)
+  /** 答對（或重教完）到下一題：剛教的新音多停一下，複習題維持輕快 */
+  const next = async (ms = nextPause(taughtItem.current)) => {
+    await wait(ms)
     if (!live.current) return
     const n = idxRef.current + 1
     if (n >= ROUND_ITEMS) return onDone({ items: ROUND_ITEMS, firstTry: firstTries.current })
@@ -248,7 +253,8 @@ export function PhonicsGame({ gameId, onDone, onExit }: GameProps) {
       hintUsed: true,
     })
     await say(praiseKey(host, true), ...it.after)
-    await wait(250)
+    // 答對的動畫跑完、孩子看清楚了，才換「Your turn!」
+    await wait(PACE.GUIDED_TO_QUIZ)
     if (live.current) release()
   }
 
@@ -274,7 +280,8 @@ export function PhonicsGame({ gameId, onDone, onExit }: GameProps) {
     await teach(it, true)
     if (!live.current) return
     await guided(reshuffle(it))
-    if (live.current) next()
+    // 一起練答對時已經停過了（GUIDED_TO_QUIZ），不用再多等
+    if (live.current) next(PACE.NEXT_REVIEW)
   }
 
   const tap = async (optId: string) => {

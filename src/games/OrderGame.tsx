@@ -10,6 +10,7 @@ import { say, sfx, stopSpeech } from '../lib/audio'
 import { scatter } from './layout'
 import { praiseKey, retryKey, wait } from './lines'
 import { useIdle } from './idle'
+import { PACE, nextPause } from './pace'
 import type { Mood } from '../art/Dino'
 
 const ROUNDS = 3
@@ -38,6 +39,8 @@ export function OrderGame({ gameId, onDone, onExit }: GameProps) {
   const nextRef = useRef(1)
   const idle = useIdle()
   const round0 = useRef(roundState(plays(def.id) === 0))
+  /** 這一輪先示範過：答對後多停一下再換題 */
+  const shown = useRef(false)
   /** 示範中：手指指著哪個數字（null 表示沒有在示範） */
   const [finger, setFinger] = useState<number | null>(null)
   const [press, setPress] = useState(0)
@@ -60,7 +63,8 @@ export function OrderGame({ gameId, onDone, onExit }: GameProps) {
     }
     if (!live.current) return
     setFinger(null)
-    await wait(450)
+    // 排好的 1、2、3 停留一下，孩子看完整的結果
+    await wait(PACE.DEMO_HOLD)
     setNext(1)
     void logTeach({ station: 'math', game: def.id, itemId: `1-${n}`, skill: `order:${n}`, level: lv.current, ms: Math.round(performance.now() - s) })
     setMood('idle')
@@ -72,6 +76,7 @@ export function OrderGame({ gameId, onDone, onExit }: GameProps) {
     lv.current = level(def.id)
     // 這一輪排到幾、要不要先示範（pick.ts，自動檢查 scripts/sim-teach.ts 用同一份）
     const { n, show } = planOrder(def.id, lv.current, unlockedNumbers(), round0.current, i)
+    shown.current = show
     const layout = scatter(n, n > 5 ? 5 : 4, 2).map((p) => ({ ...p, y: 28 + p.y * 0.7 }))
     setK(n)
     setPos(layout)
@@ -156,7 +161,8 @@ export function OrderGame({ gameId, onDone, onExit }: GameProps) {
     setMood('cheer')
     sfx.correct()
     await say(`m.num.${n}`, praiseKey('bobo'))
-    await wait(400)
+    // 剛示範的新長度多停一下，複習題維持輕快
+    await wait(nextPause(shown.current))
     if (!live.current) return
     if (r + 1 >= ROUNDS) return onDone({ items: ROUNDS, firstTry: first.current })
     setR(r + 1)

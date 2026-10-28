@@ -12,6 +12,7 @@ import type { Phase } from '../lib/db'
 import { preload, say, sfx, stopSpeech } from '../lib/audio'
 import { praiseKey, wait } from './lines'
 import { useIdle } from './idle'
+import { PACE, nextPause } from './pace'
 import { NUMBER_RANGE, useNumberPicker } from './sheet/NumberFlow'
 import { DoneButton } from './sheet/DoneButton'
 import type { Mood } from '../art/Dino'
@@ -92,6 +93,8 @@ export function GiveGame({ gameId, onDone, onExit }: GameProps) {
   const firstPlay = useRef(plays(def.id) === 0)
   const resolver = useRef<(() => void) | null>(null)
   const idle = useIdle()
+  /** 這一題剛走過示範或一起練：答對後多停一下再換題 */
+  const taughtItem = useRef(false)
   const picker = useNumberPicker('give', def.id)
   /** 每換一個步驟就加一，舊步驟的計時器看到不一樣就不動作 */
   const step = useRef(0)
@@ -153,7 +156,8 @@ export function GiveGame({ gameId, onDone, onExit }: GameProps) {
     await say(`teach.total.${k}`)
     if (!live.current) return
     setFinger(null)
-    await wait(300)
+    // 籃子裡的蛋停留一下，孩子看完整的結果
+    await wait(PACE.DEMO_HOLD)
     reset(supply(k))
     void logTeach({ station: 'math', game: def.id, itemId: String(k), skill: `give:${k}`, level: lv.current, ms: Math.round(performance.now() - s) })
     setMood('idle')
@@ -206,10 +210,10 @@ export function GiveGame({ gameId, onDone, onExit }: GameProps) {
       await demo(k)
       if (!live.current) return
     }
+    taughtItem.current = fresh || walk
     if (fresh || walk) {
       await ask(k, 'guided', false)
       if (!live.current) return
-      await wait(300)
     }
     return ask(k, 'quiz', fresh || walk)
   }
@@ -286,13 +290,15 @@ export function GiveGame({ gameId, onDone, onExit }: GameProps) {
     })
     if (ph === 'guided') {
       await say(`teach.total.${k}`, praiseKey('bobo'))
-      await wait(250)
+      // 答對的動畫跑完、孩子看清楚了，才換「Your turn!」
+      await wait(PACE.GUIDED_TO_QUIZ)
       return release()
     }
     if (firstTry) first.current++
     reportLevel(def.id, firstTry, def.maxLevel)
     await say(`teach.total.${k}`, 'ws.give.thanks')
-    await wait(400)
+    // 剛教的新數量多停一下，複習題維持輕快
+    await wait(nextPause(taughtItem.current))
     if (!live.current) return
     if (r + 1 >= ROUNDS) return onDone({ items: ROUNDS, firstTry: first.current })
     setR(r + 1)

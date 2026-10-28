@@ -7,6 +7,7 @@ import { preload, say, sfx } from '../../lib/audio'
 import { upper, wordId, type SoundUnit } from '../../content/letters'
 import { wait } from '../lines'
 import { useIdle } from '../idle'
+import { PACE } from '../pace'
 import { Pic, WordLabel } from './parts'
 
 interface Props {
@@ -57,14 +58,15 @@ export function PhonicsIntro({ unit, short, onDone }: Props) {
     // 延到下一輪才開始：StrictMode 開發模式會先掛載、卸載再掛載一次
     const boot = window.setTimeout(async () => {
       sfx.whoosh()
-      await wait(420)
+      await wait(PACE.TEACH_ENTER)
       if (!short) {
         for (let i = 0; i < 3; i++) {
           if (!live.current) return
           setStep(i)
           sfx.pop()
           await say(`ph.word.${wordId(unit.keys[i].w)}`)
-          await wait(160)
+          // 三張圖一張一張來：每張停一下，孩子看清楚、聽清楚這個字
+          await wait(PACE.TEACH_WORD_GAP)
         }
         if (!live.current) return
         setStep(3)
@@ -80,6 +82,7 @@ export function PhonicsIntro({ unit, short, onDone }: Props) {
       }
       if (!live.current) return
       await say(`ph.${l}.says`)
+      await wait(PACE.TEACH_SETTLE)
       if (!live.current) return
       readyAt.current = performance.now()
       setReady(true)
@@ -95,7 +98,7 @@ export function PhonicsIntro({ unit, short, onDone }: Props) {
   }, [])
 
   const tap = async () => {
-    if (!ready) return
+    if (!ready || performance.now() - readyAt.current < PACE.TEACH_TAP_ARM) return
     if (busy.current) return
     busy.current = true
     idle.stop()
@@ -104,7 +107,7 @@ export function PhonicsIntro({ unit, short, onDone }: Props) {
     sfx.pop()
     if (big.current) void animateBig(big.current, { scale: [1, 1.12, 1] }, { duration: 0.45, ease: [0.22, 1, 0.36, 1] })
     await say(`ph.${l}.echo.${wordId(unit.keys[0].w)}`)
-    await wait(260)
+    await wait(PACE.TEACH_HOLD)
     if (live.current) onDone(ms)
   }
 
