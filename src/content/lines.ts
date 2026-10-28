@@ -4,6 +4,7 @@ import './lines-code'
 import './lines-outing'
 import './lines-achieve'
 import './lines-themes'
+import './lines-eyebreak'
 import { CHILD_EN } from '../lib/env'
 import { LETTERS } from './letters'
 import { VOCAB, TAG_QUESTION, type Tag } from './vocab'
@@ -77,8 +78,7 @@ def('challenge.bobo', 'bobo', 'Last one! Here comes a tricky one!')
 def('challenge.momo', 'momo', 'Last one. This one is a little tricky.')
 def('levelup', 'dodo', "You're getting so good! Let's try a harder one!")
 def('goodbye', 'dodo', `Bye-bye, ${N}!`)
-def('eye.break', 'dodo', "Let's rest our eyes. Look far, far away!")
-def('eye.done', 'dodo', "All rested! Let's keep going!")
+// 護眼休息的台詞在 lines-eyebreak.ts
 
 // ── 字母森林 ───────────────────────────────────────────────
 // 自然發音的台詞在 lines-phonics.ts。這裡只留描字母（GlyphGame）唸字母名稱用的句子
