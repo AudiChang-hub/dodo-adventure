@@ -4,7 +4,8 @@
 import { ROUND_ITEMS, type ChoiceItem, type GameDef, type PhonicsItem } from '../content/games'
 import type { SheetItem, SheetMaker } from '../content/games-worksheet'
 import { pickDriveSkill, pickStory, seqSkill, type Story } from '../content/code'
-import { isNew, isProbing, level, mastered, teachable, withTargetFilter } from '../lib/adaptive'
+import { dotsPool, type DotsPic } from '../content/dots'
+import { isNew, isProbing, level, mastered, pickPreferred, teachable, withTargetFilter } from '../lib/adaptive'
 
 /** 一局最多教幾個新內容，其餘都是複習（PRD §5.8） */
 export const MAX_TEACH = 2
@@ -186,4 +187,25 @@ export function planOrder(game: string, lv: number, unlocked: number, st: RoundS
   if (fresh) st.taught++
   if (show) st.demos++
   return { n, show }
+}
+
+// ── 連點成圖（示範型：豆豆拿筆從家出發、整條路走完回家，再換孩子）──────────
+/**
+ * 連點成圖：這一級、而且數字都已經解鎖的圖（content/dots.ts 的 dotsPool），主題式冒險先挑主題的圖。
+ * 新的圖一律先示範（原本一局只示範一次，第二張新圖就直接考）；一局最多兩張新圖，其餘出學過的。
+ * 第一次玩的第一張就算圖學過了，也示範一次「怎麼玩」。
+ */
+export function planDots(game: string, lv: number, unlocked: number, st: RoundState, i: number, prefer: readonly string[] = []) {
+  const pool = dotsPool(lv, unlocked)
+  const key = (p: DotsPic) => `dots:${p.id}`
+  const make = () => pickPreferred(pool.filter((p) => prefer.includes(p.id)), pool, key, pool.filter((p) => st.recent.includes(p.id)))
+  let pic = make()
+  const ok = teachable(game, st.taught, MAX_TEACH)
+  if (!ok(key(pic))) pic = withTargetFilter(ok, make)
+  st.recent = [pic.id, ...st.recent].slice(0, 2)
+  const fresh = isNew(key(pic))
+  const show = fresh || (st.firstPlay && i === 0 && st.demos === 0)
+  if (fresh) st.taught++
+  if (show) st.demos++
+  return { pic, show }
 }

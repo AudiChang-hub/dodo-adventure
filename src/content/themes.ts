@@ -64,7 +64,7 @@ export interface ThemeDef {
   glyphs: string
   /** 著色頁（games/draw/pictures.ts 的 id） */
   coloring?: string
-  /** 連點成圖（games/draw/DotsGame.tsx 的 id） */
+  /** 連點成圖（content/dots.ts 的 id） */
   dots?: string[]
   /** 找規律的圖（code.ts 的 PATTERN_TOKS id） */
   pattern: string[]

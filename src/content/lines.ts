@@ -5,6 +5,7 @@ import './lines-outing'
 import './lines-achieve'
 import './lines-themes'
 import './lines-eyebreak'
+import './lines-dots'
 import { CHILD_EN } from '../lib/env'
 import { LETTERS } from './letters'
 import { VOCAB, TAG_QUESTION, type Tag } from './vocab'
@@ -135,13 +136,11 @@ def('p.this.smaller', 'bobo', 'This one is smaller!')
 
 // ── 畫畫小屋 ───────────────────────────────────────────────
 def('d.intro.trace', 'dodo', 'Help me drive home! Follow the road with your pen!')
-def('d.intro.dots', 'dodo', 'Connect the dots, starting with one!')
 def('d.intro.color', 'dodo', 'Pick a color, and tap to paint!')
 def('d.intro.free', 'dodo', 'Draw anything you like! Tap the check when you are done.')
 def('d.intro.glyph', 'dodo', 'Start at the green dot, and follow the arrow!')
 def('d.trace.done', 'dodo', "We're home! Thank you!")
 def('d.trace.keep', 'dodo', "Keep going! We're not home yet!")
-def('d.dots.done', 'dodo', 'Wow! Look what it is!')
 def('d.color.done', 'dodo', 'So pretty!')
 def('d.free.done', 'dodo', 'I love it! I put it in your gallery!')
 def('d.glyph.done', 'dodo', 'Great writing!')

@@ -518,7 +518,7 @@ export const GAMES: GameDef[] = [
   { id: 'z-sound', station: 'mandarin', kind: 'choice', title: '聽聲音猜猜看', icon: 'cow-face', intro: 'z.intro.sound', maxLevel: 4, make: zSound },
 
   { id: 'd-trace', station: 'draw', kind: 'trace', title: '運筆小路', icon: 'automobile', intro: 'd.intro.trace', maxLevel: 6 },
-  { id: 'd-dots', station: 'draw', kind: 'dots', title: '連點成圖', icon: 'star', intro: 'd.intro.dots', maxLevel: 4 },
+  { id: 'd-dots', station: 'draw', kind: 'dots', title: '連點成圖', icon: 'star', intro: 'd.dots.intro', maxLevel: 4 },
   { id: 'd-color', station: 'draw', kind: 'coloring', title: '著色', icon: 'crayon', intro: 'd.intro.color', maxLevel: 1 },
   { id: 'd-free', station: 'draw', kind: 'free', title: '自由畫畫', icon: 'framed-picture', intro: 'd.intro.free', maxLevel: 1 },
   { id: 'd-glyph', station: 'draw', kind: 'glyph', title: '描數字字母', icon: 'pencil', intro: 'd.intro.glyph', maxLevel: 4 },
