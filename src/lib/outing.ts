@@ -247,6 +247,8 @@ export interface OutingCard {
   to: string
   learned: Learned[]
   missions: Mission[]
+  /** 這週的冒險故事（主題式冒險的主題 id，依第一次玩的順序）：卡片上提一句，出門可以接著聊 */
+  themes: string[]
 }
 
 /** 同一週每次產生都一樣、不同週輪流：用週一日期當種子排序 */
@@ -289,7 +291,8 @@ export function buildCard(attempts: Attempt[], week: string, keep: string[] = []
   const ids = [...finds, ...thinks]
   for (const k of keep) if (!ids.includes(k)) ids.push(k)
   const missions = ids.map((id) => missionOf(id, tied)).filter((m): m is Mission => !!m)
-  return { week, from, to, learned, missions }
+  const themes = [...new Set([...inWeek].sort((a, b) => a.ts - b.ts).flatMap((a) => (a.theme ? [a.theme] : [])))]
+  return { week, from, to, learned, missions, themes }
 }
 
 export async function loadCard(week: string, keep: string[] = []): Promise<OutingCard> {

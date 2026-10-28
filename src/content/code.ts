@@ -2,8 +2,10 @@
 // 三個遊戲各練一條：箭頭卡開車（方向、順序、除錯）、找規律（ABAB）、排順序（先後）。
 // 題目資料與產生器都在這裡；台詞在 lines-code.ts，畫面在 src/games/code/。
 import type { ChoiceItem, TeachSpec, Visual } from './games'
-import { pickTarget } from '../lib/adaptive'
+import { pickPreferred, pickTarget } from '../lib/adaptive'
+import { themeNow } from '../lib/theme-play'
 import { pick, sample, shuffle } from '../lib/random'
+import { THEME_GOALS, THEME_STORIES } from './themes'
 
 // ── 方向 ───────────────────────────────────────────────────
 // 3 歲用「絕對方向」（上下左右，跟畫面一致），不用「左轉、右轉」：
@@ -31,6 +33,10 @@ export const TARGETS = [
 ] as const
 export type TargetId = (typeof TARGETS)[number]['id']
 
+/** 全部的目的地：原本的五個，加上主題式冒險的（公車站牌、恐龍巢…，在 themes.ts） */
+export const DRIVE_TARGETS: { id: string; icon: string; en: string }[] = [...TARGETS, ...THEME_GOALS]
+export const driveTarget = (id: string) => DRIVE_TARGETS.find((t) => t.id === id) ?? TARGETS[0]
+
 /** 擋路的樹：最高難度才出現，要繞過去 */
 export const BLOCK_ICON = 'evergreen-tree'
 
@@ -43,7 +49,8 @@ export interface DrivePuzzle {
   start: Cell
   goal: Cell
   blocks: Cell[]
-  target: TargetId
+  /** 目的地（DRIVE_TARGETS 的 id） */
+  target: string
   /** 一組正確的卡：教學卡、一起練照這組發光（轉彎最少的那一條） */
   solution: Dir[]
   /** 卡盒裡有哪些箭頭：第 1 級只有一排路，所以只有左右 */
@@ -131,9 +138,13 @@ export function runProgram(p: DrivePuzzle, prog: Dir[]): RunResult {
 
 const cellsOf = (cols: number, rows: number) => Array.from({ length: cols * rows }, (_, i) => ({ x: i % cols, y: Math.floor(i / cols) }))
 
-/** 依技能出一題：起點、目的地、（4 級）擋路的樹 */
-export function drivePuzzle(level: number, skill: string, avoidTarget: TargetId[] = []): DrivePuzzle {
-  const target = pick(TARGETS.filter((t) => !avoidTarget.includes(t.id)).map((t) => t.id))
+/**
+ * 依技能出一題：起點、目的地、（4 級）擋路的樹。
+ * 主題式冒險：目的地優先用主題的（把公車開到公車站牌），剛去過就換一個原本的，一局裡不會四題都一樣。
+ */
+export function drivePuzzle(level: number, skill: string, avoidTarget: string[] = []): DrivePuzzle {
+  const goal = themeNow()?.goal
+  const target = goal && !avoidTarget.includes(goal.id) ? goal.id : pick(TARGETS.filter((t) => !avoidTarget.includes(t.id)).map((t) => t.id))
   const [kind, v] = skill.split(':')
   if (kind === 'arrow') {
     const dir = v as Dir
@@ -197,7 +208,8 @@ export function pickDriveSkill(level: number, recent: string[]): string {
 export type PatternKind = 'AB' | 'AABB' | 'AAB' | 'ABB' | 'ABC'
 export const PATTERN_ZH: Record<PatternKind, string> = { AB: 'ABAB', AABB: 'AABB', AAB: 'AAB', ABB: 'ABB', ABC: 'ABC' }
 
-type Theme = 'vehicle' | 'animal' | 'food' | 'arrow' | 'shape'
+/** thing：主題式冒險補的生活用品（雨傘、氣球），只在主題裡優先出，一般的規律題不會特別挑它們 */
+type Theme = 'vehicle' | 'animal' | 'food' | 'arrow' | 'shape' | 'thing'
 export interface PatternTok {
   id: string
   en: string
@@ -220,6 +232,13 @@ export const PATTERN_TOKS: PatternTok[] = [
   emojiTok('fish', 'fish', 'animal', 'fish'),
   emojiTok('frog', 'frog', 'animal', 'frog'),
   emojiTok('duck', 'duck', 'animal', 'duck'),
+  // 主題式冒險補的（農場、海洋、動物園、下雨天、生日派對）
+  emojiTok('cow', 'cow', 'animal', 'cow'),
+  emojiTok('pig', 'pig', 'animal', 'pig'),
+  emojiTok('crab', 'crab', 'animal', 'crab'),
+  emojiTok('lion', 'lion', 'animal', 'lion'),
+  emojiTok('umbrella', 'umbrella', 'thing', 'umbrella'),
+  emojiTok('balloon', 'balloon', 'thing', 'balloon'),
   emojiTok('apple', 'apple', 'food', 'red-apple'),
   emojiTok('banana', 'banana', 'food', 'banana'),
   emojiTok('strawberry', 'strawberry', 'food', 'strawberry'),
@@ -240,16 +259,24 @@ function patternKinds(level: number): PatternKind[] {
 /** 題目先排出幾個：一般停在一組剛好結束的地方；4 級停在一組的中間，要看得更仔細 */
 const SHOWN: Record<PatternKind, [number, number]> = { AB: [4, 5], AABB: [6, 5], AAB: [5, 4], ABB: [5, 4], ABC: [5, 4] }
 
-/** 挑這一題的圖：低難度兩張圖來自不同類（車 vs 恐龍），4 級同一類（車 vs 公車） */
+/**
+ * 挑這一題的圖：低難度兩張圖來自不同類（車 vs 恐龍），4 級同一類（車 vs 公車）。
+ * 主題式冒險：主題的圖先放（公車旅行：Bus! Star! Bus! Star!），一樣守「低難度不同類、4 級同一類」的規則。
+ */
 function pickMembers(kind: PatternKind, level: number): PatternTok[] {
   const k = new Set(kind).size
   const themes: Theme[] = level <= 1 ? ['vehicle', 'animal', 'food'] : level === 2 ? ['vehicle', 'animal', 'food', 'shape'] : ['vehicle', 'animal', 'food', 'shape', 'arrow']
+  const fav = shuffle(PATTERN_TOKS.filter((t) => themeNow()?.pattern.includes(t.id)))
   if (level >= 4) {
-    const th = pick(themes)
-    return sample(PATTERN_TOKS.filter((t) => t.theme === th), k)
+    const mine = fav.filter((t) => themes.includes(t.theme))
+    const th = mine.length ? mine[0].theme : pick(themes)
+    const same = PATTERN_TOKS.filter((t) => t.theme === th)
+    return [...mine.filter((t) => t.theme === th), ...shuffle(same.filter((t) => !mine.includes(t)))].slice(0, k)
   }
-  const ths = sample(themes, k)
-  return ths.map((th) => pick(PATTERN_TOKS.filter((t) => t.theme === th)))
+  const out: PatternTok[] = []
+  for (const t of fav) if (out.length < k && !out.some((o) => o.theme === t.theme)) out.push(t)
+  for (const th of shuffle(themes.filter((x) => !out.some((o) => o.theme === x)))) if (out.length < k) out.push(pick(PATTERN_TOKS.filter((t) => t.theme === th)))
+  return out
 }
 
 /** 規律的一列（用來畫題目和教學卡） */
@@ -324,16 +351,30 @@ export const STORIES: Story[] = [
   { id: 'plant', zh: '發芽到花束（四步）', icons: ['seedling', 'herb', 'tulip', 'bouquet'], lines: ['A tiny | sprout.', 'It grows | bigger.', 'A | flower!', 'Lots of | flowers!'] },
 ]
 
-/** 每一級出幾步的故事：1 級兩步、2 級簡單的三步、3 級全部三步、4 級四步 */
-export function storiesFor(level: number): Story[] {
-  if (level <= 1) return STORIES.filter((s) => s.icons.length === 2)
-  if (level === 2) return STORIES.filter((s) => s.icons.length === 3 && s.easy)
-  if (level === 3) return STORIES.filter((s) => s.icons.length === 3)
-  return STORIES.filter((s) => s.icons.length === 4)
+/** 原本的故事加上主題的故事（themes.ts）：台詞、家長區的名稱、概念都要對得到 */
+export const ALL_STORIES: Story[] = [...STORIES, ...THEME_STORIES]
+
+/**
+ * 每一級出幾步的故事：1 級兩步、2 級簡單的三步、3 級全部三步、4 級四步。
+ * 主題的故事只在那個主題的冒險裡出現（extra 是主題的故事 id），自由探索的題目和以前一樣。
+ */
+export function storiesFor(level: number, extra: readonly string[] = []): Story[] {
+  const pool = ALL_STORIES.filter((s) => STORIES.includes(s) || extra.includes(s.id))
+  if (level <= 1) return pool.filter((s) => s.icons.length === 2)
+  if (level === 2) return pool.filter((s) => s.icons.length === 3 && s.easy)
+  if (level === 3) return pool.filter((s) => s.icons.length === 3)
+  return pool.filter((s) => s.icons.length === 4)
+}
+
+/** 排順序挑故事：主題式冒險先挑主題的故事（這一級有的話），其餘照 pickTarget */
+export function pickStory(level: number, recent: Story[]): Story {
+  const extra = themeNow()?.stories ?? []
+  const pool = storiesFor(level, extra)
+  return pickPreferred(pool.filter((s) => extra.includes(s.id)), pool, seqSkill, recent)
 }
 
 export const seqSkill = (s: Story) => `seq:${s.id}`
-export const story = (id: string) => STORIES.find((s) => s.id === id)
+export const story = (id: string) => ALL_STORIES.find((s) => s.id === id)
 
 // ── 圖示 ───────────────────────────────────────────────────
 /** 程式車庫用到的 Fluent Emoji（scripts/build-emoji.ts 會一起打包） */
@@ -341,5 +382,5 @@ export const CODE_ICONS = [
   'vertical-traffic-light', 'automobile', 'puzzle-piece', 'hatching-chick', BLOCK_ICON,
   ...TARGETS.map((t) => t.icon),
   ...PATTERN_TOKS.flatMap((t) => (t.v.t === 'emoji' ? [t.v.icon] : [])),
-  ...STORIES.flatMap((s) => s.icons),
+  ...ALL_STORIES.flatMap((s) => s.icons),
 ]

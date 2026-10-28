@@ -8,7 +8,8 @@ import { HandArt, PenArt, easeInOut, tween } from '../Demo'
 import { Sparkles } from '../../ui/Sparkles'
 import './glyph.css'
 import { game as gameDef } from '../../content/games'
-import { level, markPlayed, needsDemo, plays, reportLevel, pickTarget, skill } from '../../lib/adaptive'
+import { level, markPlayed, needsDemo, plays, reportLevel, pickPreferred, skill } from '../../lib/adaptive'
+import { themeNow } from '../../lib/theme-play'
 import { glyphToolHint } from '../../content/coplay'
 import { logAttempt, logTeach } from '../../lib/record'
 import { say, sfx, stopSpeech } from '../../lib/audio'
@@ -124,7 +125,8 @@ export function GlyphGame({ gameId, onDone, onExit }: GameProps) {
   const start = async (i: number) => {
     lv.current = level(def.id)
     const pool = [...GLYPH_LEVELS.slice(0, lv.current).join('')]
-    const g = pickTarget(pool, (x) => `glyph:${x}`, recent.current)
+    // 主題式冒險先描主題的字（公車旅行的 B、C、O），這一級還沒有就照常挑
+    const g = pickPreferred(pool.filter((x) => themeNow()?.glyphs.includes(x)), pool, (x) => `glyph:${x}`, recent.current)
     recent.current = [g, ...recent.current].slice(0, 3)
     glyphRef.current = g
     setGlyph(g)

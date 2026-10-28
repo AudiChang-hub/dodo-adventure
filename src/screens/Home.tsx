@@ -9,6 +9,8 @@ import { say, sfx } from '../lib/audio'
 import { db } from '../lib/db'
 import { todayPlan, planDone, type Plan } from '../lib/plan'
 import { station } from '../content/games'
+import { theme as themeDef } from '../content/themes'
+import { stopIcon } from './Route'
 import { useSettings } from '../lib/settings'
 import { audioReady, onUnlock } from '../lib/boot'
 import { useInstall } from '../lib/install'
@@ -42,6 +44,8 @@ export function Home() {
   }, [])
 
   const done = plan ? planDone(plan) : false
+  // 主題式冒險：首頁的小路線也是故事的圖（公車站牌、公車…），不是站點圖示
+  const th = themeDef(plan?.theme)
   const mapOpen = settings.freePlay === 'always' || done
 
   const start = async () => {
@@ -74,13 +78,16 @@ export function Home() {
 
       <div className="home-title" aria-hidden="true">
         豆豆冒險
-        <small>{done ? '今天的冒險完成了' : '今天的冒險'}</small>
+        <small>
+          {done ? '今天的冒險完成了' : '今天的冒險'}
+          {th ? `：${th.zh}` : ''}
+        </small>
       </div>
       {plan && (
         <div className="today-path" aria-hidden="true">
           {plan.items.map((it, i) => (
             <i key={i} className={it.done ? 'done' : undefined}>
-              <Emoji name={station(it.station).icon} />
+              <Emoji name={th ? stopIcon(th, i) : station(it.station).icon} />
             </i>
           ))}
           <i className={done ? 'done' : undefined}>

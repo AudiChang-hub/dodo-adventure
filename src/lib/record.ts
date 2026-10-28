@@ -3,6 +3,7 @@ import { sessionId } from './session'
 import { mastered, noteAttempt as noteConcept, recordSkill } from './adaptive'
 import { noteAttempt } from './achievements'
 import { requestSync } from './sync'
+import { themeNow } from './theme-play'
 
 export type AttemptInput = Omit<Attempt, 'id' | 'ts' | 'date' | 'sessionId' | 'synced' | 'phase'> & { phase: Phase }
 
@@ -17,7 +18,9 @@ export async function logAttempt(a: AttemptInput) {
   noteConcept(a)
   // 成就感：自己改正、第一次熟練（貼紙）、這一局做了什麼。要在 await 之前，接下來的稱讚才讀得到
   noteAttempt(a, !was && mastered(a.skill))
-  await db.attempts.put({ ...a, id: uid(), ts: Date.now(), date: today(), sessionId: sessionId(), synced: 0 })
+  // 主題式冒險記下主題（家長區看得到今天的主題練了哪些）。Firestore 不收 undefined，沒有主題就不放這個欄位
+  const th = themeNow()?.id
+  await db.attempts.put({ ...a, ...(th ? { theme: th } : {}), id: uid(), ts: Date.now(), date: today(), sessionId: sessionId(), synced: 0 })
   requestSync()
 }
 

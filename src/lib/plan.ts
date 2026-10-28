@@ -1,28 +1,68 @@
 import { db, getKV, setKV, today, type StationId } from './db'
 import { GAMES } from '../content/games'
 import { FRIENDS } from '../content/park'
-import { trackOf } from '../content/tracks'
+import { trackOf, type TrackId } from '../content/tracks'
+import { pickTheme, theme, THEME_GAP_DAYS, type ThemeId } from '../content/themes'
 import { conceptIntrosNow, isDue, lastPlayed, pauseNew, plays, skill } from './adaptive'
 import { fluencyReady, isFluency } from './fluency'
-import { getSettings } from './settings'
+import { getSettings, weekTheme } from './settings'
 import { pick } from './random'
 import { planDay, shiftDate, trackNeeds, MASTERY_DAYS } from './tracks'
 
+export interface PlanItem {
+  game: string
+  station: StationId
+  /** 這一站練的主線（家長區用；舊的存檔沒有，讀的時候補上） */
+  track?: TrackId
+  done: boolean
+}
+
 export interface Plan {
   date: string
-  items: { game: string; station: StationId; done: boolean }[]
+  /** 今天的主題故事（content/themes.ts）。2026-10-28 之前存的冒險沒有，讀的時候補上 */
+  theme?: ThemeId
+  items: PlanItem[]
   hatched: string | null
 }
 
+/** 最近幾天存下來的冒險主題（新的在前；沒玩、沒排的日子沒有） */
+async function recentThemes(date: string): Promise<(string | undefined)[]> {
+  const days = Array.from({ length: THEME_GAP_DAYS }, (_, i) => shiftDate(date, -(i + 1)))
+  return (await Promise.all(days.map((d) => getKV<Plan | null>(`plan:${d}`, null)))).map((p) => p?.theme)
+}
+
+async function themeFor(date: string): Promise<ThemeId> {
+  return pickTheme({ date, recent: await recentThemes(date), week: weekTheme() })
+}
+
 /**
- * 每天的冒險：依四條能力主線（PRD §5.10）的作答資料排，不再固定「英文、數學、輪流、國語」。
- * 怎麼平衡寫在 lib/tracks.ts（trackNeeds 算哪條線落後、planDay 挑遊戲），這裡只負責讀資料和存檔。
+ * 今天已經排好、但還是舊格式（沒有主題）的冒險：站和完成狀態都不動，只補上主題與每站的主線，
+ * 孩子玩到一半更新 App 也能接著玩，剩下的站變成主題故事。
+ */
+async function migrate(p: Plan): Promise<Plan> {
+  if (p.theme && theme(p.theme) && p.items.every((i) => i.track)) return p
+  const next: Plan = {
+    ...p,
+    theme: p.theme && theme(p.theme) ? p.theme : await themeFor(p.date),
+    items: p.items.map((i) => ({ ...i, track: i.track ?? trackOf(i.game) ?? undefined })),
+  }
+  // Firestore／IndexedDB 都不要留 undefined 的欄位
+  for (const i of next.items) if (!i.track) delete i.track
+  await setKV(`plan:${p.date}`, next)
+  return next
+}
+
+/**
+ * 每天的冒險是一個主題故事（2026-10-28 家長決定：不要讓孩子看到明確的科目）：
+ * - 排哪些遊戲：照四條能力主線（PRD §5.10）的作答資料排，和以前一模一樣（lib/tracks.ts 的 trackNeeds、planDay）；
+ * - 今天的主題：pickTheme（一週內不重複、優先對得到家長設的本週主題、同一天固定）；
+ *   主題只決定故事和題目裡出現的東西（lib/theme-play.ts），不改排課，四條線的平衡不受影響。
  * 每天的站數（家長設定）和總時間（約 20 分鐘）不變；同一天的結果固定，排好就存起來。
  */
 export async function todayPlan(): Promise<Plan> {
   const date = today()
   const saved = await getKV<Plan | null>(`plan:${date}`, null)
-  if (saved) return saved
+  if (saved) return migrate(saved)
   const attempts = await db.attempts.where('date').aboveOrEqual(shiftDate(date, -(MASTERY_DAYS - 1))).toArray()
   const needs = trackNeeds({ attempts, date, boxOf: (k) => skill(k).box, intros: conceptIntrosNow(), isDue })
   // 每個遊戲裡有幾個今天到期複習的技能：有到期的遊戲比較容易排到（已熟的內容改成複習）
@@ -33,7 +73,7 @@ export async function todayPlan(): Promise<Plan> {
   const games = GAMES.filter((g) => g.kind !== 'free' && trackOf(g.id) && (!isFluency(g.id) || fluencyReady()))
   const n = Math.max(2, Math.min(5, getSettings().activitiesPerDay))
   const slots = planDay({ date, n, needs, games, lastPlayed, plays, dueIn, overloaded: pauseNew() })
-  const plan: Plan = { date, items: slots.map((x) => ({ game: x.game, station: x.station, done: false })), hatched: null }
+  const plan: Plan = { date, theme: await themeFor(date), items: slots.map((x) => ({ game: x.game, station: x.station, track: x.track, done: false })), hatched: null }
   await setKV(`plan:${date}`, plan)
   return plan
 }

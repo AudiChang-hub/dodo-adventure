@@ -4,7 +4,8 @@ import type { GameDef } from './games'
 import { COLORS, SHAPES, SOLIDS, SOLID_LOOKALIKE, BALLOON_KINDS, type BalloonKind, type ShapeId, type SolidId } from './park'
 import { VOCAB, USE_AMBIGUOUS, USE_EXAMPLES, usesOf, vocab, type UseTag } from './vocab'
 import { CATEGORIES, COLOR_LOOKALIKE, SHAPE_LOOKALIKE, SHEET_COLORS_EASY, SHEET_COLORS_HARD, type CategoryId } from './worksheet-data'
-import { pickTarget } from '../lib/adaptive'
+import { pickPreferred, pickTarget } from '../lib/adaptive'
+import { themeNow } from '../lib/theme-play'
 import { pick, rand, sample, shuffle } from '../lib/random'
 
 /** 學習單上的一個東西：Fluent 圖示、氣球、平面形狀或立體形狀 */
@@ -155,7 +156,7 @@ function build(c: string, lv: number, skillPrefix: string, n: number, k: number,
   }
 }
 
-const FIND_POOL = (lv: number) => [
+export const FIND_POOL = (lv: number) => [
   'apple', 'chick', 'red', 'blue', 'yellow', 'circle', 'triangle', 'square',
   ...(lv >= 2 ? ['bug', 'car', 'green', 'star', 'heart'] : []),
   ...(lv >= 3 ? ['fruit', 'animal', 'orange', 'purple', 'pink'] : []),
@@ -163,9 +164,13 @@ const FIND_POOL = (lv: number) => [
 
 export type SheetMaker = (level: number, recent: string[]) => SheetItem
 
+/** 主題式冒險：主題優先的題目（公車旅行找出全部的車、黃色的東西；下雨天找下雨天用的） */
+const themeSort = (pool: readonly string[]) => pool.filter((x) => themeNow()?.sort.includes(x))
+
 /** 找出全部（彩虹公園）：類別、顏色、形狀輪流出 */
 const pFindAll: SheetMaker = (lv, recent) => {
-  const c = pickTarget(FIND_POOL(lv), (x) => `all:${x}`, recent)
+  const pool = FIND_POOL(lv)
+  const c = pickPreferred(themeSort(pool), pool, (x) => `all:${x}`, recent)
   const { n, k } = size(lv)
   return build(c, lv, 'all', n, k)
 }
@@ -173,7 +178,7 @@ const pFindAll: SheetMaker = (lv, recent) => {
 /** 用筆圈起來：同一套題目，外加學習單原題「圈出所有正方體積木（避開三角柱）」 */
 const pLasso: SheetMaker = (lv, recent) => {
   const pool = [...FIND_POOL(lv), ...(lv >= 2 ? ['cube'] : [])]
-  const c = pickTarget(pool, (x) => `lasso:${x}`, recent)
+  const c = pickPreferred(themeSort(pool), pool, (x) => `lasso:${x}`, recent)
   // 圈選比點選難：同一級少一個東西，圈與圈之間才有空間
   const { n, k } = size(lv)
   return build(c, lv, 'lasso', Math.min(n, 5), Math.min(k, 3), ['cube', 'prism', 'cylinder', 'sphere'])
@@ -190,7 +195,7 @@ const pSolid: SheetMaker = (lv, recent) => {
 /** 功能分類（動物村）：下雨天、吃的、穿的，熟了再加洗澡、睡覺 */
 const zUse: SheetMaker = (lv, recent) => {
   const pool: UseTag[] = ['rain', 'eat', 'wear', ...(lv >= 2 ? (['bath', 'bed'] as UseTag[]) : [])]
-  const c = pickTarget(pool, (x) => `all:${x}`, recent as UseTag[])
+  const c = pickPreferred(pool.filter((x) => themeNow()?.uses?.includes(x)), pool, (x) => `all:${x}`, recent as UseTag[])
   const { n, k: k0 } = size(lv)
   const k = Math.min(k0, VOCAB.filter((v) => usesOf(v).includes(c)).length)
   return build(c, lv, 'all', n, k)

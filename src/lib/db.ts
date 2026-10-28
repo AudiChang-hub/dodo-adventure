@@ -31,6 +31,8 @@ export interface Attempt {
   hintUsed: boolean
   /** 畫畫類的額外指標，例如偏離路徑的平均距離 */
   metrics?: Record<string, number>
+  /** 主題式冒險的主題（content/themes.ts 的 id）；自由探索、舊資料沒有 */
+  theme?: string
   synced: 0 | 1
 }
 

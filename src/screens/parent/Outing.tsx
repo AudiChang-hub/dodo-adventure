@@ -3,6 +3,7 @@ import { AnimatePresence, motion } from 'motion/react'
 import { Emoji } from '../../art/Emoji'
 import { ShapeSvg } from '../../ui/Visual'
 import { vocab } from '../../content/vocab'
+import { theme as themeDef, type ThemeDef } from '../../content/themes'
 import { findable, TRACK_ZH, type ThinkKind } from '../../content/outing'
 import { today } from '../../lib/db'
 import type { ShapeId } from '../../content/park'
@@ -237,6 +238,17 @@ export function Outing({ d }: { d: ParentData }) {
               <p className="ticket-empty">
                 這週還沒有在 App 裡學到東西。平日玩過之後，這張卡會自動換成學過的字。
                 {d.source === 'local' && !d.attempts.length && ' 在手機上看？到「設定與同步」登入後，把資料來源切換成雲端。'}
+              </p>
+            )}
+            {card.themes.length > 0 && (
+              <p className="ticket-themes">
+                這週的冒險故事：
+                {card.themes
+                  .map(themeDef)
+                  .filter((t): t is ThemeDef => !!t)
+                  .map((t) => t.zh)
+                  .join('、')}
+                。出門時可以接著玩：{themeDef(card.themes[card.themes.length - 1])?.dad}
               </p>
             )}
             <div className="ticket-progress">

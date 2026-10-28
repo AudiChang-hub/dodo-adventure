@@ -3,6 +3,7 @@ import { game } from '../content/games'
 import type { GameProps, GameResult } from './Shell'
 import { Celebrate } from '../ui/Celebrate'
 import { beginRound, endRound, type RoundSummary } from '../lib/achievements'
+import { useThemeScope } from '../lib/theme-play'
 import { ChoiceGame } from './ChoiceGame'
 import { PhonicsGame } from './phonics/PhonicsGame'
 import { CountGame } from './CountGame'
@@ -45,6 +46,8 @@ export function PlayGame(props: GameProps) {
   // 舊的字母遊戲 id（今天已經排好的冒險）會對到改寫後的自然發音遊戲
   const g = game(props.gameId)
   const C = BY_KIND[g.kind]
+  // 主題式冒險：遊戲在畫面上的期間，題目產生器都讀得到今天的主題
+  useThemeScope(props.theme)
   // 成就感：在遊戲自己的 markPlayed 之前記下開局的難度；結束時先回顧這一局、慶祝里程碑，再交回去
   useState(() => beginRound(g.id))
   const [cheer, setCheer] = useState<{ r: GameResult; s: RoundSummary } | null>(null)

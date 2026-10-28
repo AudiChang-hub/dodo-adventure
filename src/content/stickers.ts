@@ -5,7 +5,7 @@ import type { Visual } from './games'
 import { PHONICS, PHONICS_WORDS, upper, wordId } from './letters'
 import { VOCAB, CAT_EXAMPLES, vocab, type Tag } from './vocab'
 import { COLORS, SHAPES, SOLIDS, type ShapeId, type SolidId } from './park'
-import { DIRS, DIR_ZH, PATTERN_TOKS, STORIES, story, type Dir } from './code'
+import { ALL_STORIES, DIRS, DIR_ZH, PATTERN_TOKS, story, type Dir } from './code'
 
 /** 貼紙上的圖：沿用題目的圖，另外加上立體形狀、字母配關鍵字、短文字、帶數字的圖示 */
 export type Pic =
@@ -167,4 +167,4 @@ export function thingPic(a: { skill: string; answer: string; itemId: string }): 
 }
 
 /** 給 scripts/build-emoji.ts：這裡用到、別處沒有打包的圖示 */
-export const ACHIEVE_ICONS = ['wrench', 'flexed-biceps', 'open-book', 'man', 'waving-hand', 'hatching-chick', 'sparkles', 'glowing-star', 'strawberry', 'sailboat', 'house', 'basket', 'crayon', 'framed-picture', 'pencil', ...STORIES.map((s) => s.icons[s.icons.length - 1])]
+export const ACHIEVE_ICONS = ['wrench', 'flexed-biceps', 'open-book', 'man', 'waving-hand', 'hatching-chick', 'sparkles', 'glowing-star', 'strawberry', 'sailboat', 'house', 'basket', 'crayon', 'framed-picture', 'pencil', ...ALL_STORIES.map((s) => s.icons[s.icons.length - 1])]

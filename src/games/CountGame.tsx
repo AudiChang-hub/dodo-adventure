@@ -5,6 +5,7 @@ import { Hand } from './Demo'
 import { Emoji } from '../art/Emoji'
 import { game as gameDef } from '../content/games'
 import { COUNT_ICONS } from '../content/park'
+import { themed } from '../lib/theme-play'
 import { level, markPlayed, needsDemo, plays, reportLevel } from '../lib/adaptive'
 import { logAttempt, logTeach } from '../lib/record'
 import { say, sfx, stopSpeech } from '../lib/audio'
@@ -30,7 +31,8 @@ function makeRound(lv: number): Round {
   const [a, b] = RANGE[lv]
   const n = a + rand(b - a + 1)
   const others = shuffle([n - 1, n + 1, n + 2, n - 2].filter((x) => x >= 1 && x <= 10)).slice(0, 2)
-  return { n, icon: pick(COUNT_ICONS), pos: scatter(n, n > 6 ? 5 : 4, n > 4 ? 2 : 1), choices: shuffle([n, ...others]) }
+  // 主題式冒險數主題的東西（公車旅行數公車）
+  return { n, icon: pick(themed(COUNT_ICONS, (t) => t.count)), pos: scatter(n, n > 6 ? 5 : 4, n > 4 ? 2 : 1), choices: shuffle([n, ...others]) }
 }
 
 /**

@@ -2,7 +2,7 @@
 // 全部是給 3 歲聽的美式英文短句，一句盡量不超過 6 個字；`|` 之後是加重的目標字。
 // 問題句（What comes next? / What comes first?）句中沒有答案，所以字幕不挖空，不用加進 subtitles.ts
 import { def } from './registry'
-import { DIRS, PATTERN_TOKS, STORIES, TARGETS } from './code'
+import { ALL_STORIES, DIRS, DRIVE_TARGETS, PATTERN_TOKS } from './code'
 
 const cap = (s: string) => s[0].toUpperCase() + s.slice(1)
 
@@ -12,7 +12,7 @@ def('welcome.code', 'bobo', 'Welcome to Code Garage!')
 
 // ── 箭頭卡開車 ─────────────────────────────────────────────
 def('c.intro.drive', 'bobo', 'Help Dodo drive! Use the arrow cards!')
-for (const t of TARGETS) def(`c.drive.to.${t.id}`, 'bobo', `Drive to the | ${t.en}!`)
+for (const t of DRIVE_TARGETS) def(`c.drive.to.${t.id}`, 'bobo', `Drive to the | ${t.en}!`)
 def('c.drive.cards.2', 'bobo', 'Use | two cards!')
 def('c.drive.cards.3', 'bobo', 'Use | three cards!')
 def('c.drive.need', 'bobo', 'Put a card here!')
@@ -44,4 +44,4 @@ for (const t of PATTERN_TOKS) {
 def('c.intro.seq', 'bobo', "Let's put the pictures in order!")
 def('c.seq.first', 'bobo', 'What comes first?')
 def('c.seq.next', 'bobo', 'What comes next?')
-for (const s of STORIES) s.lines.forEach((t, i) => def(`c.seq.${s.id}.${i}`, 'bobo', t))
+for (const s of ALL_STORIES) s.lines.forEach((t, i) => def(`c.seq.${s.id}.${i}`, 'bobo', t))

@@ -5,7 +5,8 @@ import { Ink } from './Ink'
 import { PenArt, easeInOut, tween } from '../Demo'
 import { Sparkles } from '../../ui/Sparkles'
 import { game as gameDef } from '../../content/games'
-import { level, markPlayed, needsDemo, plays, reportLevel, pickTarget } from '../../lib/adaptive'
+import { level, markPlayed, needsDemo, plays, reportLevel, pickPreferred } from '../../lib/adaptive'
+import { themeNow } from '../../lib/theme-play'
 import { logAttempt, logTeach } from '../../lib/record'
 import { say, sfx, stopSpeech } from '../../lib/audio'
 import { praiseKey, wait } from '../lines'
@@ -115,7 +116,7 @@ export function DotsGame({ gameId, onDone, onExit }: GameProps) {
   const start = async (i: number) => {
     lv.current = level(def.id)
     const pool = PICS.slice(0, lv.current).flat()
-    const p = pickTarget(pool, (x) => `dots:${x.id}`, pool.filter((x) => used.current.includes(x.id)))
+    const p = pickPreferred(pool.filter((x) => themeNow()?.dots?.includes(x.id)), pool, (x) => `dots:${x.id}`, pool.filter((x) => used.current.includes(x.id)))
     used.current.push(p.id)
     picRef.current = p
     setPic(p)
