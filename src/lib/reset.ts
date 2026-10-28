@@ -10,7 +10,7 @@ import { wipeCloud } from './sync'
  * 要新增「不是學習狀態」的 kv key（家長設定、裝置狀態）時，記得加進來。
  *
  * 目前 kv 的 key（2026-10-28 逐一讀過 src/ 裡每個 getKV／setKV）：
- * - 保留：settings（家長設定：每日時間、站數、自由探索、本週主題、音量、護眼間隔、夜間暖色）
+ * - 保留：settings（家長設定：每日時間、站數、自由探索、本週主題、音量、護眼間隔、夜間暖色、著色幫忙不塗出線）
  * - 清掉：engine:concepts（每週新概念額度）、engine:loadDrop（負擔控制降級日）、achieve（里程碑／貼紙／貼紙本看過）、
  *   plan:{日期}（今日冒險進度、主題輪替紀錄）、coplay:{日期}（爸爸回合次數）、usage:{日期}（今天已玩時間）、
  *   outing.ticks（出門任務卡勾選）、outing.recall（回到 App 的回想題紀錄）、phonics:migrated（舊字母熟練度的一次性換算）

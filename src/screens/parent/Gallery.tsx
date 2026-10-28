@@ -9,7 +9,7 @@ export function Gallery({ d }: { d: ParentData }) {
     <>
       <Highlights d={d} />
       <h2>作品集</h2>
-      <p className="sub">畫畫小屋裡「著色」與「自由畫畫」完成的作品。</p>
+      <p className="sub">畫畫小屋裡「蠟筆著色」與「自由畫畫」完成的作品，縮圖就是孩子塗的樣子。</p>
       {d.drawings.length === 0 ? (
         <p className="empty">還沒有作品。</p>
       ) : (

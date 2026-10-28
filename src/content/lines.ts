@@ -7,6 +7,7 @@ import './lines-themes'
 import './lines-eyebreak'
 import './lines-dots'
 import './lines-stickers'
+import './lines-crayon'
 import { CHILD_EN } from '../lib/env'
 import { LETTERS } from './letters'
 import { VOCAB, TAG_QUESTION, type Tag } from './vocab'
@@ -137,7 +138,6 @@ def('p.this.smaller', 'bobo', 'This one is smaller!')
 
 // ── 畫畫小屋 ───────────────────────────────────────────────
 def('d.intro.trace', 'dodo', 'Help me drive home! Follow the road with your pen!')
-def('d.intro.color', 'dodo', 'Pick a color, and tap to paint!')
 def('d.intro.free', 'dodo', 'Draw anything you like! Tap the check when you are done.')
 def('d.intro.glyph', 'dodo', 'Start at the green dot, and follow the arrow!')
 def('d.trace.done', 'dodo', "We're home! Thank you!")

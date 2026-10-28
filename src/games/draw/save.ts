@@ -1,8 +1,11 @@
 import { db, today, uid } from '../../lib/db'
 import { requestSync } from '../../lib/sync'
 
-/** 把一個 SVG 元素轉成縮圖（給家長區的作品集用） */
-export async function svgThumb(svg: SVGSVGElement, maxW = 480, bg = '#FBF8F2'): Promise<string> {
+/**
+ * 把一個 SVG 元素轉成縮圖（給家長區的作品集用）。
+ * under：畫在 SVG 下面的畫布（例如蠟筆著色的筆觸），跟 SVG 的 viewBox 一樣大小比例，線稿蓋在它上面。
+ */
+export async function svgThumb(svg: SVGSVGElement, maxW = 480, bg = '#FBF8F2', under?: CanvasImageSource): Promise<string> {
   const vb = svg.viewBox.baseVal
   const clone = svg.cloneNode(true) as SVGSVGElement
   clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg')
@@ -19,6 +22,7 @@ export async function svgThumb(svg: SVGSVGElement, maxW = 480, bg = '#FBF8F2'): 
     const ctx = c.getContext('2d')!
     ctx.fillStyle = bg
     ctx.fillRect(0, 0, c.width, c.height)
+    if (under) ctx.drawImage(under, 0, 0, c.width, c.height)
     ctx.drawImage(img, 0, 0, c.width, c.height)
     return c.toDataURL('image/webp', 0.8)
   } finally {
