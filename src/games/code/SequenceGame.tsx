@@ -7,7 +7,7 @@ import { Emoji } from '../../art/Emoji'
 import { Sparkles } from '../../ui/Sparkles'
 import { game as gameDef, type TeachSpec, type Visual } from '../../content/games'
 import { seqSkill, storiesFor, type Story } from '../../content/code'
-import { isNew, level, markPlayed, mastered, pauseNew, pickTarget, plays, reportLevel, withTargetFilter } from '../../lib/adaptive'
+import { isNew, level, markPlayed, mastered, pickTarget, plays, reportLevel, teachable, withTargetFilter } from '../../lib/adaptive'
 import { logAttempt, logTeach } from '../../lib/record'
 import type { Phase } from '../../lib/db'
 import { preload, say, sfx, stopSpeech } from '../../lib/audio'
@@ -169,9 +169,10 @@ export function SequenceGame({ gameId, onDone, onExit }: GameProps) {
     lv.current = level(def.id)
     const pool = storiesFor(lv.current)
     const make = () => pickTarget(pool, seqSkill, recent.current)
-    // 開局先出已熟的故事；這局已經教滿（或負擔過重）就只出學過的
+    // 開局先出已熟的故事；這局已經教滿（或負擔過重、本週新概念額度用完）就只出學過的
     let s = i === 0 ? withTargetFilter(mastered, make) : make()
-    if (taught.current >= (pauseNew() ? 0 : MAX_TEACH) && isNew(seqSkill(s))) s = withTargetFilter((k) => !isNew(k), make)
+    const ok = teachable(def.id, taught.current, MAX_TEACH)
+    if (!ok(seqSkill(s))) s = withTargetFilter(ok, make)
     recent.current = [s, ...recent.current].slice(0, 2)
     preload([...teachOf(s).lines, 'c.seq.first', 'c.seq.next', 'teach.here.bobo', 'teach.turn.bobo'])
 

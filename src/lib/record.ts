@@ -1,6 +1,6 @@
 import { db, today, uid, type Attempt, type Phase } from './db'
 import { sessionId } from './session'
-import { recordSkill } from './adaptive'
+import { noteAttempt, recordSkill } from './adaptive'
 import { requestSync } from './sync'
 
 export type AttemptInput = Omit<Attempt, 'id' | 'ts' | 'date' | 'sessionId' | 'synced' | 'phase'> & { phase: Phase }
@@ -11,6 +11,8 @@ export type AttemptInput = Omit<Attempt, 'id' | 'ts' | 'date' | 'sessionId' | 's
  */
 export async function logAttempt(a: AttemptInput) {
   if (a.phase === 'quiz') recordSkill(a.skill, a.firstTryCorrect, a)
+  // 每條主線每週的新概念額度：記下第一次出現的概念（教學卡也算）
+  noteAttempt(a)
   await db.attempts.put({ ...a, id: uid(), ts: Date.now(), date: today(), sessionId: sessionId(), synced: 0 })
   requestSync()
 }

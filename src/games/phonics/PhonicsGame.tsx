@@ -4,7 +4,7 @@ import { Shell, type GameProps } from '../Shell'
 import { Hand } from '../Demo'
 import { Sparkles } from '../../ui/Sparkles'
 import { game as gameDef, station as stationDef, ROUND_ITEMS, PHONICS_MAKERS, type PhonicsItem, type PhonicsOption } from '../../content/games'
-import { level, reportLevel, markPlayed, plays, isNew, withTargetFilter } from '../../lib/adaptive'
+import { level, reportLevel, markPlayed, plays, isNew, teachable, withTargetFilter } from '../../lib/adaptive'
 import { logAttempt, logTeach } from '../../lib/record'
 import type { Phase } from '../../lib/db'
 import { preload, say, sfx, stopSpeech } from '../../lib/audio'
@@ -189,10 +189,9 @@ export function PhonicsGame({ gameId, onDone, onExit }: GameProps) {
     itemLevel.current = lv
     const gen = () => make(lv, recent.current)
     let it = gen()
-    if (taught.current >= MAX_TEACH) {
-      const known = (k: string) => !isNew(k)
-      for (let k = 0; k < 10 && isNew(it.skill); k++) it = withTargetFilter(known, gen)
-    }
+    // 這局已經教滿、負擔過重，或語言這條線本週的新概念額度用完：出學過的音
+    const ok = teachable(def.id, taught.current, MAX_TEACH)
+    for (let k = 0; k < 10 && !ok(it.skill); k++) it = withTargetFilter(ok, gen)
     // 同時開放的音只有三、四個：只避開上一題的音，不然出題順序會變成固定輪流
     recent.current = [it.itemId]
     preload([...it.prompt, ...it.names.map((n) => `ph.word.${n}`), ...it.after, ...introLines(it.unit), `teach.here.${host}`, `teach.turn.${host}`])

@@ -1,4 +1,5 @@
-import { updateSettings, useSettings, type Settings } from '../../lib/settings'
+import { THEME_DAYS, themeEnds, updateSettings, useSettings, weekTheme, type Settings } from '../../lib/settings'
+import { today } from '../../lib/db'
 import { useSync, signIn, signOut, syncNow, syncConfigured } from '../../lib/sync'
 import { setVolume } from '../../lib/audio'
 import { useInstall, promptInstall } from '../../lib/install'
@@ -63,6 +64,16 @@ function VersionCard() {
   )
 }
 
+/** 本週主題的說明：設定了就寫到哪一天自動取消 */
+function themeHint(s: Settings): string {
+  const base = `對應幼兒園聯絡簿這週的主題，動物村會多出這一類的英文詞（主題裡的新詞不佔每週新概念的額度）。${THEME_DAYS} 天後自動取消，下週換主題時再選一次。`
+  const end = weekTheme(s) && themeEnds(s)
+  if (!end) return base
+  const [, m, d] = end.split('-').map(Number)
+  const last = new Date(Number(end.slice(0, 4)), m - 1, d - 1)
+  return `到 ${last.getMonth() + 1}/${last.getDate()}（${'日一二三四五六'[last.getDay()]}）為止。${base}`
+}
+
 export function SettingsPanel({ onChanged }: { onChanged: () => void }) {
   const s = useSettings()
   const sync = useSync()
@@ -104,8 +115,8 @@ export function SettingsPanel({ onChanged }: { onChanged: () => void }) {
             <option value="always">一直開放</option>
           </select>
         </Field>
-        <Field label="本週主題" hint="可以對應幼兒園聯絡簿的主題，動物村會多出這一類的英文詞。">
-          <select value={s.theme} onChange={(e) => set({ theme: e.target.value as Settings['theme'] })}>
+        <Field label="本週主題" hint={themeHint(s)}>
+          <select value={weekTheme(s) ?? 'all'} onChange={(e) => set({ theme: e.target.value as Settings['theme'] })}>
             <option value="all">不指定</option>
             {Object.entries(THEME_LABEL).map(([k, v]) => (
               <option key={k} value={k}>
@@ -113,6 +124,11 @@ export function SettingsPanel({ onChanged }: { onChanged: () => void }) {
               </option>
             ))}
           </select>
+          {weekTheme(s) && s.themeSetAt !== today() && (
+            <button className="btn" style={{ marginLeft: 10 }} onClick={() => set({ themeSetAt: today() })}>
+              再延長一週
+            </button>
+          )}
         </Field>
         <Field label="音量">
           <input

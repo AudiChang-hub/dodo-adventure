@@ -9,7 +9,7 @@ import { ArrowArt } from '../../art/Arrow'
 import { Sparkles } from '../../ui/Sparkles'
 import { game as gameDef, type TeachSpec } from '../../content/games'
 import { BLOCK_ICON, DIRS, TARGETS, distMap, drivePuzzle, driveTeach, pickDriveSkill, runProgram, stepOf, type Cell, type Dir, type DrivePuzzle } from '../../content/code'
-import { isNew, level, markPlayed, mastered, pauseNew, plays, reportLevel, withTargetFilter } from '../../lib/adaptive'
+import { isNew, level, markPlayed, mastered, plays, reportLevel, teachable, withTargetFilter } from '../../lib/adaptive'
 import { logAttempt, logTeach } from '../../lib/record'
 import type { Phase } from '../../lib/db'
 import { preload, say, sfx, stopSpeech } from '../../lib/audio'
@@ -212,9 +212,10 @@ export function DriveGame({ gameId, onDone, onExit }: GameProps) {
     setIdx(i)
     lv.current = level(def.id)
     const make = () => pickDriveSkill(lv.current, recent.current)
-    // 開局先出已熟的；這局已經教滿（或負擔過重）就只出學過的。沒有符合的，pickTarget 會照常挑
+    // 開局先出已熟的；這局已經教滿（或負擔過重、思考這條線本週的新概念額度用完）就只出學過的。沒有符合的，pickTarget 會照常挑
     let key = i === 0 ? withTargetFilter(mastered, make) : make()
-    if (taught.current >= (pauseNew() ? 0 : MAX_TEACH) && isNew(key)) key = withTargetFilter((k) => !isNew(k), make)
+    const ok = teachable(def.id, taught.current, MAX_TEACH)
+    if (!ok(key)) key = withTargetFilter(ok, make)
     recent.current = [key, ...recent.current].slice(0, 2)
     const p = drivePuzzle(lv.current, key, recentTargets.current)
     recentTargets.current = [p.target, ...recentTargets.current].slice(0, 2)

@@ -4,7 +4,7 @@ import { PHONICS, CONFUSE, LOOKALIKE_LOWER, phonicsSkill, wordsOf, wordId, type 
 import { VOCAB, AMBIGUOUS, CAT_EXAMPLES, vocab, type Tag } from './vocab'
 import { COLORS, COLOR_EXAMPLES, SHAPES, SIZE_ICONS, COUNT_ICONS, type ShapeId } from './park'
 import { pickTarget, unlockedNumbers, mastered, skill, isNew } from '../lib/adaptive'
-import { getSettings } from '../lib/settings'
+import { weekTheme } from '../lib/settings'
 import { pick, rand, sample, shuffle } from '../lib/random'
 import { cPattern, type Dir } from './code'
 
@@ -344,10 +344,17 @@ const mCompare = (level: number): ChoiceItem => {
 }
 
 // ── 動物村 ─────────────────────────────────────────────────
-function themedVocab() {
-  const theme = getSettings().theme
-  return theme === 'all' ? VOCAB : [...VOCAB, ...VOCAB.filter((v) => v.theme === theme), ...VOCAB.filter((v) => v.theme === theme)]
+/**
+ * 本週主題（家長設定，對應幼兒園聯絡簿，7 天後自動取消）：這個主題的詞出現機會變三倍。
+ * 挑題本身還是到期複習優先、越不熟越常出，所以是「多複習學校正在教的」，不是只出這一類。
+ */
+function themed<T extends { theme: string }>(pool: readonly T[]): T[] {
+  const theme = weekTheme()
+  if (!theme) return [...pool]
+  const mine = pool.filter((v) => v.theme === theme)
+  return [...pool, ...mine, ...mine]
 }
+const themedVocab = () => themed(VOCAB)
 
 const zFind = (level: number, recent: string[]): ChoiceItem => {
   const v = pickTarget(themedVocab(), (x) => `vocab:${x.id}`, VOCAB.filter((x) => recent.includes(x.id)))
@@ -369,7 +376,7 @@ const zCategory = (level: number, recent: string[]): ChoiceItem => {
   const tags: Tag[] = ['fly', 'water', 'wheels', 'eat', 'legs4']
   const tag = pickTarget(tags.slice(0, level >= 3 ? 5 : 4), (t) => `cat:${t}`, recent as Tag[])
   const ok = (x: (typeof VOCAB)[number]) => !AMBIGUOUS[tag].includes(x.id)
-  const ans = pick(VOCAB.filter((x) => x.tags.includes(tag) && ok(x)))
+  const ans = pick(themed(VOCAB.filter((x) => x.tags.includes(tag) && ok(x))))
   const wrong = sample(VOCAB.filter((x) => !x.tags.includes(tag) && ok(x)), optCount(level) - 1)
   const opts = shuffle([ans, ...wrong])
   return {
@@ -386,7 +393,7 @@ const zCategory = (level: number, recent: string[]): ChoiceItem => {
 
 const zSound = (level: number, recent: string[]): ChoiceItem => {
   const pool = VOCAB.filter((x) => x.sound)
-  const v = pickTarget(pool, (x) => `sound:${x.id}`, pool.filter((x) => recent.includes(x.id)))
+  const v = pickTarget(themed(pool), (x) => `sound:${x.id}`, pool.filter((x) => recent.includes(x.id)))
   const opts = shuffle([v, ...sample(pool.filter((x) => x.id !== v.id), optCount(level) - 1)])
   return {
     itemId: v.id,
