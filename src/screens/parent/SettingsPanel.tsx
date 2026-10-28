@@ -131,6 +131,12 @@ export function SettingsPanel({ onChanged }: { onChanged: () => void }) {
             </button>
           )}
         </Field>
+        <Field label="著色：幫忙不塗出線" hint="開啟時，蠟筆只會塗在下筆的那一塊裡面，孩子怎麼亂塗都不會塗到旁邊；關閉就是完全自由塗，可以塗出線外。">
+          <select value={s.coloringHelp ? 'on' : 'off'} onChange={(e) => set({ coloringHelp: e.target.value === 'on' })}>
+            <option value="on">開啟</option>
+            <option value="off">關閉</option>
+          </select>
+        </Field>
         <Field label="音量">
           <input
             type="range"

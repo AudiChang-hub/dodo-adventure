@@ -83,7 +83,7 @@ export function skillLabel(key: string): string {
     trace: (v) => `運筆小路 第 ${v} 條`,
     dots: (v) => `連點 ${v}`,
     glyph: (v) => `描 ${v}`,
-    coloring: (v) => `著色 ${v}`,
+    coloring: (v) => `蠟筆著色 ${v}`,
     phonics: (v) => `字母音 ${v}`,
     // 程式車庫
     arrow: (v) => `方向 ${DIR_ZH[v as Dir] ?? v}`,

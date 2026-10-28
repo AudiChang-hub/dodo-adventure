@@ -1,4 +1,5 @@
-// 著色頁：每個 region 是一塊可以點擊上色的區域；deco 是不能上色的線條（眼睛、嘴巴）
+// 著色頁（蠟筆著色 ColoringGame）：每個 region 是一塊區域，「幫忙不塗出線」時筆觸會被 clip 在下筆的那一塊裡
+// （後面的 region 蓋在前面的上面，例如肚子在身體上）；deco 是線稿上的其他線條（眼睛、嘴巴），永遠在最上層
 export interface Region {
   id: string
   d: string

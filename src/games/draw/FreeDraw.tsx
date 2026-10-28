@@ -26,10 +26,15 @@ export function FreeDraw({ gameId, onDone, onExit }: GameProps) {
 
   useEffect(() => {
     live.current = true
-    markPlayed(def.id)
-    void say(def.intro)
+    // 延到下一輪才說：換畫面時 App 會在子元件掛上之後才 stopSpeech()（App.tsx 的 useEffect [key]），
+    // 一掛上就說的開場句會被它切掉；StrictMode 重新掛載時也不會說兩次
+    const boot = window.setTimeout(() => {
+      markPlayed(def.id)
+      void say(def.intro)
+    }, 0)
     return () => {
       live.current = false
+      clearTimeout(boot)
       stopSpeech()
     }
   }, [def])
