@@ -2,6 +2,7 @@ import { createContext, useContext, useEffect, useState, type CSSProperties, typ
 import { Dino, type Mood } from '../art/Dino'
 import { HoldButton } from '../ui/Hold'
 import { Scenery } from '../ui/Scenery'
+import { ProgressStars } from '../ui/ProgressStars'
 import { station as stationDef } from '../content/games'
 import { coplayHint } from '../content/coplay'
 import { useRoute } from '../lib/nav'
@@ -92,13 +93,8 @@ export function Shell({ station, mood, progress, onExit, onHost, children, hideH
         <HoldButton label="回首頁（按住）" onHold={onExit}>
           <HomeIcon />
         </HoldButton>
-        {progress && (
-          <div className="progress" aria-label={`第 ${progress.done + 1} 題，共 ${progress.total} 題`}>
-            {Array.from({ length: progress.total }, (_, i) => (
-              <i key={i} className={i < progress.done ? 'on' : i === progress.done ? 'now' : undefined} />
-            ))}
-          </div>
-        )}
+        {/* 答對時星星飛進這一格（成就感強化） */}
+        {progress && <ProgressStars total={progress.total} done={progress.done} />}
         <div style={{ width: 76 }} />
         {hint && <CoplayHint station={station} text={hintText} />}
       </div>

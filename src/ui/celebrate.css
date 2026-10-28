@@ -1,0 +1,359 @@
+/* ── 成就感強化：星星、每局回顧、里程碑、貼紙 ──────────────────
+   紙感螢幕：靠明度與柔和的陰影分層，不用高飽和、不閃爍 */
+
+/* 小圖：以容器為準縮放（貼紙、回顧的圓牌都用它） */
+.pic {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  container-type: size;
+  display: grid;
+  place-items: center;
+}
+.pic .glyph {
+  font-size: 66cqmin;
+}
+.pic .glyph.num {
+  font-size: 72cqmin;
+}
+.pic .glyph.pic-pair {
+  font-size: 54cqmin;
+  letter-spacing: 0.01em;
+  translate: -6% -4%;
+}
+.pic .glyph.pic-text {
+  font-size: 80cqmin;
+}
+.pic .glyph.pic-text.long {
+  font-size: 40cqmin;
+  white-space: nowrap;
+}
+.pic-corner {
+  position: absolute;
+  right: 0;
+  bottom: 2%;
+  width: 40cqmin;
+  height: 40cqmin;
+}
+.pic-num {
+  position: absolute;
+  right: -2%;
+  bottom: -2%;
+  min-width: 42cqmin;
+  height: 42cqmin;
+  padding: 0 8cqmin;
+  border-radius: 99px;
+  display: grid;
+  place-items: center;
+  font-family: 'Fredoka', sans-serif;
+  font-weight: 600;
+  font-size: 28cqmin;
+  line-height: 1;
+  color: var(--card);
+  background: var(--bobo-deep);
+  box-shadow: 0 0 0 5cqmin var(--card);
+}
+
+/* ── 進度列的星星 ───────────────────────────────────────── */
+.progress i.star {
+  position: relative;
+  background: none;
+  transform: none;
+}
+.progress-star {
+  position: absolute;
+  inset: -7px;
+  display: block;
+}
+.star-flight {
+  position: fixed;
+  left: -19px;
+  top: -19px;
+  width: 38px;
+  height: 38px;
+  z-index: 70;
+  pointer-events: none;
+  filter: drop-shadow(0 3px 0 rgba(201, 162, 62, 0.25));
+}
+
+/* ── 遮罩：每局回顧、里程碑共用 ─────────────────────────── */
+.cheer {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: grid;
+  place-items: center;
+  /* 不用 backdrop-filter 模糊：平板上整頁模糊很吃效能，換成夠不透明的紙色遮罩 */
+  background: rgba(243, 238, 228, 0.9);
+  overflow: hidden;
+}
+/* 跟遊戲舞台的主持恐龍（.stage-host）同一個位置、同一個大小：剛好蓋住遮罩後面那一隻，不會有重影 */
+.cheer-host {
+  position: absolute;
+  left: 1.5vw;
+  bottom: -1vh;
+  width: clamp(150px, 19vw, 250px);
+  pointer-events: none;
+}
+
+/* 每局回顧：一條紙膠帶似的長條，上面一排圓牌 */
+.cheer-strip {
+  position: relative;
+  display: flex;
+  gap: clamp(12px, 2vw, 22px);
+  align-items: center;
+  justify-content: center;
+  max-width: 88vw;
+  padding: clamp(22px, 3.4vh, 34px) clamp(26px, 3.4vw, 44px);
+  border-radius: 44px;
+  background: var(--card);
+  box-shadow:
+    0 14px 0 rgba(46, 42, 37, 0.06),
+    0 30px 60px -30px rgba(46, 42, 37, 0.25);
+}
+/* 紙膠帶的縫線：一圈極淡的虛線 */
+.cheer-strip::before {
+  content: '';
+  position: absolute;
+  inset: 9px;
+  border-radius: 36px;
+  border: 2px dashed rgba(46, 42, 37, 0.08);
+  pointer-events: none;
+}
+.medal {
+  position: relative;
+  aspect-ratio: 1;
+  flex: 0 0 auto;
+}
+.medal-face {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: var(--paper);
+  box-shadow:
+    0 0 0 5px var(--card),
+    0 0 0 7px rgba(46, 42, 37, 0.06),
+    0 6px 0 7px rgba(46, 42, 37, 0.05);
+  display: grid;
+  place-items: center;
+}
+.medal.is-fix .medal-face {
+  background: #fbefd0;
+  box-shadow:
+    0 0 0 5px var(--card),
+    0 0 0 8px #f1d27c,
+    0 6px 0 8px rgba(46, 42, 37, 0.05);
+}
+.medal-pic {
+  width: 70%;
+  height: 70%;
+}
+.medal-star {
+  position: absolute;
+  right: -6%;
+  top: -8%;
+  width: 38%;
+}
+.medal-fix {
+  position: absolute;
+  left: -8%;
+  bottom: -6%;
+  width: 36%;
+  padding: 5%;
+  border-radius: 50%;
+  background: var(--card);
+  box-shadow: 0 3px 0 rgba(46, 42, 37, 0.08);
+}
+
+/* ── 里程碑 ─────────────────────────────────────────────── */
+.cheer.is-milestone {
+  background: rgba(243, 238, 228, 0.95);
+}
+/* 中間一圈很淡的暖光，慢慢地呼吸（6 秒一次，不閃） */
+.ms-glow {
+  position: absolute;
+  left: 50%;
+  top: 46%;
+  width: 78vmin;
+  aspect-ratio: 1;
+  translate: -50% -50%;
+  border-radius: 50%;
+  background:
+    repeating-conic-gradient(from 0deg, rgba(241, 210, 124, 0.16) 0deg 9deg, transparent 9deg 24deg),
+    radial-gradient(closest-side, rgba(241, 210, 124, 0.38), rgba(241, 210, 124, 0) 100%);
+  -webkit-mask: radial-gradient(closest-side, #000 35%, transparent 100%);
+  mask: radial-gradient(closest-side, #000 35%, transparent 100%);
+  animation: ms-turn 40s linear infinite, ms-breathe 6s ease-in-out infinite;
+  pointer-events: none;
+}
+@keyframes ms-turn {
+  to {
+    rotate: 360deg;
+  }
+}
+@keyframes ms-breathe {
+  50% {
+    scale: 1.06;
+  }
+}
+.confetti {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+.confetti i {
+  position: absolute;
+  top: 0;
+  border-radius: 3px;
+  opacity: 0.85;
+}
+.ms-center {
+  position: relative;
+  z-index: 1;
+}
+.ms-stage {
+  display: flex;
+  align-items: center;
+  gap: clamp(14px, 2.4vw, 30px);
+}
+.ms-stage.is-col {
+  flex-direction: column;
+  gap: 3.2vh;
+}
+.ms-before {
+  position: relative;
+  width: clamp(110px, 14vmin, 150px);
+  aspect-ratio: 1;
+  border-radius: 30px;
+  background: var(--card);
+  box-shadow: 0 7px 0 rgba(46, 42, 37, 0.07);
+  display: grid;
+  place-items: center;
+}
+.ms-before-pic {
+  width: 66%;
+  height: 66%;
+  opacity: 0.45;
+  filter: grayscale(0.5);
+}
+.ms-hand {
+  position: absolute;
+  right: -10%;
+  bottom: -22%;
+  width: 46%;
+  overflow: visible;
+}
+.ms-arrow {
+  width: clamp(80px, 10vw, 120px);
+  overflow: visible;
+}
+.ms-hero {
+  width: clamp(220px, 32vmin, 300px);
+  filter: drop-shadow(0 16px 22px rgba(201, 162, 62, 0.18));
+}
+.ms-badge {
+  width: clamp(170px, 24vmin, 230px);
+  aspect-ratio: 1;
+  padding: 7%;
+  border-radius: 50%;
+  background: var(--card);
+  box-shadow:
+    0 0 0 10px #f8edc6,
+    0 14px 0 10px rgba(46, 42, 37, 0.06);
+}
+.ms-stars {
+  display: flex;
+  gap: clamp(8px, 1.4vw, 16px);
+}
+.ms-star {
+  position: relative;
+  width: clamp(46px, 6.4vmin, 64px);
+  aspect-ratio: 1;
+}
+.ms-star-on {
+  position: absolute;
+  inset: 0;
+}
+.ms-extra {
+  position: absolute;
+  left: 50%;
+  bottom: 9vh;
+  translate: -50% 0;
+  display: flex;
+  gap: 14px;
+  z-index: 1;
+}
+.ms-book {
+  position: absolute;
+  right: 4vw;
+  bottom: 5vh;
+  width: clamp(76px, 10vmin, 104px);
+  aspect-ratio: 1;
+  padding: 1.4%;
+  border-radius: 50%;
+  background: var(--card);
+  box-shadow: 0 6px 0 rgba(46, 42, 37, 0.08);
+  z-index: 1;
+}
+
+/* ── 貼紙 ───────────────────────────────────────────────── */
+/* 白色割線邊 + 淡色底；像真的貼紙一樣微微翹起的陰影 */
+.sticker {
+  position: relative;
+  display: block;
+  width: 100%;
+  aspect-ratio: 1;
+  padding: 7%;
+  border-radius: 50%;
+  background: #fffdf8;
+  box-shadow:
+    0 0 0 1px rgba(46, 42, 37, 0.05),
+    0 5px 0 rgba(46, 42, 37, 0.07),
+    0 12px 18px -10px rgba(46, 42, 37, 0.22);
+}
+.sticker-face {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  background: var(--tint, var(--paper));
+  overflow: hidden;
+}
+/* 一點點紙的光澤，不反光 */
+.sticker-face::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: linear-gradient(150deg, rgba(255, 255, 255, 0.38) 0%, rgba(255, 255, 255, 0) 42%);
+  pointer-events: none;
+}
+.sticker-pic {
+  width: 66%;
+  height: 66%;
+}
+.sticker.is-badge {
+  border-radius: 34%;
+}
+.sticker.is-badge .sticker-face {
+  border-radius: 30%;
+  grid-template-rows: 1fr auto;
+  padding: 10% 0 9%;
+}
+.sticker.is-badge .sticker-pic {
+  width: 56%;
+  height: 100%;
+  justify-self: center;
+}
+.sticker-stars {
+  display: flex;
+  justify-content: center;
+  gap: 3%;
+  width: 82%;
+}
+.sticker-stars svg {
+  width: 20%;
+  height: auto;
+}

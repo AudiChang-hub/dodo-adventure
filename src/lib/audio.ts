@@ -326,4 +326,11 @@ export const sfx = {
   done: () => {
     ;[392, 523, 659, 784].forEach((f, i) => tone(f, 0.35, 'triangle', 0.22, i * 0.11))
   },
+  // 成就感：星星落進進度列（很輕的一聲叮）、每局回顧的一張張小圖（一張比一張高一點）、里程碑（柔和的鈴聲，不用嘹亮的號角）
+  star: () => tone(1319, 0.16, 'sine', 0.14, 0, 1760),
+  chime: (i: number) => tone(659 * Math.pow(2, (Math.min(i, 9) * 2) / 12), 0.2, 'sine', 0.13),
+  milestone: () => {
+    ;[523, 784, 1047, 1319].forEach((f, i) => tone(f, 0.55, 'sine', 0.13, i * 0.13))
+    tone(262, 0.9, 'triangle', 0.08, 0)
+  },
 }

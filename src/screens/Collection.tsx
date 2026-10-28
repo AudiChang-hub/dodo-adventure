@@ -4,6 +4,9 @@ import { Egg } from '../art/Egg'
 import { HoldButton } from '../ui/Hold'
 import { HomeIcon } from '../games/Shell'
 import { FriendActor } from '../ui/FriendActor'
+import { Emoji } from '../art/Emoji'
+import { StickerBook } from './Stickers'
+import { freshCount } from '../lib/achievements'
 import { FRIENDS } from '../content/park'
 import { FRIEND_COUNT_MAX } from '../content/lines-friends'
 import { db, type Friend } from '../lib/db'
@@ -42,6 +45,15 @@ export function Collection() {
   const [friends, setFriends] = useState<Friend[] | null>(null)
   const [invite, setInvite] = useState<string | null>(null)
   const touched = useRef(false)
+  /** 朋友／貼紙本（成就感強化）：同一頁切換，不用另開路由 */
+  const [view, setView] = useState<'friends' | 'book'>('friends')
+  const [fresh] = useState(freshCount)
+  const switchTo = (v: 'friends' | 'book') => {
+    if (v === view) return
+    sfx.tap()
+    setView(v)
+    if (v === 'friends') void say('collection.hi')
+  }
 
   useEffect(() => {
     let timer = 0
@@ -65,21 +77,32 @@ export function Collection() {
   // 最多先露出 6 顆蛋：讓孩子知道還有朋友可以孵，但不要一整片「還沒有」
   const eggs = friends ? Math.max(0, Math.min(FRIENDS.length - list.length, 6)) : 0
   return (
-    <div className="screen collection" onPointerDown={() => (touched.current = true)}>
+    <div className={`screen collection${view === 'book' ? ' is-book' : ''}`} onPointerDown={() => (touched.current = true)}>
       <div className="collection-top">
         <HoldButton label="回首頁（按住）" ms={600} onHold={() => go({ name: 'home' })}>
           <HomeIcon />
         </HoldButton>
         <div className="collection-title" aria-hidden="true">
-          我的朋友
-          {friends && friends.length > 0 && (
+          {view === 'book' ? '我的貼紙' : '我的朋友'}
+          {view === 'book' && <small>點貼紙，聽聽它是什麼</small>}
+          {view === 'friends' && friends && friends.length > 0 && (
             <small>
               {list.length} / {FRIENDS.length}　點朋友，牠會說自己的英文名字
             </small>
           )}
         </div>
+        <div className="collection-tabs">
+          <button className={`round-btn${view === 'friends' ? ' on' : ''}`} aria-label="我的朋友" onClick={() => switchTo('friends')}>
+            <Emoji name="hatching-chick" />
+          </button>
+          <button className={`round-btn${view === 'book' ? ' on' : ''}`} aria-label="我的貼紙" onClick={() => switchTo('book')}>
+            <Emoji name="open-book" />
+            {fresh > 0 && view === 'friends' && <span className="badge-dot" />}
+          </button>
+        </div>
       </div>
-      <div className="friend-grid">
+      {view === 'book' && <StickerBook />}
+      <div className="friend-grid" style={view === 'book' ? { display: 'none' } : undefined}>
         {list.map((f, i) => (
           <motion.div key={f.id} className="friend-slot" initial={{ scale: 0, y: 20 }} animate={{ scale: 1, y: 0 }} transition={{ type: 'spring', stiffness: 300, damping: 16, delay: i * 0.03 }}>
             <motion.div className="friend-invite" animate={invite === f.id ? { rotate: [0, -10, 10, -6, 0], y: [0, -10, 0] } : {}} transition={{ duration: 0.9, repeat: invite === f.id ? 2 : 0, repeatDelay: 0.6 }}>

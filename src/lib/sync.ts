@@ -1,6 +1,7 @@
 import { useSyncExternalStore } from 'react'
 import { db, type Attempt, type Drawing, type Session } from './db'
 import { env } from './env'
+import { achieveForSync, type Milestone } from './achievements'
 
 const cfg = {
   apiKey: env('VITE_FIREBASE_API_KEY'),
@@ -126,7 +127,7 @@ export async function syncNow() {
       }
     }
     const [skills, levels, friends, settings] = await Promise.all([db.skills.toArray(), db.levels.toArray(), db.friends.toArray(), db.kv.get('settings')])
-    await fs.setDoc(fs.doc(store, 'users', uid, 'meta', 'state'), { skills, levels, friends, settings: settings?.value ?? null, updated: Date.now() })
+    await fs.setDoc(fs.doc(store, 'users', uid, 'meta', 'state'), { skills, levels, friends, settings: settings?.value ?? null, achieve: achieveForSync(), updated: Date.now() })
     set({ status: 'idle', last: Date.now() })
   } catch (e) {
     set({ status: 'error', error: friendly(e) })
@@ -138,6 +139,8 @@ export interface CloudBundle {
   sessions: Session[]
   drawings: Drawing[]
   skills: { key: string; box: number; seen: number; firstTry: number }[]
+  /** 成就感強化的里程碑（家長區「今日亮點」） */
+  milestones: Milestone[]
 }
 
 /** 家長用手機看報告時，從雲端讀回資料 */
@@ -155,6 +158,7 @@ export async function fetchCloud(): Promise<CloudBundle | null> {
     sessions: rows<Session>(s),
     drawings: rows<Drawing>(d),
     skills: (meta.data()?.skills as CloudBundle['skills']) ?? [],
+    milestones: (meta.data()?.achieve?.log as Milestone[]) ?? [],
   }
 }
 

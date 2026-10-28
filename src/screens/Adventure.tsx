@@ -19,6 +19,7 @@ import { noteActivity, isBreakDue, holdBedtime, bedtimeIfDue } from '../lib/sess
 import { EyeBreak } from '../ui/EyeBreak'
 import { wait } from '../games/lines'
 import { RouteMap, RouteStrip } from './Route'
+import { DayRecap } from './DayRecap'
 
 type Phase = 'route' | 'travel' | 'play' | 'coplay' | 'egg' | 'hatch' | 'finish' | 'rest'
 
@@ -63,7 +64,8 @@ export function Adventure() {
     const release = holdBedtime()
     if (phase !== 'finish') return release
     let cancelled = false
-    void say('adv.done').then(() => !cancelled && release())
+    // 成就感：說完「今天好棒」，邀請孩子拿給爸爸看（回顧畫面上有爸爸的按鈕）
+    void say('adv.done', 'ach.showdad').then(() => !cancelled && release())
     return () => {
       cancelled = true
       release()
@@ -247,6 +249,7 @@ export function Adventure() {
 
         {phase === 'finish' && (
           <motion.div key="fin" className="screen" style={{ display: 'grid', placeItems: 'center', alignContent: 'center', gap: '4vh' }} initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+            <DayRecap plan={plan} />
             <div style={{ display: 'flex', gap: '3vmin', alignItems: 'flex-end' }}>
               <div style={{ width: '18vmin' }}>{plan.hatched && <Emoji name={plan.hatched} />}</div>
               <div style={{ width: '36vmin' }}>

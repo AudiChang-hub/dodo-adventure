@@ -4,10 +4,11 @@ import { LETTERS, PHONICS_WORDS } from '../src/content/letters'
 import { VOCAB } from '../src/content/vocab'
 import { COUNT_ICONS, SIZE_ICONS, FRIENDS, SHEET_ICONS } from '../src/content/park'
 import { CODE_ICONS } from '../src/content/code'
+import { ACHIEVE_ICONS } from '../src/content/stickers'
 
 const UI = ['egg', 'hatching-chick', 'sparkles', 'star', 'glowing-star', 'house-with-garden', 'deciduous-tree', 'evergreen-tree', 'rainbow', 'artist-palette', 'pencil', 'construction', 'tulip', 'cloud', 'teddy-bear', 'balloon', 'crayon', 'framed-picture', 'trophy']
 const set = JSON.parse(readFileSync('node_modules/@iconify-json/fluent-emoji-flat/icons.json', 'utf8'))
-const names = [...new Set([...LETTERS.map((l) => l.icon), ...PHONICS_WORDS.map((w) => w.icon), ...VOCAB.map((v) => v.icon), ...COUNT_ICONS, ...SIZE_ICONS, ...FRIENDS, ...SHEET_ICONS, ...CODE_ICONS, ...UI])].sort()
+const names = [...new Set([...LETTERS.map((l) => l.icon), ...PHONICS_WORDS.map((w) => w.icon), ...VOCAB.map((v) => v.icon), ...COUNT_ICONS, ...SIZE_ICONS, ...FRIENDS, ...SHEET_ICONS, ...CODE_ICONS, ...ACHIEVE_ICONS, ...UI])].sort()
 
 const out: Record<string, { b: string; w: number; h: number }> = {}
 const missing: string[] = []

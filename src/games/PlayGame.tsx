@@ -1,5 +1,8 @@
+import { useRef, useState } from 'react'
 import { game } from '../content/games'
-import type { GameProps } from './Shell'
+import type { GameProps, GameResult } from './Shell'
+import { Celebrate } from '../ui/Celebrate'
+import { beginRound, endRound, type RoundSummary } from '../lib/achievements'
 import { ChoiceGame } from './ChoiceGame'
 import { PhonicsGame } from './phonics/PhonicsGame'
 import { CountGame } from './CountGame'
@@ -42,5 +45,21 @@ export function PlayGame(props: GameProps) {
   // 舊的字母遊戲 id（今天已經排好的冒險）會對到改寫後的自然發音遊戲
   const g = game(props.gameId)
   const C = BY_KIND[g.kind]
-  return <C key={g.id} {...props} gameId={g.id} />
+  // 成就感：在遊戲自己的 markPlayed 之前記下開局的難度；結束時先回顧這一局、慶祝里程碑，再交回去
+  useState(() => beginRound(g.id))
+  const [cheer, setCheer] = useState<{ r: GameResult; s: RoundSummary } | null>(null)
+  const ended = useRef(false)
+  const onDone = (r: GameResult) => {
+    if (ended.current) return
+    ended.current = true
+    const s = endRound(g.id)
+    if (!s.things.length && !s.milestones.length) return props.onDone(r)
+    setCheer({ r, s })
+  }
+  return (
+    <>
+      <C key={g.id} {...props} gameId={g.id} onDone={onDone} />
+      {cheer && <Celebrate summary={cheer.s} onDone={() => props.onDone(cheer.r)} />}
+    </>
+  )
 }

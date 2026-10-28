@@ -1,11 +1,13 @@
 import { useState } from 'react'
 import type { Drawing } from '../../lib/db'
 import type { ParentData } from './data'
+import { Highlights } from './Highlights'
 
 export function Gallery({ d }: { d: ParentData }) {
   const [open, setOpen] = useState<Drawing | null>(null)
   return (
     <>
+      <Highlights d={d} />
       <h2>作品集</h2>
       <p className="sub">畫畫小屋裡「著色」與「自由畫畫」完成的作品。</p>
       {d.drawings.length === 0 ? (

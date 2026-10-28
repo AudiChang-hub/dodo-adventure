@@ -1,0 +1,82 @@
+/* ── 貼紙本（成就感強化）──────────────────────────────────
+   跟朋友收集頁同一個位置與格線；底下是淡淡的方格紙，像一本貼紙簿 */
+.sticker-book {
+  position: absolute;
+  inset: 92px 4% 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(132px, 1fr));
+  gap: 30px 26px;
+  align-content: start;
+  justify-items: center;
+  overflow-y: auto;
+  padding: 70px 18px 56px;
+  scrollbar-width: none;
+}
+.collection.is-book {
+  background:
+    radial-gradient(120% 70% at 50% 110%, #e6ddcb 0%, transparent 60%),
+    linear-gradient(rgba(46, 42, 37, 0.035) 1px, transparent 1px) 0 0 / 28px 28px,
+    linear-gradient(90deg, rgba(46, 42, 37, 0.035) 1px, transparent 1px) 0 0 / 28px 28px,
+    var(--paper);
+}
+.book-slot {
+  position: relative;
+  width: min(124px, 100%);
+  aspect-ratio: 1;
+}
+.book-sticker {
+  display: block;
+  width: 100%;
+}
+/* 還沒點過的新貼紙：外圈一圈暖色的光，慢慢呼吸（不閃） */
+.book-slot.is-fresh::before {
+  content: '';
+  position: absolute;
+  inset: -12px;
+  border-radius: 50%;
+  background: radial-gradient(closest-side, rgba(241, 210, 124, 0.55), rgba(241, 210, 124, 0));
+  animation: book-fresh 2.8s ease-in-out infinite;
+  pointer-events: none;
+}
+@keyframes book-fresh {
+  50% {
+    opacity: 0.35;
+    scale: 1.08;
+  }
+}
+.book-slot.is-empty {
+  display: grid;
+  place-items: center;
+}
+.book-empty {
+  width: 88%;
+  aspect-ratio: 1;
+  border-radius: 50%;
+  border: 3px dashed rgba(46, 42, 37, 0.14);
+  background: rgba(251, 248, 242, 0.5);
+}
+
+/* ── 收集頁上方的切換：朋友／貼紙本 ─────────────────────── */
+.collection-tabs {
+  display: flex;
+  gap: 14px;
+  margin-left: auto;
+}
+.collection-tabs .round-btn {
+  padding: 12px;
+}
+.collection-tabs .round-btn.on {
+  box-shadow:
+    0 0 0 5px var(--butter),
+    0 4px 0 5px var(--paper-edge);
+}
+.collection-tabs .badge-dot {
+  position: absolute;
+  right: 2px;
+  top: 2px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--coral);
+  box-shadow: 0 0 0 3px var(--card);
+}
