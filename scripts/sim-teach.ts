@@ -6,16 +6,18 @@
 // 程度校準的探測、一局教滿兩個、每週新概念額度、主題冒險的主題偏好都在裡面。
 // 斷言：每一題「自己答」出題時，那個技能已經學過（seen > 0），或這一題本身剛走過教學卡／示範。
 // 圈圈看的 lasso:x 在「找出全部」學過 all:x 就算學過（同一個概念，只是換成用筆圈）。
-// 不在檢查範圍：畫畫小屋（描線、連點、著色）的路徑本身就畫在紙上，沒有「答案目標」；換爸爸問是爸爸在問。
+// 連點成圖也在檢查範圍：每張圖第一次出現一定先完整示範；圖上的數字不能超過已經解鎖的數字（adaptive.unlockedNumbers）。
+// 不在檢查範圍：畫畫小屋的描線、著色、自由畫、描字，路徑本身就畫在紙上，沒有「答案目標」；換爸爸問是爸爸在問。
 // 執行：npx tsx scripts/sim-teach.ts [亂數種子]（有違規時 exit 1）
 import { GAMES, PHONICS_MAKERS, ROUND_ITEMS, game as gameOf, type GameDef } from '../src/content/games'
 import { SHEET_MAKERS } from '../src/content/games-worksheet'
 import { THEMES } from '../src/content/themes'
-import { enterTheme } from '../src/lib/theme-play'
+import { enterTheme, themeNow } from '../src/lib/theme-play'
+import { dotsNumbers } from '../src/content/dots'
 import { gameLevel, level, markPlayed, noteAttempt, plays, recordSkill, reportLevel, skill, unlockedNumbers } from '../src/lib/adaptive'
 import { fluencyKey, fluencyTargets } from '../src/lib/fluency'
 import { NUMBER_RANGE, numberPicker } from '../src/games/sheet/NumberFlow'
-import { planChoice, planCount, planDrive, planOrder, planPhonics, planSequence, planSheet, roundState } from '../src/games/pick'
+import { planChoice, planCount, planDots, planDrive, planOrder, planPhonics, planSequence, planSheet, roundState } from '../src/games/pick'
 import { seqSkill } from '../src/content/code'
 
 // 學習引擎會順手寫 IndexedDB，Node 裡沒有：忽略那些錯誤（記憶體裡的狀態照常更新）
@@ -163,6 +165,25 @@ function playSequence(g: GameDef) {
   }
 }
 
+/** 連點成圖一局兩張圖（DotsGame 的 ROUNDS） */
+let dotsPics = 0
+const dotsSeen = new Map<number, Set<string>>()
+function playDots(g: GameDef) {
+  const st = roundState(plays(g.id) === 0)
+  markPlayed(g.id)
+  for (let i = 0; i < 2; i++) {
+    const unlocked = unlockedNumbers()
+    const { pic, show } = planDots(g.id, level(g.id), unlocked, st, i, themeNow()?.dots ?? [])
+    const k = `dots:${pic.id}`
+    dotsPics++
+    const lv = level(g.id)
+    dotsSeen.set(lv, (dotsSeen.get(lv) ?? new Set()).add(pic.id))
+    if (dotsNumbers(pic) > unlocked) violations.push({ day, game: g.id, skill: k, why: `連點的數字到 ${dotsNumbers(pic)}，只解鎖到 ${unlocked}` })
+    if (show) teach(g, k)
+    quiz(g, k, show, '連點成圖（沒示範）')
+  }
+}
+
 function playFluency(g: GameDef) {
   const ts = fluencyTargets()
   // 還沒有學過的數字題：數字快答改出找數字（ChoiceGame 的 fallbackGame）
@@ -197,13 +218,15 @@ function play(id: string) {
       return playOrder(g)
     case 'drive':
       return playDrive(g)
+    case 'dots':
+      return playDots(g)
     case 'sequence':
       return playSequence(g)
   }
 }
 
 // ── 40 天：每天一段主題冒險（4 站）＋ 4 個自由探索 ───────────────────
-const CHECKED = GAMES.filter((g) => !['trace', 'dots', 'coloring', 'free', 'glyph'].includes(g.kind)).map((g) => g.id)
+const CHECKED = GAMES.filter((g) => !['trace', 'coloring', 'free', 'glyph'].includes(g.kind)).map((g) => g.id)
 const DAYS = 40
 const pickN = (pool: string[], n: number) => {
   const a = [...pool]
@@ -246,6 +269,9 @@ const placed = CHECKED.map((id) => gameLevel(gameOf(id).id)?.placed)
   .map((p, k) => (p && !p.skipped ? `${CHECKED[k]} ${p.from}→${p.to}` : ''))
   .filter(Boolean)
 console.log(`選擇題的探測題 ${probes} 題（都是學過的）；校準完成：${placed.join('、') || '（無）'}`)
+console.log(
+  `連點成圖 ${dotsPics} 張：${[...dotsSeen].sort((a, b) => a[0] - b[0]).map(([lv, s]) => `第 ${lv} 級 ${[...s].join('/')}`).join('；')}；最後數字解鎖到 ${unlockedNumbers()}`,
+)
 for (const [k, n] of [...by].sort((a, b) => b[1] - a[1])) console.log(`  ${String(n).padStart(4)}  ${k}`)
 for (const v of violations.slice(0, 12)) console.log(`  例：第 ${v.day} 天 ${v.game} ${v.skill}（${v.why}）`)
 if (violations.length) process.exit(1)
