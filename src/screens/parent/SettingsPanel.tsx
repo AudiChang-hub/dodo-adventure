@@ -7,6 +7,7 @@ import { useUpdateStatus, checkForUpdate, APP_VERSION, BUILD_TIME, type UpdateSt
 import { minutesUsedToday } from '../../lib/session'
 import { THEME_LABEL } from '../../content/vocab'
 import { CHILD_EN, CHILD_ZH } from '../../lib/env'
+import { ResetCard } from './ResetCard'
 
 function Field({ label, hint, children }: { label: string; hint?: string; children: React.ReactNode }) {
   return (
@@ -219,6 +220,8 @@ export function SettingsPanel({ onChanged }: { onChanged: () => void }) {
       </div>
 
       <VersionCard />
+
+      <ResetCard />
     </>
   )
 }
