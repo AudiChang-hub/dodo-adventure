@@ -4,7 +4,7 @@
 import { def } from './registry'
 
 // 開場（第一張圖）、閒置時再唸一次
-def('d.dots.intro', 'dodo', 'Start at home, and connect the dots!')
+def('d.dots.intro', 'dodo', 'Start at home. Go to one!')
 // 連到一半停住 15 秒：問下一個數字在哪裡（只用到 9：圖上最多 1–9）
 const NUM = ['zero', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine']
 for (let n = 2; n <= 9; n++) def(`d.dots.find.${n}`, 'dodo', `Where is ${NUM[n]}?`)
@@ -20,5 +20,5 @@ def('d.dots.start', 'dodo', 'Start at home!')
 def('d.dots.home', 'dodo', 'Hooray! || Back home!')
 // 圖案名字之後的稱讚：稱讚「一路連完」這個方法，輪流兩種說法
 export const DOTS_PRAISE = 2
-def('d.dots.praise.0', 'dodo', 'You connected all the dots!')
+def('d.dots.praise.0', 'dodo', 'You went all the way home!')
 def('d.dots.praise.1', 'dodo', 'You went all the way home!')

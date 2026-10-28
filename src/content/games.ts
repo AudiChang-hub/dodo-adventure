@@ -1,7 +1,9 @@
 import type { Speaker } from './lines'
 import type { StationId } from '../lib/db'
-import { PHONICS, CONFUSE, LOOKALIKE_LOWER, phonicsSkill, wordsOf, wordId, type PhonicsWord, type SoundUnit } from './letters'
-import { VOCAB, AMBIGUOUS, CAT_EXAMPLES, vocab, type Tag } from './vocab'
+import { PHONICS, PHONICS_WORDS, CONFUSE, LOOKALIKE_LOWER, phonicsSkill, wordsOf, wordId, type PhonicsWord, type SoundUnit } from './letters'
+import { VOCAB, AMBIGUOUS, CAT_EXAMPLES, catLine, vocab, type Tag, type VocabEntry } from './vocab'
+import { bridgeLines, keyOfVocab, lexWord, thisIs } from './lexicon'
+import { isUnknown, needsTeach, usable } from '../lib/words'
 import { COLORS, COLOR_EXAMPLES, SHAPES, SIZE_ICONS, COUNT_ICONS, type ShapeId } from './park'
 import { COLOR_LOOKALIKE, SHAPE_LOOKALIKE } from './worksheet-data'
 import { pickTarget, pickPreferred, unlockedNumbers, mastered, skill, isNew } from '../lib/adaptive'
@@ -44,6 +46,13 @@ export interface ChoiceItem {
    * 一起練、自己答時一直掛在選項上方；教學卡會先把同一個徽章貼在答案那一邊，教過才考。
    */
   cue?: Extract<Visual, { t: 'cue' }>
+  /** 教學卡上教了哪些單字（lexicon.ts 的 key）：出題規劃決定要跑教學卡時，記成「教過」（lib/words.ts） */
+  teachWords?: string[]
+  /**
+   * 技能學過了、但這一題還是要先跑教學卡：答案的字家長勾了「他不認得」（要先重教），
+   * 或教過的干擾選項一個都沒有、教學卡上要多教一個字。
+   */
+  needTeach?: boolean
 }
 
 /**
@@ -120,6 +129,12 @@ const themeFav = <T extends { id: string }>(pool: readonly T[], ids: (t: NonNull
 // ── 字母森林：自然發音（PRD §6.1b）────────────────────────────
 // 不考字母名稱，考「哪個字是這個音開頭」。熟練度記在字母音上（phonics:b），三個遊戲共用：
 // 任何一個遊戲遇到新的音，都先跑一次完整的學習循環（PhonicsIntro）再一起練、自己答。
+//
+// 單字也不教不考（2026-10-28）：
+// - 答案的字：剛學的音用學習循環教過的三個關鍵字；熟了之後換複習字，但複習字第一次出現前先跑一張單字卡（看圖、聽名字、開頭音上色）。
+// - 干擾圖：只用孩子教過的字（任何地方教過都算，例如動物村學過的 dog）；不夠就少放幾個（最少 2 個選項），
+//   一個都沒有時（第一次玩、只學過這個音）先用單字卡教一個別的音開頭的字。
+// - 家長勾了「他不認得」的字不當干擾圖、不放進學習循環；是答案時先重新教一次。
 
 export type PhonicsMode = 'start' | 'same' | 'letter'
 
@@ -133,9 +148,18 @@ export interface PhonicsOption {
   cue?: PhonicsWord
 }
 
+/** 自己答之前先教的一張單字卡：一張圖、幾句話（念完點一下再聽一次第一句） */
+export interface WordCard {
+  /** 單字 key（lexicon.ts） */
+  key: string
+  word: PhonicsWord
+  lines: string[]
+}
+
 export interface PhonicsItem {
   itemId: string
   skill: string
+  /** 學習循環用的音：家長勾掉的關鍵字已經換成同一個音的其他字 */
   unit: SoundUnit
   mode: PhonicsMode
   /** 「哪個跟 bus 開頭一樣？」的 bus */
@@ -147,12 +171,14 @@ export interface PhonicsItem {
   answer: string
   /** 答對之後：這個字配上這個音（Ball! buh, buh, ball!） */
   after: string[]
+  /** 自己答之前先教的字（新的複習字、補上的干擾字、家長勾掉後重教的字），依序一張一張 */
+  wordCards: WordCard[]
 }
 
 /** 同時在學（還沒熟）的音最多幾個：熟了一個才開下一個 */
 const LEARNING_WINDOW = 3
 
-/** 依教學順序開放：前面有三個還沒熟的音就先停下來 */
+/** 依教學順序開放：前面有三個還沒熟的音就先停下來（延後的音不在 PHONICS 裡，不會開放） */
 export function unlockedSounds(): SoundUnit[] {
   const out: SoundUnit[] = []
   let learning = 0
@@ -164,7 +190,7 @@ export function unlockedSounds(): SoundUnit[] {
   return out
 }
 
-/** 學過一陣子（2 格以上）：開始用新字複習、聽音找字母拿掉圖片鷹架 */
+/** 學過一陣子（2 格以上）：開始用複習字、聽音找字母拿掉圖片鷹架 */
 const familiar = (u: SoundUnit) => skill(phonicsSkill(u.letter)).box >= 2
 
 /** 兩個字母是不是同一個音（c、k 都是 /k/） */
@@ -178,15 +204,26 @@ function soundsLike(x: UnitWord, u: SoundUnit) {
   return [...(x.alt ?? '')].some((c) => c === u.letter || PHONICS.some((p) => p.letter === c && p.phoneme === u.phoneme))
 }
 
-/** 答案用的字：剛學時用三個關鍵字；熟一點之後用沒看過的新字，確認是真的懂這個音 */
-function answerWord(u: SoundUnit, exclude: string[] = []): PhonicsWord {
-  const base = familiar(u) && u.review.length ? u.review : u.keys
-  const pool = base.filter((x) => !exclude.includes(x.w))
-  // 主題的字優先（公車旅行的 b 用 bus），但不是每一題：同一個音一局出好幾次時還是要換字
-  const fav = themeWords(pool)
-  if (fav.length && Math.random() < THEME_WORD_SHARE) return pick(fav)
-  return pick(pool.length ? pool : wordsOf(u).filter((x) => !exclude.includes(x.w)))
+const wkey = (x: PhonicsWord) => wordId(x.w)
+/** 一個字在 PHONICS 只會有一筆（同一張圖同一個名字），第一次出現的那個音為準 */
+const UNIT_WORDS: UnitWord[] = PHONICS_WORDS.filter((x, i) => PHONICS_WORDS.findIndex((y) => y.w === x.w) === i)
+
+/** 新的音（還沒自己答過）：這一題一定先跑學習循環，循環裡的三個字這一題就算教過 */
+const introNow = (u: SoundUnit) => isNew(phonicsSkill(u.letter))
+
+/** 學習循環的三個字：家長勾了「他不認得」的關鍵字，換成同一個音、沒被勾的複習字（不當例子） */
+export function introUnit(u: SoundUnit): SoundUnit {
+  if (!u.keys.some((k) => isUnknown(wkey(k)))) return u
+  const spare = u.review.filter((x) => !isUnknown(wkey(x)) && !x.alt)
+  const keys = u.keys.map((k) => (isUnknown(wkey(k)) ? (spare.shift() ?? k) : k)) as SoundUnit['keys']
+  return { ...u, keys }
 }
+
+/** 這個字這一題能不能直接考：教過（或這一題的學習循環剛教），而且家長勾選之後有重新教過 */
+const ready = (x: PhonicsWord, u: SoundUnit) => (introNow(u) && introUnit(u).keys.some((k) => k.w === x.w)) || !needsTeach(wkey(x))
+
+/** 熟了之後換新的複習字的機會（一題最多教一個新字；教過的複習字照常輪流出） */
+const NEW_WORD_SHARE = 0.5
 
 /** 主題的字出成答案的機會 */
 const THEME_WORD_SHARE = 0.6
@@ -196,29 +233,65 @@ const themeWords = <T extends PhonicsWord>(ws: readonly T[]): T[] => {
   const t = themeNow()
   return t ? ws.filter((x) => t.words.includes(x.w)) : []
 }
+/** 主題的字優先（公車旅行的 b 用 bus），但不是每一題：同一個音一局出好幾次時還是要換字 */
+const themePick = <T extends PhonicsWord>(pool: readonly T[]): T => {
+  const fav = themeWords(pool)
+  return fav.length && Math.random() < THEME_WORD_SHARE ? pick(fav) : pick(pool)
+}
 
-/** 干擾圖：別的音開頭的字，優先用已經開放的音的關鍵字（孩子叫得出名字）；最高難度放聽起來相近的音 */
-function distractorWords(u: SoundUnit, n: number, level: number): PhonicsWord[] {
-  const ok = (x: UnitWord) => !soundsLike(x, u)
-  const open = unlockedSounds().filter((x) => !sameSound(x, u))
-  const units = open.length >= n ? open : PHONICS.filter((x) => !sameSound(x, u)).slice(0, Math.max(n + 2, 6))
+/** 單字卡：字母森林的字（Noodles. → Noodles starts like Nnnnest!，字幕把開頭字母上色） */
+const soundCard = (x: PhonicsWord, u: SoundUnit): WordCard => ({ key: wkey(x), word: x, lines: [...bridgeLines(wkey(x), `ph.word.${wkey(x)}`), `ph.${u.letter}.echo.${wkey(x)}`] })
+/** 單字卡：只教名字（干擾圖用，不提它的開頭音：This is a | sun.） */
+const nameCard = (x: PhonicsWord): WordCard => ({ key: wkey(x), word: x, lines: bridgeLines(wkey(x)) })
+
+/**
+ * 答案用的字：剛學時用三個關鍵字；熟一點之後用複習字，確認是真的懂這個音、不是記住某一張圖。
+ * 還沒教過的字（新的複習字、新換上的關鍵字、家長勾掉的字）也可以當答案，但這一題先跑一張單字卡。
+ */
+function answerWord(u: SoundUnit, exclude: string[] = []): { w: PhonicsWord; card: boolean } {
+  const keys = introUnit(u).keys.filter((x) => !exclude.includes(x.w))
+  const rev = familiar(u) ? u.review.filter((x) => !exclude.includes(x.w) && !keys.includes(x)) : []
+  const ok = (x: PhonicsWord) => ready(x, u)
+  const fresh = [...rev, ...keys].filter((x) => !ok(x))
+  const readyRev = rev.filter(ok)
+  const pool = readyRev.length ? readyRev : keys.filter(ok)
+  if (fresh.length && (!pool.length || Math.random() < NEW_WORD_SHARE)) return { w: themePick(fresh), card: true }
+  if (pool.length) return { w: themePick(pool), card: false }
+  const any = wordsOf(u).filter((x) => !exclude.includes(x.w))
+  const w = themePick(any.length ? any : wordsOf(u))
+  return { w, card: !ok(w) }
+}
+
+/**
+ * 干擾圖：別的音開頭、孩子教過的字。優先用已經開放的音的關鍵字（剛在字母森林看過），
+ * 最高難度放聽起來相近的音；一個音只放一張。教過的字不夠就少放幾張；一張都沒有時，cards 是要先教的那一張。
+ */
+function distractorWords(u: SoundUnit, n: number, level: number, exclude: string[] = []): { words: PhonicsWord[]; cards: WordCard[] } {
+  const okSound = (x: UnitWord) => !soundsLike(x, u) && !exclude.includes(x.w) && !isUnknown(wkey(x))
+  const cands = UNIT_WORDS.filter((x) => okSound(x) && usable(wkey(x)))
+  const open = unlockedSounds()
   const out: UnitWord[] = []
-  const add = (cu: SoundUnit) => {
-    const cands = cu.keys.map((k) => ({ ...k, unit: cu })).filter(ok)
+  const add = (list: UnitWord[]) => {
+    if (out.length >= n) return
+    const free = list.filter((x) => !out.some((o) => o.unit === x.unit || o.w === x.w))
+    if (!free.length) return
     // 主題的字當干擾也好：公車旅行裡 bus 的旁邊放 taxi、car
-    const fav = themeWords(cands)
-    if (cands.length) out.push(pick(fav.length ? fav : cands))
+    out.push(themePick(free))
   }
   if (level >= 4)
-    for (const c of CONFUSE[u.letter] ?? '') {
-      const cu = PHONICS.find((x) => x.letter === c)
-      if (cu && out.length < n - 1) add(cu)
-    }
-  for (const cu of shuffle(units)) {
-    if (out.length >= n) break
-    if (!out.some((o) => o.unit === cu)) add(cu)
-  }
-  return out
+    for (const c of CONFUSE[u.letter] ?? '') if (out.length < n - 1) add(cands.filter((x) => x.unit.letter === c))
+  const isKey = (x: UnitWord) => x.unit.keys.some((k) => k.w === x.w)
+  const keysOpen = cands.filter((x) => open.includes(x.unit) && isKey(x))
+  for (let k = 0; k < n; k++) add(keysOpen)
+  for (let k = 0; k < n; k++) add(cands)
+  // 同一個音可以放第二張（教過的字很少時，寧可同一個音兩張，也不放沒教過的）
+  for (const x of shuffle(cands)) if (out.length < n && !out.some((o) => o.w === x.w)) out.push(x)
+  if (out.length) return { words: out, cards: [] }
+  // 一個教過的字都沒有：教一個字（後面的音的關鍵字，第 1 層優先），只教名字、不教它的音
+  const later = UNIT_WORDS.filter((x) => okSound(x) && isKey(x) && !x.alt)
+  const easy = later.filter((x) => lexWord(wkey(x))?.tier === 1)
+  const c = pick(easy.length ? easy : later.length ? later : UNIT_WORDS.filter(okSound))
+  return { words: [c], cards: [nameCard(c)] }
 }
 
 /**
@@ -240,69 +313,85 @@ const pictureOpt = (x: PhonicsWord): PhonicsOption => ({ id: wordId(x.w), word: 
 const phStart = (level: number, recent: string[]): PhonicsItem => {
   const u = pickSound(unlockedSounds(), recent)
   const ans = answerWord(u)
-  const opts = shuffle([ans, ...distractorWords(u, optCount(level) - 1, level)]).map(pictureOpt)
+  const d = distractorWords(u, optCount(level) - 1, level, [ans.w.w])
+  const opts = shuffle([ans.w, ...d.words]).map(pictureOpt)
   return {
-    itemId: `${u.letter}:${wordId(ans.w)}`,
+    itemId: `${u.letter}:${wordId(ans.w.w)}`,
     skill: phonicsSkill(u.letter),
-    unit: u,
+    unit: introUnit(u),
     mode: 'start',
     prompt: [`ph.${u.letter}.q.start`],
     names: opts.map((o) => o.id),
     options: opts,
-    answer: wordId(ans.w),
-    after: [`ph.${u.letter}.echo.${wordId(ans.w)}`],
+    answer: wordId(ans.w.w),
+    after: [`ph.${u.letter}.echo.${wordId(ans.w.w)}`],
+    wordCards: [...(ans.card ? [soundCard(ans.w, u)] : []), ...d.cards],
   }
 }
 
 /** 哪個跟 bus 開頭一樣？ */
 const phSame = (level: number, recent: string[]): PhonicsItem => {
   const u = pickSound(unlockedSounds(), recent)
-  const keyFav = themeWords(u.keys)
-  const stim = pick(keyFav.length ? keyFav : u.keys)
+  const keys = introUnit(u).keys
+  const ok = keys.filter((x) => ready(x, u))
+  const stim = themePick(ok.length ? ok : keys)
+  const stimCard = !ready(stim, u)
   const ans = answerWord(u, [stim.w])
-  const opts = shuffle([ans, ...distractorWords(u, optCount(level) - 1, level)]).map(pictureOpt)
+  const d = distractorWords(u, optCount(level) - 1, level, [ans.w.w, stim.w])
+  const opts = shuffle([ans.w, ...d.words]).map(pictureOpt)
   return {
-    itemId: `${u.letter}:${wordId(stim.w)}>${wordId(ans.w)}`,
+    itemId: `${u.letter}:${wordId(stim.w)}>${wordId(ans.w.w)}`,
     skill: phonicsSkill(u.letter),
-    unit: u,
+    unit: introUnit(u),
     mode: 'same',
     stimulus: stim,
     prompt: [`ph.same.${wordId(stim.w)}`],
     names: opts.map((o) => o.id),
     options: opts,
-    answer: wordId(ans.w),
-    after: [`ph.${u.letter}.echo.${wordId(ans.w)}`],
+    answer: wordId(ans.w.w),
+    after: [`ph.${u.letter}.echo.${wordId(ans.w.w)}`],
+    wordCards: [...(stimCard ? [soundCard(stim, u)] : []), ...(ans.card ? [soundCard(ans.w, u)] : []), ...d.cards],
   }
 }
 
-/** 聽 /b/ 找字母：熟悉（2 格以上）的音才考；都還不熟時，字母卡下面放關鍵字小圖當鷹架 */
+/**
+ * 聽 /b/ 找字母：熟悉（2 格以上）的音才考；都還不熟時，字母卡下面放關鍵字小圖當鷹架。
+ * 干擾的字母優先用已經學過的音（沒學過的音只在一個都沒有時放一個，而且不放圖）；
+ * 鷹架的小圖一定是教過的字，有一張字母卡找不到教過的圖，就全部都不放（不然只有答案有圖）。
+ */
 const phLetter = (level: number, recent: string[]): PhonicsItem => {
   const open = unlockedSounds()
   const known = open.filter(familiar)
   // 熟悉的音少於兩個時，一直考同一個太單調：其他開放的音也出，但帶圖片鷹架
   const u = pickSound(known.length >= 2 ? known : open, recent)
-  const scaffold = !familiar(u)
   const n = optCount(level) - 1
-  const others = open.filter((x) => !sameSound(x, u))
-  const pool = others.length >= n ? others : PHONICS.filter((x) => !sameSound(x, u)).slice(0, 6)
+  const learned = PHONICS.filter((x) => !sameSound(x, u) && !isNew(phonicsSkill(x.letter)))
+  const others = learned.filter((x) => open.includes(x)).length >= n ? learned.filter((x) => open.includes(x)) : learned
+  const pool = others.length ? others : open.filter((x) => !sameSound(x, u)).slice(0, 1)
   const look: SoundUnit[] = []
   if (level >= 4)
     for (const c of LOOKALIKE_LOWER[u.letter] ?? '') {
-      const cu = PHONICS.find((x) => x.letter === c)
-      if (cu && !sameSound(cu, u) && look.length < n - 1) look.push(cu)
+      const cu = pool.find((x) => x.letter === c)
+      if (cu && look.length < n - 1) look.push(cu)
     }
   const wrong = [...look, ...sample(pool, n - look.length, [u, ...look])]
-  const opts = shuffle([u, ...wrong]).map((x): PhonicsOption => ({ id: x.letter, letter: x.letter, ...(scaffold ? { cue: x.keys[0] } : {}) }))
+  // 這一題的音（u）新的話會先跑學習循環；其他字母卡的小圖要本來就教過
+  const cueOf = (x: SoundUnit) => introUnit(x).keys.find((k) => (x === u ? ready(k, x) : !needsTeach(wkey(k))) && !isUnknown(wkey(k)))
+  const cues = [u, ...wrong].map(cueOf)
+  const scaffold = !familiar(u) && cues.every(Boolean)
+  const opts = shuffle([u, ...wrong]).map((x): PhonicsOption => ({ id: x.letter, letter: x.letter, ...(scaffold ? { cue: cueOf(x) } : {}) }))
+  const echo = cueOf(u) ?? introUnit(u).keys[0]
   return {
     itemId: u.letter,
     skill: phonicsSkill(u.letter),
-    unit: u,
+    unit: introUnit(u),
     mode: 'letter',
     prompt: [`en.where.sound.${u.letter}`],
     names: [],
     options: opts,
     answer: u.letter,
-    after: [`ph.${u.letter}.echo.${wordId(u.keys[0].w)}`],
+    after: [`ph.${u.letter}.echo.${wordId(echo.w)}`],
+    wordCards: ready(echo, u) ? [] : [soundCard(echo, u)],
   }
 }
 
@@ -399,43 +488,113 @@ function themed<T extends { theme: string }>(pool: readonly T[]): T[] {
 }
 const themedVocab = () => themed(VOCAB)
 
+// 單字也不教不考（2026-10-28）：干擾選項、動動腦的答案圖都只用教過的字（lib/words.ts 的 usable）。
+// 教過的字不夠就少放幾個選項（最少 2 個）；一個都沒有時，在教學卡上多教一個字（第 1 層優先），這一題一定先跑教學卡。
+const vkey = (x: VocabEntry) => keyOfVocab(x.id)
+const usableVocab = (x: VocabEntry) => usable(vkey(x))
+
+/** 從 pool 挑最多 n 個教過的干擾選項：prefer 裡的先挑 */
+function knownOthers(pool: readonly VocabEntry[], n: number, prefer: (x: VocabEntry) => boolean = () => true): VocabEntry[] {
+  const ok = pool.filter(usableVocab)
+  const first = sample(ok.filter(prefer), n)
+  return [...first, ...sample(ok, n - first.length, first)]
+}
+
+/** 補一個要在教學卡上先教的字：家長沒勾的、第 1 層優先 */
+function companion(pool: readonly VocabEntry[], prefer: (x: VocabEntry) => boolean = () => true): VocabEntry | null {
+  const c = pool.filter((x) => !isUnknown(vkey(x)))
+  if (!c.length) return null
+  const t1 = c.filter((x) => lexWord(vkey(x))?.tier === 1)
+  const best = t1.filter(prefer).length ? t1.filter(prefer) : t1.length ? t1 : c
+  return pick(best)
+}
+
+const emojiOf = (x: VocabEntry): Visual => ({ t: 'emoji', icon: x.icon })
+
+/**
+ * 教學卡上教一個或兩個字：每個字的台詞經過 lexicon.ts 的 bridgeLines（之後的搭橋式中文會在這裡插入「英－中－英」），
+ * 念到哪一句就指著那個字的圖。
+ */
+function wordTeach(items: { x: VocabEntry; line: string }[]): TeachSpec {
+  if (items.length === 1) return { visual: emojiOf(items[0].x), lines: bridgeLines(vkey(items[0].x), items[0].line) }
+  const per = items.map((it) => bridgeLines(vkey(it.x), it.line))
+  return { visual: items.map((it) => emojiOf(it.x)), lines: per.flat(), focus: per.flatMap((ls, i) => ls.map(() => i)), short: per[0] }
+}
+
 const zFind = (level: number, recent: string[]): ChoiceItem => {
   const pool = themedVocab()
   const v = pickPreferred(themeFav(pool, (t) => t.vocab), pool, (x) => `vocab:${x.id}`, VOCAB.filter((x) => recent.includes(x.id)))
   // 低難度用不同類別當干擾（貓 vs 汽車），高難度用同一類（貓 vs 狗）
-  const others = VOCAB.filter((x) => x.id !== v.id && (level >= 3 ? x.theme === v.theme : x.theme !== v.theme))
-  const opts = shuffle([v, ...sample(others.length >= 3 ? others : VOCAB.filter((x) => x.id !== v.id), optCount(level) - 1)])
+  const near = (x: VocabEntry) => (level >= 3 ? x.theme === v.theme : x.theme !== v.theme)
+  const rest = VOCAB.filter((x) => x.id !== v.id)
+  let others = knownOthers(rest, optCount(level) - 1, near)
+  const comp = others.length ? null : companion(rest, near)
+  if (comp) others = [comp]
+  const opts = shuffle([v, ...others])
   return {
     itemId: v.id,
     skill: `vocab:${v.id}`,
     prompt: [`z.where.${v.id}`],
-    options: opts.map((x) => ({ id: x.id, v: { t: 'emoji', icon: x.icon } })),
+    options: opts.map((x) => ({ id: x.id, v: emojiOf(x) })),
     answer: v.id,
-    correction: [`z.itis.${v.id}`],
-    teach: { visual: { t: 'emoji', icon: v.icon }, lines: [`teach.vocab.${v.id}`] },
+    correction: [thisIs(vkey(v))],
+    teach: wordTeach([{ x: v, line: `teach.vocab.${v.id}` }, ...(comp ? [{ x: comp, line: `teach.vocab.${comp.id}` }] : [])]),
+    teachWords: [vkey(v), ...(comp ? [vkey(comp)] : [])],
+    needTeach: !!comp || needsTeach(vkey(v)),
   }
+}
+
+/** 動動腦教學卡的兩個例子：預設的兩個，家長勾掉的往後換（CAT_EXAMPLES 的候選字） */
+function catExamples(tag: Tag): VocabEntry[] {
+  const c = CAT_EXAMPLES[tag].map(vocab).filter((x) => x && !isUnknown(vkey(x)))
+  return c.slice(0, 2)
 }
 
 const zCategory = (level: number, recent: string[]): ChoiceItem => {
   const tags: Tag[] = ['fly', 'water', 'wheels', 'eat', 'legs4']
   const open = tags.slice(0, level >= 3 ? 5 : 4)
   const tag = pickPreferred(open.filter((t) => themeNow()?.tags?.includes(t)), open, (t) => `cat:${t}`, recent as Tag[])
-  const ok = (x: (typeof VOCAB)[number]) => !AMBIGUOUS[tag].includes(x.id)
-  const yes = themed(VOCAB.filter((x) => x.tags.includes(tag) && ok(x)))
+  const ok = (x: VocabEntry) => !AMBIGUOUS[tag].includes(x.id)
+  const ex = catExamples(tag)
+  // 新的分類一定先跑教學卡：卡上的兩個例子這一題就算教過
+  const teaching = isNew(`cat:${tag}`)
+  const known = (x: VocabEntry) => usableVocab(x) || (teaching && ex.includes(x))
+  let yes = themed(VOCAB.filter((x) => x.tags.includes(tag) && ok(x) && known(x)))
+  let needTeach = false
+  // 動動腦的答案圖也要是教過的字：一個都沒有（例如家長把例子都勾掉了）就重跑教學卡，用卡上的例子當答案
+  if (!yes.length) {
+    needTeach = true
+    yes = ex.length ? ex : VOCAB.filter((x) => x.tags.includes(tag) && ok(x) && !isUnknown(vkey(x))).slice(0, 1)
+  }
   // 主題的東西當答案：公車旅行問「哪個有輪子」，答案是公車、計程車
   const fav = themeFav(yes, (t) => t.vocab)
   const ans = pick(fav.length ? fav : yes)
-  const wrong = sample(VOCAB.filter((x) => !x.tags.includes(tag) && ok(x)), optCount(level) - 1)
+  const no = VOCAB.filter((x) => !x.tags.includes(tag) && ok(x))
+  let wrong = knownOthers(no, optCount(level) - 1)
+  const comp = wrong.length ? null : companion(no)
+  if (comp) {
+    wrong = [comp]
+    needTeach = true
+  }
   const opts = shuffle([ans, ...wrong])
+  const shown = ex.length && (ex.includes(ans) || !needTeach) ? ex : [ans]
+  const exLine = (x: VocabEntry, i: number) => (CAT_EXAMPLES[tag].includes(x.id) ? catLine(tag, x.id, i) : thisIs(vkey(x)))
   return {
     itemId: tag,
     skill: `cat:${tag}`,
     prompt: [`z.cat.${tag}`],
-    options: opts.map((x) => ({ id: x.id, v: { t: 'emoji', icon: x.icon } })),
+    options: opts.map((x) => ({ id: x.id, v: emojiOf(x) })),
     answer: ans.id,
-    correction: [`z.itis.${ans.id}`],
-    // 先看例子：Birds can fly. Airplanes can fly, too!
-    teach: { visual: CAT_EXAMPLES[tag].map((id) => ({ t: 'emoji', icon: vocab(id).icon }) as Visual), focus: [0, 1], lines: [`teach.cat.${tag}.0`, `teach.cat.${tag}.1`] },
+    correction: [thisIs(vkey(ans))],
+    // 先看例子：Birds can fly. Airplanes can fly, too!（不夠教過的干擾選項時，再多教一個字：This is a | car.）
+    teach: {
+      visual: [...shown.map(emojiOf), ...(comp ? [emojiOf(comp)] : [])],
+      focus: [0, 1, 2],
+      lines: [...shown.map(exLine), ...(comp ? [thisIs(vkey(comp))] : [])],
+      short: [exLine(shown[0], 0)],
+    },
+    teachWords: [...shown.map(vkey), ...(comp ? [vkey(comp)] : [])],
+    needTeach,
   }
 }
 
@@ -443,15 +602,21 @@ const zSound = (level: number, recent: string[]): ChoiceItem => {
   const pool = VOCAB.filter((x) => x.sound)
   const weighted = themed(pool)
   const v = pickPreferred(themeFav(weighted, (t) => t.vocab), weighted, (x) => `sound:${x.id}`, pool.filter((x) => recent.includes(x.id)))
-  const opts = shuffle([v, ...sample(pool.filter((x) => x.id !== v.id), optCount(level) - 1)])
+  const rest = pool.filter((x) => x.id !== v.id)
+  let others = knownOthers(rest, optCount(level) - 1)
+  const comp = others.length ? null : companion(rest)
+  if (comp) others = [comp]
+  const opts = shuffle([v, ...others])
   return {
     itemId: v.id,
     skill: `sound:${v.id}`,
     prompt: [`z.sound.${v.id}`],
-    options: opts.map((x) => ({ id: x.id, v: { t: 'emoji', icon: x.icon } })),
+    options: opts.map((x) => ({ id: x.id, v: emojiOf(x) })),
     answer: v.id,
-    correction: [`z.itis.${v.id}`],
-    teach: { visual: { t: 'emoji', icon: v.icon }, lines: [`teach.sound.${v.id}`] },
+    correction: [thisIs(vkey(v))],
+    teach: wordTeach([{ x: v, line: `teach.sound.${v.id}` }, ...(comp ? [{ x: comp, line: `teach.sound.${comp.id}` }] : [])]),
+    teachWords: [vkey(v), ...(comp ? [vkey(comp)] : [])],
+    needTeach: !!comp || needsTeach(vkey(v)),
   }
 }
 

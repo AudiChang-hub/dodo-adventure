@@ -70,7 +70,8 @@ export const letterEntry = (l: string) => LETTERS.find((e) => e.letter === l)!
 
 // ══ 自然發音：從單字認識字母（PRD §6.1b）══════════════════════════════
 //
-// 【教學順序】m s a t b f n o d c r p e l h g w j v y k
+// 【教學順序】m s a t b f n d c r p e l h g w k
+// （2026-10-28 單字盤點後 o、j、v、y 延後，見 DEFERRED_PHONICS；原本是 m s a t b f n o d c r p e l h g w j v y k）
 //
 // 依據的原則（不照 A 到 Z）：
 // 1. 連續音先教：m、s 可以一直拉長（mmm、sss），最容易從單字裡「聽出來」；
@@ -149,31 +150,53 @@ const W = (w: string, icon: string, alt?: string): PhonicsWord => (alt ? { w, ic
 const sound = (say: string, repeat: 1 | 2 = 2): Cue => ({ kind: 'sound', say, repeat })
 const stretch = (say: string, word: string): Cue => ({ kind: 'stretch', say, word })
 
+// 2026-10-28 單字盤點（docs/單字盤點.md 第 3 章）之後的版本：
+// - 換掉陌生、圖不好認、和別的名字打架的字（notebook → noodles、envelope → elevator、goat／guitar → gift／grapes…）；
+// - 複習字只留第 1、2 層、畫得出來的字；a 沒有好的複習字，複習時重複三個關鍵字；
+// - 找不到三個好例字的音（o、j、v、y）延後，放在下面的 DEFERRED_PHONICS，不出現在字母森林。
+// 複習字第一次當答案之前，一定先用單字卡教過（games/phonics/PhonicsGame.tsx），不再「刻意用沒看過的字考」。
 export const PHONICS: SoundUnit[] = [
-  { letter: 'm', phoneme: 'm', ipa: '/m/', cue: sound('Mmmmm', 1), keys: [W('moon', 'crescent-moon'), W('mouse', 'mouse-face'), W('monkey', 'monkey-face')], review: [W('mushroom', 'mushroom'), W('motorcycle', 'motorcycle'), W('mammoth', 'mammoth', 'e'), W('mango', 'mango')] },
-  { letter: 's', phoneme: 's', ipa: '/s/', cue: stretch('Ssssnake', 'snake'), keys: [W('sun', 'sun-with-face'), W('snake', 'snake'), W('socks', 'socks')], review: [W('seal', 'seal'), W('sandwich', 'sandwich'), W('snail', 'snail')] },
-  { letter: 'a', phoneme: 'æ', ipa: '/æ/', cue: { kind: 'word', word: 'apple' }, keys: [W('apple', 'red-apple'), W('ant', 'ant'), W('ambulance', 'ambulance')], review: [W('astronaut', 'astronaut'), W('anchor', 'anchor'), W('axe', 'axe')] },
-  { letter: 't', phoneme: 't', ipa: '/t/', cue: sound('tuh'), keys: [W('tiger', 'tiger-face'), W('turtle', 'turtle'), W('taxi', 'taxi')], review: [W('T-rex', 't-rex', 'd'), W('tomato', 'tomato'), W('tent', 'tent'), W('teddy bear', 'teddy-bear', 'b')] },
-  { letter: 'b', phoneme: 'b', ipa: '/b/', cue: sound('buh'), keys: [W('bus', 'bus'), W('ball', 'soccer-ball'), W('bear', 'bear')], review: [W('banana', 'banana'), W('balloon', 'balloon'), W('butterfly', 'butterfly'), W('bicycle', 'bicycle')] },
-  { letter: 'f', phoneme: 'f', ipa: '/f/', cue: stretch('Ffffrog', 'frog'), keys: [W('fish', 'fish'), W('fox', 'fox'), W('frog', 'frog')], review: [W('fire truck', 'fire-engine', 'c'), W('feather', 'feather'), W('flamingo', 'flamingo')] },
-  { letter: 'n', phoneme: 'n', ipa: '/n/', cue: stretch('Nnnnest', 'nest'), keys: [W('nest', 'nest-with-eggs'), W('nose', 'nose'), W('notebook', 'notebook', 'b')], review: [W('nine', 'keycap-9'), W('net', 'goal-net')] },
-  { letter: 'o', phoneme: 'ɑ', ipa: '/ɑ/', cue: sound('ah'), keys: [W('octopus', 'octopus'), W('otter', 'otter', 'b'), W('ox', 'ox', 'cb')], review: [W('olive', 'olive')] },
+  { letter: 'm', phoneme: 'm', ipa: '/m/', cue: sound('Mmmmm', 1), keys: [W('moon', 'crescent-moon'), W('mouse', 'mouse-face'), W('monkey', 'monkey-face')], review: [W('mushroom', 'mushroom'), W('mango', 'mango'), W('milk', 'glass-of-milk')] },
+  { letter: 's', phoneme: 's', ipa: '/s/', cue: stretch('Ssssnake', 'snake'), keys: [W('sun', 'sun-with-face'), W('snake', 'snake'), W('socks', 'socks')], review: [W('soap', 'soap'), W('sandwich', 'sandwich'), W('snail', 'snail')] },
+  { letter: 'a', phoneme: 'æ', ipa: '/æ/', cue: { kind: 'word', word: 'apple' }, keys: [W('apple', 'red-apple'), W('ant', 'ant'), W('ambulance', 'ambulance')], review: [] },
+  { letter: 't', phoneme: 't', ipa: '/t/', cue: sound('tuh'), keys: [W('tiger', 'tiger-face'), W('turtle', 'turtle'), W('taxi', 'taxi')], review: [W('T-rex', 't-rex', 'd'), W('tomato', 'tomato'), W('toothbrush', 'toothbrush'), W('teddy bear', 'teddy-bear', 'b')] },
+  { letter: 'b', phoneme: 'b', ipa: '/b/', cue: sound('buh'), keys: [W('bus', 'bus'), W('ball', 'soccer-ball'), W('bear', 'bear')], review: [W('banana', 'banana'), W('balloon', 'balloon'), W('butterfly', 'butterfly'), W('bike', 'bicycle')] },
+  { letter: 'f', phoneme: 'f', ipa: '/f/', cue: stretch('Ffffrog', 'frog'), keys: [W('fish', 'fish'), W('fox', 'fox'), W('frog', 'frog')], review: [W('fire truck', 'fire-engine', 'c'), W('foot', 'foot', 'l'), W('flower', 'sunflower', 's')] },
+  { letter: 'n', phoneme: 'n', ipa: '/n/', cue: stretch('Nnnnest', 'nest'), keys: [W('nest', 'nest-with-eggs'), W('nose', 'nose'), W('noodles', 'steaming-bowl')], review: [] },
   { letter: 'd', phoneme: 'd', ipa: '/d/', cue: sound('duh'), keys: [W('dinosaur', 'sauropod'), W('dog', 'dog-face'), W('duck', 'duck')], review: [W('deer', 'deer'), W('dolphin', 'dolphin')] },
-  { letter: 'c', phoneme: 'k', ipa: '/k/', cue: sound('kuh'), keys: [W('car', 'automobile'), W('cat', 'cat-face'), W('cow', 'cow-face')], review: [W('cookie', 'cookie'), W('carrot', 'carrot'), W('camel', 'camel'), W('cupcake', 'cupcake', 'c')] },
-  { letter: 'r', phoneme: 'r', ipa: '/r/', cue: stretch('Rrrrabbit', 'rabbit'), keys: [W('rabbit', 'rabbit-face'), W('rocket', 'rocket'), W('rainbow', 'rainbow')], review: [W('robot', 'robot'), W('ring', 'ring')] },
+  { letter: 'c', phoneme: 'k', ipa: '/k/', cue: sound('kuh'), keys: [W('car', 'automobile'), W('cat', 'cat-face'), W('cow', 'cow-face')], review: [W('cookie', 'cookie'), W('carrot', 'carrot'), W('cake', 'birthday-cake', 'b'), W('cupcake', 'cupcake', 'c')] },
+  { letter: 'r', phoneme: 'r', ipa: '/r/', cue: stretch('Rrrrabbit', 'rabbit'), keys: [W('rabbit', 'rabbit-face'), W('rocket', 'rocket'), W('rainbow', 'rainbow')], review: [W('robot', 'robot'), W('rice', 'cooked-rice')] },
   { letter: 'p', phoneme: 'p', ipa: '/p/', cue: sound('puh'), keys: [W('pig', 'pig-face'), W('panda', 'panda'), W('penguin', 'penguin')], review: [W('pizza', 'pizza'), W('pear', 'pear'), W('popcorn', 'popcorn'), W('police car', 'police-car', 'c')] },
-  { letter: 'e', phoneme: 'ɛ', ipa: '/ɛ/', cue: sound('eh'), keys: [W('egg', 'egg'), W('elephant', 'elephant'), W('envelope', 'envelope', 'lm')], review: [] },
-  { letter: 'l', phoneme: 'l', ipa: '/l/', cue: stretch('Llllion', 'lion'), keys: [W('lion', 'lion'), W('lemon', 'lemon'), W('lollipop', 'lollipop')], review: [W('leaf', 'leaf-fluttering-in-wind'), W('ladybug', 'lady-beetle', 'b'), W('lizard', 'lizard'), W('llama', 'llama')] },
-  { letter: 'h', phoneme: 'h', ipa: '/h/', cue: sound('huh'), keys: [W('horse', 'horse'), W('helicopter', 'helicopter'), W('hippo', 'hippopotamus')], review: [W('hedgehog', 'hedgehog'), W('hamburger', 'hamburger'), W('house', 'house'), W('hot dog', 'hot-dog')] },
-  { letter: 'g', phoneme: 'g', ipa: '/g/', cue: { kind: 'word', word: 'goat' }, keys: [W('goat', 'goat'), W('gorilla', 'gorilla'), W('guitar', 'guitar')], review: [W('goose', 'goose', 'db'), W('ghost', 'ghost')] },
-  { letter: 'w', phoneme: 'w', ipa: '/w/', cue: sound('wuh'), keys: [W('whale', 'spouting-whale'), W('watermelon', 'watermelon'), W('worm', 'worm')], review: [W('wolf', 'wolf'), W('window', 'window'), W('watch', 'watch')] },
-  { letter: 'j', phoneme: 'dʒ', ipa: '/dʒ/', cue: sound('juh'), keys: [W('jellyfish', 'jellyfish'), W('jeans', 'jeans'), W('jar', 'jar', 'b')], review: [] },
-  { letter: 'v', phoneme: 'v', ipa: '/v/', cue: stretch('Vvvvan', 'van'), keys: [W('volcano', 'volcano'), W('van', 'minibus', 'b'), W('violin', 'violin')], review: [W('video camera', 'video-camera', 'c')] },
-  { letter: 'y', phoneme: 'j', ipa: '/j/', cue: sound('yuh'), keys: [W('yo-yo', 'yo-yo'), W('yarn', 'yarn'), W('yawn', 'yawning-face', 's')], review: [] },
+  { letter: 'e', phoneme: 'ɛ', ipa: '/ɛ/', cue: sound('eh'), keys: [W('egg', 'egg'), W('elephant', 'elephant'), W('elevator', 'elevator')], review: [] },
+  { letter: 'l', phoneme: 'l', ipa: '/l/', cue: stretch('Llllion', 'lion'), keys: [W('lion', 'lion'), W('lemon', 'lemon'), W('lollipop', 'lollipop')], review: [W('leaf', 'leaf-fluttering-in-wind'), W('ladybug', 'lady-beetle', 'b'), W('leg', 'leg', 'f'), W('ladder', 'ladder')] },
+  { letter: 'h', phoneme: 'h', ipa: '/h/', cue: sound('huh'), keys: [W('horse', 'horse'), W('helicopter', 'helicopter'), W('hippo', 'hippopotamus')], review: [W('hand', 'raised-hand'), W('hamburger', 'hamburger'), W('house', 'house'), W('hot dog', 'hot-dog')] },
+  { letter: 'g', phoneme: 'g', ipa: '/g/', cue: { kind: 'word', word: 'gift' }, keys: [W('gift', 'wrapped-gift', 'p'), W('gorilla', 'gorilla', 'm'), W('grapes', 'grapes')], review: [] },
+  { letter: 'w', phoneme: 'w', ipa: '/w/', cue: sound('wuh'), keys: [W('whale', 'spouting-whale'), W('watermelon', 'watermelon'), W('worm', 'worm')], review: [W('wolf', 'wolf', 'd'), W('window', 'window'), W('wheel', 'wheel', 't')] },
   { letter: 'k', phoneme: 'k', ipa: '/k/', cue: sound('kuh'), keys: [W('kangaroo', 'kangaroo'), W('koala', 'koala'), W('kite', 'kite')], review: [W('key', 'key'), W('kiwi', 'kiwi-fruit')] },
 ]
 
-export const soundUnit = (l: string) => PHONICS.find((u) => u.letter === l)!
+/**
+ * 延後的音（2026-10-28 單字盤點）：找不到三個第 1、2 層、一看就知道是什麼的圖，先不教。
+ * 資料原樣留著：孩子之前學過的熟練度（phonics:o…）、得過的貼紙還對得到字母；字母森林的教學順序、出題都不會用到。
+ * i、u、z、x、q 本來就沒教（理由見上面的【教學順序】第 5 點）。
+ */
+export const DEFERRED_PHONICS: SoundUnit[] = [
+  { letter: 'o', phoneme: 'ɑ', ipa: '/ɑ/', cue: sound('ah'), keys: [W('octopus', 'octopus'), W('otter', 'otter', 'b'), W('ox', 'ox', 'cb')], review: [] },
+  { letter: 'j', phoneme: 'dʒ', ipa: '/dʒ/', cue: sound('juh'), keys: [W('jellyfish', 'jellyfish'), W('jeans', 'jeans'), W('jar', 'jar', 'b')], review: [] },
+  { letter: 'v', phoneme: 'v', ipa: '/v/', cue: stretch('Vvvvan', 'van'), keys: [W('volcano', 'volcano'), W('van', 'minibus', 'b'), W('violin', 'violin')], review: [] },
+  { letter: 'y', phoneme: 'j', ipa: '/j/', cue: sound('yuh'), keys: [W('yo-yo', 'yo-yo'), W('yarn', 'yarn'), W('yawn', 'yawning-face', 's')], review: [] },
+]
+
+/** 教的、延後的音都找得到（家長區、貼紙本、出門任務卡讀舊紀錄用）；出題只用 PHONICS */
+export const ALL_PHONICS: SoundUnit[] = [...PHONICS, ...DEFERRED_PHONICS]
+
+/**
+ * 這次才換上的關鍵字：舊紀錄裡「這個音學過」不代表孩子看過這幾個字（當時是 notebook、envelope、goat、guitar），
+ * 從熟練度推算「教過哪些字」時不算進去（lib/words.ts），第一次出現時先教。
+ */
+export const NEW_KEY_WORDS = new Set(['noodles', 'elevator', 'gift', 'grapes'])
+
+export const soundUnit = (l: string) => ALL_PHONICS.find((u) => u.letter === l)!
 
 /** 技能代碼。注意不能用 sound:，那個前綴已經是動物村「聽聲音猜猜看」在用（sound:dog） */
 export const phonicsSkill = (l: string) => `phonics:${l}`

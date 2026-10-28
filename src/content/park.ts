@@ -49,10 +49,14 @@ export const FRIENDS = [
 ]
 
 // ── 工作線 B：學習單題型 ───────────────────────────────────────
-/** 立體形狀（找出全部、找立體形狀）：用 src/art/Solid.tsx 畫成有明暗面的立體圖 */
+/**
+ * 立體形狀（找出全部、找立體形狀）：用 src/art/Solid.tsx 畫成有明暗面的立體圖。
+ * 2026-10-28 單字盤點：幾何詞（cube、sphere、cylinder…）大人日常也少用，改用孩子會的東西的名字——
+ * 正方體叫 block（積木）、球體叫 ball；圓柱、圓錐、三角柱先延後（id 不變，舊紀錄 all:cube 還對得到）。
+ */
 export const SOLIDS = [
-  { id: 'cube', en: 'cube', zh: '正方體' },
-  { id: 'sphere', en: 'sphere', zh: '球體' },
+  { id: 'cube', en: 'block', zh: '積木（正方體）' },
+  { id: 'sphere', en: 'ball', zh: '球（球體）' },
   { id: 'cylinder', en: 'cylinder', zh: '圓柱' },
   { id: 'cone', en: 'cone', zh: '圓錐' },
   { id: 'prism', en: 'prism', zh: '三角柱' },
@@ -60,19 +64,22 @@ export const SOLIDS = [
 
 export type SolidId = (typeof SOLIDS)[number]['id']
 
-/** 立體形狀教學卡的第二句：連到孩子看過的東西 */
+/** 現在會出題的立體形狀（其餘延後） */
+export const ACTIVE_SOLIDS: SolidId[] = ['cube', 'sphere']
+
+/** 立體形狀教學卡的第二句：連到孩子看過的東西（延後的三個不會出現，句子留著備用） */
 export const SOLID_LIKE: Record<SolidId, string> = {
-  cube: 'Like a | block!',
-  sphere: 'Round, like a | ball!',
-  cylinder: 'Like a | can!',
+  cube: 'This is a block, | too!',
+  sphere: 'Round and | round!',
+  cylinder: 'Like a | cup!',
   cone: 'Like an ice cream | cone!',
   prism: 'Like a | tent!',
 }
 
 /** 立體形狀容易混淆的對象：高難度時優先當干擾（正方體 vs 三角柱，就是學習單的原題） */
 export const SOLID_LOOKALIKE: Record<SolidId, SolidId[]> = {
-  cube: ['prism', 'cylinder'],
-  sphere: ['cylinder', 'cone'],
+  cube: ['prism', 'cylinder', 'sphere'],
+  sphere: ['cylinder', 'cone', 'cube'],
   cylinder: ['cube', 'sphere'],
   cone: ['prism', 'cylinder'],
   prism: ['cube', 'cone'],
@@ -86,7 +93,9 @@ export type BalloonKind = (typeof BALLOON_KINDS)[number]
 export const SHEET_ICONS = [
   'green-apple', 'tomato', 'peach', 'tangerine', 'cherries', 'lemon',
   'soccer-ball', 'basketball', 'baseball', 'tennis',
-  'baby-chick', 'front-facing-baby-chick', 'hatching-chick', 'hamster',
-  'lady-beetle', 'beetle', 'ant', 'snail',
+  'baby-chick', 'front-facing-baby-chick', 'hatching-chick',
+  'lady-beetle', 'ant', 'snail',
+  // 下雨天的第二張雨傘圖（vocab.ts 的 EXAMPLE_ALT_ICON）
+  'umbrella-with-rain-drops',
   'racing-car', 'game-die', 'package', 'basket', 'leaf-fluttering-in-wind',
 ]

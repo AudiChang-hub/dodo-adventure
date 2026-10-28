@@ -25,7 +25,7 @@ export const VOCAB: VocabEntry[] = [
   { id: 'cow', en: 'cow', zh: '牛', icon: 'cow-face', theme: 'animal', sound: 'Moo!', tags: ['legs4'] },
   { id: 'sheep', en: 'sheep', zh: '小羊', icon: 'ewe', theme: 'animal', sound: 'Baa, baa!', tags: ['legs4'] },
   { id: 'pig', en: 'pig', zh: '小豬', icon: 'pig-face', theme: 'animal', sound: 'Oink oink!', tags: ['legs4'] },
-  { id: 'chicken', en: 'rooster', zh: '公雞', icon: 'chicken', theme: 'animal', sound: 'Cock-a-doodle-doo!', tags: [] },
+  { id: 'chicken', en: 'chicken', zh: '雞', icon: 'chicken', theme: 'animal', sound: 'Cock-a-doodle-doo!', tags: [] },
   { id: 'duck', en: 'duck', zh: '鴨子', icon: 'duck', theme: 'animal', sound: 'Quack quack!', tags: ['water'] },
   { id: 'frog', en: 'frog', zh: '青蛙', icon: 'frog', theme: 'animal', sound: 'Ribbit, ribbit!', tags: ['water'] },
   { id: 'bird', en: 'bird', zh: '小鳥', icon: 'bird', theme: 'animal', sound: 'Tweet tweet!', tags: ['fly'] },
@@ -44,7 +44,6 @@ export const VOCAB: VocabEntry[] = [
   { id: 'mouse', en: 'mouse', zh: '老鼠', icon: 'mouse-face', theme: 'animal', sound: 'Squeak, squeak!', tags: ['legs4'] },
   // 主題式冒險（content/themes.ts）補的動物：農場、海洋、動物園
   { id: 'horse', en: 'horse', zh: '馬', icon: 'horse', theme: 'animal', sound: 'Neigh!', tags: ['legs4'] },
-  { id: 'goat', en: 'goat', zh: '山羊', icon: 'goat', theme: 'animal', tags: ['legs4'] },
   { id: 'octopus', en: 'octopus', zh: '章魚', icon: 'octopus', theme: 'animal', tags: ['water'] },
   { id: 'crab', en: 'crab', zh: '螃蟹', icon: 'crab', theme: 'animal', tags: ['water'] },
   { id: 'zebra', en: 'zebra', zh: '斑馬', icon: 'zebra', theme: 'animal', tags: ['legs4'] },
@@ -67,8 +66,7 @@ export const VOCAB: VocabEntry[] = [
   { id: 'scooter', en: 'scooter', zh: '機車', icon: 'motor-scooter', theme: 'vehicle', tags: ['wheels'] },
 
   { id: 'trex', en: 'T-rex', zh: '暴龍', icon: 't-rex', theme: 'dino', sound: 'Stomp, stomp, rawr!', tags: [] },
-  { id: 'sauropod', en: 'long-neck dinosaur', zh: '長頸龍', icon: 'sauropod', theme: 'dino', tags: ['legs4'] },
-  { id: 'dragon', en: 'dragon', zh: '恐龍', icon: 'dragon', theme: 'dino', tags: ['legs4'] },
+  { id: 'sauropod', en: 'dinosaur', zh: '恐龍', icon: 'sauropod', theme: 'dino', tags: ['legs4'] },
   // 恐龍谷的火山：不是恐龍，但只會和恐龍一起出現（同一類的干擾）
   { id: 'volcano', en: 'volcano', zh: '火山', icon: 'volcano', theme: 'dino', tags: [] },
 
@@ -83,11 +81,11 @@ export const VOCAB: VocabEntry[] = [
 
   // ── 生活用品（功能分類用；en 一律用單數，教學句會念「This is a …」）──
   { id: 'umbrella', en: 'umbrella', zh: '雨傘', icon: 'umbrella', theme: 'home', tags: [], uses: ['rain'] },
-  { id: 'raincoat', en: 'raincoat', zh: '雨衣', icon: 'coat', theme: 'home', tags: [], uses: ['rain', 'wear'] },
-  { id: 'boot', en: 'boot', zh: '雨靴', icon: 'hiking-boot', theme: 'home', tags: [], uses: ['rain', 'wear'] },
+  // 雨靴的圖其實是登山靴：只當「穿的」，不當下雨天的答案（有合適的雨鞋圖再加回）
+  { id: 'boot', en: 'boot', zh: '靴子', icon: 'hiking-boot', theme: 'home', tags: [], uses: ['wear'] },
   { id: 'bathtub', en: 'bathtub', zh: '浴缸', icon: 'bathtub', theme: 'home', tags: [], uses: ['bath'] },
-  { id: 'sponge', en: 'sponge', zh: '海綿', icon: 'sponge', theme: 'home', tags: [], uses: ['bath'] },
-  { id: 'shower', en: 'shower', zh: '蓮蓬頭', icon: 'shower', theme: 'home', tags: [], uses: ['bath'] },
+  // 洗澡的第二個例子：海綿的圖像起司、蓮蓬頭（shower）英文意思對不上，改用肥皂（也是字母森林 s 的複習字）
+  { id: 'soap', en: 'soap', zh: '肥皂', icon: 'soap', theme: 'home', tags: [], uses: ['bath'] },
   { id: 'bed', en: 'bed', zh: '床', icon: 'bed', theme: 'home', tags: [], uses: ['bed'] },
   { id: 'teddy', en: 'teddy bear', zh: '泰迪熊', icon: 'teddy-bear', theme: 'home', tags: [], uses: ['bed'] },
   { id: 'toothbrush', en: 'toothbrush', zh: '牙刷', icon: 'toothbrush', theme: 'home', tags: [], uses: ['bed'] },
@@ -96,8 +94,27 @@ export const VOCAB: VocabEntry[] = [
   { id: 'dress', en: 'dress', zh: '洋裝', icon: 'dress', theme: 'home', tags: [], uses: ['wear'] },
   { id: 'scarf', en: 'scarf', zh: '圍巾', icon: 'scarf', theme: 'home', tags: [], uses: ['wear'] },
   { id: 'shoe', en: 'shoe', zh: '鞋子', icon: 'running-shoe', theme: 'home', tags: [], uses: ['wear'] },
-  { id: 'gift', en: 'present', zh: '禮物', icon: 'wrapped-gift', theme: 'home', tags: [] },
+  { id: 'gift', en: 'gift', zh: '禮物', icon: 'wrapped-gift', theme: 'home', tags: [] },
 ]
+
+/**
+ * 延後的詞（2026-10-28 單字盤點）：圖不好認、和別的東西太像，或名字對不上圖，先不出題。
+ * 資料留著，舊紀錄（vocab:goat…）、貼紙本、家長區還對得到；動物村、學習單都不會用到。
+ * - goat：圖和 sheep 很像，中文都叫「羊」；動物村先只留 sheep。
+ * - dragon：圖是中國龍，不是恐龍；中文改成「龍」。
+ * - raincoat：圖是一般的大衣，看不出是雨衣。
+ * - sponge：黃色方塊像起司；shower：英文是「淋浴」，和圖（蓮蓬頭）對不上。
+ */
+export const DEFERRED_VOCAB: VocabEntry[] = [
+  { id: 'goat', en: 'goat', zh: '山羊', icon: 'goat', theme: 'animal', tags: ['legs4'] },
+  { id: 'dragon', en: 'dragon', zh: '龍', icon: 'dragon', theme: 'animal', tags: ['legs4'] },
+  { id: 'raincoat', en: 'raincoat', zh: '雨衣', icon: 'coat', theme: 'home', tags: [], uses: ['rain', 'wear'] },
+  { id: 'sponge', en: 'sponge', zh: '海綿', icon: 'sponge', theme: 'home', tags: [], uses: ['bath'] },
+  { id: 'shower', en: 'shower', zh: '蓮蓬頭', icon: 'shower', theme: 'home', tags: [], uses: ['bath'] },
+]
+
+/** 教的、延後的詞都找得到（家長區、貼紙本讀舊紀錄用）；出題只用 VOCAB */
+export const ALL_VOCAB: VocabEntry[] = [...VOCAB, ...DEFERRED_VOCAB]
 
 export const TAG_QUESTION: Record<Tag, string> = {
   fly: 'Which one can | fly?',
@@ -115,16 +132,17 @@ export const THEME_LABEL: Record<VocabTheme, string> = {
   home: '生活用品',
 }
 
-export const vocab = (id: string) => VOCAB.find((v) => v.id === id)!
+/** 找詞（延後的詞也找得到，舊紀錄才不會當掉） */
+export const vocab = (id: string) => ALL_VOCAB.find((v) => v.id === id)!
 
 /** 分類題中容易讓孩子混淆的項目：不出成答案，也不出成干擾選項 */
 export const AMBIGUOUS: Record<Tag, string[]> = {
-  fly: ['duck', 'chicken', 'dragon', 'penguin'],
-  // 浴缸、海綿、雨具都和水有關，「哪個在水裡」不能拿它們當干擾
-  water: ['duck', 'frog', 'turtle', 'elephant', 'bathtub', 'sponge', 'shower', 'umbrella', 'raincoat', 'boot', 'penguin'],
+  fly: ['duck', 'chicken', 'penguin'],
+  // 浴缸、肥皂、雨具都和水有關，「哪個在水裡」不能拿它們當干擾
+  water: ['duck', 'frog', 'turtle', 'elephant', 'bathtub', 'soap', 'umbrella', 'boot', 'penguin'],
   wheels: ['plane'],
   // 床和泰迪熊也有四隻腳
-  legs4: ['frog', 'turtle', 'mouse', 'dragon', 'sauropod', 'bed', 'teddy', 'crab', 'octopus'],
+  legs4: ['frog', 'turtle', 'mouse', 'sauropod', 'bed', 'teddy', 'crab', 'octopus'],
   eat: [],
 }
 
@@ -133,29 +151,46 @@ export const usesOf = (v: VocabEntry): UseTag[] => [...(v.uses ?? []), ...(v.tag
 
 export const USE_TAGS: UseTag[] = ['rain', 'eat', 'wear', 'bath', 'bed']
 
-/** 不出成干擾的項目：下雨天也會穿 T 恤、鞋子；洗澡前後也會刷牙；魚和雞也能吃 */
+/** 不出成干擾的項目：下雨天也會穿 T 恤、鞋子、靴子；洗澡前後也會刷牙；魚和雞也能吃 */
 export const USE_AMBIGUOUS: Record<UseTag, string[]> = {
-  rain: ['tshirt', 'cap', 'dress', 'scarf', 'shoe', 'duck', 'frog', 'fish', 'boat', 'whale', 'turtle', 'octopus', 'crab', 'penguin'],
+  rain: ['tshirt', 'cap', 'dress', 'scarf', 'shoe', 'boot', 'duck', 'frog', 'fish', 'boat', 'whale', 'turtle', 'octopus', 'crab', 'penguin'],
   bath: ['toothbrush', 'duck', 'fish', 'frog', 'boat', 'whale', 'turtle', 'octopus', 'crab', 'penguin'],
   bed: ['owl', 'panda', 'cat', 'dog'],
-  eat: ['fish', 'chicken', 'duck', 'cow', 'pig', 'sheep', 'goat', 'crab', 'octopus'],
+  eat: ['fish', 'chicken', 'duck', 'cow', 'pig', 'sheep', 'crab', 'octopus'],
   wear: ['umbrella'],
 }
 
-/** 功能分類的教學卡：先看兩個例子 */
-export const USE_EXAMPLES: Record<UseTag, [string, string]> = {
-  rain: ['umbrella', 'boot'],
-  bath: ['bathtub', 'sponge'],
-  bed: ['bed', 'teddy'],
-  eat: ['apple', 'cookie'],
-  wear: ['tshirt', 'cap'],
+/**
+ * 功能分類的教學卡：先看兩個例子。前兩個是預設，家長勾了「他不認得」的字不當例子，往後面找替代
+ * （每個候選字的教學句在 lines-worksheet.ts 都有）。下雨天只剩 umbrella 一個好例子：第二張圖用另一張雨傘的圖。
+ */
+export const USE_EXAMPLES: Record<UseTag, string[]> = {
+  rain: ['umbrella'],
+  bath: ['bathtub', 'soap'],
+  bed: ['bed', 'teddy', 'toothbrush'],
+  eat: ['apple', 'cookie', 'banana', 'strawberry'],
+  wear: ['tshirt', 'cap', 'shoe', 'dress'],
+}
+/** 只有一個例子時，第二張圖換一個樣子（同一個字、同一個名字） */
+export const EXAMPLE_ALT_ICON: Record<string, string> = { umbrella: 'umbrella-with-rain-drops' }
+
+/** 分類題的教學卡：先看兩個例子（Birds can fly. Airplanes can fly, too!）；後面是家長勾掉預設例子時的替代 */
+export const CAT_EXAMPLES: Record<Tag, string[]> = {
+  fly: ['bird', 'plane', 'butterfly', 'helicopter'],
+  water: ['fish', 'boat', 'whale', 'octopus'],
+  wheels: ['car', 'bus', 'truck', 'taxi'],
+  legs4: ['dog', 'cow', 'cat', 'horse'],
+  eat: ['apple', 'banana', 'cookie', 'strawberry'],
 }
 
-/** 分類題的教學卡：先看兩個例子（Birds can fly. Airplanes can fly, too!） */
-export const CAT_EXAMPLES: Record<Tag, [string, string]> = {
-  fly: ['bird', 'plane'],
-  water: ['fish', 'boat'],
-  wheels: ['car', 'bus'],
-  legs4: ['dog', 'cow'],
-  eat: ['apple', 'banana'],
+/**
+ * 例子的教學句 key：預設的字在預設的位置用原本的句子（teach.cat.fly.0「Birds can fly.」），
+ * 替代的字用 <前綴>.<位置>.<id>（台詞在 lines.ts、lines-worksheet.ts 依候選字產生）。
+ * 只有一個候選字（下雨天的 umbrella）時，兩個位置都是它。
+ */
+export function exampleLine(prefix: string, cands: readonly string[], id: string, pos: number): string {
+  const dflt = cands[pos] ?? (cands.length === 1 ? cands[0] : undefined)
+  return dflt === id ? `${prefix}.${pos}` : `${prefix}.${pos}.${id}`
 }
+export const catLine = (tag: Tag, id: string, pos: number) => exampleLine(`teach.cat.${tag}`, CAT_EXAMPLES[tag], id, pos)
+export const useLine = (u: UseTag, id: string, pos: number) => exampleLine(`teach.ws.${u}`, USE_EXAMPLES[u], id, pos)

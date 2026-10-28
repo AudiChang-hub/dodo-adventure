@@ -1,4 +1,4 @@
-import { LETTERS, PHONICS, phonicsSkill } from '../../content/letters'
+import { DEFERRED_PHONICS, LETTERS, PHONICS, phonicsSkill } from '../../content/letters'
 import { VOCAB, THEME_LABEL, type VocabTheme } from '../../content/vocab'
 import { GAMES, unlockedSounds } from '../../content/games'
 import { ALL_STORIES, DIRS, DIR_ZH, PATTERN_ZH, STORIES, seqSkill, type PatternKind } from '../../content/code'
@@ -63,7 +63,11 @@ export function Progress({ d }: { d: ParentData }) {
           ))}
         </div>
         <p className="sub" style={{ margin: '10px 0 0' }}>
-          還沒排進課程：i、u（畫得出來的短母音開頭字太少）、z（只有 zebra、zero）、x（只在字尾）、q（之後和 u 一起教 qu）。
+          還沒排進課程：o、j、v、y（2026-10-28 單字盤點：找不到三個孩子一看就認得的例字，先延後）、i、u（畫得出來的短母音開頭字太少）、z（只有 zebra、zero）、x（只在字尾）、q（之後和 u 一起教 qu）。
+          {DEFERRED_PHONICS.some((u) => box(phonicsSkill(u.letter)) > 0) &&
+            ` 延後之前學到的程度保留著：${DEFERRED_PHONICS.filter((u) => box(phonicsSkill(u.letter)) > 0)
+              .map((u) => `${u.letter} ${box(phonicsSkill(u.letter))}/5`)
+              .join('、')}。`}
         </p>
         {namesKnown.length > 0 && (
           <p className="sub" style={{ margin: '6px 0 0' }}>

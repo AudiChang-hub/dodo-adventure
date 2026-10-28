@@ -11,7 +11,8 @@ import './lines-crayon'
 import './lines-pattern'
 import { CHILD_EN } from '../lib/env'
 import { LETTERS } from './letters'
-import { VOCAB, TAG_QUESTION, type Tag } from './vocab'
+import { VOCAB, DEFERRED_VOCAB, TAG_QUESTION, CAT_EXAMPLES, catLine, vocab, type Tag } from './vocab'
+import { LEXICON, articleOf, keyOfVocab, thisIs, thisIsText } from './lexicon'
 import { COLORS, SHAPES } from './park'
 
 import { def, type Speaker } from './registry'
@@ -30,29 +31,33 @@ const N = CHILD_EN
 const SPEAKERS: Speaker[] = ['dodo', 'bobo', 'momo']
 
 // ── 通用：稱讚、再試一次、提示 ─────────────────────────────
+// 2026-10-28 單字盤點第 4 章：回饋固定成四句——Yes!／Try again!／Watch me!／Your turn!。
+// 同一個意思全站只用一種說法（以前每隻恐龍 5 種稱讚、3 種鼓勵，孩子聽不出是同一個意思）；
+// 語氣差異交給恐龍的聲音和感嘆詞（莫莫用句號，比較沉穩），句子不變。key 的數量不變，遊戲端照舊隨機挑。
 export const PRAISE_COUNT = 5
 const praise: Record<Speaker, string[]> = {
-  dodo: ['Great job!', 'Yes! You got it!', `Wow, ${N}!`, "That's right!", 'Awesome!'],
-  bobo: ["That's right!", 'Super!', `Good job, ${N}!`, 'Yes, yes, yes!', 'You did it!'],
-  momo: ['Very good.', "That's it.", `Well done, ${N}.`, 'Yes, you found it.', 'Wonderful.'],
+  dodo: Array<string>(PRAISE_COUNT).fill('Yes!'),
+  bobo: Array<string>(PRAISE_COUNT).fill('Yes!'),
+  momo: Array<string>(PRAISE_COUNT).fill('Yes.'),
 }
 export const RETRY_COUNT = 3
 const retry: Record<Speaker, string[]> = {
-  dodo: ['Try again!', 'Hmm, look again!', 'Almost!'],
-  bobo: ["That's okay, try again!", 'Look again!', 'So close!'],
-  momo: ["That's okay. Take your time.", 'Look again.', 'Almost.'],
+  dodo: Array<string>(RETRY_COUNT).fill('Try again!'),
+  bobo: Array<string>(RETRY_COUNT).fill('Try again!'),
+  momo: Array<string>(RETRY_COUNT).fill('Try again.'),
 }
 for (const s of SPEAKERS) {
   praise[s].forEach((t, i) => def(`praise.${s}.${i}`, s, t))
   retry[s].forEach((t, i) => def(`retry.${s}.${i}`, s, t))
-  def(`hint.${s}`, s, s === 'momo' ? 'It is this one. Tap it.' : "It's this one! Tap it!")
+  // 提示和教學卡後的「答案在這裡」同一句（teach.here.*）
+  def(`hint.${s}`, s, s === 'momo' ? 'Here it is. Tap it.' : 'Here it is! Tap it!')
   def(`idle.${s}`, s, 'Which one?')
 }
 // 舊版遊戲會用到的英文稱讚，沿用豆豆的句子
 praise.dodo.forEach((t, i) => def(`praise.en.${i}`, 'dodo', t))
 
 // ── 首頁、冒險流程 ─────────────────────────────────────────
-def('home.hello', 'dodo', `Hi, ${N}! Let's go on an adventure!`)
+def('home.hello', 'dodo', `Hi, ${N}! Let's go!`)
 def('home.tapdodo', 'dodo', "I'm Dodo! I love driving my car!")
 def('home.tapbobo', 'bobo', "I'm Bobo! I love counting things!")
 def('home.tapmomo', 'momo', "I'm Momo. I have a long, long neck.")
@@ -70,16 +75,17 @@ def('welcome.mandarin', 'momo', "I'm Momo. Welcome to Animal Village.")
 def('welcome.draw', 'dodo', 'Welcome to Drawing House! Get your pen!')
 def('welcome.park', 'bobo', 'Welcome to Rainbow Park!')
 def('map.where', 'dodo', 'Where do you want to go?')
-def('map.locked', 'dodo', 'Finish today’s adventure first, then the map will open!')
+def('map.locked', 'dodo', 'First, let’s finish today!')
 def('egg.crack', 'dodo', 'Look! The egg is cracking!')
 def('egg.ready', 'dodo', 'The egg is ready! Tap the egg!')
 def('egg.hatch', 'dodo', 'Wow! A new friend!')
 def('collection.hi', 'dodo', 'These are all your friends!')
-def('collection.empty', 'dodo', 'Go on an adventure to hatch new friends!')
+def('collection.empty', 'dodo', 'Let’s go! New friends are coming!')
 def('bedtime', 'dodo', `Dodo is sleepy... Let's play again tomorrow. Good night, ${N}!`)
-def('challenge', 'dodo', 'Last one! This one is tricky!')
-def('challenge.bobo', 'bobo', 'Last one! Here comes a tricky one!')
-def('challenge.momo', 'momo', 'Last one. This one is a little tricky.')
+// 每局最後一題（比較難）：只說 Last one!，不用 tricky 這種抽象字
+def('challenge', 'dodo', 'Last one!')
+def('challenge.bobo', 'bobo', 'Last one!')
+def('challenge.momo', 'momo', 'Last one.')
 def('levelup', 'dodo', "You're getting so good! Let's try a harder one!")
 def('goodbye', 'dodo', `Bye-bye, ${N}!`)
 // 護眼休息的台詞在 lines-eyebreak.ts
@@ -92,14 +98,14 @@ for (const { letter } of LETTERS) def(`en.thisis.${letter}`, 'dodo', `This is | 
 def('m.intro.count', 'bobo', "Let's count! Tap them one by one!")
 def('m.intro.match', 'bobo', 'Count them, then tap the number!')
 def('m.intro.find', 'bobo', 'Listen, and find the number!')
-def('m.intro.compare', 'bobo', "Let's compare!")
-def('m.intro.order', 'bobo', 'Tap the numbers in order. Start with one!')
-def('m.howmany', 'bobo', 'How many are there?')
+def('m.intro.compare', 'bobo', 'Look at both sides!')
+def('m.intro.order', 'bobo', 'Tap the numbers. Start with one!')
+def('m.howmany', 'bobo', 'How many?')
 def('m.more', 'bobo', 'Which side has | more?')
 def('m.less', 'bobo', 'Which side has | fewer?')
 def('m.this.more', 'bobo', 'This side has more!')
 def('m.this.less', 'bobo', 'This side has fewer!')
-def('m.order.start', 'bobo', 'Start with one. Tap in order!')
+def('m.order.start', 'bobo', 'Start with one!')
 def('m.count.go', 'bobo', 'Tap and count with me!')
 for (let n = 1; n <= 20; n++) {
   def(`m.num.${n}`, 'bobo', `${cap(NUM[n])}!`)
@@ -115,9 +121,11 @@ def('z.intro.category', 'momo', "Let's think together.")
 def('z.intro.sound', 'momo', 'Listen. Who is making that sound?')
 for (const v of VOCAB) {
   def(`z.where.${v.id}`, 'momo', `Where is the | ${v.en}?`)
-  def(`z.itis.${v.id}`, 'momo', `It's the | ${v.en}.`)
+  // 「這是 ___」全站只用一種說法：和 lex.this.* 同一句（同一段音檔）
+  def(`z.itis.${v.id}`, 'momo', thisIsText({ key: keyOfVocab(v.id), en: v.en }))
   if (v.sound) def(`z.sound.${v.id}`, 'momo', `${v.sound} Who am I?`)
 }
+for (const v of DEFERRED_VOCAB) def(`z.itis.${v.id}`, 'momo', thisIsText({ key: v.id, en: v.en }))
 for (const [tag, q] of Object.entries(TAG_QUESTION) as [Tag, string][]) def(`z.cat.${tag}`, 'momo', q)
 
 // ── 彩虹公園 ───────────────────────────────────────────────
@@ -138,17 +146,18 @@ def('p.this.bigger', 'bobo', 'This one is bigger!')
 def('p.this.smaller', 'bobo', 'This one is smaller!')
 
 // ── 畫畫小屋 ───────────────────────────────────────────────
-def('d.intro.trace', 'dodo', 'Help me drive home! Follow the road with your pen!')
-def('d.intro.free', 'dodo', 'Draw anything you like! Tap the check when you are done.')
-def('d.intro.glyph', 'dodo', 'Start at the green dot, and follow the arrow!')
+def('d.intro.trace', 'dodo', 'Help me drive home! Use your pen!')
+def('d.intro.free', 'dodo', 'Draw anything you like!')
+def('d.intro.glyph', 'dodo', 'Start at the green dot! Go this way!')
 def('d.trace.done', 'dodo', "We're home! Thank you!")
 def('d.trace.keep', 'dodo', "Keep going! We're not home yet!")
 def('d.color.done', 'dodo', 'So pretty!')
-def('d.free.done', 'dodo', 'I love it! I put it in your gallery!')
+def('d.free.done', 'dodo', 'I love it!')
 def('d.glyph.done', 'dodo', 'Great writing!')
 def('d.glyph.next', 'dodo', 'Now the next line!')
-const DOTS: Record<string, string> = { triangle: 'a triangle', square: 'a square', house: 'a house', fish: 'a fish', star: 'a star', boat: 'a boat', heart: 'a heart', diamond: 'a diamond' }
-for (const [d, name] of Object.entries(DOTS)) def(`d.dots.is.${d}`, 'dodo', `It's | ${name}!`)
+// 連點成圖連完：This is a | house!（菱形 diamond 不是小班教的形狀、又是鑽石，改說像風箏 kite）
+const DOTS: Record<string, string> = { triangle: 'triangle', square: 'square', house: 'house', fish: 'fish', star: 'star', boat: 'boat', heart: 'heart', diamond: 'kite' }
+for (const [d, name] of Object.entries(DOTS)) def(`d.dots.is.${d}`, 'dodo', `This is ${articleOf(name)} | ${name}!`)
 for (let n = 0; n <= 9; n++) def(`d.glyph.num.${n}`, 'dodo', `This is | ${NUM[n]}.`)
 
 // ── 教學：先教 → 一起練 → 自己答（PRD §5.8）────────────────
@@ -160,14 +169,10 @@ const teachVoice: Record<Speaker, Record<'watch' | 'turn' | 'here' | 'again', st
 }
 for (const s of SPEAKERS) for (const [k, t] of Object.entries(teachVoice[s])) def(`teach.${k}.${s}`, s, t)
 
-/** 冠詞：x-ray 念 ex-ray，要用 an */
-const an = (w: string) => (/^([aeiou]|x-)/i.test(w) ? 'an' : 'a')
+const an = articleOf
 
-for (const { letter, word } of LETTERS) {
-  def(`teach.letter.${letter}`, 'dodo', `This is | ${letter}.`)
-  def(`teach.letterfor.${letter}`, 'dodo', `${letter} is for | ${word}!`)
-  def(`teach.word.${letter}`, 'dodo', `This is ${an(word)} | ${word}!`)
-}
+// 舊版字母表（A is for apple…）的 teach.letterfor.*、teach.word.* 沒有遊戲在唸（2026-10-28 單字盤點），已刪掉
+for (const { letter } of LETTERS) def(`teach.letter.${letter}`, 'dodo', `This is | ${letter}.`)
 
 for (let n = 1; n <= 20; n++) {
   def(`teach.num.${n}`, 'bobo', `This is | ${NUM[n]}.`)
@@ -180,7 +185,8 @@ def('teach.fewer', 'bobo', 'This side has | fewer.')
 def('teach.bigger', 'bobo', 'This one is | bigger!')
 def('teach.smaller', 'bobo', 'This one is | smaller.')
 
-for (const v of VOCAB) {
+// 延後的詞（goat、dragon…）不出題，但之前得到的貼紙點了還是會唸
+for (const v of [...VOCAB, ...DEFERRED_VOCAB]) {
   const plural = v.id === 'grapes'
   const name = plural ? `These are | ${v.en}.` : `This is ${an(v.en)} | ${v.en}.`
   // 有叫聲的先學叫聲：Woof woof! This is a dog.
@@ -195,6 +201,26 @@ const CAT_TEACH: Record<Tag, [string, string]> = {
   eat: ['We can eat | apples.', 'We can eat | bananas, too!'],
 }
 for (const [tag, pair] of Object.entries(CAT_TEACH) as [Tag, [string, string]][]) pair.forEach((t, i) => def(`teach.cat.${tag}.${i}`, 'momo', t))
+// 家長勾掉預設例子時的替代例子（CAT_EXAMPLES 後面的候選字）：A butterfly can | fly. ／ A butterfly can fly, | too!
+const CAT_ANY: Record<Tag, [string, string]> = {
+  fly: ['{A} {w} can | fly.', '{A} {w} can fly, | too!'],
+  water: ['{A} {w} goes in the | water.', '{A} {w} goes in the water, | too!'],
+  wheels: ['{A} {w} has | wheels.', '{A} {w} has wheels, | too!'],
+  legs4: ['{A} {w} has | four legs.', '{A} {w} has four legs, | too!'],
+  eat: ['We can eat {a} | {w}.', 'We can eat {a} {w}, | too!'],
+}
+const fillIn = (t: string, en: string) => t.replace('{A}', cap(an(en))).replace('{a}', an(en)).replace('{w}', en)
+for (const [tag, ids] of Object.entries(CAT_EXAMPLES) as [Tag, string[]][])
+  for (const id of ids)
+    for (const pos of [0, 1]) {
+      const key = catLine(tag, id, pos)
+      if (key !== `teach.cat.${tag}.${pos}`) def(key, 'momo', fillIn(CAT_ANY[tag][pos], vocab(id).en))
+    }
+
+// ── 單字：「這是 ___」全站只用這一種說法（教學卡多教一個字、答錯更正、學習單點錯時唸名字）──
+// 由這個字最常出現的那一站的主持人唸（動物村的詞是莫莫，和 z.itis.* 同一段音檔；字母森林是豆豆；學習單是波波）
+const voiceOf = (where: string): Speaker => (where === '動物村' ? 'momo' : where === '字母森林' ? 'dodo' : 'bobo')
+for (const w of LEXICON) def(thisIs(w.key), voiceOf(w.where[0]), thisIsText(w))
 
 const COLOR_LIKE: Record<string, string> = {
   red: 'An apple is | red!',

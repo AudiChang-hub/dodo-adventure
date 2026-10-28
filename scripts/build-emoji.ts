@@ -1,7 +1,7 @@
 // 從 Fluent Emoji Flat（MIT）只取出 App 用到的圖示，產生 src/art/emoji.generated.ts
 import { readFileSync, writeFileSync } from 'node:fs'
 import { LETTERS, PHONICS_WORDS } from '../src/content/letters'
-import { VOCAB } from '../src/content/vocab'
+import { ALL_VOCAB } from '../src/content/vocab'
 import { COUNT_ICONS, SIZE_ICONS, FRIENDS, SHEET_ICONS } from '../src/content/park'
 import { CODE_ICONS } from '../src/content/code'
 import { ACHIEVE_ICONS } from '../src/content/stickers'
@@ -9,7 +9,8 @@ import { THEME_ICONS } from '../src/content/themes'
 
 const UI = ['egg', 'hatching-chick', 'sparkles', 'star', 'glowing-star', 'house-with-garden', 'deciduous-tree', 'evergreen-tree', 'rainbow', 'artist-palette', 'pencil', 'construction', 'tulip', 'cloud', 'teddy-bear', 'balloon', 'crayon', 'framed-picture', 'trophy']
 const set = JSON.parse(readFileSync('node_modules/@iconify-json/fluent-emoji-flat/icons.json', 'utf8'))
-const names = [...new Set([...LETTERS.map((l) => l.icon), ...PHONICS_WORDS.map((w) => w.icon), ...VOCAB.map((v) => v.icon), ...COUNT_ICONS, ...SIZE_ICONS, ...FRIENDS, ...SHEET_ICONS, ...CODE_ICONS, ...ACHIEVE_ICONS, ...THEME_ICONS, ...UI])].sort()
+// 延後的詞（ALL_VOCAB 裡的 goat、dragon…）也打包：之前得到的貼紙、舊紀錄還畫得出來
+const names = [...new Set([...LETTERS.map((l) => l.icon), ...PHONICS_WORDS.map((w) => w.icon), ...ALL_VOCAB.map((v) => v.icon), ...COUNT_ICONS, ...SIZE_ICONS, ...FRIENDS, ...SHEET_ICONS, ...CODE_ICONS, ...ACHIEVE_ICONS, ...THEME_ICONS, ...UI])].sort()
 
 const out: Record<string, { b: string; w: number; h: number }> = {}
 const missing: string[] = []

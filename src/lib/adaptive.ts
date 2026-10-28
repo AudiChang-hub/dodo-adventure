@@ -26,6 +26,9 @@ import { weekTheme } from './settings'
 // 技能熟練度與遊戲難度都很小，開機時整份載入記憶體，題目產生器就能同步取用
 const skills = new Map<string, Skill>()
 const levels = new Map<string, GameLevel>()
+/** 熟練度改過幾次：lib/words.ts 從熟練度推算「教過哪些字」時拿來判斷要不要重算 */
+let skillsVer = 0
+export const skillsVersion = () => skillsVer
 
 // ── 學習引擎的執行狀態：開機時從作答紀錄推算（第二批・工作線 A）──
 /** 有玩的日子（作答紀錄的日期） */
@@ -41,6 +44,7 @@ const LOOKBACK_DAYS = 60
 
 export async function loadAdaptive() {
   ;(await db.skills.toArray()).forEach((s) => skills.set(s.key, s))
+  skillsVer++
   ;(await db.levels.toArray()).forEach((l) => levels.set(l.key, l))
   ;((await db.attempts.orderBy('date').uniqueKeys()) as string[]).forEach((d) => playDates.add(d))
 
@@ -145,6 +149,7 @@ export function recordSkill(key: string, firstTry: boolean, info?: SkillInput) {
     delete s.due
   }
   skills.set(key, s)
+  skillsVer++
   void db.skills.put(s)
 }
 
