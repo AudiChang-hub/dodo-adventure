@@ -18,6 +18,7 @@ import { preload, say, sfx, stopSpeech } from '../../lib/audio'
 import { praiseKey, wait } from '../lines'
 import { useIdle } from '../idle'
 import { PACE, nextPause } from '../pace'
+import { SETTLED_MS, REVEAL_MS, background, foreground, handoff } from '../../ui/motion'
 import { hit, useTapDrag } from './drag'
 import type { Mood } from '../../art/Dino'
 import './code.css'
@@ -25,6 +26,22 @@ import './code.css'
 const ROUNDS = 4
 /** 車子走一格要多久（毫秒）：慢到孩子跟得上「卡片一張一張被執行」 */
 const STEP_MS = 620
+
+/*
+ * 教學卡（大大的箭頭）↔ 路面（小恐龍開車的地圖）的過場：全站轉場標準 ui/motion.ts 的「前景 ↔ 背景」。
+ * 錨點是車子：教學卡從車子那邊長出來、地圖在卡片後面往車子微微推近後淡掉；回來時卡片收回車子、地圖拉遠回來。
+ */
+
+/**
+ * 車子在畫面（stage-main，container query 的容器）上的位置，當作鏡頭推近、拉遠的中心。
+ * 直接從版面算（和 code.css 的 .drive-board-area 一致：left 20cqw、寬 44cqw、top 11cqh、高 53cqh，路面置中），
+ * 不量 DOM：換題時新地圖還沒畫出來，也算得到新的起點在哪。
+ */
+function camOrigin(p: DrivePuzzle | null, at: Cell | null): string {
+  if (!p || !at) return '42cqw 37.5cqh'
+  const cell = `min(${53 / p.rows}cqh, ${44 / p.cols}cqw, 20cqh)`
+  return `calc(42cqw + ${at.x + 0.5 - p.cols / 2} * ${cell}) calc(37.5cqh + ${at.y + 0.5 - p.rows / 2} * ${cell})`
+}
 
 type Slot = Dir | null
 /** 拖曳的來源：卡盒裡的卡（可以一直拿），或已經放進程式列的卡 */
@@ -112,6 +129,8 @@ export function DriveGame({ gameId, onDone, onExit }: GameProps) {
   const slotEls = useRef<(HTMLElement | null)[]>([])
   const rootEl = useRef<HTMLDivElement | null>(null)
   const viewRef = useRef(0)
+  /** 教學卡在畫面上（setCard 是非同步的，流程裡要馬上知道） */
+  const cardUp = useRef(false)
   const idle = useIdle()
 
   const waitStep = () => new Promise<number>((res) => (resolver.current = res))
@@ -162,12 +181,24 @@ export function DriveGame({ gameId, onDone, onExit }: GameProps) {
     idle.stop()
     locked.current = true
     setMood('happy')
+    cardUp.current = true
     setCard({ spec: driveTeach(p), short, n: stepRef.current })
-    const ms = await waitStep()
+    const done = waitStep()
+    // 卡片從車子長出來、路面在後面收起來之後，才把地圖換成這一題：卡片收回去時直接看到新地圖，不會先閃回上一題
+    await wait(SETTLED_MS)
     if (!live.current) return
-    setCard(null)
+    setup(p)
+    const ms = await done
+    if (!live.current) return
     void logTeach({ station: def.station, game: def.id, itemId: p.itemId, skill: p.skill, level: lv.current, ms, retaught: short })
-    await wait(PACE.TEACH_TO_GUIDED)
+  }
+
+  /** 教學卡收回車子裡、鏡頭拉遠回到地圖（一起練的狀態先準備好，拉遠時一次看到完整的畫面） */
+  const reveal = async () => {
+    if (!cardUp.current) return
+    cardUp.current = false
+    setCard(null)
+    await wait(Math.max(PACE.TEACH_TO_GUIDED, REVEAL_MS))
   }
 
   // ── 一起練：該放的卡發光、其他變淡；放錯的卡不會被放進去 ─────────
@@ -177,6 +208,8 @@ export function DriveGame({ gameId, onDone, onExit }: GameProps) {
     setPhase('guided')
     setup(p)
     setMood('happy')
+    await reveal()
+    if (!live.current) return
     locked.current = false
     t0.current = performance.now()
     const done = waitStep()
@@ -482,65 +515,95 @@ export function DriveGame({ gameId, onDone, onExit }: GameProps) {
   const goGlow = (guide && full) || (hintOn && full && !want)
   const t = p ? targetOf(p) : null
   const pct = (v: number, of: number) => `${((v + 0.5) / of) * 100}%`
+  // 鏡頭的錨點跟著車子：卡片長出來時是車子現在停的地方，收回去時是這一題的起點（換題在卡片後面就做好了）
+  const origin = camOrigin(p, p ? car.at : null)
 
   return (
     <Shell station={def.station} mood={mood} progress={{ total: ROUNDS, done: idx }} onExit={onExit} onHost={onHost}>
-      <AnimatePresence mode="wait">
-        {card ? (
-          <TeachCard key={`teach-${card.n}`} spec={card.spec} short={card.short} onDone={release} />
-        ) : (
-          p &&
-          t && (
-            <motion.div key={`d-${view}`} ref={rootEl} className="drive" data-solution={import.meta.env.DEV ? p.solution.join(',') : undefined} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0, transition: { duration: 0.2 } }}>
-              {/* ── 路面 ── */}
-              <div className="drive-board-area">
-                <div className="drive-board" style={{ '--cols': p.cols, '--rows': p.rows } as CSSProperties}>
-                  {Array.from({ length: p.cols * p.rows }, (_, k) => {
-                    const c = { x: k % p.cols, y: Math.floor(k / p.cols) }
-                    const isBlock = p.blocks.some((b) => b.x === c.x && b.y === c.y)
-                    const isStart = c.x === p.start.x && c.y === p.start.y
-                    return (
-                      <div key={k} className={`road-tile${isBlock ? ' is-block' : ''}`}>
-                        {isStart && <i className="park-mark" aria-hidden="true" />}
+      {/* 路面一直留在畫面上（不再每一題整塊卸載重掛），換題時只有車子、目的地、樹在裡面換；教學卡疊在上面，用鏡頭過場進出 */}
+      {p && t && (
+        <motion.div
+          ref={rootEl}
+          className="drive"
+          data-solution={import.meta.env.DEV ? p.solution.join(',') : undefined}
+          style={{ transformOrigin: origin, pointerEvents: card ? 'none' : undefined }}
+          variants={background}
+          initial="initial"
+          animate={card ? 'hidden' : 'shown'}
+        >
+          {/* ── 路面 ── */}
+          <div className="drive-board-area">
+            {/* 只有格子數變了（升級）才換一塊路面：新的在上面淡入、舊的等新的蓋好才收掉，不會露出底色 */}
+            <AnimatePresence initial={false}>
+              <motion.div
+                key={`${p.cols}x${p.rows}`}
+                className="drive-board"
+                style={{ '--cols': p.cols, '--rows': p.rows } as CSSProperties}
+                {...handoff}
+              >
+                {Array.from({ length: p.cols * p.rows }, (_, k) => {
+                  const c = { x: k % p.cols, y: Math.floor(k / p.cols) }
+                  const isBlock = p.blocks.some((b) => b.x === c.x && b.y === c.y)
+                  return (
+                    <div key={k} className={`road-tile${isBlock ? ' is-block' : ''}`}>
+                      <AnimatePresence initial={false}>
                         {isBlock && (
-                          <div className="tile-icon">
+                          <motion.div key="block" className="tile-icon" initial={{ scale: 0 }} animate={{ scale: 1 }} exit={{ scale: 0, transition: { duration: 0.22 } }} transition={{ type: 'spring', stiffness: 220, damping: 26, delay: 0.3 }}>
                             <Emoji name={BLOCK_ICON} />
-                          </div>
+                          </motion.div>
                         )}
-                      </div>
-                    )
-                  })}
-                  {/* 車子、目的地、輪胎印放在路面內框裡（扣掉外框），座標才會對到格子中心 */}
-                  <div className="drive-layer">
+                      </AnimatePresence>
+                    </div>
+                  )
+                })}
+                {/* 車子、目的地、輪胎印放在路面內框裡（扣掉外框），座標才會對到格子中心 */}
+                <div className="drive-layer">
+                  {/* 起點：停車格的虛線框，換題時跟著車子移到新的起點 */}
+                  <motion.i
+                    className="park-mark"
+                    aria-hidden="true"
+                    style={{ width: `${100 / p.cols}%`, height: `${100 / p.rows}%` }}
+                    initial={false}
+                    animate={{ left: pct(p.start.x, p.cols), top: pct(p.start.y, p.rows) }}
+                    transition={{ type: 'spring', stiffness: 150, damping: 20 }}
+                  />
                   {/* 輪胎印：車子開過的路 */}
                   <svg className="drive-trail" viewBox={`0 0 ${p.cols * 100} ${p.rows * 100}`} preserveAspectRatio="none" aria-hidden="true">
-                    {trail.length > 1 && (
-                      <motion.polyline
-                        points={trail.map((c) => `${c.x * 100 + 50},${c.y * 100 + 50}`).join(' ')}
-                        fill="none"
-                        stroke="#9AA7B4"
-                        strokeWidth={9}
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeDasharray="2 20"
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 0.9 }}
-                      />
-                    )}
+                    <AnimatePresence>
+                      {trail.length > 1 && (
+                        <motion.polyline
+                          points={trail.map((c) => `${c.x * 100 + 50},${c.y * 100 + 50}`).join(' ')}
+                          fill="none"
+                          stroke="#9AA7B4"
+                          strokeWidth={9}
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeDasharray="2 20"
+                          initial={{ opacity: 0 }}
+                          animate={{ opacity: 0.9 }}
+                          exit={{ opacity: 0, transition: { duration: 0.3 } }}
+                        />
+                      )}
+                    </AnimatePresence>
                   </svg>
-                  {/* 目的地 */}
-                  <motion.div
-                    className="drive-goal"
-                    style={{ left: pct(p.goal.x, p.cols), top: pct(p.goal.y, p.rows), width: `${100 / p.cols}%`, height: `${100 / p.rows}%` }}
-                    initial={{ scale: 0 }}
-                    animate={arrivedAt === view ? { scale: [1, 1.2, 1], rotate: [0, -6, 6, 0] } : { scale: 1 }}
-                    transition={arrivedAt === view ? { duration: 0.6 } : { type: 'spring', stiffness: 300, damping: 16, delay: 0.25 }}
-                  >
-                    <div className="tile-icon">
-                      <Emoji name={t.icon} />
-                    </div>
-                    {arrivedAt === view && <Sparkles count={14} />}
-                  </motion.div>
+                  {/* 目的地：換題時舊的縮掉、新的彈出來（同一個目的地就不動） */}
+                  <AnimatePresence>
+                    <motion.div
+                      key={`${p.goal.x},${p.goal.y},${p.target}`}
+                      className="drive-goal"
+                      style={{ left: pct(p.goal.x, p.cols), top: pct(p.goal.y, p.rows), width: `${100 / p.cols}%`, height: `${100 / p.rows}%` }}
+                      initial={{ scale: 0 }}
+                      animate={arrivedAt === view ? { scale: [1, 1.2, 1], rotate: [0, -6, 6, 0] } : { scale: 1, rotate: 0 }}
+                      exit={{ scale: 0, opacity: 0, transition: { duration: 0.26, ease: 'easeIn' } }}
+                      // 新的目的地等舊的縮完才出來；彈簧幾乎不回彈：紙感螢幕上一次長到定位，不要大小來回晃好幾下
+                      transition={arrivedAt === view ? { duration: 0.6 } : { type: 'spring', stiffness: 220, damping: 26, delay: 0.3 }}
+                    >
+                      <div className="tile-icon">
+                        <Emoji name={t.icon} />
+                      </div>
+                      {arrivedAt === view && <Sparkles count={14} />}
+                    </motion.div>
+                  </AnimatePresence>
                   {/* 豆豆的車 */}
                   <motion.div
                     className="drive-car"
@@ -559,9 +622,10 @@ export function DriveGame({ gameId, onDone, onExit }: GameProps) {
                       <Ride who={driver} width="100%" moving={car.moving} mood={mood === 'cheer' ? 'cheer' : 'happy'} />
                     </div>
                   </motion.div>
-                  </div>
                 </div>
-              </div>
+              </motion.div>
+            </AnimatePresence>
+          </div>
 
               {/* ── 程式列：卡片一張一張排好，最後按 Go ── */}
               <div className="prog-strip">
@@ -645,8 +709,23 @@ export function DriveGame({ gameId, onDone, onExit }: GameProps) {
                   <ArrowArt dir={palette.ghost.item.dir} />
                 </div>
               )}
-            </motion.div>
-          )
+        </motion.div>
+      )}
+
+      {/* 教學卡：從車子那邊長出來，收回車子那邊（ui/motion.ts foreground） */}
+      <AnimatePresence>
+        {card && (
+          <motion.div
+            key={`teach-${card.n}`}
+            className="drive-teach-cam"
+            style={{ transformOrigin: origin }}
+            variants={foreground}
+            initial="initial"
+            animate="enter"
+            exit="exit"
+          >
+            <TeachCard spec={card.spec} short={card.short} camera onDone={release} />
+          </motion.div>
         )}
       </AnimatePresence>
     </Shell>
