@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState, type CSSProperties } from 'react'
-import { AnimatePresence, motion } from 'motion/react'
+import { AnimatePresence, motion, useIsPresent } from 'motion/react'
 import { plainText, segments, type Line } from '../content/lines'
-import { isBlankQuestion, revealsAnswer, LINGER_MS, REVEAL_HOLD_MS } from '../content/subtitles'
-import { audioClock, onSpeakLevel, onSpeech, type SpeechEvent, type WordTiming } from '../lib/audio'
+import { isBlankQuestion, revealsAnswer, BACK_TO_QUESTION_MS, REVEAL_HOLD_MS } from '../content/subtitles'
+import { audioClock, isSpeaking, onSpeakLevel, onSpeech, replayLine, type SpeechEvent, type WordTiming } from '../lib/audio'
+import { swap } from './motion'
 import './subtitle.css'
 
 /** 字幕上的一個字（挖空時，`|` 後那段整段是一個字） */
@@ -39,6 +40,8 @@ type Mode = 'live' | 'still' | 'reveal'
 interface View {
   live: Live
   mode: Mode
+  /** 這句唸完了：留在畫面上（換成「唸完」的樣式），直到下一句來取代 */
+  done: boolean
 }
 
 const norm = (s: string) => s.toLowerCase().replace(/[^\p{L}\p{N}]/gu, '')
@@ -123,10 +126,16 @@ function align(toks: Tok[], words: WordTiming[] | null, durMs: number) {
   }
 }
 
-/** 說話時在上方中央顯示的英文字幕：逐字亮起，問題句的答案處是空格，作答後補上答案 */
+/**
+ * 說話時在上方中央顯示的英文字幕：逐字亮起，問題句的答案處是空格，作答後補上答案。
+ * 一句唸完後留在畫面上（「唸完」的樣式），直到下一句來取代；換畫面、離開遊戲（stopSpeech）才收起。
+ * 換句是原地換（ui/motion.ts 的 swap）：新的一句蓋上來淡入，舊的等一下才淡掉，中間不會先變空白。
+ * 點一下字幕：沒在說話時把這一句再唸一次（不算作答、不影響遊戲的計時）。
+ */
 export function Subtitle({ hidden }: { hidden: boolean }) {
   const [view, setView] = useState<View | null>(null)
   const root = useRef<HTMLDivElement>(null)
+  const replay = useRef<() => void>(() => {})
 
   useEffect(() => {
     let live: Live | null = null
@@ -134,8 +143,10 @@ export function Subtitle({ hidden }: { hidden: boolean }) {
     let shown: View | null = null
     let holding = false
     let holdTimer = 0
-    let lingerTimer = 0
+    let backTimer = 0
     let raf = 0
+    /** 剛點了字幕要重播的那一句：之後第一個同 key 的播放事件就是重播 */
+    let ask: string | null = null
     /** 每個字目前的狀態，只有改變時才動 DOM */
     let painted: string[] = []
 
@@ -180,45 +191,65 @@ export function Subtitle({ hidden }: { hidden: boolean }) {
       painted = []
       setView(v)
       cancelAnimationFrame(raf)
-      raf = v?.mode === 'live' ? requestAnimationFrame(frame) : 0
+      raf = v?.mode === 'live' && !v.done ? requestAnimationFrame(frame) : 0
     }
+
+    /** 一句要怎麼顯示：唸完了、補上答案、或是回到還在等作答的問題（still），都是「唸完」的樣式 */
+    const viewOf = (l: Live, mode: Mode = l.whole ? 'still' : 'live'): View => ({ live: l, mode, done: l.ended || mode === 'reveal' || (mode === 'still' && l !== live) })
 
     const clearTimers = () => {
       clearTimeout(holdTimer)
-      clearTimeout(lingerTimer)
+      clearTimeout(backTimer)
       holding = false
     }
 
-    /** 一般句子唸完後：回到還在等作答的問題（空格），沒有就淡出 */
+    /** 補上答案停一下之後、插話唸完之後：正在唸的句子優先，再來是還在等作答的問題，都沒有就留著最後一句 */
     const settle = () => {
-      if (live && !live.ended) return show({ live, mode: 'live' })
-      if (pending) return show({ live: pending, mode: pending === live ? 'live' : 'still' })
-      show(null)
+      if (live && !live.ended) return show(viewOf(live))
+      if (pending) return show(viewOf(pending, pending === live && !live.whole ? 'live' : 'still'))
+      if (live) show(viewOf(live))
     }
 
-    const begin = (next: Live) => {
-      clearTimeout(lingerTimer)
+    const begin = (next: Live, again: boolean) => {
+      clearTimeout(backTimer)
       const q = pending
       live = next
-      if (q && revealsAnswer(q.key, next.key)) {
+      if (!again && q && revealsAnswer(q.key, next.key)) {
         // 作答之後的第一句：先把問題句補上答案、停一下，再換成正在唸的句子
         pending = null
         holding = true
-        show({ live: q, mode: 'reveal' })
+        show(viewOf(q, 'reveal'))
         clearTimeout(holdTimer)
         holdTimer = window.setTimeout(() => {
           holding = false
           settle()
         }, REVEAL_HOLD_MS)
-      } else if (!holding) show({ live: next, mode: 'live' })
+      } else if (!holding) show(viewOf(next))
+      // 重播別的句子（例如「再試一次」）時，還在等作答的問題不變；重播的就是那個問題時，換成新的這一句
       if (next.blank) pending = next
+    }
+
+    replay.current = () => {
+      if (!shown || holding || isSpeaking()) return
+      const l = shown.live
+      ask = l.key
+      if (!replayLine(l.key)) ask = null
     }
 
     const onEvent = (e: SpeechEvent) => {
       if (e.type === 'stop') {
         clearTimers()
-        live = pending = null
+        live = pending = ask = null
         return show(null)
+      }
+      if (e.type === 'cut') {
+        // 同一個畫面裡跳過：這一句停在唸完的樣子，留在畫面上等下一句
+        ask = null
+        const l = live
+        if (!l || l.ended) return
+        l.ended = true
+        if (shown?.live === l) show(viewOf(l, shown.mode))
+        return
       }
       if (e.type === 'end') {
         const l = live
@@ -226,17 +257,23 @@ export function Subtitle({ hidden }: { hidden: boolean }) {
         l.ended = true
         if (shown?.live !== l) return
         paint(l)
-        if (!l.blank) lingerTimer = window.setTimeout(() => shown?.live === l && settle(), LINGER_MS)
+        show(viewOf(l, shown.mode))
+        // 等作答時插進來的一句（再試一次、發呆提醒）唸完：停一下換回問題句，空格繼續等
+        if (pending && pending !== l) backTimer = window.setTimeout(() => shown?.live === l && settle(), BACK_TO_QUESTION_MS)
         return
       }
       const fresh = !live || live.ended || live.key !== e.key || e.type === 'whole' || e.seg === 0
-      if (fresh) begin(makeLive(e.key, e.line))
+      if (fresh) {
+        const again = ask === e.key
+        ask = null
+        begin(makeLive(e.key, e.line), again)
+      }
       const l = live!
       if (e.type === 'whole') {
         l.whole = true
         l.toks.forEach((t) => (t.start = t.end = 0))
         l.segAt = l.toks.map(() => 0)
-        if (shown?.live === l) show({ live: l, mode: 'still' })
+        if (shown?.live === l) show(viewOf(l, 'still'))
         return
       }
       l.segAt[e.seg] = e.at
@@ -252,14 +289,15 @@ export function Subtitle({ hidden }: { hidden: boolean }) {
       off()
       clearTimers()
       cancelAnimationFrame(raf)
+      replay.current = () => {}
     }
   }, [])
 
-  // 說話者的小圓點跟著音量起伏
+  // 說話者的小圓點跟著音量起伏（只動最上面、正在顯示的那一句）
   useEffect(
     () =>
       onSpeakLevel((_, level) => {
-        const dot = root.current?.querySelector<HTMLElement>('.sub-who')
+        const dot = root.current?.querySelector<HTMLElement>('.sub-pill:not([data-gone]) .sub-dot')
         if (dot) dot.style.transform = `scale(${1 + level * 0.55})`
       }),
     [],
@@ -268,48 +306,66 @@ export function Subtitle({ hidden }: { hidden: boolean }) {
   const v = hidden ? null : view
   return (
     <div className="subtitle" ref={root} aria-live="polite">
-      {/* 先收掉上一句再出現下一句，兩個膠囊不會疊在一起；字的亮起跟著音訊時鐘，不受影響 */}
-      <AnimatePresence mode="wait">
-        {v && (
-          <motion.div
-            key={v.live.id}
-            data-line={v.live.id}
-            className={`sub-pill${v.mode === 'reveal' ? ' is-reveal' : ''}${plainText(v.live.line).length > LONG_CHARS ? ' is-long' : ''}`}
-            style={{ '--who': `var(--${v.live.line.speaker}-deep)` } as CSSProperties}
-            initial={{ opacity: 0, y: -10, scale: 0.97 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: -6, scale: 0.98, transition: { duration: 0.12 } }}
-            transition={{ type: 'spring', stiffness: 420, damping: 32 }}
-          >
-            <span className="sub-who" aria-hidden="true" />
-            <span className="sub-text">
-              {v.live.toks.map((t, i) => (
-                <span key={i} data-i={i} className={`sub-w${t.key ? ' is-key' : ''}${t.minor ? ' is-minor' : ''}${v.mode !== 'live' ? ' is-said' : ''}`}>
-                  {t.blank ? (
-                    <>
-                      {t.blank.pre}
-                      <span className={`sub-blank${v.mode === 'reveal' ? ' is-filled' : ''}`}>
-                        <span className="sub-ans">{t.blank.core}</span>
-                        {v.mode === 'reveal' && (
-                          <span className="sub-spark" aria-hidden="true">
-                            <i />
-                            <i />
-                            <i />
-                            <i />
-                          </span>
-                        )}
-                      </span>
-                      {t.blank.post}
-                    </>
-                  ) : (
-                    t.text
+      {/* 原地換：新的一句蓋上來淡入，舊的等新的差不多蓋好才淡掉（兩個膠囊疊在同一格），不會先淡成空白再出現 */}
+      <AnimatePresence initial={false}>{v && <Pill key={v.live.id} v={v} onTap={() => replay.current()} />}</AnimatePresence>
+    </div>
+  )
+}
+
+function Pill({ v, onTap }: { v: View; onTap: () => void }) {
+  const present = useIsPresent()
+  const { live, mode, done } = v
+  return (
+    <motion.div
+      data-line={live.id}
+      data-gone={present ? undefined : ''}
+      className={`sub-pill${mode === 'reveal' ? ' is-reveal' : ''}${done ? ' is-done' : ''}${plainText(live.line).length > LONG_CHARS ? ' is-long' : ''}`}
+      style={{ '--who': `var(--${live.line.speaker}-deep)`, pointerEvents: present ? undefined : 'none' } as CSSProperties}
+      variants={swap}
+      initial="initial"
+      animate="enter"
+      exit="exit"
+      role="button"
+      aria-label="再聽一次"
+      onPointerDown={(e) => {
+        // 只有字幕自己收這一下，不傳給下面的畫面
+        e.stopPropagation()
+        onTap()
+      }}
+    >
+      {/* 說話時是跟著音量起伏的小圓點，唸完換成「再聽一次」的小喇叭 */}
+      <span className="sub-who" aria-hidden="true">
+        <span className="sub-dot" />
+        <svg className="sub-again" viewBox="0 0 24 24">
+          <path d="M3.5 9.4h3.4L12 5.2v13.6l-5.1-4.2H3.5z" />
+          <path className="sub-wave" d="M15.4 8.8a4.4 4.4 0 0 1 0 6.4M18.2 6.2a8 8 0 0 1 0 11.6" />
+        </svg>
+      </span>
+      <span className="sub-text">
+        {live.toks.map((t, i) => (
+          <span key={i} data-i={i} className={`sub-w${t.key ? ' is-key' : ''}${t.minor ? ' is-minor' : ''}${mode !== 'live' || done ? ' is-said' : ''}`}>
+            {t.blank ? (
+              <>
+                {t.blank.pre}
+                <span className={`sub-blank${mode === 'reveal' ? ' is-filled' : ''}`}>
+                  <span className="sub-ans">{t.blank.core}</span>
+                  {mode === 'reveal' && (
+                    <span className="sub-spark" aria-hidden="true">
+                      <i />
+                      <i />
+                      <i />
+                      <i />
+                    </span>
                   )}
                 </span>
-              ))}
-            </span>
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </div>
+                {t.blank.post}
+              </>
+            ) : (
+              t.text
+            )}
+          </span>
+        ))}
+      </span>
+    </motion.div>
   )
 }

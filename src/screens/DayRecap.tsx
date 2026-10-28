@@ -10,7 +10,7 @@ import { stopIcon } from './Route'
 import { hasLine } from '../content/lines'
 import { CARD_GOAL, nextPick, stickerOfMilestone, todayMilestones, isSelfFix } from '../lib/achievements'
 import { db, today } from '../lib/db'
-import { say, sfx, stopSpeech } from '../lib/audio'
+import { say, sfx, hushSpeech } from '../lib/audio'
 import type { Plan } from '../lib/plan'
 import './recap.css'
 
@@ -151,7 +151,7 @@ export function DayRecap({ plan }: { plan: Plan }) {
             transition={{ type: 'spring', stiffness: 300, damping: 15, delay: 1.1 }}
             whileTap={{ scale: 0.94 }}
             onClick={() => {
-              stopSpeech()
+              hushSpeech()
               sfx.pop()
               setPicking(true)
             }}
@@ -167,7 +167,7 @@ export function DayRecap({ plan }: { plan: Plan }) {
           transition={{ type: 'spring', stiffness: 300, damping: 15, delay: 1 }}
           whileTap={{ scale: 0.92 }}
           onClick={() => {
-            stopSpeech()
+            hushSpeech()
             void tell()
           }}
         >

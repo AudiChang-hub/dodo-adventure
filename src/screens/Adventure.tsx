@@ -14,7 +14,7 @@ import { theme as themeDef } from '../content/themes'
 import { STORY_EGG_COUNT } from '../content/lines-friends'
 import { hasLine } from '../content/lines'
 import { go } from '../lib/nav'
-import { say, sfx, stopSpeech } from '../lib/audio'
+import { say, sfx, hushSpeech, stopSpeech } from '../lib/audio'
 import { getKV, setKV, today } from '../lib/db'
 import { cachedPlan, todayPlan, savePlan, planDone, hatchFriend, type Plan } from '../lib/plan'
 import { noteActivity, isBreakDue, holdBedtime, bedtimeIfDue } from '../lib/session'
@@ -104,12 +104,12 @@ export function Adventure() {
     while (!skipped.current && performance.now() < end) await wait(Math.min(80, end - performance.now()))
   }
 
-  /** 路線、轉場、故事終點：點一下畫面就跳過旁白（say 被 stopSpeech 打斷會提早結束） */
+  /** 路線、轉場、故事終點：點一下畫面就跳過旁白（say 被 hushSpeech 打斷會提早結束；字幕留著等下一句） */
   const skip = () => {
     if (skipped.current || performance.now() < skipFrom.current) return
     if (phase !== 'route' && phase !== 'travel' && phase !== 'finale') return
     skipped.current = true
-    stopSpeech()
+    hushSpeech()
   }
 
   // 冒險在畫面上就先擋住「時間到」：由冒險自己在兩站之間檢查。

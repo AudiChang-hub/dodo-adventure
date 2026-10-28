@@ -9,7 +9,7 @@ import { game as gameDef, station as stationDef } from '../content/games'
 import { hasLine, type Speaker } from '../content/lines'
 import { ACH_COUNT } from '../content/lines-achieve'
 import { CARD_GOAL, pendingPicks, roundLine, stickerOfMilestone, type Milestone, type RoundSummary } from '../lib/achievements'
-import { say, sfx, stopSpeech } from '../lib/audio'
+import { say, sfx, hushSpeech } from '../lib/audio'
 import { rand } from '../lib/random'
 import { wait } from '../games/lines'
 import { NextCard } from './NextCard'
@@ -51,7 +51,7 @@ function useSkip(finish: () => void) {
   const t0 = useRef(performance.now())
   return () => {
     if (performance.now() - t0.current < GRACE_MS) return
-    stopSpeech()
+    hushSpeech()
     finish()
   }
 }

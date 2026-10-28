@@ -1,5 +1,7 @@
 /* ── 字幕：上方中央、進度點下方，逐字亮起 ───────────────────────
-   已唸過 ink、正在唸的字有 butter 色底、還沒唸 ink-soft；不接收點擊，不會擋到題目 */
+   已唸過 ink、正在唸的字有 butter 色底、還沒唸 ink-soft。
+   一句唸完後留在畫面上（「唸完」的樣式），直到下一句來取代；換句是原地換，新的蓋在舊的上面（同一格）。
+   外框不接收點擊，只有膠囊本身收：點一下把這一句再唸一次 */
 .subtitle {
   position: fixed;
   z-index: 60;
@@ -12,22 +14,43 @@
   display: grid;
   justify-items: center;
 }
-/* 遊戲畫面上方有進度點：字幕放在進度點下方、題目卡上方 */
-body:has(.stage-top .progress) .subtitle {
-  top: 90px;
+/* 遊戲畫面：字幕放在上方那一排（返回鍵、進度點、陪玩小字）下面的「字幕路」，
+   ui/ui.css 在這裡幫字幕留了位置，題目卡、畫布都從字幕下面開始 */
+body:has(.stage-top) .subtitle {
+  top: 84px;
 }
-/* 畫畫類（沒有主持恐龍）的描線區一路畫到上緣：字縮小一點，少壓到起點 */
-body:has(.stage-top .progress):not(:has(.stage-host)) .sub-pill {
+/* 直式手機（家長遠端看）：左右各留 16px，不要被擠成一個字一行的細長條 */
+@media (max-width: 700px) {
+  .subtitle {
+    max-width: calc(100vw - 32px);
+  }
+  .sub-pill {
+    font-size: clamp(18px, 5vw, 26px);
+  }
+  /* 上方那一排在窄螢幕會擠成兩三行：字幕再往下一點，不壓到返回鍵 */
+  body:has(.stage-top) .subtitle {
+    top: 100px;
+  }
+}
+/* 畫畫類（沒有主持恐龍）：字小一點，膠囊矮一點，離描線的起點遠一點 */
+body:has(.stage-top):not(:has(.stage-host)) .sub-pill {
   font-size: clamp(22px, 3.5vmin, 32px);
 }
 .sub-pill {
   grid-area: 1 / 1;
+  position: relative;
+  pointer-events: auto;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+  user-select: none;
   display: flex;
   align-items: center;
   gap: 0.42em;
   padding: 0.26em 0.86em 0.3em 0.62em;
   border-radius: 999px;
-  background: rgba(251, 248, 242, 0.94);
+  /* 幾乎不透明：換句時新的一句蓋在舊的上面，看不到底下的字 */
+  background: rgba(251, 248, 242, 0.97);
   box-shadow:
     0 0 0 2px rgba(46, 42, 37, 0.05) inset,
     0 6px 0 rgba(46, 42, 37, 0.06),
@@ -42,16 +65,63 @@ body:has(.stage-top .progress):not(:has(.stage-host)) .sub-pill {
 .sub-pill.is-long {
   font-size: clamp(22px, 3.5vmin, 32px);
 }
+/* 點的範圍比膠囊大一圈：小手不用點得很準 */
+.sub-pill::after {
+  content: '';
+  position: absolute;
+  inset: -6px -14px;
+  border-radius: 999px;
+}
 
-/* 說話者的小圓點：豆豆綠、波波橘、莫莫藍，跟著音量起伏 */
+/* 說話者：豆豆綠、波波橘、莫莫藍。說話時是跟著音量起伏的小圓點，唸完換成「再聽一次」的小喇叭 */
 .sub-who {
   flex: none;
+  position: relative;
+  width: 0.62em;
+  height: 0.62em;
+  margin-right: -0.06em;
+  display: grid;
+  place-items: center;
+}
+.sub-dot,
+.sub-again {
+  grid-area: 1 / 1;
+  transition:
+    opacity 0.3s var(--ease-out),
+    scale 0.4s var(--ease-out);
+}
+.sub-dot {
   width: 0.36em;
   height: 0.36em;
   border-radius: 50%;
   background: var(--who, var(--dodo-deep));
   box-shadow: 0 0 0 0.12em color-mix(in srgb, var(--who, var(--dodo-deep)) 22%, transparent);
-  transition: transform 0.08s linear;
+  transition:
+    transform 0.08s linear,
+    opacity 0.3s var(--ease-out),
+    scale 0.4s var(--ease-out);
+}
+.sub-again {
+  width: 0.62em;
+  height: 0.62em;
+  overflow: visible;
+  fill: var(--who, var(--dodo-deep));
+  opacity: 0;
+  scale: 0.6;
+}
+.sub-again .sub-wave {
+  fill: none;
+  stroke: var(--who, var(--dodo-deep));
+  stroke-width: 2.2;
+  stroke-linecap: round;
+}
+.sub-pill.is-done .sub-dot {
+  opacity: 0;
+  scale: 0.5;
+}
+.sub-pill.is-done .sub-again {
+  opacity: 0.9;
+  scale: 1;
 }
 
 .sub-text {
@@ -89,6 +159,10 @@ body:has(.stage-top .progress):not(:has(.stage-host)) .sub-pill {
 .sub-w.is-now {
   color: var(--ink);
 }
+/* 唸完的句子：字退一點點（仍是深色、清楚可讀），跟正在唸的句子分得出來 */
+.sub-pill.is-done .sub-w.is-said {
+  color: color-mix(in srgb, var(--ink) 82%, var(--paper));
+}
 .sub-w.is-now::before {
   opacity: 1;
   transform: none;
@@ -107,6 +181,9 @@ body:has(.stage-top .progress):not(:has(.stage-host)) .sub-pill {
 }
 .sub-w.is-minor.is-said,
 .sub-w.is-minor.is-now {
+  color: var(--ink-soft);
+}
+.sub-pill.is-done .sub-w.is-minor.is-said {
   color: var(--ink-soft);
 }
 

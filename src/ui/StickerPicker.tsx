@@ -6,7 +6,7 @@ import { ArtSticker } from './StickerArt'
 import { AlbumPage, PER_PAGE } from './Album'
 import { album, nextPick, pickOptions, placeSticker, type OwnedSticker } from '../lib/achievements'
 import type { Stk } from '../lib/sticker-pick'
-import { say, sfx, stopSpeech } from '../lib/audio'
+import { say, sfx, hushSpeech, stopSpeech } from '../lib/audio'
 import { wait } from '../games/lines'
 import { FADE, overlay } from './motion'
 import './sticker-ui.css'
@@ -121,7 +121,7 @@ export function StickerPicker({ onDone }: { onDone: () => void }) {
     if (sel === i) return keep()
     sfx.tap()
     setSel(i)
-    stopSpeech()
+    hushSpeech()
     const name = `stk.art.${batch[i].art}`
     void say(...(toldAgain.current ? [name] : [name, 'stk.pick.again']))
     toldAgain.current = true
@@ -130,7 +130,7 @@ export function StickerPicker({ onDone }: { onDone: () => void }) {
   const more = () => {
     if (phase !== 'choose') return
     sfx.whoosh()
-    stopSpeech()
+    hushSpeech()
     newBatch()
     void say('stk.pick.more')
   }
@@ -138,7 +138,7 @@ export function StickerPicker({ onDone }: { onDone: () => void }) {
   const later = () => {
     if (phase !== 'choose') return
     sfx.tap()
-    stopSpeech()
+    hushSpeech()
     setPhase('place')
     void say('stk.pick.later').then(finish)
   }
@@ -147,7 +147,7 @@ export function StickerPicker({ onDone }: { onDone: () => void }) {
   const keep = async () => {
     if (sel == null || phase !== 'choose') return
     const stk = batch[sel]
-    stopSpeech()
+    hushSpeech()
     sfx.correct()
     const m = placeSticker(stk)
     if (!m) return finish()
