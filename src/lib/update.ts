@@ -10,6 +10,8 @@ export const BUILD_TIME = __BUILD_TIME__
 const CHECK_EVERY = 30 * 60 * 1000
 /** 最後一次點擊後要安靜這麼久才更新，避免剛按下「出發」、轉場還在首頁時被重新載入 */
 const IDLE_MS = 5000
+/** 送出「換新版」後最多等這麼久，新版還沒接手就自己重新載入 */
+const APPLY_TIMEOUT = 10 * 1000
 
 /** 這些畫面重新載入不會打斷題目；載入後回到同一個畫面 */
 const SAFE: Route['name'][] = ['home', 'map', 'collection', 'parent']
@@ -46,7 +48,14 @@ function tryApply() {
     /* 存不了就回首頁 */
   }
   setStatus('applying')
+  window.__dodoBoot?.log(`套用新版（${document.hidden ? '背景' : '前景'}，畫面 ${currentRoute().name}）`)
   void applySW()
+  // 正常情況新版接手後會立刻重新載入。等不到（等待中的新版已被別的分頁啟用、訊息沒送到、SW 卡住）
+  // 就自己重新載入：不管這時是新版還是舊版在控制，整頁都會是同一版的檔案，不會停在半新半舊的狀態
+  window.setTimeout(() => {
+    window.__dodoBoot?.log('新版沒有接手，強制重新載入')
+    location.reload()
+  }, APPLY_TIMEOUT)
 }
 
 export async function checkForUpdate() {
