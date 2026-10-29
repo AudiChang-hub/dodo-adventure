@@ -25,7 +25,7 @@ export function enterTheme(id: ThemeId | string | null | undefined): () => void 
 
 /**
  * 這個元件在畫面上的期間，主題都設好：第一次 render 之前就設（遊戲在 useState 裡就出題），離開時清掉；
- * StrictMode 重新掛載時 effect 會再設一次。PlayGame 與爸爸回合用。
+ * StrictMode 重新掛載時 effect 會再設一次。PlayGame 用。
  */
 export function useThemeScope(id: string | null | undefined) {
   useState(() => enterTheme(id))

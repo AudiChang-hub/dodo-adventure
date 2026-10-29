@@ -79,7 +79,7 @@ interface Props {
   onHost?: () => void
   children: ReactNode
   hideHost?: boolean
-  /** 角落的陪玩提示，預設顯示；爸爸回合自己有更大的提示，不用再顯示 */
+  /** 角落的陪玩提示，預設顯示；傳 false 就不顯示 */
   hint?: boolean
   /** 遊戲自己決定的陪玩提示（例如描字現在建議用手指還是用筆），取代預設的那句 */
   hintText?: string

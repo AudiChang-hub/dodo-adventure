@@ -89,7 +89,7 @@ export const trackOf = (game: string): TrackId | null => GAME_TRACK[game] ?? LEG
  * - 思考：一個方向；2 張、3 張箭頭卡；2、3、4 步的排順序；照順序 5 以內、5 以上；一種分類（會飛、下雨天…）；
  *   依類別／顏色／形狀找出全部。
  * - 動手：運筆小路、連點成圖、描數字字母每升到一個沒到過的難度算一個（每一級是一種新的線條或一組新字）；用筆圈選。
- * 回傳 null 的（著色、自由畫、舊版字母遊戲、爸爸回合）不受額度限制。
+ * 回傳 null 的（著色、自由畫、舊版字母遊戲、舊版爸爸回合的紀錄）不受額度限制。
  */
 export function conceptOf(game: string, skill: string): string | null {
   const i = skill.indexOf(':')

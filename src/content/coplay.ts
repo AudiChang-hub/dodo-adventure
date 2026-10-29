@@ -1,13 +1,8 @@
-// 給爸爸的一句話（benchmark 手法 2）：遊戲角落的中文陪玩提示，與「換爸爸問」回合的題目。
+// 給爸爸的一句話（benchmark 手法 2）：遊戲角落的中文陪玩提示。
 // 以遊戲 id 對應；其他工作線新增的遊戲沒有對應時，先找同一站的提示，再用通用提示。
 import type { StationId } from '../lib/db'
-import type { Cue, Visual } from './games'
-import { hasLine } from './lines'
-import { letterEntry } from './letters'
-import { VOCAB } from './vocab'
-import { COLORS, SHAPES, COUNT_ICONS } from './park'
+import type { Cue } from './games'
 import { pick } from '../lib/random'
-import { skill } from '../lib/adaptive'
 import { themeNow } from '../lib/theme-play'
 
 // ── 陪玩提示：一行、短、只寫給大人看 ─────────────────────────────
@@ -72,108 +67,6 @@ export function coplayHint(gameId: string | null, station: StationId): string {
   if (th && Math.random() < THEME_HINT_SHARE) return `今天的主題是${th.zh}：${th.dad}`
   const list = (gameId && GAME_HINTS[gameId]) || STATION_HINTS[station] || GENERIC_HINTS
   return pick(list)
-}
-
-// ── 換爸爸問：大圖＋爸爸用中文問孩子 ─────────────────────────────
-export interface DadAsk {
-  itemId: string
-  /** 記錄用的技能：coplay: 前綴，不和孩子自己答的熟練度混在一起 */
-  skill: string
-  visual: Visual
-  /** 給爸爸看的中文提示 */
-  ask: string
-  /** 爸爸按完之後，恐龍用英文說一次答案（台詞 key） */
-  answer: string | null
-}
-
-const line = (k: string) => (hasLine(k) ? k : null)
-const NUM_RE = /^\d+$/
-
-function letterAsk(L: string): DadAsk | null {
-  if (!/^[A-Z]$/.test(L)) return null
-  return { itemId: L, skill: `coplay:letter:${L}`, visual: { t: 'letter', ch: L }, ask: '指著字母問他：「這是什麼？」', answer: line(`en.thisis.${L}`) }
-}
-
-function wordAsk(L: string): DadAsk | null {
-  const e = /^[A-Z]$/.test(L) ? letterEntry(L) : null
-  if (!e) return null
-  return { itemId: L, skill: `coplay:word:${L}`, visual: { t: 'emoji', icon: e.icon }, ask: '指著圖問他：「What is this?」開頭是什麼聲音？', answer: line(`en.itis.${L}`) }
-}
-
-function numAsk(id: string): DadAsk | null {
-  if (!NUM_RE.test(id)) return null
-  const n = Number(id)
-  return { itemId: id, skill: `coplay:num:${n}`, visual: { t: 'number', n }, ask: '指著數字問他：「這是幾？」', answer: line(`m.thisis.${n}`) }
-}
-
-function countAsk(id: string): DadAsk | null {
-  if (!NUM_RE.test(id) || Number(id) < 1 || Number(id) > 10) return null
-  const n = Number(id)
-  return { itemId: id, skill: `coplay:count:${n}`, visual: { t: 'group', icon: pick(COUNT_ICONS), count: n }, ask: '請他一個一個點著數：「How many?」', answer: line(`m.total.${n}`) }
-}
-
-function vocabAsk(id: string): DadAsk | null {
-  const v = VOCAB.find((x) => x.id === id)
-  if (!v) return null
-  const ask = v.theme === 'animal' ? '指著圖問他：「這是什麼動物？」牠怎麼叫？' : '指著圖問他：「What is this?」'
-  return { itemId: id, skill: `coplay:vocab:${id}`, visual: { t: 'emoji', icon: v.icon }, ask, answer: line(`z.itis.${id}`) }
-}
-
-function colorAsk(id: string): DadAsk | null {
-  const c = COLORS.find((x) => x.id === id)
-  if (!c) return null
-  return { itemId: id, skill: `coplay:color:${id}`, visual: { t: 'color', hex: c.hex }, ask: '指著顏色問他：「What color?」', answer: line(`p.thisis.color.${id}`) }
-}
-
-function shapeAsk(id: string): DadAsk | null {
-  const s = SHAPES.find((x) => x.id === id)
-  if (!s) return null
-  return { itemId: id, skill: `coplay:shape:${id}`, visual: { t: 'shape', shape: s.id, hex: '#F0B088' }, ask: '指著形狀問他：「這是什麼形狀？」', answer: line(`p.thisis.shape.${id}`) }
-}
-
-function glyphAsk(g: string): DadAsk | null {
-  if (/^\d$/.test(g)) return { itemId: g, skill: `coplay:glyph:${g}`, visual: { t: 'number', n: Number(g) }, ask: '指著問他：「這是幾？」', answer: line(`d.glyph.num.${g}`) }
-  const a = letterAsk(g)
-  return a && { ...a, skill: `coplay:glyph:${g}` }
-}
-
-/** 每個遊戲怎麼把剛玩過的題目（itemId）變成爸爸的問題 */
-const ASKS: Record<string, (itemId: string) => DadAsk | null> = {
-  'en-find': letterAsk,
-  'en-pic': wordAsk,
-  'en-word': wordAsk,
-  'm-find': numAsk,
-  'm-match': countAsk,
-  'm-count': countAsk,
-  'z-find': vocabAsk,
-  'z-sound': vocabAsk,
-  'p-color': colorAsk,
-  'p-shape': shapeAsk,
-  'd-glyph': glyphAsk,
-}
-
-/**
- * 通用題：拿一個動物村的詞，問「這是什麼？」。
- * 優先挑在 App 裡學過的（聽詞找圖、聽聲音答過的）；一個都還沒學過才用常見的動物（爸爸用中文問「這是什麼動物」，不考英文名字）。
- */
-function genericAsk(): DadAsk {
-  const pool = VOCAB.filter((x) => x.theme === 'animal' || x.theme === 'vehicle')
-  const known = pool.filter((x) => skill(`vocab:${x.id}`).seen > 0 || skill(`sound:${x.id}`).seen > 0)
-  const v = pick(known.length ? known : pool.filter((x) => x.theme === 'animal'))
-  return vocabAsk(v.id)!
-}
-
-/**
- * 換爸爸問的題目：優先從孩子剛剛在這個遊戲答過的題目裡挑（今天學過的才問），
- * 對應不到（例如照順序、運筆，或其他工作線新增的遊戲）就用通用題。
- */
-export function dadAsk(gameId: string, recentItems: string[]): DadAsk {
-  const make = ASKS[gameId]
-  if (make) {
-    const asks = [...new Set(recentItems)].map(make).filter((a): a is DadAsk => !!a)
-    if (asks.length) return pick(asks)
-  }
-  return genericAsk()
 }
 
 // ── 描數字字母：現在建議用手指還是用筆（手法 5）─────────────────────
