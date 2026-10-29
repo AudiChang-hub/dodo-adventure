@@ -3,7 +3,7 @@ import { createRoot } from 'react-dom/client'
 import { App } from './App'
 import { loadSettings } from './lib/settings'
 import { loadAdaptive } from './lib/adaptive'
-import { loadWords } from './lib/words'
+import { loadWords, loadZhAudio } from './lib/words'
 import { loadAchievements } from './lib/achievements'
 import { startSession } from './lib/session'
 import { installGuards } from './lib/lock'
@@ -24,7 +24,7 @@ installFirstGesture()
 
 // 成就（貼紙本）要在熟練度載入之後：第一次會把已經熟的技能補成貼紙
 // 失敗時交給 index.html 顯示給家長看的說明；卡住不動時那邊也會逾時處理，不會一片白
-Promise.all([loadSettings(), loadAdaptive().then(loadAchievements), loadWords()])
+Promise.all([loadSettings(), loadAdaptive().then(loadAchievements), loadWords(), loadZhAudio()])
   .then(async () => {
     await startSession()
     // 同步失敗會寫進同步狀態給家長區顯示，這裡不必再往外丟

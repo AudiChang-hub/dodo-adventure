@@ -19,9 +19,11 @@ export interface Settings {
   nightWarm: boolean
   /** 蠟筆著色「幫忙不塗出線」：筆觸限制在下筆的那一塊裡；關掉就完全自由塗 */
   coloringHelp: boolean
+  /** 單字中文提示：教學卡教還沒學會的字時唸「Apple → 蘋果 → Apple」（lib/words.ts 的 bridgeLines）；關掉就全英文 */
+  zhBridge: boolean
 }
 
-const DEFAULTS: Settings = { dailyMinutes: 20, freePlay: 'after', volume: 0.9, theme: 'all', activitiesPerDay: 4, eyeBreakEvery: 10, nightWarm: true, coloringHelp: true }
+const DEFAULTS: Settings = { dailyMinutes: 20, freePlay: 'after', volume: 0.9, theme: 'all', activitiesPerDay: 4, eyeBreakEvery: 10, nightWarm: true, coloringHelp: true, zhBridge: true }
 
 let state: Settings = DEFAULTS
 const subs = new Set<() => void>()

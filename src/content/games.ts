@@ -2,8 +2,9 @@ import type { Speaker } from './lines'
 import type { StationId } from '../lib/db'
 import { PHONICS, PHONICS_WORDS, CONFUSE, LOOKALIKE_LOWER, phonicsSkill, wordsOf, wordId, type PhonicsWord, type SoundUnit } from './letters'
 import { VOCAB, AMBIGUOUS, CAT_EXAMPLES, catLine, vocab, type Tag, type VocabEntry } from './vocab'
-import { bridgeLines, keyOfVocab, lexWord, thisIs } from './lexicon'
-import { isUnknown, needsTeach, usable } from '../lib/words'
+import { keyOfVocab, lexWord, thisIs } from './lexicon'
+import { colorKey, shapeKey } from './zh-words'
+import { bridgeLines, isUnknown, needsTeach, usable } from '../lib/words'
 import { COLORS, COLOR_EXAMPLES, SHAPES, SIZE_ICONS, COUNT_ICONS, type ShapeId } from './park'
 import { COLOR_LOOKALIKE, SHAPE_LOOKALIKE } from './worksheet-data'
 import { pickTarget, pickPreferred, unlockedNumbers, mastered, skill, isNew } from '../lib/adaptive'
@@ -527,7 +528,7 @@ function companion(pool: readonly VocabEntry[], prefer: (x: VocabEntry) => boole
 const emojiOf = (x: VocabEntry): Visual => ({ t: 'emoji', icon: x.icon })
 
 /**
- * 教學卡上教一個或兩個字：每個字的台詞經過 lexicon.ts 的 bridgeLines（之後的搭橋式中文會在這裡插入「英－中－英」），
+ * 教學卡上教一個或兩個字：每個字的台詞經過 lib/words.ts 的 bridgeLines（還沒學會的字接著唸中文三明治「蘋果 → Apple」），
  * 念到哪一句就指著那個字的圖。
  */
 function wordTeach(items: { x: VocabEntry; line: string }[]): TeachSpec {
@@ -594,6 +595,8 @@ const zCategory = (level: number, recent: string[]): ChoiceItem => {
   const opts = shuffle([ans, ...wrong])
   const shown = ex.length && (ex.includes(ans) || !needTeach) ? ex : [ans]
   const exLine = (x: VocabEntry, i: number) => (CAT_EXAMPLES[tag].includes(x.id) ? catLine(tag, x.id, i) : thisIs(vkey(x)))
+  // 多教的那個字是教名字（This is a | car.）：還沒學會的話接著唸中文三明治；分類的例子句（Birds can fly.）是教分類，不加中文
+  const compLines = comp ? bridgeLines(vkey(comp)) : []
   return {
     itemId: tag,
     skill: `cat:${tag}`,
@@ -604,8 +607,8 @@ const zCategory = (level: number, recent: string[]): ChoiceItem => {
     // 先看例子：Birds can fly. Airplanes can fly, too!（不夠教過的干擾選項時，再多教一個字：This is a | car.）
     teach: {
       visual: [...shown.map(emojiOf), ...(comp ? [emojiOf(comp)] : [])],
-      focus: [0, 1, 2],
-      lines: [...shown.map(exLine), ...(comp ? [thisIs(vkey(comp))] : [])],
+      focus: [...shown.map((_, i) => i), ...compLines.map(() => shown.length)],
+      lines: [...shown.map(exLine), ...compLines],
       short: [exLine(shown[0], 0)],
     },
     teachWords: [...shown.map(vkey), ...(comp ? [vkey(comp)] : [])],
@@ -647,6 +650,12 @@ function gentleOthers<T extends { id: string }>(pool: readonly T[], ans: T, n: n
   return [...first, ...sample(pool, n - first.length, [ans, ...first])]
 }
 
+/** 顏色的教學卡：This is | red.（還沒學會的話接著唸「紅色 → Red.」）→ An apple is | red!（這一句才貼上例子的圖） */
+function colorTeach(c: (typeof COLORS)[number]): TeachSpec {
+  const lines = [...bridgeLines(colorKey(c.id), `teach.color.${c.id}`), `teach.colorlike.${c.id}`]
+  return { visual: { t: 'color', hex: c.hex }, side: { t: 'emoji', icon: COLOR_EXAMPLES[c.id] }, sideAt: lines.length - 1, lines }
+}
+
 const pColor = (level: number, recent: string[]): ChoiceItem => {
   const pool = COLORS.slice(0, level >= 3 ? 8 : 5)
   const c = pickPreferred(pool.filter((x) => themeNow()?.colors.includes(x.id)), pool, (x) => `color:${x.id}`, pool.filter((x) => recent.includes(x.id)))
@@ -659,7 +668,7 @@ const pColor = (level: number, recent: string[]): ChoiceItem => {
     options: opts.map((x) => ({ id: x.id, v: shape ? { t: 'shape', shape, hex: x.hex } : { t: 'color', hex: x.hex } })),
     answer: c.id,
     correction: [`p.thisis.color.${c.id}`],
-    teach: { visual: { t: 'color', hex: c.hex }, side: { t: 'emoji', icon: COLOR_EXAMPLES[c.id] }, sideAt: 1, lines: [`teach.color.${c.id}`, `teach.colorlike.${c.id}`] },
+    teach: colorTeach(c),
   }
 }
 
@@ -676,7 +685,7 @@ const pShape = (level: number, recent: string[]): ChoiceItem => {
     options: opts.map((x, i) => ({ id: x.id, v: { t: 'shape', shape: x.id, hex: level >= 3 ? hexes[i] : '#F0B088' } })),
     answer: s.id,
     correction: [`p.thisis.shape.${s.id}`],
-    teach: { visual: { t: 'shape', shape: s.id, hex: '#F0B088' }, lines: [`teach.shape.${s.id}`, `teach.shapefun.${s.id}`] },
+    teach: { visual: { t: 'shape', shape: s.id, hex: '#F0B088' }, lines: [...bridgeLines(shapeKey(s.id), `teach.shape.${s.id}`), `teach.shapefun.${s.id}`] },
   }
 }
 

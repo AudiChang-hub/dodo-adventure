@@ -8,3 +8,4 @@ public/audio
 scripts/.cache
 .claude
 tsconfig.tsbuildinfo
+__pycache__

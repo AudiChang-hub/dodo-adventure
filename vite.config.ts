@@ -37,7 +37,8 @@ export default defineConfig({
         // 語音（約 2000 個 mp3、28MB）刻意留在 precache：孩子可能在沒網路時玩，沒聲音的遊戲對 3 歲小孩等於壞掉。
         // 不會造成白畫面：新版要等全部下載完（installed → waiting）才會通知 update.ts，下載中舊版照常服務；
         // 下載失敗只是這次不更新。沒變的檔案靠 revision 比對直接沿用，平常更新只下載有改的檔案。
-        globPatterns: ['**/*.{js,css,html,svg,png,woff2,mp3}', 'audio/timings.json'],
+        // 中文三明治（BreezyVoice）的音檔在 audio/zh/，已經產生好的字列在 audio/zh/index.json，一樣離線可用
+        globPatterns: ['**/*.{js,css,html,svg,png,woff2,mp3}', 'audio/timings.json', 'audio/zh/index.json'],
         maximumFileSizeToCacheInBytes: 8 * 1024 * 1024,
         navigateFallback: 'index.html',
       },

@@ -30,7 +30,7 @@ export const WORD_INFO: Record<string, [zh: string, tier: 1 | 2 | 3]> = {
   'cupcake': ['杯子蛋糕', 2],
   'deer': ['鹿', 2],
   'dinosaur': ['恐龍', 2],
-  'dog': ['狗', 1],
+  'dog': ['小狗', 1],
   'dolphin': ['海豚', 2],
   'dress': ['洋裝', 2],
   'duck': ['鴨子', 1],

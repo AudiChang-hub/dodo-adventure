@@ -5,6 +5,8 @@ import { Sparkles } from '../ui/Sparkles'
 import { Emoji } from '../art/Emoji'
 import { Hand } from './Demo'
 import { preload, say, sfx } from '../lib/audio'
+import { BRIDGE_GAP_MS } from '../lib/clip'
+import { isBridge } from '../content/lines'
 import type { TeachSpec, Visual } from '../content/games'
 import { wait } from './lines'
 import { useIdle } from './idle'
@@ -59,8 +61,9 @@ export function TeachCard({ spec, short, onDone, camera }: Props) {
         if (!live.current) return
         setStep(i)
         await say(lines[i])
-        // 句子之間停一下，讓孩子看著圖把這一句聽進去；最後一句念完，例子貼紙也停留一下才出現「點我」
-        await wait(i < lines.length - 1 ? PACE.TEACH_LINE_GAP : PACE.TEACH_SETTLE)
+        // 句子之間停一下，讓孩子看著圖把這一句聽進去；最後一句念完，例子貼紙也停留一下才出現「點我」。
+        // 下一句是中文三明治（蘋果 → Apple.）：緊接著這一句的英文，只停 0.4 秒
+        await wait(i === lines.length - 1 ? PACE.TEACH_SETTLE : isBridge(lines[i + 1]) ? BRIDGE_GAP_MS : PACE.TEACH_LINE_GAP)
       }
       if (!live.current) return
       readyAt.current = performance.now()

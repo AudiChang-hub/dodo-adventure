@@ -4,8 +4,7 @@
 //
 // 這個檔案只放資料（沒有執行期相依）。顏色、形狀、數字是「概念」，用技能代碼記錄（color:red…），不在這張表裡。
 //
-// 之後的「搭橋式中文」（單字第一次出現時唸「英－中－英」）：zh 就是要唸的中文，
-// 教學卡的台詞順序在 bridgeLines() 留好位置，中文語音挑好之後只要在那裡插入中文的台詞 key。
+// 單字的中文三明治（教學卡教一個字時唸「Apple — 蘋果 — Apple」）：zh 就是要唸的中文（content/zh-words.ts、lib/words.ts 的 bridgeLines）。
 import { VOCAB } from './vocab'
 import { PHONICS, wordId } from './letters'
 import { CATEGORIES, SHEET_NAMES, PLURAL_NAMES } from './worksheet-data'
@@ -74,11 +73,4 @@ export function thisIsText(w: Pick<Word, 'key' | 'en'>): string {
   return isPlural(w.key) ? `These are | ${w.en}.` : `This is ${articleOf(w.en)} | ${w.en}.`
 }
 
-/**
- * 教一個字的台詞順序（教學卡、找出全部的例子都可以用）。
- * 搭橋式中文預留的位置：中文語音挑好之後改成 [英文, 中文, 英文]，例如 [thisIs(key), `zh.word.${key}`, thisIs(key)]。
- * 這次不做中文語音，只回傳英文那一句。
- */
-export function bridgeLines(key: string, english: string = thisIs(key)): string[] {
-  return [english]
-}
+// 教一個字的台詞順序（中文三明治）在 lib/words.ts 的 bridgeLines：要看孩子學會了沒、家長的設定。
