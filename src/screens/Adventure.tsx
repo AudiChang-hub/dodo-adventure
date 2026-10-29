@@ -265,7 +265,12 @@ export function Adventure() {
    */
   const up = () => {
     if (item && phase === 'play') noteActivity(item.game, item.station, false)
-    if (upIsHome) return go({ name: 'home' }, { back: true })
+    if (upIsHome) {
+      // 淡出回首頁的這一下，冒險不再往下走（不然淡出中的畫面會從路線圖換成旁白卡，閃一下）
+      live.current = false
+      epoch.current++
+      return go({ name: 'home' }, { back: true })
+    }
     epoch.current++
     // 跟換整頁一樣：新的一段還在淡入就等它蓋好再往回（lib/nav.ts 的 afterEntering）
     afterEntering(() => {

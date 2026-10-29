@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useSyncExternalStore } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from 'react'
 import { AnimatePresence, MotionConfig, motion } from 'motion/react'
 import { useRoute, go, isChildPlay, lastHow, type Route } from './lib/nav'
 import { Home } from './screens/Home'
@@ -65,7 +65,9 @@ export function App() {
     prev.current = r
   }, [r])
 
-  useEffect(() => {
+  // 換畫面就停掉上一個畫面的話。要用 layout effect：新畫面自己的開場語音（站點的歡迎）是在它的 useEffect 裡說的，
+  // 一般的 useEffect 父元件比子元件晚跑，會把剛開始的歡迎語音切掉（B14）
+  useLayoutEffect(() => {
     stopSpeech()
   }, [key])
 

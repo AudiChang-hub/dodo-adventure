@@ -16,7 +16,8 @@ export function installGuards() {
   document.addEventListener(
     'touchmove',
     (e) => {
-      if (e.touches.length > 1) e.preventDefault()
+      // 已經被瀏覽器當成捲動接走的（cancelable=false）擋不了，硬擋只會在主控台留警告（B13）
+      if (e.touches.length > 1 && e.cancelable) e.preventDefault()
     },
     { passive: false },
   )

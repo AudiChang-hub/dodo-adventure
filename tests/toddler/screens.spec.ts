@@ -96,7 +96,13 @@ test.describe('畫面', () => {
           // 冒險的路線圖、旁白卡沒有回首頁鈕
           await c.once('adv-nohome', '無法返回', '今日冒險的路線、旁白畫面沒有回首頁鈕', `畫面 ${s2.live}：只能等到進了遊戲才有左上角的回首頁`)
           c.outcome('冒險開場按首頁', false, '沒有回首頁鈕')
-        } else await holdHome(k, c, '冒險開場按首頁')
+        } else {
+          await holdHome(k, c, '冒險開場按首頁')
+          // 路線圖的上一層是首頁：淡出中的冒險不能先換成旁白卡
+          const back = await waitLive(page, (l) => l === 'home', 3000)
+          c.outcome('冒險路線圖按返回 → 首頁', back === 'home', `到 ${back}`)
+          if (back !== 'home') await c.once('adv-route-home', '無法返回', '冒險路線圖按返回沒有回首頁', `停在 ${back}`)
+        }
       }
     } finally {
       finish(k, c, '首頁')
@@ -415,9 +421,10 @@ test.describe('畫面', () => {
       await k.wait(1500)
       r = await tapBack('遊戲', (l) => l === 'route')
       c.outcome('冒險遊戲按返回 → 路線圖', r?.live === 'route', `「${r?.label}」→ ${r?.live}`)
-      // 路線圖按返回 → 首頁
+      // 路線圖按返回 → 首頁。孩子是看到路線圖之後才再按一次：剛返回的 1 秒內再按返回是「連點只回一層」，設計上不理（lib/nav.ts 的 BACK_LOCK_MS）
       k.behavior = '路線圖按返回'
       await settle(page)
+      await k.wait(1200)
       r = await tapBack('路線圖', (l) => l === 'home')
       c.outcome('路線圖按返回 → 首頁', r?.live === 'home', `「${r?.label}」→ ${r?.live}`)
       await c.flush()

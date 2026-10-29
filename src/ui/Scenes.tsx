@@ -42,9 +42,11 @@ export interface SceneMove {
   back: boolean
 }
 
-// 孩子最後一次按下去的時間：新畫面要等連點停下來才收點擊
-let lastDown = -Infinity
-if (typeof window !== 'undefined') window.addEventListener('pointerdown', () => (lastDown = performance.now()), { capture: true })
+// 孩子最後一次按下去的時間、位置：新畫面要等同一處的連點停下來才收點擊
+let lastDown = { t: -Infinity, x: 0, y: 0 }
+if (typeof window !== 'undefined') window.addEventListener('pointerdown', (e) => (lastDown = { t: performance.now(), x: e.clientX, y: e.clientY }), { capture: true })
+/** 離換畫面的那一下多近算「還在同一處連點」 */
+const SAME_SPOT_PX = 140
 
 const INITIAL: Record<Role, string | false> = { still: false, enter: 'initial', behind: false, leave: false, under: 'under' }
 const ANIMATE: Record<Role, string> = { still: 'shown', enter: 'enter', behind: 'behind', leave: 'leave', under: 'shown' }
@@ -107,13 +109,18 @@ export function Scenes({ id, move, children, className = 'scene' }: { id: string
   const reduced = !!useReducedMotion()
 
   // 新畫面出現後先不收點擊，等孩子的連點停下來才收：在地圖連點站牌，後面幾下不會點到站點同一個位置的遊戲卡（B07）。
-  // 最少 PAGE_ARM_MS（轉場差不多走完）；還在連點就一直等到停下來 PAGE_ARM_QUIET_MS，最多等 PAGE_ARM_MAX_MS
+  // 最少 PAGE_ARM_MS（轉場差不多走完）；還在換畫面的那一處連點（三歲的連點常常隔 0.5 秒以上），
+  // 就等到那裡停下來 PAGE_ARM_QUIET_MS，最多等 PAGE_ARM_MAX_MS。點別的地方不延長
   useEffect(() => {
     if (armed === id) return
     const t0 = performance.now()
+    // 換畫面的那一下（剛點的才算；自己往下走的換畫面沒有）
+    const origin = t0 - lastDown.t < 1000 ? { ...lastDown } : null
     let t = 0
     const check = () => {
-      const at = Math.min(Math.max(t0 + PAGE_ARM_MS, lastDown + PAGE_ARM_QUIET_MS), t0 + PAGE_ARM_MAX_MS)
+      // 換畫面之後又在同一處按下去的（換畫面的那一下本身不算）
+      const same = origin && lastDown.t > origin.t && Math.hypot(lastDown.x - origin.x, lastDown.y - origin.y) <= SAME_SPOT_PX
+      const at = Math.min(Math.max(t0 + PAGE_ARM_MS, same ? lastDown.t + PAGE_ARM_QUIET_MS : 0), t0 + PAGE_ARM_MAX_MS)
       const left = at - performance.now()
       if (left <= 0) setArmed(id)
       else t = window.setTimeout(check, left)
