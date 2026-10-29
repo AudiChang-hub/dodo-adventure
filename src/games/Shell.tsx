@@ -71,6 +71,19 @@ export function StationIcon({ station }: { station: StationId }) {
   )
 }
 
+/** 今天的小路線（三面小旗沿著路、最後是蛋）：今日冒險裡「回路線圖」用 */
+export function RouteIcon() {
+  return (
+    <svg viewBox="0 0 48 48" width={40} aria-hidden="true">
+      <path d="M6 38 C14 38 14 28 22 28 S 32 18 42 14" fill="none" stroke="#E2D8C6" strokeWidth={9} strokeLinecap="round" />
+      <path d="M6 38 C14 38 14 28 22 28 S 32 18 42 14" fill="none" stroke="#2E2A25" strokeWidth={2.5} strokeDasharray="3 4" strokeLinecap="round" />
+      <path d="M12 34 V22 L19 25 L12 28" fill="#E99A84" stroke="#2E2A25" strokeWidth={2.5} strokeLinejoin="round" />
+      <path d="M27 24 V12 L34 15 L27 18" fill="#BFDCC8" stroke="#2E2A25" strokeWidth={2.5} strokeLinejoin="round" />
+      <ellipse cx={41} cy={10} rx={5} ry={6.5} fill="#F1D27C" stroke="#2E2A25" strokeWidth={2.5} />
+    </svg>
+  )
+}
+
 /** 摺起來的地圖：站點畫面「回地圖」用 */
 export function MapIcon() {
   return (
@@ -105,18 +118,19 @@ export function Shell({ station, mood, progress, onExit, onHost, children, hideH
   const [th] = useState(themeNow)
   // 遊戲在畫面上的時候，每日時間到了也先等它玩完（在兩個遊戲之間才去睡覺）
   useEffect(() => holdBedtime(), [])
-  // 從站點進來的遊戲回站點；今日冒險裡的遊戲回首頁（冒險的上一層）
+  // 從站點進來的遊戲回站點；今日冒險裡的遊戲回冒險的路線圖（保留今天走到哪）
   const toStation = useRoute().name === 'play'
   return (
     <div className="stage" data-demo={demo ? '1' : undefined} style={{ '--stage': th?.tint ?? st.tint, '--deep': th?.deep ?? st.deep } as CSSProperties}>
       {th ? <ThemeScenery def={th} /> : <Scenery station={station} />}
       <div className="stage-top">
-        <BackButton label={toStation ? `回${st.name}` : '回首頁'} onTap={onExit}>
-          {toStation ? <StationIcon station={station} /> : <HomeIcon />}
+        <BackButton label={toStation ? `回${st.name}` : '回路線圖'} onTap={onExit}>
+          {toStation ? <StationIcon station={station} /> : <RouteIcon />}
         </BackButton>
         {/* 答對時星星飛進這一格（成就感強化） */}
         {progress && <ProgressStars total={progress.total} done={progress.done} />}
-        <div style={{ width: 76 }} />
+        {/* 跟返回鍵一樣寬：進度點在正中間 */}
+        <div style={{ width: 92 }} />
         {hint && <CoplayHint station={station} text={hintText} />}
       </div>
       <div className="stage-main">{children}</div>
@@ -125,6 +139,7 @@ export function Shell({ station, mood, progress, onExit, onHost, children, hideH
           <Dino who={st.host} mood={mood} size="100%" onTap={onHost} />
         </div>
       )}
+      {!hideHost && <div className="stage-host-rest" aria-hidden="true" />}
     </div>
   )
 }

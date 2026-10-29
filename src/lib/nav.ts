@@ -40,10 +40,38 @@ let how: NavHow = {}
 /** 這一次換畫面時記下的方式：App 在重新畫的時候讀 */
 export const lastHow = () => how
 
+// ── 往回要等往前的轉場走完 ───────────────────────────────────
+// 新畫面還在淡入（透明度往上）就往回，它會馬上轉頭淡出：同一個畫面先變亮再變暗，紙感螢幕上是一閃（B16）。
+// 所以往回的那一步等新畫面蓋好了才開始：一段只往上、一段只往下。最多晚半秒，按下去的音效是馬上就有的。
+
+/** 往前換畫面時新畫面淡入到什麼時候（performance.now）：ui/Scenes.tsx 每次往前換畫面時更新 */
+let enteringUntil = 0
+
+/** 有一層新畫面開始淡入，ms 之後才算蓋好 */
+export function noteEntering(ms: number) {
+  enteringUntil = Math.max(enteringUntil, performance.now() + ms)
+}
+
+/** 等正在淡入的新畫面蓋好再做（往回的轉場）；沒有在淡入就馬上做 */
+export function afterEntering(fn: () => void) {
+  const wait = enteringUntil - performance.now()
+  if (wait <= 0) fn()
+  else window.setTimeout(fn, wait)
+}
+
+/** 每一次 go 的編號：等著往回的那一步，中間又換了別的畫面就不做了 */
+let goSeq = 0
+
 export function go(r: Route, opts: NavHow = {}) {
-  how = { back: opts.back }
-  route = r
-  subs.forEach((f) => f())
+  const n = ++goSeq
+  const apply = () => {
+    if (n !== goSeq) return
+    how = { back: opts.back }
+    route = r
+    subs.forEach((f) => f())
+  }
+  if (opts.back) afterEntering(apply)
+  else apply()
 }
 
 export const currentRoute = () => route

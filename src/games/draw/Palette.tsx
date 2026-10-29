@@ -6,10 +6,12 @@ import { useHold, Ring } from '../../ui/Hold'
 
 export const PALETTE = [...COLORS.map((c) => c.hex), '#2E2A25']
 
-/** 右側工具欄：上面是顏色，最下面放「完成」鍵（children），整欄都在畫布外 */
+/** 右側工具欄：最上面放「完成」鍵（children），下面是顏色，整欄都在畫布外。
+ *  完成鍵不放最下面：畫面最下緣 2 cm 是孩子手腕靠的地方（準則 TOUCH-5、V-34） */
 export function Palette({ value, onChange, children }: { value: string; onChange: (hex: string) => void; children?: ReactNode }) {
   return (
     <div style={{ position: 'absolute', right: '1.6%', top: '2%', bottom: '4%', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2.4cqh', zIndex: 3 }}>
+      {children}
       <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: '1.2cqh' }}>
         {PALETTE.map((hex) => (
           <motion.button
@@ -25,7 +27,6 @@ export function Palette({ value, onChange, children }: { value: string; onChange
           />
         ))}
       </div>
-      {children}
     </div>
   )
 }

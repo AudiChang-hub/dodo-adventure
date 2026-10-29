@@ -47,6 +47,16 @@
   z-index: 4;
   width: clamp(150px, 19vw, 250px);
 }
+/* 準則 TOUCH-5：畫面最下緣 2 cm（90 px）是手腕靠的地方。主持恐龍站在地上（腳在這一帶），
+   這一條蓋在恐龍腳上、什麼都不做：手腕壓著不會一直重念題目，點恐龍的身體、頭照樣會念 */
+.stage-host-rest {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  z-index: 5;
+  width: calc(1.5vw + clamp(150px, 19vw, 250px));
+  height: 90px;
+}
 
 .progress {
   display: flex;
@@ -90,11 +100,21 @@
    孩子一進遊戲就想回去，按下去不能被吃掉；連點多跳一層由 lib/nav.ts 的 back 擋 */
 .back-btn {
   pointer-events: auto;
+  /* 準則 NAV-1：返回鍵 ≥ 2 cm（≥ 90 CSS px） */
+  width: 92px;
+  height: 92px;
+  /* 另一根手指還按著時，兩指不會被瀏覽器當成縮放手勢接走（ui/Back.tsx 收 pointerup） */
+  touch-action: none;
+  -webkit-tap-highlight-color: transparent;
+}
+.back-btn > svg {
+  width: 48px;
+  height: auto;
 }
 /* 返回鍵裡的站點圓牌：跟地圖上那一站同一個圖，點了就回到那裡（ui/Back.tsx） */
 .back-station {
-  width: 54px;
-  height: 54px;
+  width: 64px;
+  height: 64px;
   border-radius: 50%;
   display: grid;
   place-items: center;

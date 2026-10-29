@@ -302,12 +302,167 @@ test.describe('畫面', () => {
           }
         }
       }
+      // B02：一根手指還按在畫面上（拖東西、手掌靠著），另一根手指點返回鍵：要回到站點
+      k.behavior = '一指按著點返回'
+      if (await enterGame(k, c, g)) {
+        await k.wait(1500)
+        const ok = await holdHome(k, c, '一指按著點返回', { second: [{ x: 600, y: 520 }, { x: 640, y: 490 }, { x: 690, y: 510 }] })
+        const live3 = (await snap(page)).live
+        c.outcome('B02 一指按著點返回', ok && live3 === 'st-math', `到 ${live3}（應回 st-math）`)
+      }
+      await c.flush()
+
+      // B07：在地圖連點站牌，站點畫面出現後，後面幾下不能點進同一個位置的遊戲卡
+      for (const [gid, n] of [['m-give', 8], ['p-solid', 9]] as const) {
+        const gg = GAMES.find((x) => x.id === gid)
+        if (!gg || !(await toMap(k, c))) continue
+        k.behavior = `連點站牌 ${STATIONS[gg.station]}`
+        const stop = await center(page, `.map-stop[aria-label="${STATIONS[gg.station]}"]`)
+        if (!stop) continue
+        await k.spam(stop, n, '站牌')
+        await k.wait(1500)
+        const live4 = (await snap(page)).live
+        c.outcome(`B07 連點站牌 ${STATIONS[gg.station]} ${n} 下`, live4 === `st-${gg.station}`, `停在 ${live4}`)
+        if ((live4 ?? '').startsWith('play-')) await c.once('spam-stop', '困惑', `連點站牌直接掉進遊戲「${live4!.slice(5)}」`, `在地圖連點「${STATIONS[gg.station]}」站牌 ${n} 下`)
+        // 連點停下來之後，站點的遊戲卡要點得到
+        await k.wait(600)
+        const tile = await center(page, `.game-tile[aria-label="${gg.title}"]`)
+        if (tile && live4 === `st-${gg.station}`) {
+          await k.tap(tile, '遊戲卡')
+          const live5 = await waitLive(page, (l) => l === `play-${gg.id}`, 3000)
+          c.outcome('B07 之後點遊戲卡', live5 === `play-${gg.id}`, `到 ${live5}`)
+        }
+      }
+      await c.flush()
+
+      // B16：轉場中按返回（點遊戲卡後馬上點左上角），離開的畫面透明度只往一個方向變
+      for (const ms of [60, 150, 260]) {
+        k.behavior = `轉場中按返回 ${ms}ms`
+        if (!(await toMap(k, c))) break
+        await k.tap((await center(page, `.map-stop[aria-label="${STATIONS.math}"]`))!, '站牌')
+        await waitLive(page, (l) => l === 'st-math')
+        await settle(page)
+        await k.wait(700)
+        await c.flush()
+        const before = c.stats.flips
+        await k.tap((await center(page, `.game-tile[aria-label="${g.title}"]`))!, '遊戲卡')
+        await k.wait(ms)
+        const h = (await homeButton(page)) ?? { x: 72, y: 64, label: '', tap: true }
+        await pressBack(k, h, '轉場中點左上角')
+        const live6 = await waitLive(page, (l) => l === 'st-math', 3000)
+        await k.wait(800)
+        await c.flush()
+        c.outcome(`B16 轉場中按返回（點卡後 ${ms}ms）`, live6 === 'st-math' && c.stats.flips === before, `到 ${live6}；透明度來回 ${c.stats.flips - before} 次`)
+      }
+
       if (!map && !st)
         await c.once('back-swallowed', '無法返回', 'Android 返回鍵在孩子畫面一律沒反應', `${res.join('；')}。lock.ts 刻意吃掉返回（防誤觸），但孩子想回上一頁時按返回不會有任何反應，只能找左上角並「按住」`, false)
       c.outcome('返回鍵', true, res.join('；'))
       await c.flush()
     } finally {
       finish(k, c, '返回鍵')
+    }
+  })
+
+  test('今日冒險每一段都能返回（B04、V-32）', async ({ page }, info) => {
+    test.skip(!want('back') && !want('adventure-back'))
+    test.setTimeout(6 * 60_000)
+    const { k, c } = await setup(page, info, '冒險返回', { to: 'home' })
+    /** 點現在這一層的返回鍵（冒險裡面還有一疊自己的畫面，homeButton 找的是裡面那一層） */
+    const tapBack = async (ctx: string, want: (l: string | null) => boolean, ms = 3000) => {
+      const h = await homeButton(page)
+      if (!h) {
+        await c.once(`adv-noback:${ctx}`, '無法返回', `今日冒險「${ctx}」沒有返回鍵`, `畫面 ${(await snap(page)).live}`)
+        return null
+      }
+      await pressBack(k, h, `${ctx}：${h.label}`)
+      const live = await waitLive(page, want, ms)
+      if (!want(live)) await c.once(`adv-back:${ctx}`, '無法返回', `今日冒險「${ctx}」點返回沒有回上一層`, `按鈕「${h.label}」，停在 ${live}`)
+      return { live, label: h.label }
+    }
+    const start = async () => {
+      await settle(page)
+      await k.tap((await center(page, '.go-btn'))!, '出發')
+      return waitLive(page, (l) => l === 'route' || (l ?? '').startsWith('travel-'), 5000)
+    }
+    try {
+      k.behavior = '路線圖'
+      let live = await start()
+      c.outcome('出發到路線圖', live === 'route', `到 ${live}`)
+      await settle(page, 3000)
+      await audit(k, c, '冒險 路線圖')
+      // 旁白卡（路線圖約 3 秒後自己往下走）
+      k.behavior = '旁白卡按返回'
+      live = await waitLive(page, (l) => (l ?? '').startsWith('travel-'), 12_000)
+      const travel0 = live
+      await settle(page, 2000)
+      await audit(k, c, '冒險 旁白卡')
+      let r = await tapBack('旁白卡', (l) => l === 'route')
+      c.outcome('旁白卡按返回 → 路線圖', r?.live === 'route', `「${r?.label}」→ ${r?.live}`)
+      // 返回的路線圖停著等孩子：不自己往下走，有「出發」
+      await k.wait(5000)
+      const stay = (await snap(page)).live
+      const go2 = await center(page, '[aria-label="出發"]')
+      c.outcome('返回的路線圖停著等孩子', stay === 'route' && !!go2, `5 秒後在 ${stay}，${go2 ? '有' : '沒有'}出發鍵`)
+      if (stay !== 'route') await c.once('adv-autogo', '困惑', '按返回回到路線圖後又自己出發了', `5 秒後到 ${stay}`)
+      await audit(k, c, '冒險 停著的路線圖')
+      // 出發 → 同一站的旁白卡 → 遊戲；遊戲裡返回 → 路線圖
+      k.behavior = '冒險遊戲按返回'
+      if (go2) await k.tap(go2, '出發')
+      live = await waitLive(page, (l) => (l ?? '').startsWith('travel-'), 5000)
+      c.outcome('停著的路線圖按出發 → 同一站', live === travel0, `到 ${live}（原本 ${travel0}）`)
+      live = await waitLive(page, (l) => (l ?? '').startsWith('play-'), 15_000)
+      await k.wait(1500)
+      r = await tapBack('遊戲', (l) => l === 'route')
+      c.outcome('冒險遊戲按返回 → 路線圖', r?.live === 'route', `「${r?.label}」→ ${r?.live}`)
+      // 路線圖按返回 → 首頁
+      k.behavior = '路線圖按返回'
+      await settle(page)
+      r = await tapBack('路線圖', (l) => l === 'home')
+      c.outcome('路線圖按返回 → 首頁', r?.live === 'home', `「${r?.label}」→ ${r?.live}`)
+      await c.flush()
+
+      // 第一站算走完（直接改存檔），再出發：小路線上看得到走過一站，接著走第二站
+      k.behavior = '走完一站後再出發'
+      const marked = await page.evaluate(
+        () =>
+          new Promise<boolean>((res) => {
+            const rq = indexedDB.open('dodo-adventure')
+            rq.onsuccess = () => {
+              const db = rq.result
+              const tx = db.transaction('kv', 'readwrite')
+              const st = tx.objectStore('kv')
+              const all = st.getAll()
+              all.onsuccess = () => {
+                const row = (all.result as { key: string; value: { items: { done: boolean }[] } }[]).filter((x) => x.key.startsWith('plan:')).sort((a, b) => (a.key < b.key ? 1 : -1))[0]
+                if (row) {
+                  row.value.items[0].done = true
+                  st.put(row)
+                }
+              }
+              tx.oncomplete = () => {
+                db.close()
+                sessionStorage.setItem('dodo.resume', 'home')
+                res(true)
+              }
+              tx.onerror = () => res(false)
+            }
+            rq.onerror = () => res(false)
+          }),
+      )
+      if (marked) {
+        await page.reload()
+        await page.waitForSelector('.screen.home', { timeout: 20_000 })
+        await start()
+        live = await waitLive(page, (l) => (l ?? '').startsWith('travel-'), 12_000)
+        const chips = await page.evaluate(() => document.querySelectorAll('.route-chip.is-done').length)
+        c.outcome('走完一站後再出發：接著走第二站', live === 'travel-1' && chips >= 1, `到 ${live}，小路線上走過的 ${chips} 站`)
+        r = await tapBack('第二站旁白卡', (l) => l === 'route')
+        c.outcome('第二站旁白卡按返回 → 路線圖', r?.live === 'route', `→ ${r?.live}`)
+      }
+      await c.flush()
+    } finally {
+      finish(k, c, '冒險返回')
     }
   })
 
@@ -475,46 +630,73 @@ test.describe('畫面', () => {
     fs.writeFileSync(path.join(dir, 'tab1200-settings.json'), JSON.stringify({ name: 'settings', screen: '預設設定', viewport: 'tab1200', seed: 0, findings: [], log: [], outcomes: [], rules }, null, 2))
   })
 
-  test('來回換畫面 50 次：圖層、字幕（NAV-7）', async ({ page }, info) => {
+  test('來回換畫面 200 次：圖層、字幕、家長角落（NAV-7、B15）', async ({ page }, info) => {
     test.skip(!want('layers'))
-    test.setTimeout(10 * 60_000)
+    test.setTimeout(25 * 60_000)
     const { k, c } = await setup(page, info, '來回換畫面')
+    /** 量一次：最高的整頁圖層 z-index、字幕（點恐龍讓它說話）和家長角落是不是在最上面 */
+    const measure = async () => {
+      const host = await page.evaluate(() => {
+        const root = [...document.querySelectorAll<HTMLElement>('.scene')].filter((e) => !e.inert).pop()!
+        const d = root.querySelector('svg[role="button"]')
+        const r = d?.getBoundingClientRect()
+        return r ? { x: r.left + r.width / 2, y: r.top + r.height * 0.3 } : null
+      })
+      if (host) await k.tap(host, '點恐龍')
+      await k.wait(900)
+      return page.evaluate(() => {
+        const z = Math.max(0, ...[...document.querySelectorAll<HTMLElement>('.scene')].map((e) => Number(e.style.zIndex || 0)))
+        const top = (el: Element | null) => {
+          if (!el) return null
+          const b = el.getBoundingClientRect()
+          if (b.width < 4) return null
+          const hit = document.elementFromPoint(b.left + b.width / 2, b.top + b.height / 2)
+          return !!hit && el.contains(hit)
+        }
+        return { z, sub: top(document.querySelector('.sub-pill')), corner: top(document.querySelector('.parent-corner')) }
+      })
+    }
     try {
-      k.behavior = '地圖↔站點來回'
+      k.behavior = '地圖↔站點↔遊戲來回'
       let n = 0
-      for (let i = 0; i < 25; i++) {
+      let bad = ''
+      const checks: string[] = []
+      const g = GAMES.find((x) => x.id === 'm-match')!
+      for (let i = 0; n < 200 && i < 120; i++) {
         if (!(await toMap(k, c))) break
+        n++
         const p = await center(page, `.map-stop[aria-label="${STATIONS.math}"]`)
         if (!p) break
         await k.tap(p, '站牌')
         if ((await waitLive(page, (l) => l === 'st-math')) !== 'st-math') break
-        n += 2
+        n++
+        // 每三趟進一次遊戲（站點 → 遊戲 → 站點）
+        if (i % 3 === 2) {
+          await settle(page)
+          await k.wait(400)
+          const t = await center(page, `.game-tile[aria-label="${g.title}"]`)
+          if (t) {
+            await k.tap(t, '遊戲卡')
+            if ((await waitLive(page, (l) => l === `play-${g.id}`)) === `play-${g.id}`) {
+              n++
+              await k.wait(600)
+              const h = await homeButton(page)
+              if (h) await pressBack(k, h)
+              if ((await waitLive(page, (l) => l === 'st-math')) === 'st-math') n++
+            }
+          }
+        }
         await settle(page)
+        if (i % 7 === 6 || n >= 200) {
+          const m = await measure()
+          checks.push(`${n} 次：z ${m.z}、字幕${m.sub === null ? '沒出現' : m.sub ? '在上' : '被蓋'}、家長角落${m.corner ? '在上' : '被蓋'}`)
+          if (!bad && (m.z > 10 || m.sub === false || m.corner === false)) bad = checks[checks.length - 1]
+        }
       }
-      // 站點裡點恐龍：牠會說歡迎，字幕出來
-      await settle(page)
-      const z = await page.evaluate(() => Math.max(0, ...[...document.querySelectorAll<HTMLElement>('.scene')].map((e) => Number(e.style.zIndex || 0))))
-      const subZ = await page.evaluate(() => Number(getComputedStyle(document.querySelector('.subtitle')!).zIndex || 0))
-      const host = await page.evaluate(() => {
-        const root = [...document.querySelectorAll<HTMLElement>('.scene')].filter((e) => !e.inert).pop()!
-        const d = root.querySelector('svg[role="button"], [aria-label*="豆豆"], [aria-label*="波波"], [aria-label*="莫莫"], .dino')
-        const r = d?.getBoundingClientRect()
-        return r ? { x: r.left + r.width / 2, y: r.top + r.height / 2 } : null
-      })
-      if (host) await k.tap(host, '點恐龍')
-      await k.wait(1200)
-      const covered = await page.evaluate(() => {
-        const sub = document.querySelector('.sub-pill')
-        if (!sub) return null
-        const b = sub.getBoundingClientRect()
-        if (b.width < 4) return null
-        const hit = document.elementFromPoint(b.left + b.width / 2, b.top + b.height / 2)
-        return !(hit && hit.closest('.subtitle'))
-      })
-      c.rule('NAV-7', z <= 10 && covered !== true, `換了 ${n} 次畫面後整頁圖層 z-index ${z}（字幕 ${subZ}、護眼休息 120）；字幕${covered === null ? '沒出現' : covered ? '被畫面蓋住' : '在最上層'}`)
-      c.outcome(`換畫面 ${n} 次後的圖層`, z < subZ && covered !== true, `整頁圖層 z-index ${z}，字幕 ${subZ}，字幕${covered === null ? '沒出現' : covered ? '被蓋住' : '看得到'}`)
-      if (z >= subZ || covered)
-        await c.once('z-grow', '困惑', `換了 ${n} 次畫面後，整頁圖層的 z-index 長到 ${z}，${covered ? '字幕被蓋住' : `超過字幕的 ${subZ}`}`, `ui/Scenes.tsx 每換一次畫面 seq 就 +1、從不歸零：大約 30 次換畫面後整頁畫面會蓋過字幕（z-index 60），再多會蓋過護眼休息（120）、家長角落（150）。三歲孩子一次玩 20 分鐘就可能換到這麼多次`)
+      const last = checks[checks.length - 1] ?? ''
+      c.rule('NAV-7', !bad && n >= 200, `換了 ${n} 次畫面，量了 ${checks.length} 次${bad ? `；第一次出問題：${bad}` : '，圖層 z-index 都 ≤ 10、字幕和家長角落都在最上層'}（最後：${last}）`)
+      c.outcome(`換畫面 ${n} 次後的圖層`, !bad && n >= 200, bad || last)
+      if (bad) await c.once('z-grow', '困惑', `換了很多次畫面後，整頁圖層蓋過字幕或家長角落（${bad}）`, checks.join('；'))
       await c.flush()
     } finally {
       finish(k, c, '來回換畫面')

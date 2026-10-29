@@ -1,7 +1,11 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type CSSProperties, type ReactNode, type Ref, type RefObject } from 'react'
 import { AnimatePresence, motion, useIsPresent, useReducedMotion } from 'motion/react'
-import { ARM_MS, PAGE_REVEAL_MS, PAGE_SETTLED_MS, background, foreground, page, swap, type PageCustom } from './motion'
+import { ARM_MS, PAGE_ARM_MAX_MS, PAGE_ARM_MS, PAGE_ARM_QUIET_MS, PAGE_REVEAL_MS, PAGE_SETTLED_MS, background, foreground, page, swap, type PageCustom } from './motion'
+import { noteEntering } from '../lib/nav'
 import './scenes.css'
+
+/** 新畫面蓋好、舊的卸載之後再多等一下才往回：中間至少有一幀只剩新畫面（完全不透明），往回淡出是另一段 */
+const ENTER_MARGIN_MS = 120
 
 /*
  * 全站轉場的元件（規格在 ui/motion.ts）：
@@ -27,6 +31,7 @@ type Role = 'still' | 'enter' | 'behind' | 'leave' | 'under'
 interface Layer {
   id: string
   role: Role
+  /** 疊的先後（越大越上面）。畫面上用的 z-index 是排好之後的名次（1、2、3），不會一直往上加 */
   z: number
   /** 這一層是轉場進來的（不是 App 一打開的第一個畫面）：裡面的東西不再自己做進場動畫 */
   quiet: boolean
@@ -37,6 +42,10 @@ export interface SceneMove {
   back: boolean
 }
 
+// 孩子最後一次按下去的時間：新畫面要等連點停下來才收點擊
+let lastDown = -Infinity
+if (typeof window !== 'undefined') window.addEventListener('pointerdown', () => (lastDown = performance.now()), { capture: true })
+
 const INITIAL: Record<Role, string | false> = { still: false, enter: 'initial', behind: false, leave: false, under: 'under' }
 const ANIMATE: Record<Role, string> = { still: 'shown', enter: 'enter', behind: 'behind', leave: 'leave', under: 'shown' }
 
@@ -45,6 +54,8 @@ const ANIMATE: Record<Role, string> = { still: 'shown', enter: 'enter', behind: 
  * 舊畫面留在畫面上直到新畫面蓋好（往前）或自己淡出（往回），期間不收點擊（inert）。
  * 舊畫面保留的是它最後一次的 children，所以它不會讀到新的路由、不會換成新畫面的內容。
  * 整頁不從點的那張卡長出來、也不收回去（紙感螢幕上看起來像子母畫面），一律在原地交叉淡化。
+ *
+ * 疊放順序只用 1～3（同時最多三層）：換過幾百次畫面，字幕（60）、護眼休息（120）、家長角落（150）還是在最上面（NAV-7）。
  */
 export function Scenes({ id, move, children, className = 'scene' }: { id: string; move: () => SceneMove; children: ReactNode; className?: string }) {
   const snaps = useRef(new Map<string, ReactNode>())
@@ -71,6 +82,8 @@ export function Scenes({ id, move, children, className = 'scene' }: { id: string
       const enter: Layer = reuse ? { ...reuse, role: 'enter', z: ++seq.current } : { id, role: 'enter', z: ++seq.current, quiet: true }
       return [...rest, ...behind, enter]
     })
+    // 新畫面淡入中：這時候按返回，等它蓋好了才往回（lib/nav.ts 的 afterEntering）
+    if (!m.back) noteEntering(PAGE_SETTLED_MS + ENTER_MARGIN_MS)
   }
   snaps.current.set(id, children)
 
@@ -80,7 +93,8 @@ export function Scenes({ id, move, children, className = 'scene' }: { id: string
     if (!cur || layers.length === 1) return
     const t = window.setTimeout(
       () => {
-        setLayers((ls) => ls.filter((l) => l.id === id).map((l) => ({ ...l, role: 'still' })))
+        setLayers((ls) => ls.filter((l) => l.id === id).map((l) => ({ ...l, role: 'still', z: 1 })))
+        seq.current = 1
         for (const k of [...snaps.current.keys()]) if (k !== id) snaps.current.delete(k)
       },
       cur.role === 'under' ? PAGE_REVEAL_MS : PAGE_SETTLED_MS,
@@ -92,10 +106,19 @@ export function Scenes({ id, move, children, className = 'scene' }: { id: string
   const clear = className.split(' ').includes('is-clear')
   const reduced = !!useReducedMotion()
 
-  // 新畫面出現一下子之後才收點擊
+  // 新畫面出現後先不收點擊，等孩子的連點停下來才收：在地圖連點站牌，後面幾下不會點到站點同一個位置的遊戲卡（B07）。
+  // 最少 PAGE_ARM_MS（轉場差不多走完）；還在連點就一直等到停下來 PAGE_ARM_QUIET_MS，最多等 PAGE_ARM_MAX_MS
   useEffect(() => {
     if (armed === id) return
-    const t = window.setTimeout(() => setArmed(id), ARM_MS)
+    const t0 = performance.now()
+    let t = 0
+    const check = () => {
+      const at = Math.min(Math.max(t0 + PAGE_ARM_MS, lastDown + PAGE_ARM_QUIET_MS), t0 + PAGE_ARM_MAX_MS)
+      const left = at - performance.now()
+      if (left <= 0) setArmed(id)
+      else t = window.setTimeout(check, left)
+    }
+    check()
     return () => clearTimeout(t)
   }, [id, armed])
 
@@ -103,7 +126,7 @@ export function Scenes({ id, move, children, className = 'scene' }: { id: string
     <>
       {[...layers]
         .sort((a, b) => a.z - b.z)
-        .map((l) => {
+        .map((l, rank) => {
           const live = l.id === id
           return (
             <motion.div
@@ -111,7 +134,7 @@ export function Scenes({ id, move, children, className = 'scene' }: { id: string
               className={className}
               data-scene={l.id}
               data-role={l.role}
-              style={{ zIndex: l.z, pointerEvents: live && armed === id ? undefined : 'none' }}
+              style={{ zIndex: rank + 1, pointerEvents: live && armed === id ? undefined : 'none' }}
               inert={!live}
               custom={{ clear, reduced } satisfies PageCustom}
               variants={page}

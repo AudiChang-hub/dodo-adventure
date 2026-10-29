@@ -163,8 +163,14 @@ export const page: Variants = {
 export const PAGE_SETTLED_MS = SETTLED_MS
 /** 往回：上面的畫面收好、下面的拉遠回來 */
 export const PAGE_REVEAL_MS = REVEAL_MS + 70
-/** 新畫面多久之後才收點擊 */
+/** 原地換內容（換題）之後多久才收點擊 */
 export const ARM_MS = ms(DUR.arm)
+/** 整頁換畫面之後至少多久才收點擊：轉場（PAGE_SETTLED_MS）差不多走完 */
+export const PAGE_ARM_MS = 500
+/** 孩子還在連點：停下來這麼久才收（連點的間隔約 0.1～0.3 秒） */
+export const PAGE_ARM_QUIET_MS = 400
+/** 一直點個不停也最多等這麼久 */
+export const PAGE_ARM_MAX_MS = 1600
 
 /**
  * 疊加層（慶祝、貼紙挑選、出門任務卡、家長閘門、護眼休息）：遮罩和面板一起一次淡入，收起時一次淡出。

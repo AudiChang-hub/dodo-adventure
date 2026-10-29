@@ -93,11 +93,7 @@ export const CrayonBox = forwardRef<HTMLDivElement, Props>(function CrayonBox({ 
       ref={ref}
       style={{ position: 'absolute', right: 0, top: '1%', bottom: '3%', width: '15%', display: 'flex', flexDirection: 'column', alignItems: 'flex-end', zIndex: 3, overflow: 'hidden', paddingLeft: '2cqh' }}
     >
-      <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'flex-end', gap: '1.1cqh' }}>
-        {CRAYONS.map((c) => item(c.hex, `${c.zh}色蠟筆`, <CrayonArt hex={c.hex} />))}
-        <div style={{ height: '1.2cqh' }} />
-        {item(ERASER, '橡皮擦', <EraserArt />)}
-      </div>
+      {/* 完成鍵在最上面：畫面最下緣 2 cm 是孩子手腕靠的地方（準則 TOUCH-5、V-34） */}
       <div style={{ flex: 'none', alignSelf: 'center', height: '17cqh', display: 'grid', placeItems: 'center' }}>
         <AnimatePresence>
           {done && (
@@ -106,6 +102,11 @@ export const CrayonBox = forwardRef<HTMLDivElement, Props>(function CrayonBox({ 
             </motion.div>
           )}
         </AnimatePresence>
+      </div>
+      <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'flex-end', gap: '1.1cqh' }}>
+        {CRAYONS.map((c) => item(c.hex, `${c.zh}色蠟筆`, <CrayonArt hex={c.hex} />))}
+        <div style={{ height: '1.2cqh' }} />
+        {item(ERASER, '橡皮擦', <EraserArt />)}
       </div>
     </div>
   )

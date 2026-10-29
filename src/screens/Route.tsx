@@ -1,4 +1,4 @@
-import { useMemo, type CSSProperties } from 'react'
+import { useMemo, useState, type CSSProperties } from 'react'
 import { motion } from 'motion/react'
 import { Emoji } from '../art/Emoji'
 import { Egg } from '../art/Egg'
@@ -46,11 +46,14 @@ function StationRouteMap({ plan }: { plan: Plan }) {
   // 車子停在下一站前面一點點（第一站之前就是起點）
   const car = at(cur <= 0 ? 0.035 : (cur - 0.25 + 0.8) / (n + 0.6))
   const doneCount = plan.items.filter((i) => i.done).length
+  // 車開進來的時候輪子轉、車身彈；停好就不動（畫面靜止時不留循環動畫）
+  const [driving, setDriving] = useState(true)
 
   return (
     <svg className="route-map" viewBox="0 70 1200 786" preserveAspectRatio="xMidYMid meet" aria-label={`今天有 ${n} 站`}>
       {/* 給爸爸看的小標：跟首頁標題同一種淡墨字 */}
-      <text x={34} y={112} className="route-title">
+      {/* 左上角留給返回鍵 */}
+      <text x={150} y={112} className="route-title">
         今天的路線 · {n} 站
       </text>
       {/* 路：先畫底色，再畫中間的虛線 */}
@@ -63,9 +66,8 @@ function StationRouteMap({ plan }: { plan: Plan }) {
         return (
           <g key={i} transform={`translate(${s.p.x} ${s.p.y})`}>
             <motion.g initial={{ scale: 0, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ type: 'spring', stiffness: 260, damping: 15, delay: 0.45 + i * 0.16 }}>
-              {now && (
-                <motion.circle r={66} fill="none" stroke={s.st.deep} strokeWidth={5} animate={{ r: [62, 74, 62], opacity: [0.8, 0.15, 0.8] }} transition={{ duration: 1.6, repeat: Infinity, ease: 'easeInOut' }} />
-              )}
+              {/* 現在要去的那一站：一圈靜止的外框（不脈動，V-17） */}
+              {now && <circle r={68} fill="none" stroke={s.st.deep} strokeWidth={5} opacity={0.55} />}
               <circle r={56} fill={s.st.tint} stroke={s.done ? s.st.deep : '#FBF8F2'} strokeWidth={7} />
               <g transform="translate(-34 -34)" opacity={s.done ? 0.55 : 1}>
                 <Emoji name={s.st.icon} size={68} />
@@ -77,9 +79,7 @@ function StationRouteMap({ plan }: { plan: Plan }) {
             {/* 旗子插在站牌右上角，晚一點升起來 */}
             <g transform="translate(38 -40)">
               <motion.g style={{ originX: 0, originY: 1 }} initial={{ scaleY: 0 }} animate={{ scaleY: 1 }} transition={{ type: 'spring', stiffness: 300, damping: 16, delay: 0.75 + i * 0.16 }}>
-                <motion.g animate={now ? { rotate: [0, -5, 0, 4, 0] } : {}} transition={{ duration: 2.2, repeat: Infinity, ease: 'easeInOut' }}>
-                  <Flag done={s.done} color={s.st.deep} scale={0.9} />
-                </motion.g>
+                <Flag done={s.done} color={s.st.deep} scale={0.9} />
               </motion.g>
             </g>
           </g>
@@ -95,9 +95,9 @@ function StationRouteMap({ plan }: { plan: Plan }) {
       </motion.g>
 
       <g transform={`translate(${car.x} ${car.y})`}>
-        <motion.g initial={{ x: -260, opacity: 0 }} animate={{ x: 0, opacity: 1 }} transition={{ type: 'spring', stiffness: 60, damping: 13, delay: 0.3 }}>
+        <motion.g initial={{ x: -260, opacity: 0 }} animate={{ x: 0, opacity: 1 }} transition={{ type: 'spring', stiffness: 60, damping: 13, delay: 0.3 }} onAnimationComplete={() => setDriving(false)}>
           <g transform="translate(-95 -128)">
-            <Ride who="dodo" width={190} moving mood="happy" />
+            <Ride who="dodo" width={190} moving={driving} mood="happy" />
           </g>
         </motion.g>
       </g>
@@ -151,6 +151,7 @@ function ThemeRouteMap({ plan, th }: { plan: Plan; th: ThemeDef }) {
   const car = at(carF)
   const doneCount = plan.items.filter((i) => i.done).length
   const cardW = Math.max(400, 150 + th.title.length * 20)
+  const [driving, setDriving] = useState(true)
 
   return (
     <svg className="route-map" viewBox="0 70 1200 786" preserveAspectRatio="xMidYMid meet" aria-label={th.title}>
@@ -184,7 +185,7 @@ function ThemeRouteMap({ plan, th }: { plan: Plan; th: ThemeDef }) {
         return (
           <g key={i} transform={`translate(${s.p.x} ${s.p.y})`}>
             <motion.g initial={{ scale: 0, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ type: 'spring', stiffness: 260, damping: 15, delay: 0.45 + i * 0.16 }}>
-              {now && <motion.circle r={66} fill="none" stroke={th.deep} strokeWidth={5} animate={{ r: [62, 74, 62], opacity: [0.7, 0.12, 0.7] }} transition={{ duration: 1.8, repeat: Infinity, ease: 'easeInOut' }} />}
+              {now && <circle r={68} fill="none" stroke={th.deep} strokeWidth={5} opacity={0.5} />}
               <circle r={56} fill="#FBF8F2" stroke={s.done ? th.deep : th.tint} strokeWidth={7} />
               <g transform="translate(-36 -36)" opacity={s.done ? 0.5 : 1}>
                 <Emoji name={s.icon} size={72} />
@@ -228,9 +229,9 @@ function ThemeRouteMap({ plan, th }: { plan: Plan; th: ThemeDef }) {
       </motion.g>
 
       <g transform={`translate(${car.x} ${car.y})`}>
-        <motion.g initial={{ x: -260, opacity: 0 }} animate={{ x: 0, opacity: 1 }} transition={{ type: 'spring', stiffness: 60, damping: 13, delay: 0.3 }}>
+        <motion.g initial={{ x: -260, opacity: 0 }} animate={{ x: 0, opacity: 1 }} transition={{ type: 'spring', stiffness: 60, damping: 13, delay: 0.3 }} onAnimationComplete={() => setDriving(false)}>
           <g transform="translate(-95 -128)">
-            <Ride who={th.host} width={190} moving mood="happy" />
+            <Ride who={th.host} width={190} moving={driving} mood="happy" />
           </g>
         </motion.g>
       </g>

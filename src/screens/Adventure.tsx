@@ -7,12 +7,13 @@ import { Scenery } from '../ui/Scenery'
 import { ThemeScenery } from '../ui/ThemeScenery'
 import { Sparkles } from '../ui/Sparkles'
 import { PlayGame } from '../games/PlayGame'
-import { PlayingGame } from '../games/Shell'
+import { HomeIcon, PlayingGame, RouteIcon } from '../games/Shell'
+import { BackButton } from '../ui/Back'
 import { station as stationDef } from '../content/games'
 import { theme as themeDef } from '../content/themes'
 import { STORY_EGG_COUNT } from '../content/lines-friends'
 import { hasLine } from '../content/lines'
-import { go, useBack } from '../lib/nav'
+import { afterEntering, go, useBack } from '../lib/nav'
 import { say, sfx, hushSpeech, stopSpeech } from '../lib/audio'
 import { cachedPlan, todayPlan, savePlan, planDone, hatchFriend, type Plan } from '../lib/plan'
 import { noteActivity, isBreakDue, holdBedtime, bedtimeIfDue } from '../lib/session'
@@ -38,6 +39,10 @@ const SKIP_AFTER_MS = 700
  * 主題式冒險（plan.theme，2026-10-28 起每天都是）：路線是故事的一格一格（公車站牌 → 公車 → …→ 動物園），
  * 轉場不報站名，而是說故事的恐龍念一句旁白；最後一站之後先到故事的終點（We made it to the zoo!），再孵蛋、回顧。
  * 孩子端看不到也聽不到任何科目或站名；旁白都很短，點一下畫面就跳過。
+ *
+ * 返回（NAV-1／NAV-2）：每一段左上角都有返回鍵（護眼休息除外，它會自己結束）。
+ * 走到一半（旁白卡、遊戲、蛋裂開）按返回 → 回到路線圖，看得到今天走到哪，停在那裡等孩子按「出發」或再返回回首頁；
+ * 路線圖、故事終點、孵蛋、回顧按返回 → 回首頁。走完的站都存好了，下次按出發從沒走完的那一站繼續。
  */
 export function Adventure() {
   // 首頁已經讀過今天的冒險：第一幀就畫得出路線，不會先閃一張空白
@@ -47,12 +52,23 @@ export function Adventure() {
     return p && planDone(p) ? (p.hatched ? 'finish' : 'hatch') : 'route'
   })
   const [taps, setTaps] = useState(0)
+  /** 走到一半按返回回到路線圖：路線圖停著等孩子按出發，不自己往下走 */
+  const [paused, setPaused] = useState(false)
+  /** 旁白卡上的車開到定位就停（不一直彈跳、轉輪子：畫面靜止時不留循環動畫，V-17） */
+  const [driving, setDriving] = useState(true)
+  /** 等孩子敲蛋時偶爾晃一下蛋（提示可以點），不一直脈動 */
+  const [nudge, setNudge] = useState(false)
+  /** 每按一次返回加一：還在跑的流程（蛋裂開之後要去下一站）看到變了就停下來 */
+  const epoch = useRef(0)
+  /** 這一次換段是返回（上面那段淡出、露出路線圖） */
+  const backing = useRef(false)
   const [friend, setFriend] = useState<string | null>(null)
   const live = useRef(true)
   /** 畫面上現在是哪一段：換段的那一次 render 用它決定往前還是往回 */
   const shownPhase = useRef<Phase>(phase)
   useEffect(() => {
     shownPhase.current = phase
+    backing.current = false
   }, [phase])
   /** 點畫面跳過旁白：這個階段後面的等待也一起略過 */
   const skipped = useRef(false)
@@ -113,7 +129,7 @@ export function Adventure() {
 
   // 開局：先看今天的路線（約 3 秒）。主題式冒險念故事的標題與開場；中途回來只念標題
   useEffect(() => {
-    if (phase !== 'route' || !plan || planDone(plan)) return
+    if (phase !== 'route' || paused || !plan || planDone(plan)) return
     let cancelled = false
     ;(async () => {
       const t = performance.now()
@@ -131,7 +147,7 @@ export function Adventure() {
       cancelled = true
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [phase, plan])
+  }, [phase, plan, paused])
 
   // 轉場：主持的恐龍開車進場、報站名（主題式冒險：說故事的一句），說完自動開始
   useEffect(() => {
@@ -172,6 +188,26 @@ export function Adventure() {
     if (phase === 'hatch') void say('egg.ready')
   }, [phase])
 
+  useEffect(() => {
+    setDriving(true)
+  }, [phase, cur])
+
+  // 等敲蛋：沒動靜時每 6 秒晃一下蛋，晃 4 次就停（之後靜止等孩子）
+  useEffect(() => {
+    if (phase !== 'hatch' || taps > 0) return
+    let n = 0
+    const timers: number[] = []
+    const iv = window.setInterval(() => {
+      if (++n > 4) return clearInterval(iv)
+      setNudge(true)
+      timers.push(window.setTimeout(() => setNudge(false), 800))
+    }, 6000)
+    return () => {
+      clearInterval(iv)
+      timers.forEach(clearTimeout)
+    }
+  }, [phase, taps])
+
   const onGameDone = async () => {
     if (!plan || !item) return
     const index = cur
@@ -184,15 +220,17 @@ export function Adventure() {
 
   /** 一站結束：蛋在車上晃一下、多一道裂痕（旅程的劇情，不是付款），再決定下一步 */
   const afterGame = async (next: Plan) => {
+    const e = epoch.current
+    // 這段時間裡返回了（首頁或路線圖）：不要再蛋裂開、念故事、往下一站
+    const gone = () => !live.current || epoch.current !== e
     setPhase('egg')
     await wait(500)
-    // 這段時間裡返回了首頁：不要在首頁上蛋裂開、念故事
-    if (!live.current) return
+    if (gone()) return
     sfx.crack()
     const done = next.items.filter((i) => i.done).length
     await say(`story.egg.${(done - 1 + STORY_EGG_COUNT) % STORY_EGG_COUNT}`)
     await wait(500)
-    if (!live.current) return
+    if (gone()) return
     // 全部走完就到故事的終點、孵蛋（故事的結尾一定讓它說完）；時間到了就在兩站之間去睡覺
     if (planDone(next)) return setPhase(themeDef(next.theme) ? 'finale' : 'hatch')
     if (bedtimeIfDue()) return
@@ -218,12 +256,34 @@ export function Adventure() {
     if (live.current) setPhase('finish')
   }
 
-  /** 回首頁（冒險的上一層）：返回鍵、Android 的返回手勢都走這裡。玩到一半離開記一筆沒玩完；已經走完的站都存好了 */
-  const exit = () => {
+  /** 這一段按返回會回首頁（不是回路線圖）：路線圖本身、護眼休息，以及今天的站都走完了（終點、孵蛋、回顧） */
+  const upIsHome = phase === 'route' || phase === 'rest' || !plan || planDone(plan)
+
+  /**
+   * 回上一層：返回鍵、Android 的返回手勢都走這裡。
+   * 走到一半 → 路線圖（停著等孩子）；其他 → 首頁。玩到一半離開記一筆沒玩完；已經走完的站都存好了。
+   */
+  const up = () => {
     if (item && phase === 'play') noteActivity(item.game, item.station, false)
-    go({ name: 'home' }, { back: true })
+    if (upIsHome) return go({ name: 'home' }, { back: true })
+    epoch.current++
+    // 跟換整頁一樣：新的一段還在淡入就等它蓋好再往回（lib/nav.ts 的 afterEntering）
+    afterEntering(() => {
+      if (!live.current) return
+      stopSpeech()
+      backing.current = true
+      setPaused(true)
+      setPhase('route')
+    })
   }
-  useBack(exit)
+  useBack(up)
+
+  /** 停著的路線圖按「出發」：從沒走完的那一站繼續 */
+  const resume = () => {
+    sfx.pop()
+    setPaused(false)
+    setPhase('travel')
+  }
 
   // ── 轉場：每一段是一層（ui/Scenes.tsx） ──────────────────────
   const sceneId =
@@ -238,8 +298,9 @@ export function Adventure() {
             : phase === 'rest'
               ? `rest-${doneCount}`
               : phase
-  /** 遊戲（含護眼休息）結束回到旅程：往回（遊戲淡出、旅程淡回來）；其他都往前 */
+  /** 遊戲（含護眼休息）結束回到旅程、按返回回到路線圖：往回（上面那段淡出、下面的淡回來）；其他都往前 */
   const move = (): SceneMove => {
+    if (backing.current) return { back: true }
     if (phase === 'play') return { back: false }
     const from = shownPhase.current
     return { back: from === 'play' || from === 'rest' }
@@ -274,15 +335,36 @@ export function Adventure() {
     if (phase === 'play' && item)
       return (
         <PlayingGame.Provider value={item.game}>
-          <PlayGame gameId={item.game} theme={plan.theme} onDone={onGameDone} onExit={exit} />
+          <PlayGame gameId={item.game} theme={plan.theme} onDone={onGameDone} onExit={up} />
         </PlayingGame.Provider>
       )
 
     return (
       <>
+        {/* 返回鍵：每一段同一個位置（跟地圖、站點一樣），圖示畫成上一層的樣子 */}
+        <div style={{ position: 'absolute', left: 26, top: 18, zIndex: 6 }}>
+          <BackButton label={upIsHome ? '回首頁' : '回路線圖'} onTap={up}>
+            {upIsHome ? <HomeIcon /> : <RouteIcon />}
+          </BackButton>
+        </div>
+
         {phase === 'route' && (
           <div className="screen">
             <RouteMap plan={plan} />
+            {/* 走到一半回來的路線圖：停著等孩子，按了才繼續 */}
+            {paused && (
+              <button
+                className="go-btn"
+                style={{ top: 'auto', right: '5vw', bottom: 110, width: 'clamp(170px, 23vmin, 240px)' }}
+                aria-label="出發"
+                onClick={resume}
+              >
+                <svg viewBox="0 0 48 48" width="40%" aria-hidden="true">
+                  <path d="M16 9 Q14 8 14 11 V37 Q14 40 16 39 L38 26 Q40 24 38 22 Z" fill="#FBF8F2" />
+                </svg>
+                <span>出發</span>
+              </button>
+            )}
           </div>
         )}
 
@@ -292,12 +374,12 @@ export function Adventure() {
             {/* 故事的這一格：大大的圖在一張紙卡上，後面一圈淡淡的光。跟著這一段一起出現（不另外淡入），只多一點點長大 */}
             <motion.div className="story-card" style={{ '--deep': th.deep, '--tint': th.tint } as CSSProperties} initial={{ scale: RANGE.settle, y: 12 }} animate={{ scale: 1, y: 0 }} transition={{ duration: DUR.enter, ease: EASE.out }}>
               <span className="story-card-halo" />
-              <motion.span className="story-card-pic" animate={{ y: [0, -6, 0] }} transition={{ duration: 3.2, repeat: Infinity, ease: 'easeInOut', delay: 1 }}>
+              <span className="story-card-pic">
                 <Emoji name={stopIcon(th, cur)} />
-              </motion.span>
+              </span>
             </motion.div>
-            <motion.div style={{ position: 'absolute', bottom: '7vh', left: '50%', width: '40vmin', marginLeft: '-20vmin' }} initial={{ x: '-80vw' }} animate={{ x: 0 }} transition={{ type: 'spring', stiffness: 45, damping: 12 }}>
-              <Ride who={th.host} width="100%" moving mood="happy" />
+            <motion.div style={{ position: 'absolute', bottom: '7vh', left: '50%', width: '40vmin', marginLeft: '-20vmin' }} initial={{ x: '-80vw' }} animate={{ x: 0 }} transition={{ type: 'spring', stiffness: 45, damping: 12 }} onAnimationComplete={() => setDriving(false)}>
+              <Ride who={th.host} width="100%" moving={driving} mood="happy" />
             </motion.div>
           </div>
         )}
@@ -311,8 +393,8 @@ export function Adventure() {
             <motion.div className="travel-name" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.6 }}>
               {st.name}
             </motion.div>
-            <motion.div style={{ position: 'absolute', bottom: '8vh', left: '50%', width: '40vmin', marginLeft: '-20vmin' }} initial={{ x: '-80vw' }} animate={{ x: 0 }} transition={{ type: 'spring', stiffness: 45, damping: 12 }}>
-              <Ride who={st.host} width="100%" moving mood="happy" />
+            <motion.div style={{ position: 'absolute', bottom: '8vh', left: '50%', width: '40vmin', marginLeft: '-20vmin' }} initial={{ x: '-80vw' }} animate={{ x: 0 }} transition={{ type: 'spring', stiffness: 45, damping: 12 }} onAnimationComplete={() => setDriving(false)}>
+              <Ride who={st.host} width="100%" moving={driving} mood="happy" />
             </motion.div>
           </div>
         )}
@@ -345,8 +427,8 @@ export function Adventure() {
             <div style={{ position: 'relative' }} onPointerDown={phase === 'hatch' ? tapEgg : undefined}>
               <AnimatePresence>
                 {!friend && (
-                  <motion.div key="e" exit={{ scale: 1.6, opacity: 0, transition: { duration: 0.35 } }} animate={phase === 'hatch' ? { scale: [1, 1.04, 1], transition: { repeat: Infinity, duration: 1.2 } } : {}}>
-                    <Egg cracks={Math.min(5, doneCount + taps)} wobble={phase === 'egg' || taps > 0} size="34vmin" />
+                  <motion.div key="e" exit={{ scale: 1.6, opacity: 0, transition: { duration: 0.35 } }}>
+                    <Egg cracks={Math.min(5, doneCount + taps)} wobble={phase === 'egg' || taps > 0 || nudge} size="34vmin" />
                   </motion.div>
                 )}
               </AnimatePresence>
