@@ -91,7 +91,7 @@
         aspect-ratio: 1;
         border-radius: 50%;
         background: #8fcbaa;
-        opacity: 0.25;
+        opacity: 0.7;
         animation: boot-step 1.5s ease-in-out infinite;
       }
       .boot-steps i:nth-child(2) {
@@ -125,21 +125,18 @@
         0%,
         100% {
           transform: scaleX(1);
-          opacity: 1;
         }
         50% {
           transform: scaleX(0.82);
-          opacity: 0.6;
         }
       }
+      /* 載入中的三個點：只輪流跳一下，透明度不變（紙感螢幕上反覆變淡就是閃，MOTION-3） */
       @keyframes boot-step {
         0%,
         100% {
-          opacity: 0.25;
           transform: translateY(0);
         }
         40% {
-          opacity: 1;
           transform: translateY(-40%);
         }
       }
