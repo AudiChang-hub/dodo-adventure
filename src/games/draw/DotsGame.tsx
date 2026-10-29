@@ -26,6 +26,8 @@ const HIT = 70
 /** 從上一個到達的點出發：按下去、或畫的時候經過離它這麼近，這一筆才開始算 */
 const ARM = 86
 const HOME_R = 44
+/** 沒連到點的那一筆：留多久才開始淡掉 */
+const KEEP_MS = 600
 const INK = '#2E2A25'
 const GREEN = '#6FAE86'
 const BUTTER = '#F1D27C'
@@ -391,6 +393,8 @@ export function DotsGame({ gameId, onDone, onExit }: GameProps) {
   const finish = async () => {
     const p = picRef.current
     idle.stop()
+    // 圖連好了、在慶祝：畫不出線，碰到只出現「看這裡」的圈圈（不是畫了沒反應）；下一張圖開始時 start() 再打開
+    setHold(true)
     sfx.hatch()
     setReveal(true)
     setHop((h) => h + 1)
@@ -439,8 +443,9 @@ export function DotsGame({ gameId, onDone, onExit }: GameProps) {
     const s = stroke.current
     stroke.current = null
     if (!s) return
-    putInk((list) => list.map((g) => (g.id === s.id ? { ...g, fade: true } : g)))
-    window.setTimeout(() => putInk((list) => list.filter((g) => g.id !== s.id)), ms(FADE_OUT_S) + 80)
+    // 先留 0.6 秒讓孩子看到自己畫的線（不是畫了沒反應，B09），再慢慢淡掉
+    window.setTimeout(() => putInk((list) => list.map((g) => (g.id === s.id ? { ...g, fade: true } : g))), KEEP_MS)
+    window.setTimeout(() => putInk((list) => list.filter((g) => g.id !== s.id)), KEEP_MS + ms(FADE_OUT_S) + 80)
   }
 
   const connect = (n: number, pt: Pt) => {

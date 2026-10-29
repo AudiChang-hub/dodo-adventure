@@ -317,12 +317,17 @@ export async function drawAndMeasure(k: Toddler, pts: Pt[], cv: Target, opts: { 
   await k.drag(pts, { stepMs: opts.fast ? 4 : 14, label: '畫' })
   await k.wait(250)
   const after = await inkPts(page, probe)
-  const got = probe.filter((_, i) => after[i] > before[i] + 2).length
+  // 那一點原本就已經塗滿（前面畫過的線、示範留下的筆觸）：看不出有沒有新的墨，當作有（T-51：自由畫畫越畫越滿，舊的量法會越量越低）
+  const got = probe.filter((_, i) => after[i] > before[i] + 2 || (before[i] >= 60 && after[i] >= before[i])).length
   return { n: probe.length, got, ratio: probe.length ? got / probe.length : 1 }
 }
 
 /** 一個隨機的三歲動作 */
-export async function toddlerStep(k: Toddler, c: Checker, opts: { drawing?: boolean; free?: boolean } = {}) {
+/**
+ * fading：連點成圖這種「碰到還沒輪到的點，那一段先留 0.6 秒再淡掉」的遊戲（設計如此）。
+ * 一筆畫很久時前面幾段量的時候已經淡掉了，只有幾乎完全沒墨（< 15%）才算「畫了沒墨跡」。
+ */
+export async function toddlerStep(k: Toddler, c: Checker, opts: { drawing?: boolean; free?: boolean; fading?: boolean } = {}) {
   const page = k.page
   const ts = await targets(page)
   const btns = ts.filter((t) => t.kind === 'btn' || t.kind === 'svg')
@@ -334,8 +339,11 @@ export async function toddlerStep(k: Toddler, c: Checker, opts: { drawing?: bool
     const from = k.r.chance(0.3) ? 'outside' : 'inside'
     const s = await snap(page)
     const m = await drawAndMeasure(k, scribble(k, cv, page, from), cv, { fast: k.r.chance(0.5) })
+    // 畫到一半換了一題、開始示範（例如車子開到家、下一條路的「Watch me!」）：那一筆被丟掉是對的，不算
+    const s2 = await snap(page)
+    if (s2.teaching && !s.teaching) return
     if (!s.teaching && opts.free && m.n >= 4) c.rule('DRAW-1', m.ratio >= 0.9, `${from === 'outside' ? '從畫布外畫進來' : '亂畫'}：${m.n} 個檢查點有墨 ${m.got}（${Math.round(m.ratio * 100)}%）`)
-    if (!s.teaching && opts.drawing && m.n >= 4 && m.ratio < 0.5)
+    if (!s.teaching && opts.drawing && m.n >= 4 && m.ratio < (opts.fading ? 0.15 : 0.5))
       await c.once(`ink:${from}`, '困惑', `畫了卻只有 ${Math.round(m.ratio * 100)}% 的地方出現墨跡`, `${from === 'outside' ? '從畫布外畫進來' : '在畫布內亂畫'}，經過 ${m.n} 個檢查點只有 ${m.got} 個有墨（畫布 ${Math.round(cv.w)}×${Math.round(cv.h)}）`)
     return
   }

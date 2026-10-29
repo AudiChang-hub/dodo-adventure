@@ -56,7 +56,7 @@ for (const g of selected()) {
           k.behavior = '亂玩'
           continue
         }
-        await toddlerStep(k, c, { drawing, free: g.kind === 'coloring' || g.kind === 'free' })
+        await toddlerStep(k, c, { drawing, free: g.kind === 'coloring' || g.kind === 'free', fading: g.kind === 'dots' })
         if (i % 6 === 5) {
           await c.flush()
           await c.screenOk('亂玩')
@@ -154,7 +154,7 @@ for (const g of selected()) {
 
         // 11. 玩到一半重新整理
         await k.wait(500)
-        for (let i = 0; i < 4; i++) await toddlerStep(k, c, { drawing, free: g.kind === 'coloring' || g.kind === 'free' })
+        for (let i = 0; i < 4; i++) await toddlerStep(k, c, { drawing, free: g.kind === 'coloring' || g.kind === 'free', fading: g.kind === 'dots' })
         await reload(k, c)
       }
     } finally {

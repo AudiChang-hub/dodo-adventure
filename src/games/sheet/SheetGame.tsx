@@ -467,8 +467,8 @@ export function SheetGame({ gameId, onDone, onExit, mode }: GameProps & { mode: 
   const onUp = () => {
     const raw = stroke.current
     stroke.current = []
-    // 孩子的筆跡先清掉：圈到的會換成留在紙上的蠟筆圈，沒圈到的淡淡消失
-    ink.current?.clear()
+    // 孩子的筆跡留一下再淡掉（不會一放開就不見，B09）：圈到的換成留在紙上的蠟筆圈，沒圈到的淡淡消失
+    ink.current?.fadeLast(500)
     const it = itemRef.current
     if (locked.current || !it || raw.length < 2) return
     idle.poke()
