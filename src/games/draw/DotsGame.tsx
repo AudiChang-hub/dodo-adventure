@@ -514,7 +514,7 @@ export function DotsGame({ gameId, onDone, onExit }: GameProps) {
   const breathe = { duration: 2.4, repeat: Infinity, ease: 'easeInOut' } as const
 
   return (
-    <Shell station="draw" mood="idle" progress={{ total: ROUNDS, done: r }} onExit={onExit} hideHost>
+    <Shell station="draw" mood="idle" progress={{ total: ROUNDS, done: r }} onExit={onExit} hideHost demo={demoInk.length > 0}>
       {/* 換一回合：新的一回合蓋在舊的上面淡入，舊的（孩子畫好、變彩色的樣子）等一下才淡掉，不會一下子變空（ui/Scenes.tsx 的 Swap） */}
       <Swap id={r} style={{ inset: '0 4% 4%' }}>
         <>

@@ -9,3 +9,4 @@ scripts/.cache
 .claude
 tsconfig.tsbuildinfo
 __pycache__
+test-results/

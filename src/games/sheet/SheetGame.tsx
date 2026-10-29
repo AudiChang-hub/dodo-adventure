@@ -506,7 +506,7 @@ export function SheetGame({ gameId, onDone, onExit, mode }: GameProps & { mode: 
   // 蠟筆圈用站點的深色（SVG 屬性不吃 CSS 變數，直接給色碼）
   const deep = stationDef(def.station).deep
   return (
-    <Shell station={def.station} mood={mood} progress={{ total: ITEMS, done: idx }} onExit={onExit} onHost={onHost}>
+    <Shell station={def.station} mood={mood} progress={{ total: ITEMS, done: idx }} onExit={onExit} onHost={onHost} demo={!!demo}>
       {/* 教學卡從主持的恐龍長出來、學習單在後面退開；換題時新的學習單蓋在舊的上面淡入（ui/Scenes.tsx） */}
       <CardStage
         card={

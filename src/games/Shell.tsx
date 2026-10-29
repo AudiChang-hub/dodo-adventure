@@ -83,17 +83,19 @@ interface Props {
   hint?: boolean
   /** 遊戲自己決定的陪玩提示（例如描字現在建議用手指還是用筆），取代預設的那句 */
   hintText?: string
+  /** 示範中（筆、手在畫）：只輸出成 data-demo 標記給三歲模擬測試看（tests/toddler），不影響行為 */
+  demo?: boolean
 }
 
 /** 每個遊戲共用的舞台：上方返回鍵與進度、左下角是主持的恐龍（點它會再說一次題目） */
-export function Shell({ station, mood, progress, onExit, onHost, children, hideHost, hint = true, hintText }: Props) {
+export function Shell({ station, mood, progress, onExit, onHost, children, hideHost, hint = true, hintText, demo }: Props) {
   const st = stationDef(station)
   // 主題式冒險：每一站都是同一個故事的場景（公車旅行的街道），不分站點的顏色和背景，孩子不會覺得「現在換到數學了」
   const [th] = useState(themeNow)
   // 遊戲在畫面上的時候，每日時間到了也先等它玩完（在兩個遊戲之間才去睡覺）
   useEffect(() => holdBedtime(), [])
   return (
-    <div className="stage" style={{ '--stage': th?.tint ?? st.tint, '--deep': th?.deep ?? st.deep } as CSSProperties}>
+    <div className="stage" data-demo={demo ? '1' : undefined} style={{ '--stage': th?.tint ?? st.tint, '--deep': th?.deep ?? st.deep } as CSSProperties}>
       {th ? <ThemeScenery def={th} /> : <Scenery station={station} />}
       <div className="stage-top">
         <HoldButton label="回首頁（按住）" onHold={onExit}>

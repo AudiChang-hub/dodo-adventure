@@ -253,7 +253,7 @@ export function GlyphGame({ gameId, onDone, onExit }: GameProps) {
   const total = Math.max(1, samples.length - 1)
   const tip = samples[Math.min(prog, samples.length - 1)] ?? st
   return (
-    <Shell station="draw" mood="idle" progress={{ total: ROUNDS, done: r }} onExit={onExit} hideHost hintText={glyphToolHint(tool)}>
+    <Shell station="draw" mood="idle" progress={{ total: ROUNDS, done: r }} onExit={onExit} hideHost hintText={glyphToolHint(tool)} demo={demo}>
       {/* 換一回合：新的一回合蓋在舊的上面淡入，舊的（答對的樣子）等一下才淡掉，不會一下子變空（ui/Scenes.tsx 的 Swap） */}
       <Swap id={`${r}-${glyph}`} style={{ inset: '0 0 4%' }}>
         <>

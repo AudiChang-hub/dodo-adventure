@@ -392,7 +392,7 @@ export function ColoringGame({ gameId, onDone, onExit }: GameProps) {
   const eyes = new Set(pic.ink ?? [])
   const uid = 'cg' + useId().replace(/[^a-zA-Z0-9_-]/g, '')
   return (
-    <Shell station="draw" mood="idle" onExit={onExit} hideHost>
+    <Shell station="draw" mood="idle" onExit={onExit} hideHost demo={handOn}>
       <div ref={layer} style={{ position: 'absolute', inset: 0 }}>
         <div style={{ position: 'absolute', inset: '0 16% 4% 3%', containerType: 'size' }}>
           <div
