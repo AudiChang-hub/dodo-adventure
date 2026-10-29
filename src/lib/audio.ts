@@ -343,6 +343,8 @@ export const sfx = {
     tone(1568, 0.28, 'sine', 0.12, 0.16)
   },
   gentle: () => tone(330, 0.18, 'sine', 0.18, 0, 262),
+  /** 示範、說明中碰到畫面：很輕的一聲「嗯？」，不是答錯的聲音（games/NotYet.tsx） */
+  notYet: () => tone(587, 0.07, 'sine', 0.09, 0, 659),
   whoosh: () => noise(0.35, 0.5, 0, 900),
   crack: () => {
     noise(0.06, 0.9, 0, 3200)

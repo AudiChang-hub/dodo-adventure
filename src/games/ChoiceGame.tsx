@@ -3,6 +3,7 @@ import { motion } from 'motion/react'
 import { Shell, type GameProps } from './Shell'
 import { TeachCard } from './Teach'
 import { Hand } from './Demo'
+import { WaitShield, firstFinger } from './NotYet'
 import { CueArt, VisualView } from '../ui/Visual'
 import { Sparkles } from '../ui/Sparkles'
 import { game as gameDef, station as stationDef, ROUND_ITEMS, type ChoiceItem, type TeachSpec } from '../content/games'
@@ -101,6 +102,13 @@ function ChoiceRound({ gameId, onDone, onExit }: GameProps) {
   /** 比較題的陪玩提示：跟著當題問的（多／少、大／小）換；句型一局固定 */
   const [hintVariant] = useState(() => Math.floor(Math.random() * 2))
   const [hintText, setHintText] = useState<string | undefined>(undefined)
+  /**
+   * 現在收不收作答（準則 PHASE-2、PHASE-3）：教學卡收起中、題目還在念的時候不收，
+   * 選項上面蓋一層透明擋板，點了只出現「看這裡」的圈圈、不算作答（三歲模擬測試 B08、V-12）。念到最後一個字才打開。
+   */
+  const [accepting, setAccepting] = useState(false)
+  /** 閒置第二段「手再示範一次」：手在答案上點一下（每次加一，再點一次） */
+  const [handTap, setHandTap] = useState(0)
 
   const live = useRef(true)
   const locked = useRef(true)
@@ -153,6 +161,7 @@ function ChoiceRound({ gameId, onDone, onExit }: GameProps) {
     stepRef.current++
     idle.stop()
     locked.current = true
+    setAccepting(false)
     setMood('happy')
     cardUp.current = true
     setCard({ spec: it.teach!, short, n: stepRef.current })
@@ -183,26 +192,28 @@ function ChoiceRound({ gameId, onDone, onExit }: GameProps) {
     setPhase('guided')
     setItem(it)
     setMarks({})
+    setHandTap(0)
+    setAccepting(false)
     setMood('happy')
     setView((v) => v + 1)
     await reveal()
-    if (!live.current) return
+    if (!live.current || stepRef.current !== my) return
+    const done = waitStep()
+    setCuePing((c) => c + 1)
+    // 「Here it is! Tap it!」念完才收作答：卡片收起、念題目的時候亂點不會被算成一起練（B08）
+    await say(...it.prompt, `teach.here.${host}`)
+    if (!live.current || stepRef.current !== my) return
     shownAt.current = performance.now()
     locked.current = false
-    const done = waitStep()
-    void (async () => {
-      setCuePing((c) => c + 1)
-      await say(...it.prompt, `teach.here.${host}`)
-      // 一起練的答案本來就在發光，所以第二段提醒什麼都不用做
-      if (live.current && stepRef.current === my)
-        idle.start({
-          repeat: () => {
-            setCuePing((c) => c + 1)
-            void say(...it.prompt, `teach.here.${host}`)
-          },
-          hint: () => {},
-        })
-    })()
+    setAccepting(true)
+    // 一起練的答案本來就在發光、手在指著，第二段提醒是手在答案上再點一下
+    idle.start({
+      repeat: () => {
+        setCuePing((c) => c + 1)
+        void say(...it.prompt, `teach.here.${host}`)
+      },
+      hint: () => setHandTap((n) => n + 1),
+    })
     await done
   }
 
@@ -223,12 +234,12 @@ function ChoiceRound({ gameId, onDone, onExit }: GameProps) {
     setPhase('quiz')
     setItem(it)
     setMarks(o.decoy ? { [o.decoy]: 'tease' } : {})
+    setHandTap(0)
+    setAccepting(false)
     setMood(o.decoy ? 'peek' : 'idle')
     setView((v) => v + 1)
     await reveal()
     if (!live.current || stepRef.current !== my) return
-    locked.current = false
-    shownAt.current = performance.now()
     const challenge = isLast && itemLevel.current > level(def.id)
     const ask = o.decoy ? [teaseKey(it.skill)] : it.prompt
     if (!o.decoy) setCuePing((c) => c + 1)
@@ -237,6 +248,10 @@ function ChoiceRound({ gameId, onDone, onExit }: GameProps) {
     else if (challenge) await say(challengeKey(host), ...ask)
     else await say(...ask)
     if (!live.current || stepRef.current !== my) return
+    // 題目念到最後一個字才收作答（準則 PHASE-3、V-12）：念的時候亂點不會被記成答錯、也不會累積到重教
+    locked.current = false
+    shownAt.current = performance.now()
+    setAccepting(true)
     const d = delayRef.current
     if (d)
       window.setTimeout(() => {
@@ -250,10 +265,11 @@ function ChoiceRound({ gameId, onDone, onExit }: GameProps) {
         setCuePing((c) => c + 1)
         void say(...ask)
       },
-      // 答案慢慢發光，不說話；看了提示就不算第一次答對
+      // 手再示範一次：答案亮起來、手移過去點一下，不說話；看了提示就不算第一次答對
       hint: () => {
         hintUsed.current = true
         setMarks((m) => ({ ...m, [it.answer]: 'hint' }))
+        setHandTap((n) => n + 1)
       },
     })
   }
@@ -562,16 +578,22 @@ function ChoiceRound({ gameId, onDone, onExit }: GameProps) {
                               ? { y: 0, opacity: 0.3, scale: 0.88 }
                               : glow
                                 ? { y: 0, opacity: 1, scale: 1.04 }
-                                : { y: 0, opacity: 1, scale: 1 }
+                                : // 念題目、教學卡收起中：還不能點，看起來淡一點（準則 PHASE-1）
+                                  { y: 0, opacity: accepting || m ? 1 : 0.55, scale: 1 }
                       }
                       whileTap={{ scale: 0.94 }}
                       transition={{ type: 'spring', stiffness: 380, damping: 20, delay: m ? 0 : 0.08 * i, opacity: FADE }}
-                      onPointerDown={() => tap(o.id)}
+                      onPointerDown={(e) => {
+                        // 兩根手指、手掌同時壓到兩個選項：只算第一根手指（準則 TOUCH-3）
+                        if (firstFinger(e.nativeEvent)) tap(o.id)
+                      }}
                     >
                       <div className="tile-in">
                         <VisualView v={o.v} fit={fit} />
                       </div>
-                      {glow && <Hand x={74} y={72} size="12cqmin" beckon />}
+                      {glow && <Hand x={74} y={72} size="12cqmin" beckon tap={handTap} />}
+                      {/* 閒置提示：手移到答案上點一下，之後停在那裡（靜態） */}
+                      {!guide && isAns && handTap > 0 && m === 'hint' && <Hand x={74} y={72} size="12cqmin" tap={handTap} />}
                       {/* 恐龍的「是這個嗎？」：用問號泡泡而不是手，手在一起練代表「點這裡」 */}
                       {m === 'tease' && (
                         <motion.span className="tease-q" aria-hidden="true" initial={{ scale: 0, rotate: -30 }} animate={{ scale: 1, rotate: -8 }} transition={{ type: 'spring', stiffness: 320, damping: 14, delay: 0.5 }}>
@@ -583,6 +605,7 @@ function ChoiceRound({ gameId, onDone, onExit }: GameProps) {
                   )
                 })}
               </div>
+              <WaitShield on={!accepting} />
             </>
             )}
           </Swap>

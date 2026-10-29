@@ -1,0 +1,62 @@
+/* 「現在還不能動手」：碰到的地方浮出一圈淡淡的圈圈（只動一次，不循環） */
+.not-yet {
+  position: absolute;
+  width: 92px;
+  height: 92px;
+  margin: -46px 0 0 -46px;
+  border-radius: 50%;
+  border: 5px solid rgba(46, 42, 37, 0.38);
+  pointer-events: none;
+  animation: not-yet 0.7s var(--ease-out) both;
+}
+/* 圈圈中間一雙小眼睛：「看這裡」 */
+.not-yet::before,
+.not-yet::after {
+  content: '';
+  position: absolute;
+  top: 40%;
+  width: 11px;
+  height: 15px;
+  border-radius: 50%;
+  background: rgba(46, 42, 37, 0.5);
+}
+.not-yet::before {
+  left: 30%;
+}
+.not-yet::after {
+  right: 30%;
+}
+@keyframes not-yet {
+  0% {
+    opacity: 0;
+    transform: scale(0.55);
+  }
+  25% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.15);
+  }
+}
+
+.wait-shield {
+  position: absolute;
+  inset: 0;
+  z-index: 6;
+  touch-action: none;
+}
+
+/* 示範、說明中的作答區：變淡、退一點色（PHASE-1），輪到孩子時再亮起來 */
+.waiting {
+  opacity: 0.5;
+  filter: saturate(0.55);
+  transition:
+    opacity 0.35s var(--ease-out),
+    filter 0.35s var(--ease-out);
+}
+.waiting-off {
+  transition:
+    opacity 0.35s var(--ease-out),
+    filter 0.35s var(--ease-out);
+}
