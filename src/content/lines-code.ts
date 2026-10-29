@@ -44,4 +44,6 @@ for (const t of PATTERN_TOKS) {
 def('c.intro.seq', 'bobo', "Let's put the pictures in order!")
 def('c.seq.first', 'bobo', 'What comes first?')
 def('c.seq.next', 'bobo', 'What comes next?')
+// 1、2 級（兩步的故事）不問問句，只說這一句（SequenceGame.tsx 的 question）
+def('c.seq.help', 'bobo', 'Help Dodo!')
 for (const s of ALL_STORIES) s.lines.forEach((t, i) => def(`c.seq.${s.id}.${i}`, 'bobo', t))

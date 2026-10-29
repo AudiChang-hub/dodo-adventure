@@ -148,7 +148,13 @@ export function SequenceGame({ gameId, onDone, onExit }: GameProps) {
     r?.()
   }
 
-  const question = () => (placedRef.current.length === 0 ? 'c.seq.first' : 'c.seq.next')
+  /**
+   * 開場、閒置 10 秒、點波波時說的那一句。
+   * 1、2 級（兩步的故事）不問「What comes first?」（2026-10-29 家長同意）：抽象的時間問句加上英文問句，3 歲聽不懂，
+   * 只說「Help Dodo!」，要做什麼交給畫面（豆豆在起點跳、第一格脈動、閒置時手示範）；first、then 留在放卡時的旁白裡教。
+   * 3、4 級（三步以上）已經聽過很多次 First… Then…，才開始問「What comes first? / What comes next?」。
+   */
+  const question = () => ((stRef.current?.icons.length ?? 0) <= 2 ? 'c.seq.help' : placedRef.current.length === 0 ? 'c.seq.first' : 'c.seq.next')
   const cardBox = (k: number) => carry.box(cardEls.current[k])
   const nextSlotBox = () => carry.box(slotEls.current[placedRef.current.length])
 
@@ -437,7 +443,7 @@ export function SequenceGame({ gameId, onDone, onExit }: GameProps) {
       if (live.current && stepRef.current === my && placedRef.current.length === 0) hopHere(2)
     }, 380)
     void (async () => {
-      await say(...(o.intro ? [def.intro] : []), ...(o.afterGuide ? ['teach.turn.bobo'] : []), 'c.seq.first', ...(ph === 'guided' ? ['teach.here.bobo'] : []))
+      await say(...(o.intro ? [def.intro] : []), ...(o.afterGuide ? ['teach.turn.bobo'] : []), question(), ...(ph === 'guided' ? ['teach.here.bobo'] : []))
       if (live.current && stepRef.current === my) startLadder(my)
     })()
     await finished
@@ -450,7 +456,7 @@ export function SequenceGame({ gameId, onDone, onExit }: GameProps) {
     // 這題排哪個故事、要不要先教（pick.ts，自動檢查 scripts/sim-teach.ts 用同一份）
     const { s, lv: l, fresh, walk } = planSequence(def, round.current, i)
     lv.current = l
-    preload([...s.lines.map((_, k) => `c.seq.${s.id}.${k}`), 'c.seq.first', 'c.seq.next', 'teach.here.bobo', 'teach.turn.bobo', 'teach.watch.bobo'])
+    preload([...s.lines.map((_, k) => `c.seq.${s.id}.${k}`), ...(s.icons.length <= 2 ? ['c.seq.help'] : ['c.seq.first', 'c.seq.next']), 'teach.here.bobo', 'teach.turn.bobo', 'teach.watch.bobo'])
     let intro = i === 0
     if (fresh) {
       await demo(s, intro)
@@ -552,7 +558,7 @@ export function SequenceGame({ gameId, onDone, onExit }: GameProps) {
       if (trayRef.current.length === 0) return finish(s)
       locked.current = false
       const step = stepRef.current
-      await say('c.seq.next')
+      await say(question())
       if (live.current && stepRef.current === step) startLadder(step)
       return
     }
