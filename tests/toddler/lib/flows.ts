@@ -279,6 +279,20 @@ const inkPts = (page: Page, pts: Pt[]) =>
           /* */
         }
       }
+      // 用 SVG 畫的孩子墨跡（連點成圖、圈圈看）：[data-ink="child"] 底下的線，看那一點附近有沒有被線蓋到
+      for (const el of document.querySelectorAll<SVGGraphicsElement>('[data-ink="child"]')) {
+        const paths = el instanceof SVGPathElement ? [el] : [...el.querySelectorAll('path')]
+        for (const path of paths) {
+          if (Number(getComputedStyle(path).opacity) < 0.05) continue
+          const m = path.getScreenCTM()
+          if (!m) continue
+          const inv = m.inverse()
+          for (const [dx, dy] of [[0, 0], [4, 0], [-4, 0], [0, 4], [0, -4]]) {
+            const q = new DOMPoint(p.x + dx, p.y + dy).matrixTransform(inv)
+            if (path.isPointInFill(q) || path.isPointInStroke(q)) total += 6
+          }
+        }
+      }
       return total
     })
   }, pts)

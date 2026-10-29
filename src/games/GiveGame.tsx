@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type PointerEvent as RPointerEvent } from 
 import { AnimatePresence, motion, useAnimate } from 'motion/react'
 import { Shell, type GameProps } from './Shell'
 import { Hand } from './Demo'
+import { WaitShield, firstFinger } from './NotYet'
 import { Egg } from '../art/Egg'
 import { BasketBack, BasketFront, basketSlot } from '../art/Basket'
 import { Sparkles } from '../ui/Sparkles'
@@ -172,6 +173,10 @@ export function GiveGame({ gameId, onDone, onExit }: GameProps) {
    * null 是還沒對答案：泡泡只有數字和空格，放蛋時不會跟著填，要孩子自己數。
    */
   const [tally, setTally] = useState<{ n: number; mark: boolean } | null>(null)
+  /** 示範、說明、念題目中：學習單上蓋透明擋板，點了只出現「看這裡」的圈圈（準則 PHASE-2、PHASE-3） */
+  const [hold, setHold] = useState(true)
+  /** 閒置提示的手（不是示範）：孩子一動手就收起來 */
+  const againHand = useRef(false)
 
   const live = useRef(true)
   const locked = useRef(true)
@@ -264,7 +269,39 @@ export function GiveGame({ gameId, onDone, onExit }: GameProps) {
     reset(supply(k))
     void logTeach({ station: 'math', game: def.id, itemId: String(k), skill: `give:${k}`, level: lv.current, ms: Math.round(performance.now() - s) })
     setMood('idle')
-    await say('teach.turn.bobo')
+  }
+
+  /** 閒置第二段、點恐龍：手在下一顆蛋上點一下、移到籃子（不會真的放），或在勾勾上點一下；之後停在那裡 */
+  const showAgain = async () => {
+    if (locked.current || active.current) return
+    const k = nRef.current
+    const c = bagRef.current.length
+    if (phaseRef.current === 'quiz') hintUsed.current = true
+    if (c > k) return setGlow('extra')
+    againHand.current = true
+    const my = step.current
+    const ok = () => live.current && againHand.current && step.current === my
+    if (c === k) {
+      setFinger((f) => ({ x: DONE.x, y: DONE.y, tap: f?.tap ?? 0 }))
+      await wait(520)
+      if (ok()) setFinger((f) => f && { ...f, tap: f.tap + 1 })
+      return
+    }
+    const egg = eggsRef.current.find((e) => !bagRef.current.includes(e.id))
+    if (!egg) return
+    setFinger((f) => ({ x: egg.x, y: egg.y, tap: f?.tap ?? 0 }))
+    await wait(620)
+    if (!ok()) return
+    setFinger((f) => f && { ...f, tap: f.tap + 1 })
+    await wait(500)
+    if (!ok()) return
+    const slot = slotOf(c)
+    setFinger((f) => ({ x: slot.x, y: slot.y, tap: f?.tap ?? 0 }))
+  }
+  const dropAgain = () => {
+    if (!againHand.current) return
+    againHand.current = false
+    setFinger(null)
   }
 
   /** 一起練或自己答：同一個 N，蛋重新擺好 */
@@ -277,8 +314,8 @@ export function GiveGame({ gameId, onDone, onExit }: GameProps) {
     wrongs.current = { few: 0, many: 0 }
     hintUsed.current = false
     setMood(ph === 'guided' ? 'happy' : 'idle')
-    locked.current = false
-    t0.current = performance.now()
+    locked.current = true
+    setHold(true)
     const done = ph === 'guided' ? new Promise<void>((res) => (resolver.current = res)) : null
     const my = ++step.current
     if (afterGuide) await say('teach.turn.bobo')
@@ -286,19 +323,19 @@ export function GiveGame({ gameId, onDone, onExit }: GameProps) {
       setAskPing((p) => p + 1)
       await say(`ws.give.${k}`)
     }
-    if (live.current && step.current === my)
-      idle.start({
-        repeat: () => {
-          setAskPing((p) => p + 1)
-          void say(`ws.give.${k}`)
-        },
-        hint: () => {
-          // 第二段提醒：該做的那一步慢慢發光（下一顆蛋、多的蛋、或勾勾），不說話
-          if (ph === 'quiz') hintUsed.current = true
-          const c = bagRef.current.length
-          setGlow(c < k ? 'next' : c > k ? 'extra' : 'done')
-        },
-      })
+    if (!live.current || step.current !== my) return
+    // 波波說完要幾顆才收（準則 PHASE-3、V-12）
+    locked.current = false
+    setHold(false)
+    t0.current = performance.now()
+    // 閒置：15 秒再說一次 → 再 15 秒手示範下一步（拿一顆蛋、或按勾勾）→ 之後每 40 秒手再安靜地示範一次
+    idle.start({
+      repeat: () => {
+        setAskPing((p) => p + 1)
+        void say(`ws.give.${k}`)
+      },
+      hint: () => void showAgain(),
+    })
     if (done) await done
   }
 
@@ -311,9 +348,11 @@ export function GiveGame({ gameId, onDone, onExit }: GameProps) {
     setMood('idle')
     idle.stop()
     locked.current = true
+    setHold(true)
     reset(supply(k))
     preload([`ws.give.${k}`, `ws.want.${k}`, `teach.total.${k}`, 'ws.give.more', 'ws.give.toomany', 'ws.give.takeout', 'ws.give.thanks'])
-    if (i === 0) await say(def.intro)
+    // 要示範的回合：開場只說「Watch me!」就示範，指令（Give me three!）留到示範之後
+    if (i === 0 && !fresh) await say(def.intro)
     if (!live.current) return
     const walk = !fresh && firstPlay.current && i === 0
     if (fresh) {
@@ -431,6 +470,7 @@ export function GiveGame({ gameId, onDone, onExit }: GameProps) {
   const check = async () => {
     if (locked.current) return
     idle.poke()
+    dropAgain()
     const k = nRef.current
     const c = bagRef.current.length
     if (c === 0) {
@@ -480,8 +520,10 @@ export function GiveGame({ gameId, onDone, onExit }: GameProps) {
     return { x: ((e.clientX - rc.left) / rc.width) * 1000, y: ((e.clientY - rc.top) / rc.height) * 600 }
   }
   const down = (id: string) => (e: RPointerEvent) => {
-    if (locked.current || active.current) return
+    // 兩根手指、手掌：只算第一根手指（準則 TOUCH-3）
+    if (locked.current || active.current || !firstFinger(e.nativeEvent)) return
     idle.poke()
+    dropAgain()
     try {
       ;(e.target as Element).setPointerCapture(e.pointerId)
     } catch {
@@ -515,10 +557,13 @@ export function GiveGame({ gameId, onDone, onExit }: GameProps) {
   // 一起練：還沒放滿時，下一顆蛋一直發光；自己答只有提示時才發光
   const nextEgg = glow === 'next' || (phase === 'guided' && bag.length < k && !finger) ? eggs.find((e) => !bag.includes(e.id))?.id : undefined
   return (
-    <Shell station="math" mood={mood} progress={{ total: ROUNDS, done: r }} onExit={onExit} onHost={() => {
+    <Shell station="math" mood={mood} progress={{ total: ROUNDS, done: r }} onExit={onExit} demo={hold && !!finger && !againHand.current} onHost={() => {
+        if (locked.current) return
         idle.poke()
         setAskPing((p) => p + 1)
+        // 點恐龍：再說一次要幾顆，手再示範一次下一步
         void say(`ws.give.${nRef.current}`)
+        void showAgain()
       }}>
       <div className="sheet-area">
         <div ref={board} data-n={import.meta.env.DEV ? k : undefined} style={{ position: 'relative', width: 'min(100cqw, 166.67cqh)', aspectRatio: '5 / 3', containerType: 'size' }}>
@@ -587,6 +632,7 @@ export function GiveGame({ gameId, onDone, onExit }: GameProps) {
           {/* 一起練：泡泡填滿了，換勾勾發光 */}
           <DoneButton x={pct(DONE.x, 1000)} y={pct(DONE.y, 600)} glow={glow === 'done' || (phase === 'guided' && k > 0 && bag.length === k && !finger)} onPress={check} />
           <AnimatePresence>{finger && <Hand key="finger" x={(finger.x / 1000) * 100 + 0.8} y={(finger.y / 600) * 100 + 2} tap={finger.tap} size="9cqmin" cuff="#F0B088" />}</AnimatePresence>
+          <WaitShield on={hold} z={120} />
         </div>
       </div>
       {/* 對話泡泡在波波頭上（學習單外面、舞台左邊那一欄），不蓋到草窩和籃子 */}

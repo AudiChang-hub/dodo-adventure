@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
 import { Shell, type GameProps } from './Shell'
 import { Hand } from './Demo'
+import { WaitShield, firstFinger } from './NotYet'
 import { Emoji } from '../art/Emoji'
 import { game as gameDef } from '../content/games'
 import { COUNT_ICONS } from '../content/park'
@@ -58,6 +59,13 @@ export function CountGame({ gameId, onDone, onExit }: GameProps) {
   const [lead, setLead] = useState<'hand' | 'glow' | null>(null)
   /** 選數字那一步輪到孩子：數字卡輕輕呼吸、最後一個號碼牌跳一下，孩子點了第一張就停 */
   const [askCue, setAskCue] = useState(false)
+  /**
+   * 示範、重數、念「How many?」的時候不收（準則 PHASE-2、PHASE-3）：物件和數字卡上面蓋透明擋板，
+   * 點了只出現「看這裡」的圈圈，不算數、不算答。
+   */
+  const [hold, setHold] = useState(false)
+  /** 閒置第二段、點恐龍：手在下一個要數的（或答案卡）上點一下 */
+  const [tapAgain, setTapAgain] = useState(0)
   const tileEls = useRef(new Map<number, HTMLElement>())
   const layerEl = useRef<HTMLElement | null>(null)
   const [press, setPress] = useState(0)
@@ -148,7 +156,8 @@ export function CountGame({ gameId, onDone, onExit }: GameProps) {
     setCounted([])
     void logTeach({ station: 'math', game: def.id, itemId: String(rd.n), skill: `count:${rd.n}`, level: lv.current, ms: Math.round(performance.now() - s) })
     setMood('idle')
-    await say('teach.turn.bobo')
+    // 指令（Tap and count!）放在示範之後，說完「Your turn!」才開放（準則 PHASE-3、V-10）
+    await say(def.intro, 'teach.turn.bobo')
   }
 
   const start = async (i: number) => {
@@ -172,24 +181,28 @@ export function CountGame({ gameId, onDone, onExit }: GameProps) {
     const show = plan.show
     shown.current = show
     busy.current = show
+    setHold(show)
+    setTapAgain(0)
     stage.current = 'count'
     tappedRef.current = false
     idle.stop()
     setNudge(false)
     t0.current = performance.now()
-    if (i === 0) await say(def.intro)
-    else if (!show) await say('m.count.go')
+    // 要示範的回合：開場只說「Watch me!」就示範，「Let's count! Tap them!」留到示範之後
+    if (!show) await say(i === 0 ? def.intro : 'm.count.go')
     if (!live.current) return
     if (show) {
       await demo(rd)
       if (!live.current) return
       t0.current = performance.now()
       busy.current = false
+      setHold(false)
     }
     // 輪到孩子：剛示範過就讓手在第一個要數的上面輕輕點；沒示範就讓它發光（還沒開始點的話）
     if (stage.current === 'count' && !tappedRef.current) setLead(show ? 'hand' : 'glow')
     // 還在數（孩子可能邊聽邊已經數完了）才開始閒置計時：再唸一次題目 → 下一個要數的慢慢發光
-    if (stage.current === 'count') idle.start({ repeat: () => void say('m.count.go'), hint: () => setNudge(true) })
+    // 閒置：15 秒再唸一次 → 再 15 秒手在下一個要數的上面點一下 → 之後每 40 秒手再安靜地點一次
+    if (stage.current === 'count') idle.start({ repeat: () => void say('m.count.go'), hint: showNext })
   }
 
   useEffect(() => {
@@ -264,11 +277,21 @@ export function CountGame({ gameId, onDone, onExit }: GameProps) {
       stage.current = 'ask'
       setAsk(true)
       setAskCue(true)
-      busy.current = false
-      t0.current = performance.now()
+      setHold(true)
       await say('m.howmany')
-      // 選數字也是同一套：15 秒再問一次 → 再 15 秒正確的數字慢慢發光
-      if (live.current && stage.current === 'ask') idle.start({ repeat: () => void say('m.howmany'), hint: () => setHint(true) })
+      if (!live.current || stage.current !== 'ask') return
+      // 「How many?」念完才收（V-12）
+      busy.current = false
+      setHold(false)
+      t0.current = performance.now()
+      // 選數字也是同一套：15 秒再問一次 → 再 15 秒正確的數字亮起來、手點一下
+      idle.start({
+        repeat: () => void say('m.howmany'),
+        hint: () => {
+          setHint(true)
+          setTapAgain((n) => n + 1)
+        },
+      })
     } else finish(true)
   }
 
@@ -291,6 +314,7 @@ export function CountGame({ gameId, onDone, onExit }: GameProps) {
     }
     // 錯兩次：波波再數一次給孩子看，最後一個數字就是答案
     busy.current = true
+    setHold(true)
     retaught.current = true
     idle.stop()
     await say('teach.again.bobo')
@@ -299,6 +323,14 @@ export function CountGame({ gameId, onDone, onExit }: GameProps) {
     setFinger(null)
     setHint(true)
     busy.current = false
+    setHold(false)
+  }
+
+  /** 閒置第二段、點恐龍：手在下一個要數的上面點一下，之後停著（數數本身就是答案，不算洩題） */
+  const showNext = () => {
+    if (stage.current !== 'count' || busy.current) return
+    setLead('hand')
+    setTapAgain((n) => n + 1)
   }
 
   // 閒置提示（或輪到孩子時的「點這裡」）要發光的「下一個」：跟示範一樣，上排到下排、由左到右第一個還沒數的
@@ -311,9 +343,12 @@ export function CountGame({ gameId, onDone, onExit }: GameProps) {
       : undefined
 
   return (
-    <Shell station="math" mood={mood} progress={{ total: ROUNDS, done: r }} onExit={onExit} onHost={() => {
+    <Shell station="math" mood={mood} progress={{ total: ROUNDS, done: r }} onExit={onExit} demo={hold && !ask} onHost={() => {
+        if (busy.current) return
         idle.poke()
+        // 點恐龍：再說一次題目；數數的時候手再示範一次（點下一個要數的）。選數字時不指答案，只再問一次
         void say(ask ? 'm.howmany' : 'm.count.go')
+        if (!ask) showNext()
       }}>
       {/* 換一回合：新的一回合蓋在舊的上面淡入，舊的（答對的樣子）等一下才淡掉，不會一下子變空（ui/Scenes.tsx 的 Swap） */}
       {round && (
@@ -332,7 +367,7 @@ export function CountGame({ gameId, onDone, onExit }: GameProps) {
                 initial={{ scale: 0, rotate: -20 }}
                 animate={{ scale: order >= 0 ? 0.92 : 1, rotate: 0, y: order >= 0 ? [0, -26, 0] : 0, opacity: order >= 0 ? 0.62 : 1 }}
                 transition={{ type: 'spring', stiffness: 320, damping: 16, delay: order >= 0 ? 0 : i * 0.06, opacity: FADE }}
-                onPointerDown={() => tapObj(i)}
+                onPointerDown={(e) => firstFinger(e.nativeEvent) && tapObj(i)}
               >
                 {nextObj === i && <span className="nudge-glow" aria-hidden="true" />}
                 <motion.div key={pinged ? ping!.k : 'still'} style={{ width: '100%', height: '100%' }} animate={pinged ? { y: [0, -18, 0] } : {}} transition={{ duration: 0.4 }}>
@@ -358,8 +393,10 @@ export function CountGame({ gameId, onDone, onExit }: GameProps) {
             {finger !== null && typeof finger === 'object' && <Hand key="finger" x={finger.x} y={finger.y} tap={press} size="11cqmin" cuff="#F0B088" />}
             {/* 輪到孩子（剛示範過）：手在下一個要數的上面輕輕點 */}
             {finger === null && lead === 'hand' && nextObj !== undefined && round.pos[nextObj] && (
-              <Hand key="lead" x={round.pos[nextObj].x + 1.5} y={round.pos[nextObj].y + 4} size="11cqmin" beckon />
+              <Hand key="lead" x={round.pos[nextObj].x + 1.5} y={round.pos[nextObj].y + 4} size="11cqmin" beckon={!tapAgain} tap={tapAgain} />
             )}
+            {/* 選數字的閒置提示：手在正確的數字卡上點一下，之後停著 */}
+            {finger === null && ask && hint && tapAgain > 0 && tilePoint(round.n) && <Hand key="ask-hand" {...tilePoint(round.n)!} tap={tapAgain} size="11cqmin" cuff="#F0B088" />}
           </AnimatePresence>
           {ask && (
             <div
@@ -381,7 +418,7 @@ export function CountGame({ gameId, onDone, onExit }: GameProps) {
                   initial={{ y: 40, opacity: 0 }}
                   animate={wrong.includes(n) ? { x: [0, -12, 12, 0], opacity: 0.45 } : { y: 0, opacity: 1 }}
                   transition={{ delay: wrong.includes(n) ? 0 : i * 0.08 }}
-                  onPointerDown={() => tapChoice(n)}
+                  onPointerDown={(e) => firstFinger(e.nativeEvent) && tapChoice(n)}
                 >
                   <div className="tile-in">
                     <span className="glyph num">{n}</span>
@@ -390,6 +427,7 @@ export function CountGame({ gameId, onDone, onExit }: GameProps) {
               ))}
             </div>
           )}
+          <WaitShield on={hold} />
           </>
         </Swap>
       )}

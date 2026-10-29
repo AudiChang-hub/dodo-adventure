@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
 import { Shell, type GameProps } from '../Shell'
 import { Hand, PenArt, easeInOut, tween } from '../Demo'
+import { WaitShield, firstFinger } from '../NotYet'
 import { Ink, type InkHandle, type Pt } from '../draw/Ink'
 import { Sparkles } from '../../ui/Sparkles'
 import { SheetTeach } from './SheetTeach'
@@ -61,6 +62,13 @@ export function SheetGame({ gameId, onDone, onExit, mode }: GameProps & { mode: 
   const [loops, setLoops] = useState<{ d: string; k: number }[]>([])
   const [miss, setMiss] = useState<{ d: string; k: number } | null>(null)
   const [demo, setDemo] = useState<{ d: string; pen: P } | null>(null)
+  /**
+   * 現在收不收作答（準則 PHASE-2、PHASE-3）：教學卡收起中、筆在示範怎麼圈、題目還在念的時候不收。
+   * 點選版蓋透明擋板、圈選版的筆畫不出線（Ink disabled），碰到的地方都只出現「看這裡」的圈圈。念完才打開。
+   */
+  const [accepting, setAccepting] = useState(false)
+  /** 閒置第二段「手再示範一次」：手在還沒找到的那一個上點一下（每次加一） */
+  const [handTap, setHandTap] = useState(0)
 
   const live = useRef(true)
   const locked = useRef(true)
@@ -143,6 +151,7 @@ export function SheetGame({ gameId, onDone, onExit, mode }: GameProps & { mode: 
     stepRef.current++
     idle.stop()
     locked.current = true
+    setAccepting(false)
     setMood('happy')
     cardUp.current = true
     setCard({ it, short, n: stepRef.current })
@@ -166,6 +175,7 @@ export function SheetGame({ gameId, onDone, onExit, mode }: GameProps & { mode: 
     stepRef.current++
     idle.stop()
     locked.current = true
+    setAccepting(false)
     phaseRef.current = 'guided'
     setPhase('guided')
     // 學習單在教學卡後面擺好，再把卡收回恐龍：筆的示範一定在孩子看得到的地方做（盤點：原本卡還蓋著就開始畫）
@@ -210,18 +220,21 @@ export function SheetGame({ gameId, onDone, onExit, mode }: GameProps & { mode: 
     setPhase('guided')
     // 剛示範完（keep）：同一張學習單、同樣的位置直接接著一起練，孩子照著剛剛看到的圈
     if (!keep) lay(it)
+    setHandTap(0)
+    setAccepting(false)
     setMood('happy')
     await reveal()
-    if (!live.current) return
-    shownAt.current = performance.now()
+    if (!live.current || stepRef.current !== my) return
     said.current = { around: false, close: false }
-    locked.current = false
     const done = waitStep()
-    void (async () => {
-      await say(promptOf(it), hereKey)
-      // 一起練的答案本來就在發光，第二段提醒什麼都不用做
-      if (live.current && stepRef.current === my) idle.start({ repeat: () => void say(promptOf(it), hereKey), hint: () => {} })
-    })()
+    // 「Here it is!」念完才收作答（B08）
+    await say(promptOf(it), hereKey)
+    if (!live.current || stepRef.current !== my) return
+    shownAt.current = performance.now()
+    locked.current = false
+    setAccepting(true)
+    // 一起練的答案本來就在發光、手在指著；第二段提醒是手再點一下
+    idle.start({ repeat: () => void say(promptOf(it), hereKey), hint: () => setHandTap((n) => n + 1) })
     await done
   }
 
@@ -237,22 +250,27 @@ export function SheetGame({ gameId, onDone, onExit, mode }: GameProps & { mode: 
     said.current = { around: false, close: false }
     setPhase('quiz')
     lay(it)
+    setHandTap(0)
+    setAccepting(false)
     setMood('idle')
     await reveal()
     if (!live.current || stepRef.current !== my) return
-    locked.current = false
-    shownAt.current = performance.now()
     if (afterGuide) await say(`teach.turn.${host}`, promptOf(it))
     else await say(promptOf(it))
-    if (live.current && stepRef.current === my)
-      idle.start({
-        repeat: () => void say(promptOf(it)),
-        // 還沒找到的慢慢發光，不說話；看了提示就不算第一次答對
-        hint: () => {
-          hintUsed.current = true
-          setHint(true)
-        },
-      })
+    if (!live.current || stepRef.current !== my) return
+    // 題目念完才收作答（準則 PHASE-3、V-12）
+    locked.current = false
+    shownAt.current = performance.now()
+    setAccepting(true)
+    idle.start({
+      repeat: () => void say(promptOf(it)),
+      // 手再示範一次：還沒找到的亮起來、手在上面點一下，不說話；看了提示就不算第一次答對
+      hint: () => {
+        hintUsed.current = true
+        setHint(true)
+        setHandTap((n) => n + 1)
+      },
+    })
   }
 
   /** 出下一題：先決定這題要不要教 */
@@ -503,6 +521,7 @@ export function SheetGame({ gameId, onDone, onExit, mode }: GameProps & { mode: 
 
   const guide = phase === 'guided'
   const firstLeft = item && guide && !demo ? item.things.findIndex((t) => t.ok && !found.includes(t.id)) : -1
+  const hintLeft = item && !guide ? item.things.findIndex((t) => t.ok && !found.includes(t.id)) : -1
   // 蠟筆圈用站點的深色（SVG 屬性不吃 CSS 變數，直接給色碼）
   const deep = stationDef(def.station).deep
   return (
@@ -536,6 +555,8 @@ export function SheetGame({ gameId, onDone, onExit, mode }: GameProps & { mode: 
                   const isWrong = wrong.includes(t.id)
                   const glow = guide && t.ok && !isFound && !demo
                   const dim = guide && !t.ok
+                  // 念題目、示範中：還不能點，淡一點（準則 PHASE-1）；示範正在圈的那一個照樣亮
+                  const waiting = !accepting && !isFound && !(demo && t.ok)
                   const shaking = shake.ids.includes(t.id)
                   return (
                     <motion.button
@@ -553,11 +574,12 @@ export function SheetGame({ gameId, onDone, onExit, mode }: GameProps & { mode: 
                             ? { scale: [1, 1.12, 1.04], opacity: 1 }
                             : dim
                               ? { scale: 0.9, opacity: 0.32 }
-                              : { scale: 1, opacity: isWrong ? 0.4 : 1 }
+                              : { scale: 1, opacity: isWrong ? 0.4 : waiting ? 0.55 : 1 }
                       }
                       transition={shaking ? { duration: 0.45 } : { type: 'spring', stiffness: 340, damping: 20, delay: isFound || isWrong ? 0 : 0.06 * i, opacity: FADE }}
                       whileTap={mode === 'tap' ? { scale: 0.93 } : undefined}
-                      onPointerDown={mode === 'tap' ? () => void pick([t.id]) : undefined}
+                      // 兩根手指、手掌同時壓到兩個：只算第一根手指（準則 TOUCH-3）
+                      onPointerDown={mode === 'tap' ? (e) => void (firstFinger(e.nativeEvent) && pick([t.id])) : undefined}
                     >
                       {glow && <span className="sheet-glow" aria-hidden="true" />}
                       {hint && t.ok && !isFound && <span className="nudge-glow" aria-hidden="true" />}
@@ -600,12 +622,13 @@ export function SheetGame({ gameId, onDone, onExit, mode }: GameProps & { mode: 
                     )}
                   {mode === 'lasso' &&
                     loops.map((l) => (
-                      <motion.path key={l.k} d={l.d} fill="none" stroke={deep} strokeWidth={10} strokeLinecap="round" strokeLinejoin="round" initial={{ opacity: 0.4 }} animate={{ opacity: 0.88 }} />
+                      <motion.path key={l.k} data-ink="child" d={l.d} fill="none" stroke={deep} strokeWidth={10} strokeLinecap="round" strokeLinejoin="round" initial={{ opacity: 0.4 }} animate={{ opacity: 0.88 }} />
                     ))}
                   <AnimatePresence>
                     {miss && (
                       <motion.path
                         key={miss.k}
+                        data-ink="child"
                         d={miss.d}
                         fill="none"
                         stroke="rgba(46,42,37,0.4)"
@@ -630,9 +653,14 @@ export function SheetGame({ gameId, onDone, onExit, mode }: GameProps & { mode: 
                 </svg>
 
                 {mode === 'tap' && firstLeft >= 0 && spots[firstLeft] && (
-                  <Hand x={(spots[firstLeft].x / BOARD_W) * 100 + 3} y={(spots[firstLeft].y / BOARD_H) * 100 + 6} size="9cqmin" beckon />
+                  <Hand x={(spots[firstLeft].x / BOARD_W) * 100 + 3} y={(spots[firstLeft].y / BOARD_H) * 100 + 6} size="9cqmin" beckon={!handTap} tap={handTap} />
                 )}
-                {mode === 'lasso' && <Ink ref={inkRef} w={BOARD_W} h={BOARD_H} color="rgba(46,42,37,0.62)" size={11} ink={!demo} onDown={onDown} onMove={onMove} onUp={onUp} />}
+                {/* 閒置提示（自己答）：手在還沒找到的那一個上點一下，之後停著 */}
+                {!guide && hint && handTap > 0 && hintLeft >= 0 && spots[hintLeft] && (
+                  <Hand x={(spots[hintLeft].x / BOARD_W) * 100 + 3} y={(spots[hintLeft].y / BOARD_H) * 100 + 6} size="9cqmin" tap={handTap} />
+                )}
+                {mode === 'lasso' && <Ink ref={inkRef} w={BOARD_W} h={BOARD_H} color="rgba(46,42,37,0.62)" size={11} disabled={!accepting} onDown={onDown} onMove={onMove} onUp={onUp} />}
+                {mode === 'tap' && <WaitShield on={!accepting} z={50} />}
               </div>
             )}
           </Swap>

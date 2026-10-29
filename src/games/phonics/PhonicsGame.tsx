@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { motion } from 'motion/react'
 import { Shell, type GameProps } from '../Shell'
 import { Hand } from '../Demo'
+import { WaitShield, firstFinger } from '../NotYet'
 import { Sparkles } from '../../ui/Sparkles'
 import { game as gameDef, station as stationDef, ROUND_ITEMS, PHONICS_MAKERS, type PhonicsItem, type PhonicsOption, type WordCard } from '../../content/games'
 import { TeachCard } from '../Teach'
@@ -64,6 +65,13 @@ export function PhonicsGame({ gameId, onDone, onExit }: GameProps) {
   const [naming, setNaming] = useState<string | null>(null)
   const [mood, setMood] = useState<Mood>('idle')
   const [burst, setBurst] = useState(0)
+  /**
+   * 現在收不收作答（準則 PHASE-2、PHASE-3）：教學卡收起中、題目和圖片名字還在念的時候不收，
+   * 選項上面蓋一層透明擋板，點了只出現「看這裡」的圈圈（三歲模擬測試 B08、V-12）。念完才打開。
+   */
+  const [accepting, setAccepting] = useState(false)
+  /** 閒置第二段「手再示範一次」：手在答案上點一下（每次加一） */
+  const [handTap, setHandTap] = useState(0)
 
   const live = useRef(true)
   const locked = useRef(true)
@@ -128,6 +136,7 @@ export function PhonicsGame({ gameId, onDone, onExit }: GameProps) {
     stepRef.current++
     idle.stop()
     locked.current = true
+    setAccepting(false)
     setMood('happy')
     cardUp.current = true
     setCard({ it, short, n: stepRef.current })
@@ -142,6 +151,7 @@ export function PhonicsGame({ gameId, onDone, onExit }: GameProps) {
     stepRef.current++
     idle.stop()
     locked.current = true
+    setAccepting(false)
     setMood('happy')
     cardUp.current = true
     setCard({ it, short: false, n: stepRef.current, word: w })
@@ -167,17 +177,20 @@ export function PhonicsGame({ gameId, onDone, onExit }: GameProps) {
     setPhase('guided')
     setItem(it)
     setMarks({})
+    setHandTap(0)
+    setAccepting(false)
     setMood('happy')
     setView((v) => v + 1)
     await reveal()
-    if (!live.current) return
+    if (!live.current || stepRef.current !== my) return
+    const done = waitStep()
+    // 「Here it is! Tap it!」念完才收作答（B08）
+    await ask(it, [], [`teach.here.${host}`])
+    if (!live.current || stepRef.current !== my) return
     shownAt.current = performance.now()
     locked.current = false
-    const done = waitStep()
-    void (async () => {
-      await ask(it, [], [`teach.here.${host}`])
-      if (live.current && stepRef.current === my) idle.start({ repeat: () => void ask(it, [], [`teach.here.${host}`]), hint: () => {} })
-    })()
+    setAccepting(true)
+    idle.start({ repeat: () => void ask(it, [], [`teach.here.${host}`]), hint: () => setHandTap((n) => n + 1) })
     await done
   }
 
@@ -193,22 +206,28 @@ export function PhonicsGame({ gameId, onDone, onExit }: GameProps) {
     setPhase('quiz')
     setItem(it)
     setMarks({})
+    setHandTap(0)
+    setAccepting(false)
     setMood('idle')
     setView((v) => v + 1)
     await reveal()
     if (!live.current || stepRef.current !== my) return
-    locked.current = false
-    shownAt.current = performance.now()
     const challenge = isLast && itemLevel.current > level(def.id)
     await ask(it, afterGuide ? [`teach.turn.${host}`] : challenge ? [challengeKey(host)] : [])
-    if (live.current && stepRef.current === my)
-      idle.start({
-        repeat: () => void ask(it),
-        hint: () => {
-          hintUsed.current = true
-          setMarks((m) => ({ ...m, [it.answer]: 'hint' }))
-        },
-      })
+    if (!live.current || stepRef.current !== my) return
+    // 題目和每張圖的名字都念完才收作答（準則 PHASE-3、V-12）
+    locked.current = false
+    shownAt.current = performance.now()
+    setAccepting(true)
+    idle.start({
+      repeat: () => void ask(it),
+      // 手再示範一次：答案亮起來、手點一下，不說話
+      hint: () => {
+        hintUsed.current = true
+        setMarks((m) => ({ ...m, [it.answer]: 'hint' }))
+        setHandTap((n) => n + 1)
+      },
+    })
   }
 
   const present = async (i: number) => {
@@ -418,10 +437,13 @@ export function PhonicsGame({ gameId, onDone, onExit }: GameProps) {
                     guide={guide}
                     named={naming === o.id}
                     burst={burst}
+                    waiting={!accepting}
+                    handTap={handTap}
                     onTap={() => tap(o.id)}
                   />
                 ))}
               </div>
+              <WaitShield on={!accepting} />
             </>
             )}
           </Swap>
@@ -431,7 +453,30 @@ export function PhonicsGame({ gameId, onDone, onExit }: GameProps) {
   )
 }
 
-function OptionTile({ o, i, mark, isAns, guide, named, burst, onTap }: { o: PhonicsOption; i: number; mark?: Mark; isAns: boolean; guide: boolean; named: boolean; burst: number; onTap: () => void }) {
+function OptionTile({
+  o,
+  i,
+  mark,
+  isAns,
+  guide,
+  named,
+  burst,
+  waiting,
+  handTap,
+  onTap,
+}: {
+  o: PhonicsOption
+  i: number
+  mark?: Mark
+  isAns: boolean
+  guide: boolean
+  named: boolean
+  burst: number
+  /** 念題目中：還不能點，淡一點（點名到的那一張照樣亮） */
+  waiting: boolean
+  handTap: number
+  onTap: () => void
+}) {
   const glow = guide && isAns && mark !== 'correct'
   const dim = guide && !isAns
   const reveal = mark === 'correct' && !!o.word
@@ -453,11 +498,14 @@ function OptionTile({ o, i, mark, isAns, guide, named, burst, onTap }: { o: Phon
                 ? { y: -10, opacity: 1, scale: 1.05 }
                 : glow
                   ? { y: 0, opacity: 1, scale: 1.04 }
-                  : { y: 0, opacity: 1, scale: 1 }
+                  : { y: 0, opacity: waiting && !mark ? 0.55 : 1, scale: 1 }
       }
       whileTap={{ scale: 0.94 }}
       transition={{ type: 'spring', stiffness: 380, damping: 20, delay: mark || named ? 0 : 0.08 * i, opacity: FADE }}
-      onPointerDown={onTap}
+      onPointerDown={(e) => {
+        // 兩根手指、手掌同時壓到兩個選項：只算第一根手指（準則 TOUCH-3）
+        if (firstFinger(e.nativeEvent)) onTap()
+      }}
     >
       <div className={`tile-in${reveal ? ' with-label' : ''}`}>
         {o.word && <Pic icon={o.word.icon} />}
@@ -473,7 +521,9 @@ function OptionTile({ o, i, mark, isAns, guide, named, burst, onTap }: { o: Phon
           <WordLabel w={o.word!.w} tint />
         </motion.div>
       )}
-      {glow && <Hand x={74} y={72} size="12cqmin" beckon />}
+      {glow && <Hand x={74} y={72} size="12cqmin" beckon tap={handTap} />}
+      {/* 閒置提示：手移到答案上點一下，之後停在那裡（靜態） */}
+      {!guide && isAns && mark === 'hint' && handTap > 0 && <Hand x={74} y={72} size="12cqmin" tap={handTap} />}
       {mark === 'correct' && <Sparkles key={burst} />}
     </motion.button>
   )

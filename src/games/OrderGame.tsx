@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
 import { Shell, type GameProps } from './Shell'
 import { Hand } from './Demo'
+import { WaitShield, firstFinger } from './NotYet'
 import { game as gameDef } from '../content/games'
 import { level, markPlayed, plays, reportLevel, unlockedNumbers } from '../lib/adaptive'
 import { planOrder, roundState } from './pick'
@@ -45,6 +46,10 @@ export function OrderGame({ gameId, onDone, onExit }: GameProps) {
   /** 示範中：手指指著哪個數字（null 表示沒有在示範） */
   const [finger, setFinger] = useState<number | null>(null)
   const [press, setPress] = useState(0)
+  /** 示範、說明中：數字卡上蓋透明擋板，點了只出現「看這裡」的圈圈（準則 PHASE-2） */
+  const [hold, setHold] = useState(true)
+  /** 閒置提示、點恐龍：手在下一個數字上點一下（null 表示沒有），孩子一點就收起來 */
+  const [again, setAgain] = useState<number | null>(null)
 
   /** 波波示範點 1、2、3，再把數字放回去換孩子 */
   const demo = async (n: number) => {
@@ -69,7 +74,16 @@ export function OrderGame({ gameId, onDone, onExit }: GameProps) {
     setNext(1)
     void logTeach({ station: 'math', game: def.id, itemId: `1-${n}`, skill: `order:${n}`, level: lv.current, ms: Math.round(performance.now() - s) })
     setMood('idle')
-    await say('teach.turn.bobo')
+    // 指令放在示範之後，說完「Your turn!」才開放（準則 PHASE-3）
+    await say('m.order.start', 'teach.turn.bobo')
+  }
+
+  /** 閒置第二段、點恐龍：下一個數字亮起來，手移過去點一下，之後停在那裡 */
+  const showNext = () => {
+    if (busy.current) return
+    setHint(true)
+    setAgain(nextRef.current)
+    setPress((p) => p + 1)
   }
 
   const start = async (i: number) => {
@@ -88,19 +102,23 @@ export function OrderGame({ gameId, onDone, onExit }: GameProps) {
     wrongs.current = 0
     // 要示範的話，示範完才換孩子點；不示範就跟以前一樣，邊聽邊可以開始點
     busy.current = show
+    setHold(show)
+    setAgain(null)
     nextRef.current = 1
     idle.stop()
     t0.current = performance.now()
-    await say(i === 0 ? def.intro : 'm.order.start')
+    // 要示範的回合：開場只說「Watch me!」就示範，「1, 2, 3…」的指令留到示範之後
+    if (!show) await say(i === 0 ? def.intro : 'm.order.start')
     if (!live.current) return
     if (show) {
       await demo(n)
       if (!live.current) return
       t0.current = performance.now()
       busy.current = false
+      setHold(false)
     }
-    // 閒置：15 秒再唸一次「Where is 下一個數字?」→ 再 15 秒下一個數字慢慢發光 → 之後安靜
-    if (nextRef.current <= n) idle.start({ repeat: () => void say(`m.findnum.${nextRef.current}`), hint: () => setHint(true) })
+    // 閒置：15 秒再唸一次「Where is 下一個數字?」→ 再 15 秒手在下一個數字上點一下 → 之後每 40 秒手再安靜地點一次
+    if (nextRef.current <= n) idle.start({ repeat: () => void say(`m.findnum.${nextRef.current}`), hint: showNext })
   }
 
   useEffect(() => {
@@ -122,6 +140,7 @@ export function OrderGame({ gameId, onDone, onExit }: GameProps) {
   const tap = async (n: number) => {
     if (n < next || busy.current) return
     idle.poke()
+    setAgain(null)
     taps.current.push({ pick: String(n), ms: Math.round(performance.now() - t0.current) })
     if (n !== next) {
       wrongs.current++
@@ -171,9 +190,12 @@ export function OrderGame({ gameId, onDone, onExit }: GameProps) {
   }
 
   return (
-    <Shell station="math" mood={mood} progress={{ total: ROUNDS, done: r }} onExit={onExit} onHost={() => {
+    <Shell station="math" mood={mood} progress={{ total: ROUNDS, done: r }} onExit={onExit} demo={hold && finger !== null} onHost={() => {
+        if (busy.current) return
         idle.poke()
+        // 點恐龍：再問一次，手再示範一次（點下一個數字）
         void say(`m.findnum.${Math.min(next, k)}`)
+        showNext()
       }}>
       {/* 換一回合：新的一回合蓋在舊的上面淡入，舊的（答對的樣子）等一下才淡掉，不會一下子變空（ui/Scenes.tsx 的 Swap） */}
       <Swap id={r}>
@@ -202,7 +224,7 @@ export function OrderGame({ gameId, onDone, onExit }: GameProps) {
               animate={shake === n ? { x: [0, -12, 12, -6, 0], scale: 1 } : { scale: 1 }}
               exit={{ scale: 0 }}
               transition={{ type: 'spring', stiffness: 340, damping: 18, delay: shake === n ? 0 : i * 0.05 }}
-              onPointerDown={() => tap(n)}
+              onPointerDown={(e) => firstFinger(e.nativeEvent) && tap(n)}
             >
               <div className="tile-in">
                 <span className="glyph num">{n}</span>
@@ -210,7 +232,11 @@ export function OrderGame({ gameId, onDone, onExit }: GameProps) {
             </motion.button>
           )
         })}
-        <AnimatePresence>{finger !== null && pos[finger - 1] && <Hand key="finger" x={pos[finger - 1].x + 2} y={pos[finger - 1].y + 5} tap={press} size="11cqmin" />}</AnimatePresence>
+        <AnimatePresence>
+          {finger !== null && pos[finger - 1] && <Hand key="finger" x={pos[finger - 1].x + 2} y={pos[finger - 1].y + 5} tap={press} size="11cqmin" />}
+          {finger === null && again !== null && again === next && pos[again - 1] && <Hand key="again" x={pos[again - 1].x + 2} y={pos[again - 1].y + 5} tap={press} size="11cqmin" />}
+        </AnimatePresence>
+        <WaitShield on={hold} />
         </>
       </Swap>
     </Shell>

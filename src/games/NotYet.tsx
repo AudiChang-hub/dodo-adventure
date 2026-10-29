@@ -38,7 +38,7 @@ export function localPoint(el: HTMLElement, clientX: number, clientY: number) {
  * 蓋在作答區上的透明擋板：on 的時候接住所有觸碰（不會穿過去點到選項），在碰到的地方出現「看這裡」的圈圈。
  * 放在作答區的容器裡（position: relative／absolute），返回鍵、主持的恐龍不在擋板底下，照樣可以點。
  */
-export function WaitShield({ on }: { on: boolean }) {
+export function WaitShield({ on, z }: { on: boolean; /** 作答區裡有自己 z-index 很高的東西（拖曳的蛋）時，擋板要蓋得過它 */ z?: number }) {
   const { ping, view } = useNotYet()
   const el = useRef<HTMLDivElement>(null)
   return (
@@ -46,7 +46,7 @@ export function WaitShield({ on }: { on: boolean }) {
       ref={el}
       className="wait-shield"
       data-accepting={on ? 'false' : 'true'}
-      style={{ pointerEvents: on ? 'auto' : 'none' }}
+      style={{ pointerEvents: on ? 'auto' : 'none', zIndex: z }}
       onPointerDown={(e) => {
         if (!on || !el.current) return
         const p = localPoint(el.current, e.clientX, e.clientY)
