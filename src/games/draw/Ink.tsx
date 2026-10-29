@@ -96,7 +96,8 @@ export const Ink = forwardRef<InkHandle, Props>(function Ink({ w, h, color = '#2
   const draw = (ctx: CanvasRenderingContext2D, s: Stroke, last: boolean) => {
     const out = getStroke(
       s.pts.map((p) => [p.x, p.y, p.p]),
-      { size: s.size, thinning: isPen.current ? 0.55 : 0.25, smoothing: 0.55, streamline: 0.45, simulatePressure: !isPen.current, last },
+      // 手指的線要緊跟著手（T-51：streamline 0.45 時快速轉彎會被抄近路，線不在手指走過的地方）；筆維持比較平順
+      { size: s.size, thinning: isPen.current ? 0.55 : 0.25, smoothing: 0.55, streamline: isPen.current ? 0.45 : 0.15, simulatePressure: !isPen.current, last },
     )
     ctx.fillStyle = s.color
     ctx.fill(toPath(out))

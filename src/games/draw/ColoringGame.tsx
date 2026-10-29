@@ -456,8 +456,8 @@ export function ColoringGame({ gameId, onDone, onExit }: GameProps) {
   return (
     <Shell station="draw" mood="idle" onExit={onExit} hideHost demo={showing}>
       <div ref={layer} style={{ position: 'absolute', inset: 0 }}>
-        {/* 畫紙在蠟筆盒左邊（蠟筆盒寬 = 兩格 92 px ＋ 間距 30 px ＋ 邊 28 px，draw/tools.css） */}
-        <div style={{ position: 'absolute', inset: '0 242px 4% 3%', containerType: 'size' }}>
+        {/* 畫紙在蠟筆盒左邊（蠟筆盒寬 = 兩格 92 px ＋ 間距 34 px ＋ 邊 28 px，draw/tools.css） */}
+        <div style={{ position: 'absolute', inset: '0 246px 4% 3%', containerType: 'size' }}>
           <div
             ref={paper}
             data-paper=""
