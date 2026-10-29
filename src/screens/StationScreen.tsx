@@ -2,7 +2,7 @@ import { useEffect, type CSSProperties } from 'react'
 import { motion } from 'motion/react'
 import { Emoji } from '../art/Emoji'
 import { Dino } from '../art/Dino'
-import { HoldButton } from '../ui/Hold'
+import { BackButton } from '../ui/Back'
 import { Scenery } from '../ui/Scenery'
 import { MapIcon } from '../games/Shell'
 import { gamesOf, station as stationDef } from '../content/games'
@@ -25,9 +25,9 @@ export function StationScreen({ id }: { id: StationId }) {
     <div className="screen stage" style={{ '--stage': st.tint } as CSSProperties}>
       <Scenery station={id} />
       <div style={{ position: 'absolute', left: 26, top: 18, zIndex: 5, display: 'flex', gap: 14 }}>
-        <HoldButton label="回地圖（按住）" ms={600} onHold={() => go({ name: 'map' })}>
+        <BackButton label="回地圖">
           <MapIcon />
-        </HoldButton>
+        </BackButton>
       </div>
       <div style={{ position: 'absolute', left: '2vw', bottom: 0, width: '20vw', zIndex: 4 }}>
         <Dino who={st.host} mood="happy" size="100%" onTap={() => say(`welcome.${id}`)} />
@@ -42,10 +42,9 @@ export function StationScreen({ id }: { id: StationId }) {
             animate={{ y: 0, opacity: 1 }}
             transition={{ type: 'spring', stiffness: 260, damping: 18, delay: 0.07 * i }}
             whileTap={{ scale: 0.94 }}
-            onClick={(e) => {
+            onClick={() => {
               sfx.pop()
-              // 遊戲從這張卡長出來；玩完回站點時收回這張卡
-              go({ name: 'play', game: g.id, station: id }, { from: e.currentTarget })
+              go({ name: 'play', game: g.id, station: id })
             }}
           >
             <Emoji name={g.icon} />

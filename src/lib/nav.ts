@@ -1,4 +1,4 @@
-import { useSyncExternalStore } from 'react'
+import { useEffect, useRef, useSyncExternalStore } from 'react'
 import type { StationId } from './db'
 
 export type Route =
@@ -31,20 +31,17 @@ const subs = new Set<() => void>()
 
 /** 換畫面的方式（ui/Scenes.tsx 的整頁轉場用） */
 export interface NavHow {
-  /** 錨點：孩子點的那張卡、那個按鈕。新畫面從它長出來，回來時收回它 */
-  from?: Element | null
-  /** 明確指定往回（收回）；沒給就照畫面的層級判斷 */
+  /** 明確指定往回（上面的畫面淡出）；沒給就照畫面的層級判斷 */
   back?: boolean
 }
 
-let how: { anchor: { x: number; y: number } | null; back?: boolean } = { anchor: null }
+let how: NavHow = {}
 
 /** 這一次換畫面時記下的方式：App 在重新畫的時候讀 */
 export const lastHow = () => how
 
 export function go(r: Route, opts: NavHow = {}) {
-  const box = opts.from?.getBoundingClientRect()
-  how = { anchor: box ? { x: box.left + box.width / 2, y: box.top + box.height / 2 } : null, back: opts.back }
+  how = { back: opts.back }
   route = r
   subs.forEach((f) => f())
 }
@@ -59,6 +56,102 @@ export function useRoute(): Route {
     },
     () => route,
   )
+}
+
+// ── 返回：點一下回上一層 ─────────────────────────────────────
+// 不跳出 App 交給 Android 的螢幕固定；App 裡的返回只回上一層，最上層（首頁）就停住。
+
+/** 上一層：遊戲 → 站點 → 地圖 → 首頁；朋友、冒險、家長區 → 首頁。首頁和睡覺畫面沒有上一層 */
+export function parentOf(r: Route): Route | null {
+  switch (r.name) {
+    case 'play':
+      return { name: 'station', station: r.station }
+    case 'station':
+      return { name: 'map' }
+    case 'map':
+    case 'collection':
+    case 'adventure':
+    case 'parent':
+      return { name: 'home' }
+    case 'home':
+    case 'bedtime':
+      return null
+  }
+}
+
+/** 返回之後這麼久不再收返回：一次轉場還沒走完，下一層的返回鍵就在同一個位置 */
+const BACK_LOCK_MS = 1000
+/** 孩子還在同一個地方連點：每點一下再延長這麼久，連點停下來才收下一次返回 */
+const BACK_BURST_MS = 700
+/** 離上一次返回點的地方多近算「同一個地方」 */
+const BACK_NEAR_PX = 140
+
+let backQuietUntil = 0
+let backAt: { x: number; y: number } | null = null
+
+// 連點的手被舊畫面（轉場中不收點擊）吃掉，按鈕收不到；在最外層看位置，還在同一處連點就一直延長
+if (typeof window !== 'undefined') {
+  window.addEventListener(
+    'pointerdown',
+    (e) => {
+      const now = performance.now()
+      if (now >= backQuietUntil || !backAt) return
+      if (Math.hypot(e.clientX - backAt.x, e.clientY - backAt.y) <= BACK_NEAR_PX) backQuietUntil = Math.max(backQuietUntil, now + BACK_BURST_MS)
+    },
+    { capture: true },
+  )
+}
+
+/** 畫面自己處理返回（冒險要先記下這一站沒玩完、慶祝中要先收尾）。回傳 false 表示不處理，交給外層 */
+type BackHandler = () => boolean | void
+
+const handlers: { owner: Route; fn: { current: BackHandler } }[] = []
+
+/** 這個畫面在的時候，返回先交給它；只在它自己的路由上有效（轉場中還留著的舊畫面不會接到） */
+export function useBack(fn: BackHandler) {
+  const ref = useRef(fn)
+  ref.current = fn
+  useEffect(() => {
+    const h = { owner: route, fn: ref }
+    handlers.push(h)
+    return () => {
+      const i = handlers.indexOf(h)
+      if (i >= 0) handlers.splice(i, 1)
+    }
+  }, [])
+}
+
+/**
+ * 回上一層（返回鍵、Android 的返回手勢都走這裡）。回傳有沒有真的返回。
+ * 連點、轉場中再點都不會多跳一層：剛返回過的這段時間裡的返回一律不理。
+ * run 是按鈕自己的返回（遊戲的 onExit）；沒給就問畫面自己的處理，再沒有就照 parentOf。
+ */
+export function back(at?: { x: number; y: number }, run?: () => void): boolean {
+  const now = performance.now()
+  if (now < backQuietUntil) {
+    backQuietUntil = Math.max(backQuietUntil, now + BACK_BURST_MS)
+    return false
+  }
+  const lock = () => {
+    backQuietUntil = now + BACK_LOCK_MS
+    backAt = at ?? null
+    return true
+  }
+  if (run) {
+    lock()
+    run()
+    return true
+  }
+  for (let i = handlers.length - 1; i >= 0; i--) {
+    const h = handlers[i]
+    if (h.owner !== route) continue
+    if (h.fn.current() !== false) return lock()
+  }
+  const up = parentOf(route)
+  if (!up) return false
+  lock()
+  go(up, { back: true })
+  return true
 }
 
 /** 孩子在玩的畫面才計入每日時間 */

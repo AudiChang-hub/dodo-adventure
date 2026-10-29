@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type CSSProperties } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
 import { Ride } from '../art/Ride'
 import { Egg } from '../art/Egg'
@@ -8,17 +8,14 @@ import { ThemeScenery } from '../ui/ThemeScenery'
 import { Sparkles } from '../ui/Sparkles'
 import { PlayGame } from '../games/PlayGame'
 import { PlayingGame } from '../games/Shell'
-import { DadTurn } from '../games/DadTurn'
 import { station as stationDef } from '../content/games'
 import { theme as themeDef } from '../content/themes'
 import { STORY_EGG_COUNT } from '../content/lines-friends'
 import { hasLine } from '../content/lines'
-import { go } from '../lib/nav'
+import { go, useBack } from '../lib/nav'
 import { say, sfx, hushSpeech, stopSpeech } from '../lib/audio'
-import { getKV, setKV, today } from '../lib/db'
 import { cachedPlan, todayPlan, savePlan, planDone, hatchFriend, type Plan } from '../lib/plan'
 import { noteActivity, isBreakDue, holdBedtime, bedtimeIfDue } from '../lib/session'
-import { useThemeScope } from '../lib/theme-play'
 import { pendingPicks } from '../lib/achievements'
 import { EyeBreak } from '../ui/EyeBreak'
 import { wait } from '../games/lines'
@@ -27,24 +24,15 @@ import { DayRecap } from './DayRecap'
 import { Scenes, type SceneMove } from '../ui/Scenes'
 import { DUR, EASE, RANGE } from '../ui/motion'
 
-type Phase = 'route' | 'travel' | 'play' | 'coplay' | 'egg' | 'finale' | 'hatch' | 'finish' | 'rest'
+type Phase = 'route' | 'travel' | 'play' | 'egg' | 'finale' | 'hatch' | 'finish' | 'rest'
 
 /** 開局的路線至少展示這麼久（毫秒），讓孩子看得到「今天有 4 站」 */
 const ROUTE_MS = 3000
-/** 爸爸回合：一天最多幾次、每站結束後出現的機率（第一站是暖身，不出現） */
-const COPLAY_PER_DAY = 1
-const COPLAY_CHANCE = 0.5
 /** 旁白開始多久之後才能點畫面跳過（避免轉場時手還放在螢幕上就跳過） */
 const SKIP_AFTER_MS = 700
 
-/** 爸爸回合也在故事裡：背景、題目的東西照主題（DadTurn 自己不知道主題） */
-function ThemeScope({ theme, children }: { theme?: string; children: ReactNode }) {
-  useThemeScope(theme)
-  return children
-}
-
 /**
- * 今日冒險：今天的路線 → 轉場 → 遊戲 →（偶爾）換爸爸問 → 蛋裂開一點 → 下一站…最後孵出新朋友。
+ * 今日冒險：今天的路線 → 轉場 → 遊戲 → 蛋裂開一點 → 下一站…最後孵出新朋友。
  * 每日時間到了不在題目中途結束，而是在兩站之間（蛋裂開之後）才去睡覺。
  *
  * 主題式冒險（plan.theme，2026-10-28 起每天都是）：路線是故事的一格一格（公車站牌 → 公車 → …→ 動物園），
@@ -61,10 +49,6 @@ export function Adventure() {
   const [taps, setTaps] = useState(0)
   const [friend, setFriend] = useState<string | null>(null)
   const live = useRef(true)
-  /** 爸爸回合是哪一站之後（站的 index），結束後接回蛋裂開 */
-  const [coplayAt, setCoplayAt] = useState(-1)
-  /** 旁白卡（主題式冒險）或站牌：遊戲從它長出來 */
-  const story = useRef<HTMLDivElement>(null)
   /** 畫面上現在是哪一段：換段的那一次 render 用它決定往前還是往回 */
   const shownPhase = useRef<Phase>(phase)
   useEffect(() => {
@@ -188,28 +172,12 @@ export function Adventure() {
     if (phase === 'hatch') void say('egg.ready')
   }, [phase])
 
-  /** 這一站之後要不要換爸爸問：第一站是暖身，之後一天最多一次、偶爾出現 */
-  const wantCoplay = async (index: number) => {
-    if (index === 0) return false
-    const key = `coplay:${today()}`
-    const n = await getKV<number>(key, 0)
-    if (n >= COPLAY_PER_DAY || Math.random() >= COPLAY_CHANCE) return false
-    await setKV(key, n + 1)
-    return true
-  }
-
   const onGameDone = async () => {
     if (!plan || !item) return
     const index = cur
     const next = { ...plan, items: plan.items.map((it, i) => (i === index ? { ...it, done: true } : it)) }
     noteActivity(item.game, item.station, true)
     await savePlan(next)
-    if (await wantCoplay(index)) {
-      setCoplayAt(index)
-      setPlan(next)
-      setPhase('coplay')
-      return
-    }
     setPlan(next)
     void afterGame(next)
   }
@@ -218,6 +186,8 @@ export function Adventure() {
   const afterGame = async (next: Plan) => {
     setPhase('egg')
     await wait(500)
+    // 這段時間裡返回了首頁：不要在首頁上蛋裂開、念故事
+    if (!live.current) return
     sfx.crack()
     const done = next.items.filter((i) => i.done).length
     await say(`story.egg.${(done - 1 + STORY_EGG_COUNT) % STORY_EGG_COUNT}`)
@@ -239,6 +209,7 @@ export function Adventure() {
     const next = { ...plan, hatched: id }
     await savePlan(next)
     setPlan(next)
+    if (!live.current) return
     setFriend(id)
     sfx.hatch()
     // 新朋友一出來就自我介紹：I'm a fox!
@@ -247,10 +218,12 @@ export function Adventure() {
     if (live.current) setPhase('finish')
   }
 
+  /** 回首頁（冒險的上一層）：返回鍵、Android 的返回手勢都走這裡。玩到一半離開記一筆沒玩完；已經走完的站都存好了 */
   const exit = () => {
     if (item && phase === 'play') noteActivity(item.game, item.station, false)
-    go({ name: 'home' })
+    go({ name: 'home' }, { back: true })
   }
+  useBack(exit)
 
   // ── 轉場：每一段是一層（ui/Scenes.tsx） ──────────────────────
   const sceneId =
@@ -260,22 +233,16 @@ export function Adventure() {
         ? `travel-${cur}`
         : phase === 'play'
           ? `play-${cur}`
-          : phase === 'coplay'
-            ? `coplay-${coplayAt}`
-            : phase === 'egg' || phase === 'hatch'
-              ? `egg-${doneCount}`
-              : phase === 'rest'
-                ? `rest-${doneCount}`
-                : phase
-  /** 旁白卡進遊戲：遊戲從那張卡長出來；遊戲（爸爸回合、護眼休息）結束回到旅程：收回去，旅程拉遠回來 */
+          : phase === 'egg' || phase === 'hatch'
+            ? `egg-${doneCount}`
+            : phase === 'rest'
+              ? `rest-${doneCount}`
+              : phase
+  /** 遊戲（含護眼休息）結束回到旅程：往回（遊戲淡出、旅程淡回來）；其他都往前 */
   const move = (): SceneMove => {
+    if (phase === 'play') return { back: false }
     const from = shownPhase.current
-    if (phase === 'play') {
-      const box = story.current?.getBoundingClientRect()
-      return { back: false, anchor: box ? { x: box.left + box.width / 2, y: box.top + box.height / 2 } : null }
-    }
-    const fromGame = from === 'play' || from === 'coplay' || from === 'rest'
-    return { back: fromGame, collapse: from === 'play', anchor: null }
+    return { back: from === 'play' || from === 'rest' }
   }
 
   if (!plan) return <div className="screen" />
@@ -311,15 +278,6 @@ export function Adventure() {
         </PlayingGame.Provider>
       )
 
-    if (phase === 'coplay' && coplayAt >= 0) {
-      const it = plan.items[coplayAt]
-      return (
-        <ThemeScope theme={plan.theme}>
-          <DadTurn gameId={it.game} station={it.station} onDone={() => void afterGame(plan)} onExit={() => go({ name: 'home' })} />
-        </ThemeScope>
-      )
-    }
-
     return (
       <>
         {phase === 'route' && (
@@ -331,8 +289,8 @@ export function Adventure() {
         {phase === 'travel' && th && item && (
           <div className="screen">
             <RouteStrip plan={plan} />
-            {/* 故事的這一格：大大的圖在一張紙卡上，後面一圈淡淡的光。跟著這一段一起出現（不另外淡入），只多一點點長大；遊戲從這張卡長出來 */}
-            <motion.div ref={story} className="story-card" style={{ '--deep': th.deep, '--tint': th.tint } as CSSProperties} initial={{ scale: RANGE.fromScale + 0.2, y: 16 }} animate={{ scale: 1, y: 0 }} transition={{ duration: DUR.enter + 0.2, ease: EASE.out }}>
+            {/* 故事的這一格：大大的圖在一張紙卡上，後面一圈淡淡的光。跟著這一段一起出現（不另外淡入），只多一點點長大 */}
+            <motion.div className="story-card" style={{ '--deep': th.deep, '--tint': th.tint } as CSSProperties} initial={{ scale: RANGE.settle, y: 12 }} animate={{ scale: 1, y: 0 }} transition={{ duration: DUR.enter, ease: EASE.out }}>
               <span className="story-card-halo" />
               <motion.span className="story-card-pic" animate={{ y: [0, -6, 0] }} transition={{ duration: 3.2, repeat: Infinity, ease: 'easeInOut', delay: 1 }}>
                 <Emoji name={stopIcon(th, cur)} />
@@ -347,7 +305,7 @@ export function Adventure() {
         {phase === 'travel' && !th && st && item && (
           <div className="screen">
             <RouteStrip plan={plan} />
-            <motion.div ref={story} className="travel-badge" initial={{ scale: 0, rotate: -30 }} animate={{ scale: 1, rotate: 0 }} transition={{ type: 'spring', stiffness: 220, damping: 14, delay: 0.3 }}>
+            <motion.div className="travel-badge" initial={{ scale: 0, rotate: -30 }} animate={{ scale: 1, rotate: 0 }} transition={{ type: 'spring', stiffness: 220, damping: 14, delay: 0.3 }}>
               <Emoji name={st.icon} />
             </motion.div>
             <motion.div className="travel-name" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.6 }}>

@@ -38,7 +38,7 @@ const done: Record<Speaker, string[]> = {
 const roundCode = ['You fixed it, and the car made it!', 'You fixed it, and the car made it!']
 
 // ── 里程碑：學會一個東西、升一級、修好好幾個程式 ────────────────
-// 很短的一句，接著念學會的東西的名字（S, like Ssssnake!）：整段慶祝控制在 3 秒多一點。
+// 很短的一句，接著念學會的東西的名字（S, like Sss… snake!）：整段慶祝控制在 3 秒多一點。
 // 學會的東西不再直接變成貼紙（2026-10-28 改成集星星挑貼紙），所以不說 A new sticker!
 const master: Record<Speaker, string[]> = {
   dodo: Array<string>(ACH_COUNT.master).fill('You learned it!'),

@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useState, type CSSProperties, type ReactNode } from 'react'
 import { Dino, type Mood } from '../art/Dino'
-import { HoldButton } from '../ui/Hold'
+import { BackButton } from '../ui/Back'
+import { Emoji } from '../art/Emoji'
 import { Scenery } from '../ui/Scenery'
 import { ThemeScenery } from '../ui/ThemeScenery'
 import { themeNow } from '../lib/theme-play'
@@ -60,6 +61,16 @@ export function HomeIcon() {
   )
 }
 
+/** 站點的圓牌（跟地圖上那一站同一個圖）：從站點進來的遊戲「回站點」用 */
+export function StationIcon({ station }: { station: StationId }) {
+  const st = stationDef(station)
+  return (
+    <span className="back-station" style={{ background: st.tint }} aria-hidden="true">
+      <Emoji name={st.icon} />
+    </span>
+  )
+}
+
 /** 摺起來的地圖：站點畫面「回地圖」用 */
 export function MapIcon() {
   return (
@@ -79,7 +90,7 @@ interface Props {
   onHost?: () => void
   children: ReactNode
   hideHost?: boolean
-  /** 角落的陪玩提示，預設顯示；爸爸回合自己有更大的提示，不用再顯示 */
+  /** 角落的陪玩提示，預設顯示；傳 false 就不顯示 */
   hint?: boolean
   /** 遊戲自己決定的陪玩提示（例如描字現在建議用手指還是用筆），取代預設的那句 */
   hintText?: string
@@ -87,20 +98,22 @@ interface Props {
   demo?: boolean
 }
 
-/** 每個遊戲共用的舞台：上方返回鍵與進度、左下角是主持的恐龍（點它會再說一次題目） */
+/** 每個遊戲共用的舞台：上方返回鍵（點一下回上一層）與進度、左下角是主持的恐龍（點它會再說一次題目） */
 export function Shell({ station, mood, progress, onExit, onHost, children, hideHost, hint = true, hintText, demo }: Props) {
   const st = stationDef(station)
   // 主題式冒險：每一站都是同一個故事的場景（公車旅行的街道），不分站點的顏色和背景，孩子不會覺得「現在換到數學了」
   const [th] = useState(themeNow)
   // 遊戲在畫面上的時候，每日時間到了也先等它玩完（在兩個遊戲之間才去睡覺）
   useEffect(() => holdBedtime(), [])
+  // 從站點進來的遊戲回站點；今日冒險裡的遊戲回首頁（冒險的上一層）
+  const toStation = useRoute().name === 'play'
   return (
     <div className="stage" data-demo={demo ? '1' : undefined} style={{ '--stage': th?.tint ?? st.tint, '--deep': th?.deep ?? st.deep } as CSSProperties}>
       {th ? <ThemeScenery def={th} /> : <Scenery station={station} />}
       <div className="stage-top">
-        <HoldButton label="回首頁（按住）" onHold={onExit}>
-          <HomeIcon />
-        </HoldButton>
+        <BackButton label={toStation ? `回${st.name}` : '回首頁'} onTap={onExit}>
+          {toStation ? <StationIcon station={station} /> : <HomeIcon />}
+        </BackButton>
         {/* 答對時星星飛進這一格（成就感強化） */}
         {progress && <ProgressStars total={progress.total} done={progress.done} />}
         <div style={{ width: 76 }} />

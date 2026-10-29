@@ -92,6 +92,8 @@ export function skillLabel(key: string): string {
     route: (v) => `箭頭卡 ${v} 張`,
     pattern: (v) => `規律 ${PATTERN_ZH[v as PatternKind] ?? v}`,
     seq: (v) => `排順序：${story(v)?.zh ?? v}`,
+    // 舊版「爸爸回合」（2026-10-29 拿掉了）留下的紀錄，例如 coplay:vocab:cow
+    coplay: () => `爸爸問（舊版）：${key.split(':').pop()}`,
   }
   return map[kind]?.(v) ?? key
 }

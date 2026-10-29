@@ -240,23 +240,24 @@ const themePick = <T extends PhonicsWord>(pool: readonly T[]): T => {
   return fav.length && Math.random() < THEME_WORD_SHARE ? pick(fav) : pick(pool)
 }
 
-/** 單字卡：字母森林的字（Noodles. → Noodles starts like Nnnnest!，字幕把開頭字母上色） */
+/** 單字卡：字母森林的字（Noodles. → Noodles starts like Nnn… nest!，字幕把開頭字母上色） */
 const soundCard = (x: PhonicsWord, u: SoundUnit): WordCard => ({ key: wkey(x), word: x, lines: [...bridgeLines(wkey(x), `ph.word.${wkey(x)}`), `ph.${u.letter}.echo.${wkey(x)}`] })
 /** 單字卡：只教名字（干擾圖用，不提它的開頭音：This is a | sun.） */
 const nameCard = (x: PhonicsWord): WordCard => ({ key: wkey(x), word: x, lines: bridgeLines(wkey(x)) })
 
 /**
  * 答案用的字：剛學時用三個關鍵字；熟一點之後用複習字，確認是真的懂這個音、不是記住某一張圖。
- * 還沒教過的字（新的複習字、新換上的關鍵字、家長勾掉的字）也可以當答案，但這一題先跑一張單字卡。
+ * 還沒教過的字（新的複習字、新換上的關鍵字、家長勾掉的字）也可以當答案，但這一題先跑一張單字卡；
+ * taughtOnly（開頭一樣的第 1 級）只用教過的字，一題裡不再多一張新的圖。
  */
-function answerWord(u: SoundUnit, exclude: string[] = []): { w: PhonicsWord; card: boolean } {
+function answerWord(u: SoundUnit, exclude: string[] = [], taughtOnly = false): { w: PhonicsWord; card: boolean } {
   const keys = introUnit(u).keys.filter((x) => !exclude.includes(x.w))
   const rev = familiar(u) ? u.review.filter((x) => !exclude.includes(x.w) && !keys.includes(x)) : []
   const ok = (x: PhonicsWord) => ready(x, u)
   const fresh = [...rev, ...keys].filter((x) => !ok(x))
   const readyRev = rev.filter(ok)
   const pool = readyRev.length ? readyRev : keys.filter(ok)
-  if (fresh.length && (!pool.length || Math.random() < NEW_WORD_SHARE)) return { w: themePick(fresh), card: true }
+  if (fresh.length && (!pool.length || (!taughtOnly && Math.random() < NEW_WORD_SHARE))) return { w: themePick(fresh), card: true }
   if (pool.length) return { w: themePick(pool), card: false }
   const any = wordsOf(u).filter((x) => !exclude.includes(x.w))
   const w = themePick(any.length ? any : wordsOf(u))
@@ -266,9 +267,11 @@ function answerWord(u: SoundUnit, exclude: string[] = []): { w: PhonicsWord; car
 /**
  * 干擾圖：別的音開頭、孩子教過的字。優先用已經開放的音的關鍵字（剛在字母森林看過），
  * 最高難度放聽起來相近的音；一個音只放一張。教過的字不夠就少放幾張；一張都沒有時，cards 是要先教的那一張。
+ * 最高難度以前，聽起來相近的音（CONFUSE：a 和 e、m 和 n、b 和 p…）不當干擾：錯的那張開頭要一聽就不一樣。
  */
 function distractorWords(u: SoundUnit, n: number, level: number, exclude: string[] = []): { words: PhonicsWord[]; cards: WordCard[] } {
-  const okSound = (x: UnitWord) => !soundsLike(x, u) && !exclude.includes(x.w) && !isUnknown(wkey(x))
+  const close = level >= 4 ? '' : (CONFUSE[u.letter] ?? '')
+  const okSound = (x: UnitWord) => !soundsLike(x, u) && !close.includes(x.unit.letter) && !exclude.includes(x.w) && !isUnknown(wkey(x))
   const cands = UNIT_WORDS.filter((x) => okSound(x) && usable(wkey(x)))
   const open = unlockedSounds()
   const out: UnitWord[] = []
@@ -330,14 +333,18 @@ const phStart = (level: number, recent: string[]): PhonicsItem => {
   }
 }
 
-/** 哪個跟 bus 開頭一樣？ */
+/**
+ * 哪個跟 bus 開頭一樣？
+ * 2026-10-29 家長回饋（a 的題目上面是 ambulance、選項是 mouse 和 ant、答對後說 Ant starts like apple，一題冒出四個字，很混亂）：
+ * - 上面的圖一律是這個音的代表字（第一個關鍵字，學習循環 S, S, S… sss… snake! 唸的那個字），同一個音每一題都一樣；
+ * - 第 1 級只用教過的字當答案，兩個選項，錯的那張開頭的音要差很多（distractorWords）；
+ * - 答對之後只唸答案這個字（A… a, a… ant!），不再提畫面上沒有的字。
+ */
 const phSame = (level: number, recent: string[]): PhonicsItem => {
   const u = pickSound(unlockedSounds(), recent)
-  const keys = introUnit(u).keys
-  const ok = keys.filter((x) => ready(x, u))
-  const stim = themePick(ok.length ? ok : keys)
+  const stim = introUnit(u).keys[0]
   const stimCard = !ready(stim, u)
-  const ans = answerWord(u, [stim.w])
+  const ans = answerWord(u, [stim.w], level <= 1)
   const d = distractorWords(u, optCount(level) - 1, level, [ans.w.w, stim.w])
   const opts = shuffle([ans.w, ...d.words]).map(pictureOpt)
   return {
@@ -381,7 +388,8 @@ const phLetter = (level: number, recent: string[]): PhonicsItem => {
   const cues = [u, ...wrong].map(cueOf)
   const scaffold = !familiar(u) && cues.every(Boolean)
   const opts = shuffle([u, ...wrong]).map((x): PhonicsOption => ({ id: x.letter, letter: x.letter, ...(scaffold ? { cue: cueOf(x) } : {}) }))
-  const echo = cueOf(u) ?? introUnit(u).keys[0]
+  // 答對之後：字母卡下面有小圖時唸那張圖的字（S… sss… snake!）；沒有圖就只唸字母和字母音（S… sss…），不提畫面上沒有的字
+  const echo = scaffold ? cueOf(u) : undefined
   return {
     itemId: u.letter,
     skill: phonicsSkill(u.letter),
@@ -391,8 +399,8 @@ const phLetter = (level: number, recent: string[]): PhonicsItem => {
     names: [],
     options: opts,
     answer: u.letter,
-    after: [`ph.${u.letter}.echo.${wordId(echo.w)}`],
-    wordCards: ready(echo, u) ? [] : [soundCard(echo, u)],
+    after: [echo ? `ph.${u.letter}.echo.${wordId(echo.w)}` : `ph.${u.letter}.sound`],
+    wordCards: [],
   }
 }
 

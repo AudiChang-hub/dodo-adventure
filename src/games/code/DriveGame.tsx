@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type CSSProperties } from 'react'
-import { AnimatePresence, motion } from 'motion/react'
+import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import { Shell, type GameProps } from '../Shell'
 import { TeachCard } from '../Teach'
 import { Hand } from '../Demo'
@@ -29,19 +29,8 @@ const STEP_MS = 620
 
 /*
  * 教學卡（大大的箭頭）↔ 路面（小恐龍開車的地圖）的過場：全站轉場標準 ui/motion.ts 的「前景 ↔ 背景」。
- * 錨點是車子：教學卡從車子那邊長出來、地圖在卡片後面往車子微微推近後淡掉；回來時卡片收回車子、地圖拉遠回來。
+ * 教學卡在原地淡入（只帶 2% 的推近）、地圖在卡片後面淡掉；回來時卡片淡出、地圖淡回來。不縮放、不從車子長出來。
  */
-
-/**
- * 車子在畫面（stage-main，container query 的容器）上的位置，當作鏡頭推近、拉遠的中心。
- * 直接從版面算（和 code.css 的 .drive-board-area 一致：left 20cqw、寬 44cqw、top 11cqh、高 53cqh，路面置中），
- * 不量 DOM：換題時新地圖還沒畫出來，也算得到新的起點在哪。
- */
-function camOrigin(p: DrivePuzzle | null, at: Cell | null): string {
-  if (!p || !at) return '42cqw 37.5cqh'
-  const cell = `min(${53 / p.rows}cqh, ${44 / p.cols}cqw, 20cqh)`
-  return `calc(42cqw + ${at.x + 0.5 - p.cols / 2} * ${cell}) calc(37.5cqh + ${at.y + 0.5 - p.rows / 2} * ${cell})`
-}
 
 type Slot = Dir | null
 /** 拖曳的來源：卡盒裡的卡（可以一直拿），或已經放進程式列的卡 */
@@ -100,6 +89,8 @@ function nextNeed(p: DrivePuzzle, prog: Slot[]): { slot: number; dir: Dir } | nu
 export function DriveGame({ gameId, onDone, onExit }: GameProps) {
   const def = gameDef(gameId)
   const [idx, setIdx] = useState(0)
+  // 減少動態效果：教學卡淡入淡出時也不縮放（ui/motion.ts 的 foreground）
+  const reduced = !!useReducedMotion()
   const [puzzle, setPuzzle] = useState<DrivePuzzle | null>(null)
   const [phase, setPhase] = useState<Phase>('quiz')
   const [card, setCard] = useState<{ spec: TeachSpec; short: boolean; n: number } | null>(null)
@@ -208,7 +199,7 @@ export function DriveGame({ gameId, onDone, onExit }: GameProps) {
     cardUp.current = true
     setCard({ spec: driveTeach(p), short, n: stepRef.current })
     const done = waitStep()
-    // 卡片從車子長出來、路面在後面收起來之後，才把地圖換成這一題：卡片收回去時直接看到新地圖，不會先閃回上一題
+    // 卡片蓋上、路面在後面淡掉之後，才把地圖換成這一題：卡片淡出時直接看到新地圖，不會先閃回上一題
     await wait(SETTLED_MS)
     if (!live.current) return
     setup(p)
@@ -571,18 +562,15 @@ export function DriveGame({ gameId, onDone, onExit }: GameProps) {
   const goGlow = (guide && full) || (hintOn && full && !want)
   const t = p ? targetOf(p) : null
   const pct = (v: number, of: number) => `${((v + 0.5) / of) * 100}%`
-  // 鏡頭的錨點跟著車子：卡片長出來時是車子現在停的地方，收回去時是這一題的起點（換題在卡片後面就做好了）
-  const origin = camOrigin(p, p ? car.at : null)
-
   return (
     <Shell station={def.station} mood={mood} progress={{ total: ROUNDS, done: idx }} onExit={onExit} onHost={onHost}>
-      {/* 路面一直留在畫面上（不再每一題整塊卸載重掛），換題時只有車子、目的地、樹在裡面換；教學卡疊在上面，用鏡頭過場進出 */}
+      {/* 路面一直留在畫面上（不再每一題整塊卸載重掛），換題時只有車子、目的地、樹在裡面換；教學卡疊在上面淡入淡出 */}
       {p && t && (
         <motion.div
           ref={rootEl}
           className="drive"
           data-solution={import.meta.env.DEV ? p.solution.join(',') : undefined}
-          style={{ transformOrigin: origin, pointerEvents: card ? 'none' : undefined }}
+          style={{ pointerEvents: card ? 'none' : undefined }}
           variants={background}
           initial="initial"
           animate={card ? 'hidden' : 'shown'}
@@ -771,13 +759,13 @@ export function DriveGame({ gameId, onDone, onExit }: GameProps) {
         </motion.div>
       )}
 
-      {/* 教學卡：從車子那邊長出來，收回車子那邊（ui/motion.ts foreground） */}
-      <AnimatePresence>
+      {/* 教學卡：在原地淡入、淡出，路面在後面淡掉（ui/motion.ts foreground／background） */}
+      <AnimatePresence custom={reduced}>
         {card && (
           <motion.div
             key={`teach-${card.n}`}
             className="drive-teach-cam"
-            style={{ transformOrigin: origin }}
+            custom={reduced}
             variants={foreground}
             initial="initial"
             animate="enter"

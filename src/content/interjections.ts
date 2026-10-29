@@ -92,7 +92,7 @@ export function withInterjection(key: string, speaker: Speaker, text: string): s
 }
 
 /**
- * 發音示範：自然發音的台詞（字母音、/m/ 哼聲、Ssssnake 這類拉長的開頭音、點名的單字、開頭音相同的題目）。
+ * 發音示範：自然發音的台詞（字母音、/m/ 哼聲、Sss… snake 這類拉長的開頭音、點名的單字、開頭音相同的題目）。
  * 這些都是一個一個實測調過的發音，維持原本的合成參數與原檔：不加感嘆詞、不做 Praat 放大、不修剪、段間停頓照舊。
  * - ph.*：字母森林的自然發音（lines-phonics.ts）
  * - en.where.sound.*：聽音找字母（題目裡就是字母音，例如 Find the letter that says | buh!）

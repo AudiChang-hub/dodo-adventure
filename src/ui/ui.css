@@ -86,6 +86,21 @@
   transform: translateY(3px);
   box-shadow: 0 1px 0 var(--paper-edge);
 }
+/* 返回鍵：新畫面剛換上來、還不收點擊的那一下（ui/Scenes.tsx 的 ARM_MS）也收。
+   孩子一進遊戲就想回去，按下去不能被吃掉；連點多跳一層由 lib/nav.ts 的 back 擋 */
+.back-btn {
+  pointer-events: auto;
+}
+/* 返回鍵裡的站點圓牌：跟地圖上那一站同一個圖，點了就回到那裡（ui/Back.tsx） */
+.back-station {
+  width: 54px;
+  height: 54px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  padding: 9px;
+  box-shadow: inset 0 0 0 3px rgba(46, 42, 37, 0.18);
+}
 .round-btn svg.ring {
   position: absolute;
   inset: -6px;

@@ -84,6 +84,8 @@ export function useCarry<T>(layer: RefObject<HTMLElement | null>) {
   const n = useRef(0)
   /** clear() 之後還沒跑的 requestAnimationFrame 不要再把手叫出來 */
   const ver = useRef(0)
+  /** handOff() 之後也一樣 */
+  const offs = useRef(0)
   const setGhost = (v: GhostState<T> | null) => {
     g.current = v
     setGhostState(v)
@@ -130,7 +132,9 @@ export function useCarry<T>(layer: RefObject<HTMLElement | null>) {
       const v = ver.current
       if (!c || !c.on) {
         setHand({ at: { x: at.x + 30, y: at.y + 70 }, on: false, ms: 0, press: c?.press ?? 0, faint })
-        requestAnimationFrame(() => requestAnimationFrame(() => ver.current === v && setHand({ at, on: true, ms, press: h.current?.press ?? 0, faint })))
+        // 兩個畫格之後才淡入；這中間手已經收起來了（背景分頁的畫格會延後很久）就不要再把它叫出來
+        const o = offs.current
+        requestAnimationFrame(() => requestAnimationFrame(() => ver.current === v && offs.current === o && setHand({ at, on: true, ms, press: h.current?.press ?? 0, faint })))
       } else setHand({ ...c, at, on: true, ms, faint })
       return wait(ms)
     },
@@ -140,6 +144,7 @@ export function useCarry<T>(layer: RefObject<HTMLElement | null>) {
     },
     /** 手離開：往下一點、淡掉（只淡出這一次） */
     handOff() {
+      offs.current++
       const c = h.current
       if (c && c.on) setHand({ ...c, at: { x: c.at.x + 20, y: c.at.y + 50 }, on: false, ms: 260 })
     },

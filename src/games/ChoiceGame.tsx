@@ -503,7 +503,7 @@ function ChoiceRound({ gameId, onDone, onExit }: GameProps) {
   const fit = Math.max(0, ...(item?.options ?? []).map((o) => (o.v.t === 'group' ? o.v.count : 0)))
   return (
     <Shell station={def.station} mood={mood} progress={{ total: ROUND_ITEMS, done: idx }} onExit={onExit} onHost={onHost} hintText={hintText}>
-      {/* 教學卡從主持的恐龍長出來、題目在後面退開；換題時新題目蓋在舊的上面淡入（ui/Scenes.tsx） */}
+      {/* 教學卡在原地淡入、題目在後面淡掉；換題時新題目蓋在舊的上面淡入（ui/Scenes.tsx） */}
       <CardStage card={card && <TeachCard key={`teach-${card.n}`} spec={card.spec} short={card.short} camera onDone={release} />}>
         {item && (
           <Swap id={view}>

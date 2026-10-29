@@ -118,6 +118,7 @@ export interface TrackStat {
   weak: string[]
 }
 
+/** 舊版「爸爸回合」的紀錄（2026-10-29 拿掉了，舊資料可能還有）：爸爸代答，不算孩子自己答的 */
 const isCoplay = (a: Pick<Attempt, 'skill'>) => a.skill.startsWith('coplay:')
 
 /**

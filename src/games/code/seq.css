@@ -1,20 +1,121 @@
-/* ── 排順序（2026-10-28 改）：空格跟圖卡一樣大、下一格脈動；圖卡位置固定 ──
-   排在 code.css 之後，蓋過舊的格子樣式。 */
+/* ── 排順序（2026-10-29 重做）：故事小路 ─────────────────────────
+   上面是一條從左走到右的小路：左邊是豆豆站的起點，右邊是箭頭；空格是路邊的告示牌（虛線框＋一根柱子插在路上）。
+   豆豆走過的路會亮起來（黃色），故事排到哪裡、豆豆就走到哪裡。下面是打亂的圖卡。
+   排在 code.css 之後，蓋過舊的格子樣式。所有大小都跟著 --s（圖卡、空格一樣大）走，手機直式（家長遠端看）以寬度為準。 */
 .seq-stage {
   position: absolute;
   inset: 0;
-  /* 圖卡、空格同一個大小；手機直式（家長遠端看）時以寬度為準，不會擠出畫面 */
-  --seq-size: min(25cqh, 19cqw);
+  /* 圖卡、空格：兩步的故事最大；四步時以寬度為準，也有 120px 以上（PRD §3 觸控區） */
+  --s: min(27cqh, calc(74cqw / (var(--n) * 1.22 + 1.1)));
+  /* 告示牌之間的距離、起點（豆豆站的地方）、終點（箭頭）的寬度 */
+  --g: calc(var(--s) * 0.22);
+  --lead: calc(var(--s) * 0.78);
+  --tail: calc(var(--s) * 0.5);
+  /* 告示牌的柱子（豆豆站在柱子前面，頭不會碰到圖卡）、小路的寬度 */
+  --post: calc(var(--s) * 0.5);
+  --rib: max(3.4cqh, calc(var(--s) * 0.17));
+  --road-top: 6cqh;
+  /* 空格虛線的粗細：跟著格子大小（手機直式時細一點） */
+  --bw: max(3px, calc(var(--s) * 0.03));
 }
 .seq-stage .seq-card {
-  width: var(--seq-size);
+  width: var(--s);
+}
+
+/* ── 小路 ── */
+.sq-road {
+  position: absolute;
+  left: 57cqw;
+  top: var(--road-top);
+  translate: -50% 0;
+  width: calc(var(--lead) + var(--n) * var(--s) + (var(--n) - 1) * var(--g) + var(--tail));
+  height: calc(var(--s) + var(--post) + var(--rib));
+}
+.sq-ribbon {
+  position: absolute;
+  left: 0;
+  right: calc(var(--tail) * 0.55);
+  bottom: 0;
+  height: var(--rib);
+  border-radius: 999px;
+  background:
+    /* 路中間一排淡淡的石頭 */
+    radial-gradient(circle, rgba(255, 252, 245, 0.9) 0 28%, transparent 30%) 0 50% / calc(var(--rib) * 1.25) 100% repeat-x,
+    #e6d7bb;
+  box-shadow:
+    0 0 0 3px rgba(156, 115, 86, 0.18) inset,
+    0 5px 0 rgba(46, 42, 37, 0.06);
+  overflow: hidden;
+}
+/* 豆豆走過的路：跟著豆豆一起往前亮起來 */
+.sq-lit {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  border-radius: 999px;
+  background:
+    radial-gradient(circle, rgba(255, 250, 230, 0.95) 0 28%, transparent 30%) 0 50% / calc(var(--rib) * 1.25) 100% repeat-x,
+    #f1cf72;
+  box-shadow: 0 0 0 3px rgba(201, 162, 62, 0.45) inset;
+  transition-property: width;
+  transition-timing-function: cubic-bezier(0.65, 0, 0.35, 1);
+}
+/* 終點的大箭頭：故事往這邊走 */
+.sq-arrow {
+  position: absolute;
+  right: 0;
+  bottom: calc(var(--rib) * 0.5);
+  translate: 0 50%;
+  width: calc(var(--tail) * 0.82);
+  height: calc(var(--rib) * 2.5);
+  overflow: visible;
+  transform-origin: 30% 50%;
+}
+.sq-arrow path {
+  fill: #e6d7bb;
+  stroke: rgba(156, 115, 86, 0.32);
+  stroke-width: 5;
+  stroke-linejoin: round;
+}
+.sq-arrow.is-lit path {
+  fill: #f1cf72;
+  stroke: rgba(201, 162, 62, 0.7);
+}
+
+/* ── 告示牌（空格） ── */
+.sq-signs {
+  position: absolute;
+  inset: 0;
+}
+.sq-sign {
+  position: absolute;
+  top: 0;
+  left: calc(var(--lead) + var(--i) * (var(--s) + var(--g)));
+  width: var(--s);
+  height: calc(var(--s) + var(--post) + var(--rib) * 0.5);
+}
+.sq-post {
+  position: absolute;
+  left: 50%;
+  translate: -50% 0;
+  top: calc(var(--s) - 6px);
+  bottom: 0;
+  width: max(10px, calc(var(--s) * 0.07));
+  border-radius: 6px 6px 3px 3px;
+  background: #d4c2a2;
+  box-shadow: 0 0 0 3px rgba(156, 115, 86, 0.2) inset;
+}
+.sq-post.is-past {
+  background: #e7c463;
+  box-shadow: 0 0 0 3px rgba(201, 162, 62, 0.45) inset;
 }
 .seq-slot {
-  width: var(--seq-size);
+  width: var(--s);
   aspect-ratio: 1;
-  border: 5px dashed rgba(46, 42, 37, 0.3);
+  border: var(--bw) dashed rgba(46, 42, 37, 0.3);
   border-radius: 24%;
-  background: rgba(255, 255, 255, 0.28);
+  background: rgba(255, 253, 248, 0.78);
   transform-origin: 50% 50%;
 }
 .seq-slot.is-full {
@@ -23,7 +124,7 @@
 }
 .seq-slot.is-next {
   border-color: rgba(79, 99, 119, 0.85);
-  background: rgba(255, 255, 255, 0.6);
+  background: rgba(255, 255, 255, 0.92);
 }
 .seq-slot.is-next.pulse-1 {
   animation: seq-breathe 1.2s ease-in-out infinite;
@@ -42,24 +143,74 @@
     transform: scale(1.14);
   }
 }
-.seq-slot .prog-num {
-  bottom: -5cqh;
-  font-size: 3.6cqh;
-  color: var(--ink-soft);
-}
 /* 放好的圖卡：剛好蓋滿格子（含虛線框），跟搬過來的那一張一樣大 */
 .seq-hop {
   position: absolute;
-  inset: -5px;
+  inset: calc(var(--bw) * -1);
+}
+.sq-act {
+  position: absolute;
+  inset: 0;
+  transform-origin: 50% 90%;
 }
 .seq-stage .seq-card.in-slot {
   position: absolute;
   inset: 0;
   width: auto;
+  transition:
+    background 0.25s ease,
+    box-shadow 0.25s ease;
+}
+/* 故事播放中，豆豆站在底下的那一張 */
+.seq-stage .seq-card.in-slot.is-lit {
+  background: #fff6d8;
+  box-shadow:
+    0 8px 0 #e6cf8e,
+    0 0 0 6px var(--hint) inset,
+    0 0 0 10px rgba(241, 210, 124, 0.35);
+}
+
+/* ── 豆豆 ── */
+.sq-dodo {
+  position: absolute;
+  z-index: 4;
+  bottom: calc(var(--rib) * 0.42);
+  width: calc(var(--s) * 0.56);
+  translate: -50% 0;
+  transition-property: left;
+  transition-timing-function: cubic-bezier(0.45, 0, 0.4, 1);
+  pointer-events: none;
+}
+.sq-dodo-hop {
+  transform-origin: 50% 100%;
+}
+.sq-dodo-face {
+  transition: transform 0.18s ease;
+}
+.sq-dodo-face.is-back {
+  transform: scaleX(-1);
+}
+/* 腳下的影子 */
+.sq-dodo::after {
+  content: '';
+  position: absolute;
+  left: 22%;
+  right: 22%;
+  bottom: -3%;
+  height: 9%;
+  border-radius: 50%;
+  background: rgba(46, 42, 37, 0.12);
+  z-index: -1;
+}
+
+/* ── 下面打亂的圖卡 ── */
+.seq-stage .seq-tray {
+  top: calc(var(--road-top) + var(--s) + var(--post) + var(--rib) + 5cqh);
+  gap: max(3cqh, calc(var(--s) * 0.18));
 }
 /* 圖卡原本的位置：拿走之後留一個淡淡的位子 */
 .seq-spot {
-  width: var(--seq-size);
+  width: var(--s);
   aspect-ratio: 1;
   border-radius: 24%;
   background: rgba(46, 42, 37, 0.05);

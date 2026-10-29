@@ -1,6 +1,6 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { useEffect, useRef, useState } from 'react'
 
-/** 按住一段時間才觸發：防止孩子一碰就離開 */
+/** 按住一段時間才觸發：清空畫布、家長入口這類不能一碰就發生的事（返回鍵改成點一下，見 ui/Back.tsx） */
 export function useHold(ms: number, onDone: () => void) {
   const [p, setP] = useState(0)
   const start = useRef(0)
@@ -43,15 +43,5 @@ export function Ring({ progress, color = 'var(--ink)', width = 6 }: { progress: 
     <svg className="ring" viewBox="0 0 100 100" aria-hidden="true">
       {progress > 0 && <circle cx={50} cy={50} r={r} fill="none" stroke={color} strokeWidth={width} strokeLinecap="round" strokeDasharray={c} strokeDashoffset={c * (1 - progress)} />}
     </svg>
-  )
-}
-
-export function HoldButton({ ms = 1200, onHold, children, label }: { ms?: number; onHold: () => void; children: ReactNode; label: string }) {
-  const { progress, handlers } = useHold(ms, onHold)
-  return (
-    <button className="round-btn" aria-label={label} {...handlers}>
-      {children}
-      <Ring progress={progress} />
-    </button>
   )
 }

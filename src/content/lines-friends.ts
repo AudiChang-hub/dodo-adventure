@@ -1,10 +1,8 @@
-// 工作線 D（陪玩與體驗）的台詞：朋友會說話、過程型稱讚、爸爸回合、今日路線、先用手指描
+// 工作線 D（陪玩與體驗）的台詞：朋友會說話、過程型稱讚、今日路線、先用手指描
 // 全部用 registry 的 def()，由 lines.ts 頂部 import 一行載入
-import { CHILD_EN } from '../lib/env'
 import { def, type Speaker } from './registry'
 import { FRIEND_INFO, TICKLE_COUNT } from './friends'
 
-const N = CHILD_EN
 const NUM = [
   'zero', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten',
   'eleven', 'twelve', 'thirteen', 'fourteen', 'fifteen', 'sixteen', 'seventeen', 'eighteen', 'nineteen', 'twenty',
@@ -51,19 +49,6 @@ export const STORY_EGG_COUNT = 4
 
 // ── 今日路線（手法 8）：開局先看到今天要去幾站 ─────────────────────
 for (let n = 2; n <= 5; n++) def(`route.stops.${n}`, 'dodo', `Today, we have | ${NUM[n]} stops!`)
-
-// ── 爸爸回合（手法 2）────────────────────────────────────────
-// 主持的恐龍轉向爸爸；說完答案後，答對是過程型稱讚，再練練就一起說一次
-const coplay: Record<Speaker, [string, string, string]> = {
-  dodo: ['Daddy’s turn!', `You told Daddy, ${N}!`, 'Let’s say it together!'],
-  bobo: ['Daddy’s turn!', `You told Daddy, ${N}!`, 'Let’s say it together!'],
-  momo: ['Daddy’s turn.', `You told Daddy, ${N}.`, 'Let’s say it together.'],
-}
-for (const [s, [turn, yes, again]] of Object.entries(coplay) as [Speaker, [string, string, string]][]) {
-  def(`coplay.turn.${s}`, s, turn)
-  def(`coplay.yes.${s}`, s, yes)
-  def(`coplay.again.${s}`, s, again)
-}
 
 // ── 先用手指描，再換筆（手法 5）──────────────────────────────────
 def('ink.finger', 'dodo', 'Use your finger!')
