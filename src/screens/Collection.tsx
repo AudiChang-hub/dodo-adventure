@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { motion } from 'motion/react'
 import { Egg } from '../art/Egg'
-import { HoldButton } from '../ui/Hold'
+import { BackButton } from '../ui/Back'
 import { HomeIcon } from '../games/Shell'
 import { FriendActor } from '../ui/FriendActor'
 import { Emoji } from '../art/Emoji'
@@ -10,7 +10,6 @@ import { freshCount, pendingPicks } from '../lib/achievements'
 import { FRIENDS } from '../content/park'
 import { FRIEND_COUNT_MAX } from '../content/lines-friends'
 import { db, type Friend } from '../lib/db'
-import { go } from '../lib/nav'
 import { say, sfx } from '../lib/audio'
 import { pick } from '../lib/random'
 import { useIntro } from '../ui/Scenes'
@@ -83,9 +82,9 @@ export function Collection() {
   return (
     <div className={`screen collection${view === 'book' ? ' is-book' : ''}`} onPointerDown={() => (touched.current = true)}>
       <div className="collection-top">
-        <HoldButton label="回首頁（按住）" ms={600} onHold={() => go({ name: 'home' })}>
+        <BackButton label="回首頁">
           <HomeIcon />
-        </HoldButton>
+        </BackButton>
         <div className="collection-title" aria-hidden="true">
           {view === 'book' ? '我的貼紙' : '我的朋友'}
           {view === 'book' && <small>點貼紙聽英文名字；集滿 5 顆星就能挑一張新的</small>}

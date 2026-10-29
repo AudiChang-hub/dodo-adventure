@@ -12,7 +12,7 @@ import { station as stationDef } from '../content/games'
 import { theme as themeDef } from '../content/themes'
 import { STORY_EGG_COUNT } from '../content/lines-friends'
 import { hasLine } from '../content/lines'
-import { go } from '../lib/nav'
+import { go, useBack } from '../lib/nav'
 import { say, sfx, hushSpeech, stopSpeech } from '../lib/audio'
 import { cachedPlan, todayPlan, savePlan, planDone, hatchFriend, type Plan } from '../lib/plan'
 import { noteActivity, isBreakDue, holdBedtime, bedtimeIfDue } from '../lib/session'
@@ -186,6 +186,8 @@ export function Adventure() {
   const afterGame = async (next: Plan) => {
     setPhase('egg')
     await wait(500)
+    // 這段時間裡返回了首頁：不要在首頁上蛋裂開、念故事
+    if (!live.current) return
     sfx.crack()
     const done = next.items.filter((i) => i.done).length
     await say(`story.egg.${(done - 1 + STORY_EGG_COUNT) % STORY_EGG_COUNT}`)
@@ -207,6 +209,7 @@ export function Adventure() {
     const next = { ...plan, hatched: id }
     await savePlan(next)
     setPlan(next)
+    if (!live.current) return
     setFriend(id)
     sfx.hatch()
     // 新朋友一出來就自我介紹：I'm a fox!
@@ -215,10 +218,12 @@ export function Adventure() {
     if (live.current) setPhase('finish')
   }
 
+  /** 回首頁（冒險的上一層）：返回鍵、Android 的返回手勢都走這裡。玩到一半離開記一筆沒玩完；已經走完的站都存好了 */
   const exit = () => {
     if (item && phase === 'play') noteActivity(item.game, item.station, false)
-    go({ name: 'home' })
+    go({ name: 'home' }, { back: true })
   }
+  useBack(exit)
 
   // ── 轉場：每一段是一層（ui/Scenes.tsx） ──────────────────────
   const sceneId =
