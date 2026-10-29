@@ -4,7 +4,7 @@ import { Emoji } from '../../art/Emoji'
 import { Sparkles } from '../../ui/Sparkles'
 import { Hand } from '../Demo'
 import { preload, say, sfx } from '../../lib/audio'
-import { upper, wordId, type SoundUnit } from '../../content/letters'
+import { soundUnit, upper, wordId, type SoundUnit } from '../../content/letters'
 import { wait } from '../lines'
 import { useIdle } from '../idle'
 import { PACE } from '../pace'
@@ -20,21 +20,27 @@ interface Props {
 
 const spring = { type: 'spring', stiffness: 260, damping: 20 } as const
 
+/**
+ * 字母飛出來時唸的那句：S, S, S… sss… snake!（snake 是代表字，畫面上一定有）。
+ * 家長把代表字勾成「他不認得」時，學習循環換成別的字，畫面上沒有 snake，改唸 S… sss…（不提畫面上沒有的字）。
+ */
+const saysLine = (u: SoundUnit) => (u.keys[0].w === soundUnit(u.letter).keys[0].w ? `ph.${u.letter}.says` : `ph.${u.letter}.sound`)
+
 /** 每一步要念的台詞（給預先載入用） */
 export function introLines(u: SoundUnit, short = false): string[] {
   const l = u.letter
   const again = `ph.${l}.echo.${wordId(u.keys[0].w)}`
-  if (short) return [`ph.${l}.says`, again]
-  return [...u.keys.map((k) => `ph.word.${wordId(k.w)}`), `ph.${l}.discover`, `ph.${l}.says`, again]
+  if (short) return [saysLine(u), again]
+  return [...u.keys.map((k) => `ph.word.${wordId(k.w)}`), `ph.${l}.discover`, saysLine(u), again]
 }
 
 /**
  * 一個字母音的學習循環（PRD §6.1b，取代一般的教學卡）：
  * 1. 聽單字：三張圖一張一張出來，唸 Bus. Ball. Bear.
- * 2. 發現共同的聲音：They all start with buh! 三個字的開頭字母同時變色、跳一下。
- * 3. 字母從單字裡跑出來：三個 b 飛到下面合成一個，旁邊冒出大寫 B，變成大大的 B b。B says buh!
- * 4. 點一下大字母：再聽一次 buh, buh, bus! 然後才開始玩（確保孩子有看、有聽）。
- * 重教（short）：直接出現 bus 和 B b，念 B says buh!
+ * 2. 發現共同的聲音：They all start with b, b, b… 三個字的開頭字母同時變色、跳一下。
+ * 3. 字母從單字裡跑出來：三個 b 飛到下面合成一個，旁邊冒出大寫 B，變成大大的 B b。B, B, B… b, b, b… bus!
+ * 4. 點一下大字母：再聽一次 B… b, b, b… bus! 然後才開始玩（確保孩子有看、有聽）。
+ * 重教（short）：直接出現 bus 和 B b，念 B, B, B… b, b, b… bus!
  */
 export function PhonicsIntro({ unit, short, onDone }: Props) {
   const l = unit.letter
@@ -50,7 +56,8 @@ export function PhonicsIntro({ unit, short, onDone }: Props) {
   const busy = useRef(false)
   const readyAt = useRef(0)
   const idle = useIdle()
-  const firstLine = short ? `ph.${l}.says` : `ph.${l}.discover`
+  const says = saysLine(unit)
+  const firstLine = short ? says : `ph.${l}.discover`
 
   useEffect(() => {
     live.current = true
@@ -81,13 +88,13 @@ export function PhonicsIntro({ unit, short, onDone }: Props) {
         await wait(900)
       }
       if (!live.current) return
-      await say(`ph.${l}.says`)
+      await say(says)
       await wait(PACE.TEACH_SETTLE)
       if (!live.current) return
       readyAt.current = performance.now()
       setReady(true)
       // 沒反應：15 秒後再念一次發現句；再 15 秒卡片慢慢亮起來，不說話
-      idle.start({ repeat: () => void say(firstLine, `ph.${l}.says`), hint: () => setNudge(true) })
+      idle.start({ repeat: () => void say(firstLine, says), hint: () => setNudge(true) })
     }, 0)
     return () => {
       live.current = false

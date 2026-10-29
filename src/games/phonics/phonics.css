@@ -13,6 +13,35 @@
   text-underline-offset: 0.14em;
   text-decoration-color: color-mix(in srgb, var(--ph-tint) 55%, transparent);
 }
+/* 字母音台詞（S, S, S… sss… snake!）的三種樣子，孩子和家長才不會把字母名稱和字母音混在一起：
+   字母名稱：整個字大一點、粗、上色；字母音：小寫、細、淡一點的同色，底下一條波浪線（像聲波）；單字照上面只標開頭字母 */
+.sub-w[data-part='name'] {
+  color: var(--ph-tint);
+  font-weight: 700;
+  font-size: 1.22em;
+  line-height: 1;
+}
+.sub-w[data-part='name']::first-letter {
+  text-decoration: none;
+}
+.sub-w[data-part='sound'] {
+  color: color-mix(in srgb, var(--ph-tint) 80%, white);
+  font-weight: 500;
+  font-size: 0.86em;
+  letter-spacing: 0.06em;
+  text-decoration: underline wavy 0.07em;
+  text-underline-offset: 0.22em;
+  text-decoration-color: color-mix(in srgb, var(--ph-tint) 60%, transparent);
+}
+/* 加重段（They all start with | sss…）的字比較大，放大後的小寫 s 和旁邊句子的大寫一樣高、看起來像 SSS：再縮小，
+   讓它明顯是小寫 */
+.sub-w.is-key[data-part='sound'] {
+  font-size: 1.15em; /* 加重段的 1.6em 改成 1.15em：比一般的字大一點，但看得出是小寫 */
+}
+.sub-w[data-part='sound']::first-letter {
+  color: inherit;
+  text-decoration: none;
+}
 
 /* ── 單字標籤、字母 ─────────────────────────────────────── */
 .ph-label {

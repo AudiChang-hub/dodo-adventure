@@ -4,7 +4,7 @@
 // 同一個概念只有一張：數數量（count）、塗格子（fill）、給蛋（give）、一眼看幾個（flash）的 5，都是「數到 5」這一張。
 import type { Visual } from './games'
 import { STICKER_ART_ICONS, artOf } from './sticker-art'
-import { ALL_PHONICS, PHONICS_WORDS, upper, wordId } from './letters'
+import { ALL_PHONICS, PHONICS, PHONICS_WORDS, upper, wordId } from './letters'
 import { ALL_VOCAB, CAT_EXAMPLES, vocab, type Tag } from './vocab'
 import { COLORS, SHAPES, SOLIDS, type ShapeId, type SolidId } from './park'
 import { ALL_STORIES, DIRS, DIR_ZH, PATTERN_TOKS, story, type Dir } from './code'
@@ -82,7 +82,10 @@ export function stickerFor(skill: string): StickerDef | null {
     // 延後的音（o、j、v、y）之前得到的貼紙也照樣顯示
     const u = ALL_PHONICS.find((x) => x.letter === v)
     if (!u) return null
-    return { id: skill, pic: { t: 'pair', ch: `${upper(v)}${v}`, icon: u.keys[0]?.icon }, tint: TINT.mint, lines: [`ph.${v}.says`], zh: `字母音 ${v}` }
+    // 貼紙上的圖是代表字（第一個關鍵字），台詞 S, S, S… sss… snake! 唸的也是它；
+    // 慶祝時接在 You learned it! 後面太長，字母名稱只唸一次（S… sss… snake!，延後的音沒有這句就用完整的）
+    const short = PHONICS.includes(u) ? `ph.${v}.echo.${wordId(u.keys[0].w)}` : undefined
+    return { id: skill, pic: { t: 'pair', ch: `${upper(v)}${v}`, icon: u.keys[0]?.icon }, tint: TINT.mint, lines: [`ph.${v}.says`], ...(short ? { short } : {}), zh: `字母音 ${v}` }
   }
   if (kind === 'num') {
     const n = num(v)

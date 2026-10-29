@@ -3,13 +3,15 @@ import { segments, type Line, type Segment } from '../content/lines'
 import { E4, SEGMENT_GAP_MS, VOICES, adjust, emphasis, type VoiceSpec } from '../content/voices'
 import { INTERJ } from '../content/interjections'
 import { zhClip } from '../content/zh-words'
+import { CUE, cueOf, cueParts } from '../content/phonics-cue'
 
 /** 中文三明治：英文和中文之間的停頓（毫秒），前後一樣 */
 export const BRIDGE_GAP_MS = 400
 
 export function segmentVoice(l: Line, s: Segment): VoiceSpec {
   const v = VOICES[l.speaker]
-  if (l.demo) return s.emph ? emphasis(v) : v
+  // 字母音台詞（S, S, S… sss… snake!）不管在 | 前後都用加重的聲線
+  if (l.demo) return s.emph || cueOf(s.text) ? emphasis(v) : v
   if (s.role === 'interj') {
     const j = INTERJ[s.text]
     if (!j) throw new Error(`Unknown interjection: ${s.text}（要先加進 interjections.ts 的 INTERJ）`)
@@ -56,7 +58,10 @@ export function clipName(l: Line, s: Segment): string {
   if (s.role === 'zh') return zhClip(s.text)
   const v = segmentVoice(l, s)
   const fx = segmentFx(l)
-  const base = `${v.voice}|${v.rate}|${v.pitch}|${v.volume}|${s.text}`
+  // 字母音台詞（S, S, S… sss… snake!）是一段一段組出來的，組合方式也要算進檔名
+  const c = cueOf(s.text)
+  const st = c ? `|cue-v${CUE.version}-${CUE.holdMs}-${CUE.gapMs}-${CUE.repeatGapMs}|${JSON.stringify(cueParts(c))}` : ''
+  const base = `${v.voice}|${v.rate}|${v.pitch}|${v.volume}|${s.text}${st}`
   // 發音示範的檔名公式維持原樣：原本實測過的音檔原封不動沿用
   return fnv1a(fx ? `${base}|${fx.tag}` : base)
 }
