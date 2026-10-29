@@ -362,16 +362,37 @@ export async function toddlerStep(k: Toddler, c: Checker, opts: { drawing?: bool
   return k.wait(800 + k.r.int(2500), '發呆一下')
 }
 
+/** 畫布上的墨（每 8 px 取樣一次的不透明度總和）：點一下留下墨點也算有反應 */
+const inkSum = (page: Page) =>
+  page.evaluate(() => {
+    let sum = 0
+    for (const c of document.querySelectorAll('canvas')) {
+      if (!c.width || !c.height) continue
+      const ctx = c.getContext('2d', { willReadFrequently: true })
+      if (!ctx) continue
+      try {
+        const d = ctx.getImageData(0, 0, c.width, c.height).data
+        for (let i = 3; i < d.length; i += 32 * 4) sum += d[i]
+      } catch {
+        /* */
+      }
+    }
+    return sum
+  })
+/** 點了之後的反應：DOM 增減、class 變化（選蠟筆、按鈕亮起來）、語音、畫布上的墨 */
+const react = async (page: Page) => ({ ...(await snap(page)), resp: await page.evaluate(() => window.__toddler.resp), ink: await inkSum(page) })
+
 /** 能不能繼續：一段時間內畫面有變化、或點了東西之後有反應 */
 export async function alive(k: Toddler, c: Checker, ctx: string, budget = 45_000) {
   const page = k.page
-  const s0 = await snap(page)
+  const s0 = await react(page)
   const end = Date.now() + budget
   let last = s0
+  const moved = (a: typeof s0, b: typeof s0) => a.live !== s0.live || a.mut !== b.mut || a.voices !== b.voices || a.resp !== b.resp || a.ink !== b.ink
   while (Date.now() < end) {
     await k.wait(2000)
-    const s = await snap(page)
-    if (s.live !== s0.live || s.mut !== last.mut || s.voices !== last.voices) return true
+    const s = await react(page)
+    if (moved(s, last)) return true
     last = s
     const ts = (await targets(page)).filter((t) => t.kind !== 'canvas')
     if (ts.length) {
@@ -379,8 +400,8 @@ export async function alive(k: Toddler, c: Checker, ctx: string, budget = 45_000
       await k.tap({ x: t.x, y: t.y }, `試試看 ${t.label}`)
     } else await k.tap({ x: k.r.range(200, 1000), y: k.r.range(200, 700) }, '試試看（沒有可點的東西）')
     await k.wait(600)
-    const s2 = await snap(page)
-    if (s2.live !== s0.live || s2.mut !== last.mut || s2.voices !== last.voices) return true
+    const s2 = await react(page)
+    if (moved(s2, last)) return true
   }
   await c.once(`stuck:${ctx}`, '卡死', `${ctx}之後 ${Math.round(budget / 1000)} 秒畫面沒有任何變化`, `一直點畫面上的東西都沒有反應。畫面 ${s0.live}，教學狀態 ${s0.teaching}`)
   return false
@@ -444,11 +465,13 @@ export async function grabDuringTeach(k: Toddler, c: Checker, g: GameDef) {
   await k.wait(1500)
   const after = (await attempts(page)).filter((a) => !before.has(a.id))
   // 示範中點了之後 1.5 秒內出現的「自己答」（教學卡、筆的示範時連「一起練」也不該有）
+  // 每一筆紀錄算在它之前最後一下點擊的頭上：那一下是在示範、教學卡、念題目中（不是一起練時指著答案的手）就是誤記。
+  // （T-51：念題目中多了 'wait' 這個狀態；念完、手指著答案時再點下去的那一下記成一起練是對的，不能因為 1.5 秒內前一下是 'wait' 就算錯）
   const bad = after.filter((a) => {
-    const near = tapsAt.filter((x) => a.ts >= x.t && a.ts - x.t < 1500)
-    if (!near.length) return false
-    if (a.phase === 'quiz') return true
-    return a.phase === 'guided' && near.some((x) => x.kind !== 'hand')
+    const last = tapsAt.filter((x) => x.t <= a.ts).pop()
+    if (!last || a.ts - last.t >= 1500) return false
+    if (a.phase === 'quiz') return last.kind !== 'hand'
+    return a.phase === 'guided' && last.kind !== 'hand'
   })
   const quizBad = bad.filter((a) => a.phase === 'quiz')
   const guidedBad = bad.filter((a) => a.phase !== 'quiz')

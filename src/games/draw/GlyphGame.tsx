@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { motion } from 'motion/react'
 import { Shell, type GameProps } from '../Shell'
-import { Ink } from './Ink'
+import { Ink, type InkHandle } from './Ink'
 import { PathTracker, samplePath } from './track'
 import { GLYPHS, GLYPH_LEVELS } from './glyphs'
 import { HandArt, PenArt, easeInOut, tween } from '../Demo'
@@ -84,6 +84,9 @@ export function GlyphGame({ gameId, onDone, onExit }: GameProps) {
   const [hold, setHold] = useState(true)
   /** 閒置提示「手再描一次」：手在這一筆上的位置（取樣點），null 表示沒有 */
   const [again, setAgain] = useState<number | null>(null)
+  const ink = useRef<InkHandle>(null)
+  /** 這一筆有沒有描到（沒有的話放開後淡掉：亂畫的線不會一直蓋在字上，準則 DRAW-3） */
+  const moved = useRef(false)
   /** 現在建議的工具，與示範時用手指還是筆 */
   const [tool, setTool] = useState<Tool>('finger')
   const toolRef = useRef<Tool | null>(null)
@@ -253,6 +256,7 @@ export function GlyphGame({ gameId, onDone, onExit }: GameProps) {
     // 有畫線就重新計時
     idle.poke()
     setAgain(null)
+    moved.current = false
     drawing.current = tracker.current.near(p)
   }
   const onMove = (p: { x: number; y: number }) => {
@@ -261,6 +265,7 @@ export function GlyphGame({ gameId, onDone, onExit }: GameProps) {
     idle.poke()
     if (!drawing.current) return
     if (t.feed(p)) {
+      moved.current = true
       setProg(t.progress)
       if (t.done) {
         drawing.current = false
@@ -332,7 +337,20 @@ export function GlyphGame({ gameId, onDone, onExit }: GameProps) {
         )}
         {/* 建議工具的大圖示：一直留到這個字描完 */}
         {(!done || demo) && <ToolBadge tool={tool} pulse={pulse} />}
-        <Ink w={100} h={140} color="rgba(46,42,37,0.6)" size={3.2} disabled={hold} onDown={onDown} onMove={onMove} />
+        <Ink
+          ref={ink}
+          w={100}
+          h={140}
+          color="rgba(46,42,37,0.6)"
+          size={3.2}
+          disabled={hold}
+          onDown={onDown}
+          onMove={onMove}
+          onUp={() => {
+            if (!moved.current) ink.current?.fadeLast()
+            moved.current = false
+          }}
+        />
         </>
       </Swap>
     </Shell>
