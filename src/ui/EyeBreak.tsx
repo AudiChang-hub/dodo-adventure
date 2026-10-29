@@ -128,7 +128,7 @@ const ARM_EASE = [0.22, 1, 0.36, 1] as const
 
 function Arm({ d, paw, fill, wave }: { d: string; paw: [number, number, number, number]; fill: string; wave?: boolean }) {
   const t = wave
-    ? { duration: 2.6, repeat: Infinity, ease: 'easeInOut' as const }
+    ? { duration: 2.6, repeat: 2, ease: 'easeInOut' as const }
     : { duration: 1.1, ease: ARM_EASE }
   const ds = wave ? [d, WAVE_ALT.d, d] : d
   const cx = wave ? [paw[0], WAVE_ALT.paw[0], paw[0]] : paw[0]

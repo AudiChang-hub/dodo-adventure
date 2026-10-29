@@ -57,7 +57,7 @@
 .sheet-thing.dim > .art {
   filter: saturate(0.4);
 }
-/* 一起練：答案底下一圈暖黃的光，慢慢呼吸 */
+/* 一起練：答案底下一圈暖黃的光，淡入之後就停著（不呼吸） */
 .sheet-glow {
   position: absolute;
   inset: -16%;
@@ -65,13 +65,7 @@
   background: radial-gradient(closest-side, rgba(241, 210, 124, 0.9), rgba(241, 210, 124, 0.4) 60%, rgba(241, 210, 124, 0));
   z-index: -1;
   pointer-events: none;
-  animation: sheet-breathe 1.8s ease-in-out infinite;
-}
-@keyframes sheet-breathe {
-  50% {
-    transform: scale(1.1);
-    opacity: 0.65;
-  }
+  animation: hint-in 0.8s var(--ease-out) both;
 }
 /* ── 完成鍵（塗格子、給蛋）：大大的綠色勾勾，不需要文字 ─────────── */
 .sheet-done {
@@ -94,7 +88,7 @@
   border: 6px solid var(--hint);
   animation:
     hint-in 1.6s var(--ease-out) both,
-    hint-pulse 2.4s ease-in-out 1.6s infinite;
+    cue-nudge 0.9s ease-in-out 1.6s 2;
 }
 .sheet-done:disabled {
   cursor: default;

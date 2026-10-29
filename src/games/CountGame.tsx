@@ -342,7 +342,7 @@ export function CountGame({ gameId, onDone, onExit }: GameProps) {
                   <motion.span
                     initial={{ scale: 0 }}
                     animate={lastBadge ? { scale: [1, 1.35, 1] } : { scale: 1 }}
-                    transition={lastBadge ? { duration: 0.7, repeat: Infinity, repeatDelay: 1.1 } : undefined}
+                    transition={lastBadge ? { duration: 0.7, repeat: 1, repeatDelay: 1.1 } : undefined}
                     style={{ position: 'absolute', right: '-10%', top: '-12%', width: '44%', aspectRatio: '1', borderRadius: '50%', background: 'var(--ink)', color: 'var(--card)', display: 'grid', placeItems: 'center', fontFamily: 'Fredoka', fontWeight: 600, fontSize: 'min(5cqmin, 40px)' }}
                   >
                     {order + 1}

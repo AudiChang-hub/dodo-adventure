@@ -1,34 +1,19 @@
+/*
+ * 恐龍出現後眨一次眼就停，不呼吸、不一直眨：等孩子操作時畫面上只留一樣在動的東西（提示的手），
+ * 紙感螢幕靜止時最清楚（幼兒設計準則 MOTION-2、DISPLAY-1）。
+ */
 .dino-blink {
   transform-box: view-box;
-  animation: dino-blink 4.6s infinite;
+  animation: dino-blink 0.24s ease-in-out 1.4s 1;
 }
 
 @keyframes dino-blink {
-  0%,
-  93%,
-  100% {
-    transform: scaleY(1);
-  }
-  95.5% {
+  50% {
     transform: scaleY(0.08);
   }
 }
 
-.dino-breathe {
-  transform-box: fill-box;
-  transform-origin: 50% 100%;
-  animation: dino-breathe 3.2s ease-in-out infinite;
-}
-
-@keyframes dino-breathe {
-  0%,
-  100% {
-    transform: scale(1, 1);
-  }
-  50% {
-    transform: scale(1.012, 1.03);
-  }
-}
+/* 車子只在真的在開的時候轉輪子、上下顛（moving），停著就不動 */
 
 .wheel-spin {
   transform-box: fill-box;

@@ -66,17 +66,18 @@ export function Home() {
 
   return (
     <div className="screen home">
-      {[{ top: '9%', w: 150, d: 95, delay: -20 }, { top: '19%', w: 100, d: 70, delay: -50 }, { top: '6%', w: 80, d: 120, delay: -80 }].map((c, i) => (
-        <div key={i} className="cloud" style={{ top: c.top, width: c.w, animationDuration: `${c.d}s`, animationDelay: `${c.delay}s` }} />
+      {/* 雲和太陽都是靜止的裝飾：等孩子點的時候，畫面上會動的只有「出發」（幼兒設計準則 MOTION-2） */}
+      {[{ top: '9%', left: '30%', w: 150 }, { top: '19%', left: '58%', w: 100 }, { top: '6%', left: '74%', w: 80 }].map((c, i) => (
+        <div key={i} className="cloud" style={{ top: c.top, left: c.left, width: c.w }} />
       ))}
-      <motion.div style={{ position: 'absolute', right: '6vw', top: '6vh', width: '9vmin' }} animate={{ rotate: 360 }} transition={{ duration: 120, repeat: Infinity, ease: 'linear' }}>
+      <div style={{ position: 'absolute', right: '6vw', top: '6vh', width: '9vmin' }}>
         <svg viewBox="0 0 100 100" aria-hidden="true">
           {Array.from({ length: 10 }, (_, i) => (
             <rect key={i} x={47} y={2} width={6} height={16} rx={3} fill="#F1D27C" transform={`rotate(${i * 36} 50 50)`} />
           ))}
           <circle cx={50} cy={50} r={26} fill="#F6DE95" />
         </svg>
-      </motion.div>
+      </div>
       <Scenery station="home" />
 
       <div className="home-title" aria-hidden="true">
@@ -150,8 +151,9 @@ export function Home() {
         aria-label={done ? '去地圖' : '出發'}
         onClick={start}
         initial={intro ? { scale: 0 } : false}
+        // 首頁唯一會動的提示：輕輕放大一下，停 6 秒再一次（原本 2.2 秒一直放大縮小）
         animate={{ scale: [1, 1.04, 1] }}
-        transition={{ scale: { duration: 2.2, repeat: Infinity, ease: 'easeInOut' } }}
+        transition={{ scale: { duration: 0.9, repeat: Infinity, repeatDelay: 6, ease: 'easeInOut' } }}
       >
         {done ? (
           <svg viewBox="0 0 48 48" width="42%" aria-hidden="true">

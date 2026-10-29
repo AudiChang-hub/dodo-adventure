@@ -176,21 +176,19 @@
   inset: -12px;
   border-radius: calc(var(--radius-lg) + 12px);
   border: 6px solid var(--hint);
-  /* 提示是「慢慢發光」：先花 1.6 秒淡入，之後緩慢呼吸，不閃 */
+  /* 提示：粗外框慢慢淡入，接著輕輕放大兩下就停（MOTION-3：不循環、不反覆改透明度） */
   animation:
     hint-in 1.6s var(--ease-out) both,
-    hint-pulse 2.4s ease-in-out 1.6s infinite;
+    cue-nudge 0.9s ease-in-out 1.6s 2;
 }
-/* 「從這幾張裡選一張」：每張卡外面一圈淡淡的呼吸光，不指出哪一張是答案（點點數數輪到孩子選數字時） */
+/* 「從這幾張裡選一張」：每張卡外面一圈靜態的淡黃框，不指出哪一張是答案（點點數數輪到孩子選數字時） */
 .tile.cue::after {
   content: '';
   position: absolute;
   inset: -10px;
   border-radius: calc(var(--radius-lg) + 10px);
   border: 5px solid rgba(241, 210, 124, 0.8);
-  animation:
-    hint-in 0.8s var(--ease-out) both,
-    hint-pulse 1.6s ease-in-out 0.8s infinite;
+  animation: hint-in 0.8s var(--ease-out) both;
   pointer-events: none;
 }
 @keyframes hint-in {
@@ -199,10 +197,13 @@
     transform: scale(0.96);
   }
 }
-@keyframes hint-pulse {
+/*
+ * 提示的「一次性輕推」：放大 6% 再回來。用的地方一律給有限次數（1～2 次），之後就靜止。
+ * 紙感螢幕更新慢，一直呼吸、一直改透明度會看到殘影和閃動（幼兒設計準則 MOTION-2／3）。
+ */
+@keyframes cue-nudge {
   50% {
-    transform: scale(1.04);
-    opacity: 0.55;
+    transform: scale(1.06);
   }
 }
 

@@ -28,7 +28,10 @@ function pickToday(all: Friend[]): string[] {
 
 const rnd = (a: number, b: number) => a + Math.random() * (b - a)
 
-/** 一隻在草地上慢慢走的朋友：走一段、停下來東張西望，點牠會停下來說話 */
+/**
+ * 一隻站在草地上的朋友：平常靜靜站著（等孩子操作時畫面上只留「出發」在動，幼兒設計準則 MOTION-2），
+ * 點牠會轉過來說話，說完慢慢走一小段、東張西望一下，然後又停下來。
+ */
 function Walker({ id, slot, count }: { id: string; slot: number; count: number }) {
   const f = friendInfo(id)
   // 一開始各自站在自己那一段，不會疊在一起
@@ -65,13 +68,11 @@ function Walker({ id, slot, count }: { id: string; slot: number; count: number }
       // 走到一半被點了（stop）就不接著排下一段，交給 react() 排
       if (!live.current || my !== walkId.current) return
       setWalking(false)
-      rest(rnd(2600, 6000))
     })
   }
 
   useEffect(() => {
     live.current = true
-    rest(rnd(1200, 3500) + slot * 900)
     return () => {
       live.current = false
       clearTimeout(timer.current)
@@ -80,7 +81,7 @@ function Walker({ id, slot, count }: { id: string; slot: number; count: number }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  // 被點了：停下來，轉過來面對孩子，說完話再繼續走
+  // 被點了：停下來，轉過來面對孩子，說完話再走一小段
   const react = () => {
     walkId.current++
     anim.current?.stop()
@@ -90,10 +91,11 @@ function Walker({ id, slot, count }: { id: string; slot: number; count: number }
 
   // App 一打開才一隻隻慢慢走出來；從別的畫面回到首頁時直接淡入（資料讀到就出現，不再等一秒多）
   const intro = useIntro()
-  const bob = f.move === 'fly' ? { y: ['0%', '-10%', '0%'] } : walking ? { y: f.move === 'drive' ? ['0%', '-2%', '0%'] : ['0%', '-7%', '0%'] } : { y: '0%' }
+  // 只有走路（飛）的時候上下顛，停下來就靜止
+  const bob = walking ? { y: f.move === 'drive' ? ['0%', '-2%', '0%'] : f.move === 'fly' ? ['0%', '-10%', '0%'] : ['0%', '-7%', '0%'] } : { y: '0%' }
   return (
     <motion.div className="home-friend" style={{ left, bottom: f.move === 'fly' ? '38%' : `${(slot % 2) * 10}%` }} initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={intro ? { delay: 1.2 + slot * 0.4, duration: 0.8 } : { duration: DUR.swapIn, ease: EASE.out }}>
-      <motion.div animate={bob} transition={{ duration: f.move === 'fly' ? 2.4 : 0.55, repeat: f.move === 'fly' || walking ? Infinity : 0, ease: 'easeInOut' }}>
+      <motion.div animate={bob} transition={{ duration: f.move === 'fly' ? 2.4 : 0.55, repeat: walking ? Infinity : 0, ease: 'easeInOut' }}>
         <motion.div
           key={look}
           animate={{ scaleX: walking ? -face : look ? [-face, face, face, -face] : -face, rotate: look && !walking ? [0, 6, -6, 0] : 0 }}

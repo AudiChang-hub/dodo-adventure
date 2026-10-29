@@ -66,21 +66,15 @@
   background: var(--card);
   box-shadow: 0 2px 0 rgba(46, 42, 37, 0.08);
 }
-/* 集滿：後面一圈暖光，慢慢呼吸（不閃） */
+/* 集滿：後面一圈暖光，淡入之後就停著（不呼吸：紙感螢幕上反覆變淡就是閃） */
 .ncard-halo {
   position: absolute;
   inset: -26px;
   border-radius: 56px;
   background: radial-gradient(closest-side, rgba(241, 210, 124, 0.5), rgba(241, 210, 124, 0));
-  animation: ncard-breathe 2.8s ease-in-out infinite;
+  animation: hint-in 0.8s var(--ease-out) both;
   pointer-events: none;
   z-index: -1;
-}
-@keyframes ncard-breathe {
-  50% {
-    opacity: 0.45;
-    scale: 1.04;
-  }
 }
 /* 直的：貼紙本裡「下一張」的那一格 */
 .ncard.is-slot {
@@ -143,7 +137,7 @@
   inset: -12px;
   border-radius: 50%;
   background: radial-gradient(closest-side, rgba(241, 210, 124, 0.55), rgba(241, 210, 124, 0));
-  animation: ncard-breathe 2.8s ease-in-out infinite;
+  animation: hint-in 0.8s var(--ease-out) both;
   pointer-events: none;
 }
 /* 貼上去那一下：一圈淡淡的波紋 */
@@ -190,7 +184,7 @@
     radial-gradient(closest-side, rgba(241, 210, 124, 0.28), rgba(241, 210, 124, 0) 100%);
   -webkit-mask: radial-gradient(closest-side, #000 30%, transparent 100%);
   mask: radial-gradient(closest-side, #000 30%, transparent 100%);
-  animation: ms-turn 40s linear infinite, ms-breathe 6s ease-in-out infinite;
+  /* 光芒靜止不轉（原本 40 秒轉一圈＋6 秒呼吸：一大片一直在重畫） */
   pointer-events: none;
 }
 .pk-reveal {
@@ -237,7 +231,7 @@
   inset: -18%;
   border-radius: 50%;
   background: radial-gradient(closest-side, rgba(241, 210, 124, 0.6), rgba(241, 210, 124, 0));
-  animation: ncard-breathe 2.4s ease-in-out infinite;
+  animation: hint-in 0.8s var(--ease-out) both;
   pointer-events: none;
   z-index: -1;
 }

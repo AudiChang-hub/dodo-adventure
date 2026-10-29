@@ -8,6 +8,7 @@ import { soundUnit, upper, wordId, type SoundUnit } from '../../content/letters'
 import { wait } from '../lines'
 import { useIdle } from '../idle'
 import { PACE } from '../pace'
+import { DUR, EASE, FADE } from '../../ui/motion'
 import { Pic, WordLabel } from './parts'
 
 interface Props {
@@ -18,7 +19,9 @@ interface Props {
   onDone: (ms: number) => void
 }
 
-const spring = { type: 'spring', stiffness: 260, damping: 20 } as const
+/** 字卡、大字母淡入、輕輕滑上來（不彈簧、不旋轉、念到哪一個不縮放：靠 .ph-word.on 的粗外框來指） */
+const LIFT = 24
+const enterTx = { y: { duration: DUR.enter, ease: EASE.out }, opacity: FADE }
 
 /**
  * 字母飛出來時唸的那句：S, S, S… sss… snake!（snake 是代表字，畫面上一定有）。
@@ -112,7 +115,7 @@ export function PhonicsIntro({ unit, short, onDone }: Props) {
     const ms = Math.round(performance.now() - readyAt.current)
     setTapped(true)
     sfx.pop()
-    if (big.current) void animateBig(big.current, { scale: [1, 1.12, 1] }, { duration: 0.45, ease: [0.22, 1, 0.36, 1] })
+    if (big.current) void animateBig(big.current, { scale: [1, 1.05, 1] }, { duration: 0.45, ease: [0.22, 1, 0.36, 1] })
     await say(`ph.${l}.echo.${wordId(unit.keys[0].w)}`)
     await wait(PACE.TEACH_HOLD)
     if (live.current) onDone(ms)
@@ -130,7 +133,7 @@ export function PhonicsIntro({ unit, short, onDone }: Props) {
         onPointerDown={tap}
       >
         {!short && (
-          <motion.div className="teach-new" initial={{ scale: 0, rotate: -40 }} animate={{ scale: 1, rotate: -12 }} transition={{ ...spring, delay: 0.25 }} aria-hidden="true">
+          <motion.div className="teach-new" initial={{ opacity: 0, rotate: -12 }} animate={{ opacity: 1, rotate: -12 }} transition={{ ...FADE, delay: 0.25 }} aria-hidden="true">
             <Emoji name="glowing-star" />
           </motion.div>
         )}
@@ -140,13 +143,9 @@ export function PhonicsIntro({ unit, short, onDone }: Props) {
               <motion.div
                 key={k.w}
                 className={`ph-word${step === i ? ' on' : ''}`}
-                initial={{ y: 50, opacity: 0, scale: 0.7 }}
-                animate={
-                  step >= i || short
-                    ? { y: 0, opacity: flown && !short ? 0.62 : 1, scale: step === i ? 1.06 : flown && !short ? 0.9 : 1 }
-                    : { y: 50, opacity: 0, scale: 0.7 }
-                }
-                transition={spring}
+                initial={{ y: LIFT, opacity: 0 }}
+                animate={step >= i || short ? { y: 0, opacity: flown && !short ? 0.62 : 1 } : { y: LIFT, opacity: 0 }}
+                transition={enterTx}
               >
                 <Pic icon={k.icon} />
                 <WordLabel w={k.w} fit={short ? undefined : longest} tint jump={step === 3} flyId={short ? undefined : `fly-${i}`} flown={flown && !short} />
@@ -156,7 +155,7 @@ export function PhonicsIntro({ unit, short, onDone }: Props) {
           <div className="ph-bigrow">
             {flown && (
               <div ref={big} className="ph-big">
-                <motion.span className="up" initial={{ scale: 0, rotate: -25, opacity: 0 }} animate={{ scale: 1, rotate: 0, opacity: 1 }} transition={{ ...spring, delay: short ? 0.1 : 0.75 }}>
+                <motion.span className="up" initial={{ y: LIFT, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ y: { duration: DUR.enter, ease: EASE.out, delay: short ? 0.1 : 0.75 }, opacity: { ...FADE, delay: short ? 0.1 : 0.75 } }}>
                   {upper(l)}
                 </motion.span>
                 <span className="lo-stack">
@@ -164,7 +163,7 @@ export function PhonicsIntro({ unit, short, onDone }: Props) {
                     <span className="lo">{l}</span>
                   ) : (
                     [0, 1, 2].map((i) => (
-                      <motion.span key={i} layoutId={`fly-${i}`} className="lo" transition={{ type: 'spring', stiffness: 120, damping: 17, delay: i * 0.14 }}>
+                      <motion.span key={i} layoutId={`fly-${i}`} className="lo" transition={{ duration: 0.6, ease: EASE.inOut, delay: i * 0.14 }}>
                         {l}
                       </motion.span>
                     ))

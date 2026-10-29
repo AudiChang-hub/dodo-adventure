@@ -249,7 +249,7 @@ export function StickerPicker({ onDone }: { onDone: () => void }) {
         <div className="pk-side">
           <AnimatePresence>
             {sel != null && (
-              <motion.button key="ok" className="pk-btn is-ok" aria-label="就選這張" initial={{ scale: 0 }} animate={{ scale: [1, 1.06, 1] }} exit={{ scale: 0 }} transition={{ scale: { duration: 1.6, repeat: Infinity, ease: 'easeInOut' } }} onClick={() => void keep()}>
+              <motion.button key="ok" className="pk-btn is-ok" aria-label="就選這張" initial={{ scale: 0 }} animate={{ scale: [1, 1.06, 1] }} exit={{ scale: 0 }} transition={{ scale: { duration: 0.9, repeat: Infinity, repeatDelay: 3, ease: 'easeInOut' } }} onClick={() => void keep()}>
                 <svg viewBox="0 0 48 48" width="52%" aria-hidden="true">
                   <path d="M11 25 L20 34 L37 15" fill="none" stroke="#FBF8F2" strokeWidth={6.5} strokeLinecap="round" strokeLinejoin="round" />
                 </svg>

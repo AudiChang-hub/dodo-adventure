@@ -698,7 +698,7 @@ export function DriveGame({ gameId, onDone, onExit }: GameProps) {
                               initial={{ scale: 0.4, opacity: 0, y: 30 }}
                               animate={bug === i ? { scale: 1, opacity: 1, y: 0, rotate: [0, -8, 8, -6, 6, 0] } : { scale: runAt === i ? 1.1 : 1, opacity: 1, y: 0, rotate: 0 }}
                               exit="exit"
-                              transition={bug === i ? { rotate: { duration: 0.7, repeat: Infinity, repeatDelay: 0.9 } } : { type: 'spring', stiffness: 420, damping: 22 }}
+                              transition={bug === i ? { rotate: { duration: 0.7, repeat: 1, repeatDelay: 0.9 } } : { type: 'spring', stiffness: 420, damping: 22 }}
                               {...palette.bind({ from: 'slot', i, dir: d })}
                             >
                               <ArrowArt dir={d} />

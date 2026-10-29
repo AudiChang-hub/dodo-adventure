@@ -110,11 +110,14 @@ svg {
   clip: rect(0 0 0 0);
 }
 
+/* 減少動態效果：CSS 動畫、轉場都直接跳到結束的樣子。
+   只縮短時長的話，還在循環的動畫會變成每一幀跳到不同位置（更閃），所以循環也一律只跑一次 */
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
   *::after {
     animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
   }
 }

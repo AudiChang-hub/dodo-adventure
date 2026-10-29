@@ -55,19 +55,14 @@
   }
 }
 
-/* 眼睛：平常偶爾眨一下；眨眼任務時慢慢眨三次（跟語音 Blink, blink, blink 同步） */
+/* 眼睛：出現時眨一下就停（不一直眨）；眨眼任務時慢慢眨三次（跟語音 Blink, blink, blink 同步） */
 .eb-eye {
   transform-box: fill-box;
   transform-origin: center;
-  animation: eb-blink 5.2s infinite;
+  animation: eb-blink 0.24s ease-in-out 1.4s 1;
 }
 @keyframes eb-blink {
-  0%,
-  92%,
-  100% {
-    transform: scaleY(1);
-  }
-  95% {
+  50% {
     transform: scaleY(0.08);
   }
 }
@@ -89,21 +84,13 @@
   }
 }
 
-/* 視線：一串很淡的小點，慢慢往外走 */
-.eb-gaze {
-  animation: eb-drift 2.6s linear infinite;
-}
-@keyframes eb-drift {
-  to {
-    stroke-dashoffset: -22.1;
-  }
-}
+/* 視線：一串很淡的小點，畫出去之後就停著（不再一直往外走：要看的是飛走的小鳥） */
 
-/* 小鳥慢慢拍翅膀 */
+/* 小鳥慢慢拍翅膀：飛的那幾秒拍（7 下約 10 秒，比飛走的時間長一點），飛走就停 */
 .eb-wing {
   transform-box: fill-box;
   transform-origin: 50% 100%;
-  animation: eb-flap 1.5s ease-in-out infinite;
+  animation: eb-flap 1.5s ease-in-out 7;
 }
 @keyframes eb-flap {
   50% {

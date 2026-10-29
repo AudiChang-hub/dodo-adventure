@@ -80,13 +80,13 @@ function WantBubble({ k, have, ping, mark = false }: { k: number; have: number; 
       className={`give-want${full ? ' is-full' : ''}`}
       aria-label={`要 ${k} 顆蛋`}
       animate={over ? { rotate: [0, -3, 3, -2, 2, 0] } : { rotate: 0 }}
-      transition={over ? { duration: 0.6, repeat: Infinity, repeatDelay: 0.7 } : { duration: 0.3 }}
+      transition={over ? { duration: 0.6, repeat: 1, repeatDelay: 0.7 } : { duration: 0.3 }}
     >
       <div ref={scope} className="give-want-in">
         <span className="give-want-num">{k}</span>
         <div className="give-want-eggs" style={{ gridTemplateColumns: `repeat(${perRow}, auto)` }}>
           {Array.from({ length: k }, (_, i) => {
-            // 少給：還空著的格子換成暖色、一起輕輕呼吸，看得出還差幾顆
+            // 少給：還空著的格子換成暖色、一起輕輕放大兩下就停，看得出還差幾顆
             const miss = mark && i >= have
             return (
             <div key={i} className="give-want-slot">
@@ -96,7 +96,7 @@ function WantBubble({ k, have, ping, mark = false }: { k: number; have: number; 
                 aria-hidden="true"
                 style={{ display: 'block', overflow: 'visible' }}
                 animate={{ scale: miss ? [1, 1.14, 1] : 1 }}
-                transition={miss ? { duration: 1.1, repeat: Infinity, ease: 'easeInOut' } : { duration: 0.2 }}
+                transition={miss ? { duration: 1.1, repeat: 1, ease: 'easeInOut' } : { duration: 0.2 }}
               >
                 <path
                   d={EGG_D}
@@ -134,7 +134,7 @@ function WantBubble({ k, have, ping, mark = false }: { k: number; have: number; 
                 className="give-want-slot"
                 initial={{ scale: 0.3, opacity: 0, y: -10 }}
                 animate={{ scale: 1, opacity: 1, y: 0, rotate: mark ? [0, -12, 12, -7, 7, 0] : 0 }}
-                transition={{ type: 'spring', stiffness: 420, damping: 18, rotate: { duration: 0.6, repeat: mark ? Infinity : 0, repeatDelay: 0.6 } }}
+                transition={{ type: 'spring', stiffness: 420, damping: 18, rotate: { duration: 0.6, repeat: mark ? 1 : 0, repeatDelay: 0.6 } }}
               >
                 <Egg cracks={0} size="100%" />
               </motion.div>
@@ -568,7 +568,7 @@ export function GiveGame({ gameId, onDone, onExit }: GameProps) {
                 transition={
                   dragging
                     ? { duration: 0 }
-                    : { type: 'spring', stiffness: 300, damping: 24, rotate: { duration: 0.6, repeat: extra ? Infinity : 0, repeatDelay: 0.6 }, y: { duration: 0.4, delay: i * 0.05 } }
+                    : { type: 'spring', stiffness: 300, damping: 24, rotate: { duration: 0.6, repeat: extra ? 1 : 0, repeatDelay: 0.6 }, y: { duration: 0.4, delay: i * 0.05 } }
                 }
                 onPointerDown={down(e.id)}
                 onPointerMove={move}

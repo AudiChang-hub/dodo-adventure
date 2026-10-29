@@ -64,7 +64,8 @@ function StationRouteMap({ plan }: { plan: Plan }) {
           <g key={i} transform={`translate(${s.p.x} ${s.p.y})`}>
             <motion.g initial={{ scale: 0, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ type: 'spring', stiffness: 260, damping: 15, delay: 0.45 + i * 0.16 }}>
               {now && (
-                <motion.circle r={66} fill="none" stroke={s.st.deep} strokeWidth={5} animate={{ r: [62, 74, 62], opacity: [0.8, 0.15, 0.8] }} transition={{ duration: 1.6, repeat: Infinity, ease: 'easeInOut' }} />
+                // 現在這一站：靜態的一圈外框（不呼吸、不改透明度）
+                <circle r={68} fill="none" stroke={s.st.deep} strokeWidth={5} opacity={0.7} />
               )}
               <circle r={56} fill={s.st.tint} stroke={s.done ? s.st.deep : '#FBF8F2'} strokeWidth={7} />
               <g transform="translate(-34 -34)" opacity={s.done ? 0.55 : 1}>
@@ -77,9 +78,7 @@ function StationRouteMap({ plan }: { plan: Plan }) {
             {/* 旗子插在站牌右上角，晚一點升起來 */}
             <g transform="translate(38 -40)">
               <motion.g style={{ originX: 0, originY: 1 }} initial={{ scaleY: 0 }} animate={{ scaleY: 1 }} transition={{ type: 'spring', stiffness: 300, damping: 16, delay: 0.75 + i * 0.16 }}>
-                <motion.g animate={now ? { rotate: [0, -5, 0, 4, 0] } : {}} transition={{ duration: 2.2, repeat: Infinity, ease: 'easeInOut' }}>
-                  <Flag done={s.done} color={s.st.deep} scale={0.9} />
-                </motion.g>
+                <Flag done={s.done} color={s.st.deep} scale={0.9} />
               </motion.g>
             </g>
           </g>
@@ -184,7 +183,7 @@ function ThemeRouteMap({ plan, th }: { plan: Plan; th: ThemeDef }) {
         return (
           <g key={i} transform={`translate(${s.p.x} ${s.p.y})`}>
             <motion.g initial={{ scale: 0, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ type: 'spring', stiffness: 260, damping: 15, delay: 0.45 + i * 0.16 }}>
-              {now && <motion.circle r={66} fill="none" stroke={th.deep} strokeWidth={5} animate={{ r: [62, 74, 62], opacity: [0.7, 0.12, 0.7] }} transition={{ duration: 1.8, repeat: Infinity, ease: 'easeInOut' }} />}
+              {now && <circle r={68} fill="none" stroke={th.deep} strokeWidth={5} opacity={0.6} />}
               <circle r={56} fill="#FBF8F2" stroke={s.done ? th.deep : th.tint} strokeWidth={7} />
               <g transform="translate(-36 -36)" opacity={s.done ? 0.5 : 1}>
                 <Emoji name={s.icon} size={72} />

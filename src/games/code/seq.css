@@ -126,22 +126,10 @@
   border-color: rgba(79, 99, 119, 0.85);
   background: rgba(255, 255, 255, 0.92);
 }
-.seq-slot.is-next.pulse-1 {
-  animation: seq-breathe 1.2s ease-in-out infinite;
-}
+/* 下一格：深色虛框就是提示，不一直呼吸；閒置、答錯時加一圈暖黃光，輕輕放大兩下就停 */
 .seq-slot.is-next.pulse-2 {
-  animation: seq-breathe-strong 0.9s ease-in-out infinite;
+  animation: cue-nudge 0.9s ease-in-out 2;
   box-shadow: 0 0 0 8px rgba(241, 210, 124, 0.55);
-}
-@keyframes seq-breathe {
-  50% {
-    transform: scale(1.08);
-  }
-}
-@keyframes seq-breathe-strong {
-  50% {
-    transform: scale(1.14);
-  }
 }
 /* 放好的圖卡：剛好蓋滿格子（含虛線框），跟搬過來的那一張一樣大 */
 .seq-hop {

@@ -131,9 +131,13 @@
   touch-action: none;
   cursor: grab;
 }
+/* 一起練：對的那張一圈靜態的暖黃光（會動的只有旁邊那隻點的手） */
 .arrow-card.guide {
   background: #fff8e2;
-  animation: guide-glow 1.5s ease-in-out infinite;
+  box-shadow:
+    0 7px 0 #e6cf8e,
+    0 0 0 6px var(--hint) inset,
+    0 0 0 14px rgba(241, 210, 124, 0.42);
 }
 .arrow-card.dim {
   filter: saturate(0.4);
@@ -145,9 +149,10 @@
   inset: -10px;
   border-radius: 30%;
   border: 6px solid var(--hint);
+  /* 粗外框淡入，輕輕放大兩下就停 */
   animation:
     hint-in 1.6s var(--ease-out) both,
-    hint-pulse 2.4s ease-in-out 1.6s infinite;
+    cue-nudge 0.9s ease-in-out 1.6s 2;
   pointer-events: none;
 }
 .arrow-card.ghost {
@@ -231,7 +236,8 @@
 .prog-slot.is-need {
   border-color: #c9a23e;
   background: rgba(241, 210, 124, 0.3);
-  animation: hint-pulse 2.4s ease-in-out infinite;
+  /* 還差的那一格：暖色底＋粗框就看得出來，輕輕放大一下就停 */
+  animation: cue-nudge 0.9s ease-in-out 1;
 }
 
 /* ── Go ── */
@@ -264,15 +270,11 @@
   border: 7px solid var(--hint);
   pointer-events: none;
 }
+/* 一起練：Go 外面一圈靜態的暖黃光 */
 .go-run.guide {
-  animation: go-glow 1.5s ease-in-out infinite;
-}
-@keyframes go-glow {
-  50% {
-    box-shadow:
-      0 8px 0 #4f8d68,
-      0 0 0 22px rgba(241, 210, 124, 0.55);
-  }
+  box-shadow:
+    0 8px 0 #4f8d68,
+    0 0 0 16px rgba(241, 210, 124, 0.55);
 }
 
 /* ── 卡盒（方向鍵排法）── */
@@ -362,7 +364,10 @@
 }
 .seq-card.guide {
   background: #fff8e2;
-  animation: guide-glow 1.5s ease-in-out infinite;
+  box-shadow:
+    0 7px 0 #e6cf8e,
+    0 0 0 6px var(--hint) inset,
+    0 0 0 14px rgba(241, 210, 124, 0.42);
 }
 .seq-card.dim {
   filter: saturate(0.45);
@@ -375,7 +380,7 @@
   border: 6px solid var(--hint);
   animation:
     hint-in 1.6s var(--ease-out) both,
-    hint-pulse 2.4s ease-in-out 1.6s infinite;
+    cue-nudge 0.9s ease-in-out 1.6s 2;
   pointer-events: none;
 }
 .seq-card.ghost {

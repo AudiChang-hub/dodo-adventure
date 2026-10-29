@@ -511,7 +511,8 @@ export function DotsGame({ gameId, onDone, onExit }: GameProps) {
   // 示範的圖擦掉時（erasing），點點和家同時淡回來、而且已經是「還沒連」的樣子：圖 → 點點只換一次，中間不會露出空白
   const back = reveal && !erasing
   const dotStep = erasing ? 0 : step
-  const breathe = { duration: 2.4, repeat: Infinity, ease: 'easeInOut' } as const
+  // 下一個點：畫面上唯一會動的提示，只輕輕變大再變回來、透明度不變（不做會閃的呼吸光，MOTION-3）
+  const breathe = { duration: 1.4, repeat: Infinity, repeatDelay: 1, ease: 'easeInOut' } as const
 
   return (
     <Shell station="draw" mood="idle" progress={{ total: ROUNDS, done: r }} onExit={onExit} hideHost demo={demoInk.length > 0}>
@@ -560,7 +561,7 @@ export function DotsGame({ gameId, onDone, onExit }: GameProps) {
               return (
                 <g key={i} data-dot={i}>
                   {isNext && nudge && !pen && <circle className="nudge-path" cx={x} cy={y} r={78} fill={BUTTER} />}
-                  {isNext && <motion.circle cx={x} cy={y} fill={GREEN} initial={{ r: 32, opacity: 0.4 }} animate={{ r: [32, 48, 32], opacity: [0.4, 0.14, 0.4] }} transition={breathe} />}
+                  {isNext && <motion.circle cx={x} cy={y} fill={GREEN} opacity={0.3} initial={{ r: 32 }} animate={{ r: [32, 44, 32] }} transition={breathe} />}
                   {isNext && flash?.i === i && (
                     <motion.circle key={`f${flash.k}`} cx={x} cy={y} fill="none" stroke={GREEN} strokeWidth={8} initial={{ r: 28, opacity: 0.9 }} animate={{ r: 74, opacity: 0 }} transition={{ duration: 0.9, ease: [0.22, 1, 0.36, 1] }} />
                   )}
@@ -599,7 +600,7 @@ export function DotsGame({ gameId, onDone, onExit }: GameProps) {
 
           {/* 家：起點也是終點。數字連完了它就亮起來，提示要回家 */}
           <motion.g data-home="" initial={false} animate={{ opacity: back ? 0 : 1 }} transition={{ duration: back ? 0.5 : ERASE / 1000, delay: back ? 1.1 : 0 }}>
-            {homeNext && <motion.circle cx={home[0]} cy={home[1]} fill={BUTTER} initial={{ r: HOME_R + 6, opacity: 0.55 }} animate={{ r: [HOME_R + 6, HOME_R + 24, HOME_R + 6], opacity: [0.55, 0.2, 0.55] }} transition={breathe} />}
+            {homeNext && <motion.circle cx={home[0]} cy={home[1]} fill={BUTTER} opacity={0.4} initial={{ r: HOME_R + 6 }} animate={{ r: [HOME_R + 6, HOME_R + 20, HOME_R + 6] }} transition={breathe} />}
             {homeNext && flash?.i === 0 && (
               <motion.circle key={`hf${flash.k}`} cx={home[0]} cy={home[1]} fill="none" stroke={BUTTER} strokeWidth={9} initial={{ r: HOME_R, opacity: 0.95 }} animate={{ r: HOME_R + 44, opacity: 0 }} transition={{ duration: 0.9, ease: [0.22, 1, 0.36, 1] }} />
             )}

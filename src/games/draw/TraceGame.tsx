@@ -218,7 +218,7 @@ export function TraceGame({ gameId, onDone, onExit }: GameProps) {
             </g>
           </g>
           {prog === 0 && !demo && (
-            <motion.circle cx={s[0]?.x ?? 130} cy={s[0]?.y ?? 320} r={30} fill="none" stroke="#6FAE86" strokeWidth={8} animate={{ r: [26, 40, 26], opacity: [1, 0.4, 1] }} transition={{ duration: 1.4, repeat: Infinity }} />
+            <motion.circle cx={s[0]?.x ?? 130} cy={s[0]?.y ?? 320} r={30} fill="none" stroke="#6FAE86" strokeWidth={8} animate={{ r: [28, 38, 28] }} transition={{ duration: 1.2, repeat: Infinity, repeatDelay: 0.8, ease: 'easeInOut' }} />
           )}
           {demo && (
             <g transform={`translate(${car.x + 10} ${car.y + 6})`}>
