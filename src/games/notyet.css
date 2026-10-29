@@ -40,6 +40,13 @@
   }
 }
 
+/* 有畫布的遊戲：整個舞台都不交給瀏覽器的捲動、縮放手勢。
+   不然從畫紙外面下筆、滑進畫紙時，瀏覽器會把那一筆當成捲動、送 pointercancel，畫進來的線就斷了（B09） */
+.stage:has(canvas[data-accepting]),
+.stage:has([data-paper]) {
+  touch-action: none;
+}
+
 .wait-shield {
   position: absolute;
   inset: 0;

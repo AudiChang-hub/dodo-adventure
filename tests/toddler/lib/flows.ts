@@ -552,7 +552,7 @@ export async function idle(k: Toddler, c: Checker, ms = 75_000) {
   c.rule('NAV-5', ok, ok ? '發呆後仍可繼續' : '發呆後卡住')
   c.outcome('發呆', ok && !rep.length, `${Math.round(ms / 1000)} 秒內說了 ${vs.length} 句${vs.length ? `（${vs.map((v) => `${v.t}s ${v.text ?? ''}`).join('／')}）` : '（完全沒有提示）'}；之後${ok ? '點了有反應' : '沒反應'}；狀態 ${s.teaching ?? s.phase ?? ''}`)
   // 看得到的提示：發光的答案、輕輕點的手
-  const glow = await k.page.evaluate(() => !!document.querySelector('.hint, .guide, .nudge, .glow, .demo-hand'))
+  const glow = await k.page.evaluate(() => !!document.querySelector('.hint, .guide, .nudge, .glow, .demo-hand, [data-demo-hand]'))
   if (!vs.length && (s.live ?? '').startsWith('play-') && !glow && !s.teaching)
     await c.once('idle-silent', '困惑', `發呆 ${Math.round(ms / 1000)} 秒完全沒有提示`, `畫面 ${s.live}：沒有語音、沒有發光或手的提示`)
   await c.flush()

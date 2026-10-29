@@ -645,7 +645,7 @@ export function DotsGame({ gameId, onDone, onExit }: GameProps) {
 
           {/* 閒置提示：筆從最後到達的點走到下一個點（不出墨），做完停在出發的點 */}
           {again && !pen && (
-            <g className="demo-hand" transform={`translate(${again.x} ${again.y})`} opacity={0.85}>
+            <g data-demo-hand="" transform={`translate(${again.x} ${again.y})`} opacity={0.85}>
               <PenArt scale={1.6} />
             </g>
           )}

@@ -138,7 +138,7 @@
     // 示範、說明、念題目中（還不收作答）：作答區上的擋板或畫布標著 data-accepting="false"（T-51）
     if ([...live.querySelectorAll('[data-accepting="false"]')].some((e) => e.getBoundingClientRect().width > 2)) return 'wait'
     // 示範的手（數數、選擇、排順序）；一起練時指著答案的手也是這個，測試端只把「自己答」的紀錄當成誤記
-    if ([...live.querySelectorAll('.demo-hand')].some(shown)) return 'hand'
+    if ([...live.querySelectorAll('.demo-hand, [data-demo-hand]')].some(shown)) return 'hand'
     return null
   }
   P.phase = () => {

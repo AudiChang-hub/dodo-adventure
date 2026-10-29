@@ -292,7 +292,7 @@ export function TraceGame({ gameId, onDone, onExit }: GameProps) {
           )}
           {/* 閒置提示：筆再示範一小段（不出墨），做完停在車子上 */}
           {again !== null && !demo && !done && s[again] && (
-            <g className="demo-hand" transform={`translate(${s[again].x + 10} ${s[again].y + 6})`}>
+            <g data-demo-hand="" transform={`translate(${s[again].x + 10} ${s[again].y + 6})`}>
               <motion.g initial={{ opacity: 0 }} animate={{ opacity: 0.85 }}>
                 <PenArt scale={1.5} />
               </motion.g>

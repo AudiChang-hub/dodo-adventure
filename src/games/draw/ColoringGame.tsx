@@ -460,6 +460,7 @@ export function ColoringGame({ gameId, onDone, onExit }: GameProps) {
         <div style={{ position: 'absolute', inset: '0 242px 4% 3%', containerType: 'size' }}>
           <div
             ref={paper}
+            data-paper=""
             data-accepting={hold ? 'false' : 'true'}
             onPointerDown={(e) => down(e.nativeEvent, true)}
             onPointerMove={(e) => move(e.nativeEvent)}

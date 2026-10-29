@@ -300,7 +300,7 @@ export function GlyphGame({ gameId, onDone, onExit }: GameProps) {
           )}
           {/* 閒置提示：手再描一小段，做完停在起點 */}
           {again !== null && !demo && !done && samples[again] && (
-            <g className="demo-hand" transform={`translate(${samples[again].x} ${samples[again].y})`} opacity={0.85}>
+            <g data-demo-hand="" transform={`translate(${samples[again].x} ${samples[again].y})`} opacity={0.85}>
               {tool === 'finger' ? (
                 <g transform="scale(0.32) translate(-22 -6)">
                   <HandArt cuff="#BFB2DF" />
