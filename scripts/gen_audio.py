@@ -11,7 +11,7 @@
    再加軟性天花板與地板（參數在 src/content/voices.ts 的 E4，經 lines.json 傳進來）。PSOLA 不改音長。
    放大失敗（例如整段幾乎沒有有聲的音框）就保留未放大的音檔，記在 scripts/.cache/fx-report.json，不中斷整批。
 發音示範（fx 是 null）的音檔完全不動，只校正字幕時間。
-例外是拉長音（台詞清單裡有 stretch 的段，例如 Sss… snake!）：只合成後面的單字，再把單字開頭的子音延長、停一下接在前面（build_stretch）。
+例外是字母音台詞（台詞清單裡有 cue 的段，例如 S, S, S… sss… snake!）：分段合成、從代表字切出字母音，再照順序接起來（build_cue）。
 
 字幕時間校正：edge-tts 的 WordBoundary 在「停頓之後的第一個字」（每段第一個字、逗號句號後的字）標得比實際出聲早約 0.1 秒
 （每段第一個字固定標在約 105ms，實際約 200ms 才有聲音）。這種字的開始時間改成實際出聲的位置（往後最多移到該字的中點）；
@@ -137,33 +137,50 @@ def expand_asym(pcm: np.ndarray, fx: dict) -> np.ndarray:
     return y[: len(pcm)]
 
 
-# ── 拉長的開頭音（Sss… snake!，src/content/stretch.ts）─────────────
-# edge-tts 單獨唸 Sss…、Nnn… 一定拼成字母名稱，所以只合成後面的單字（snake!），從這個字的開頭切出子音、
-# 延長成 hold 毫秒，停 gap 毫秒，再接整個單字。延長的音和單字裡的子音是同一段聲音，不會多出母音。
-UNVOICED = set("sfh")  # 氣音：隨機小片段疊加；其餘（n、l、r）：一個音高週期疊加
+# ── 字母音台詞（S, S, S… sss… snake!，src/content/phonics-cue.ts）──────────
+# edge-tts 單獨唸 sss…、b… 一定拼成字母名稱，所以這種段一段一段做，再照順序接起來（段與段停 gap、重複之間停 repeatGap）：
+# - tts：直接合成（字母名稱 "S."、停頓音 "buh."、單字 "snake!"），重複 times 次用同一段聲音
+# - hold：從代表字（snake!）的開頭切出子音、延長成 hold 毫秒；和單字裡的子音是同一段聲音，不會多出母音
+# - cut：從代表字開頭剪 ms 毫秒（apple 的 /æ/、gift 的 g），重複 times 次
+UNVOICED = set("sfh")  # 氣音：隨機小片段疊加；其餘（m、n、l、r）：一個音高週期疊加
 VOWEL_F1 = 650  # 濁音子音的 F1 都在 600Hz 以下（Ana 的 r 約 540、l 約 530、n 約 380），連續兩個音框超過就是進到母音了
+VOWEL_JUMP_DB = 6  # moon 的 /u/ F1 也很低，改看音量：比子音開頭的音量大 6dB 就是進到母音了
+
+
+def onset_frame(db: np.ndarray) -> int:
+    return int(np.where(db > ONSET_DB)[0][0])
 
 
 def consonant_span(pcm: np.ndarray, letter: str):
-    """單字開頭子音的 (開始, 結束) 樣本位置。氣音：到第一個有聲帶振動的音框；濁音：到 F1 升進母音"""
+    """單字開頭子音的 (開始, 結束) 樣本位置。氣音：到第一個有聲帶振動的音框；濁音：到 F1 升進母音或音量跳上去"""
     import parselmouth
 
     hop = SR // 200  # 5ms
     db = frame_db(pcm, 5)
-    st = int(np.where(db > ONSET_DB)[0][0])
+    st = onset_frame(db)
     snd = parselmouth.Sound(pcm.astype(np.float64), SR)
     pitch = snd.to_pitch_ac(time_step=0.005, pitch_floor=100, pitch_ceiling=600)
     fm = snd.to_formant_burg(time_step=0.005, max_number_of_formants=5, maximum_formant=5500)
     t = lambda i: i * 0.005 + 0.0025
     voiced = lambda i: not np.isnan(pitch.get_value_at_time(t(i)))
     f1 = lambda i: fm.get_value_at_time(1, t(i)) or 0
-    for i in range(st + 6, len(db) - 1):
-        if letter in UNVOICED:
+    if letter in UNVOICED:
+        for i in range(st + 6, len(db) - 1):
             if voiced(i) and db[i] > db.max() - 30:
                 return st * hop, i * hop
-        elif voiced(i) and f1(i) > VOWEL_F1 and f1(i + 1) > VOWEL_F1:
-            return st * hop, i * hop
-    raise RuntimeError("找不到子音和母音的分界")
+        raise RuntimeError("找不到子音和母音的分界")
+    # 濁音從聲帶開始振動算起（前面是很小聲的雜音）；先看 F1，0.3 秒內找不到（moon 的 /u/）才看音量，都沒有就用開頭 80ms
+    v0 = next(i for i in range(st, len(db)) if voiced(i) and db[i] > db.max() - 30)
+    end = min(len(db) - 1, v0 + 60)
+    for i in range(v0 + 6, end):
+        if voiced(i) and f1(i) > VOWEL_F1 and f1(i + 1) > VOWEL_F1:
+            return v0 * hop, i * hop
+    murmur = float(np.median(db[v0 + 2 : v0 + 10]))
+    for i in range(v0 + 10, end):
+        if db[i] > murmur + VOWEL_JUMP_DB:
+            return v0 * hop, i * hop
+    # moon：m 和 /u/ 的 F1、音量都差不多，平順地接過去；開頭 80ms 一定還是 m（Ana 的 m 約 0.1 秒）
+    return v0 * hop, (v0 + 16) * hop
 
 
 def steady(seg: np.ndarray) -> np.ndarray:
@@ -205,40 +222,118 @@ def hold_voiced(src: np.ndarray, n: int) -> np.ndarray:
     return out[:n]
 
 
-def build_stretch(pcm: np.ndarray, words: list, st: dict):
-    """單字的音檔 → 「拉長音 → 停頓 → 單字」，回傳 (pcm, words)。words 的第一個字是 Sss…，後面是單字原本的時間往後移"""
-    a, b = consonant_span(pcm, st["letter"])
+def fade(y: np.ndarray, fi_ms: int, fo_ms: int) -> np.ndarray:
+    y = y.astype(np.float64).copy()
+    fi, fo = fi_ms * SR // 1000, fo_ms * SR // 1000
+    if fi:
+        y[:fi] *= np.linspace(0, 1, fi)
+    if fo:
+        y[-fo:] *= np.linspace(1, 0, fo) ** 1.5
+    return y
+
+
+def build_hold(pcm: np.ndarray, letter: str, ms: int) -> np.ndarray:
+    """代表字開頭的子音延長成 ms 毫秒"""
+    a, b = consonant_span(pcm, letter)
     seg = pcm[a:b].astype(np.float64)
-    if st["letter"] not in UNVOICED:
+    if letter not in UNVOICED:
         # 濁音的最後一段已經在轉往母音（nest 的 F1 從 360 慢慢升到 600），音量又比子音大，只用前 3/4
         seg = seg[: len(seg) * 3 // 4]
     core = steady(seg)
-    n = st["hold"] * SR // 1000
-    y = hold_noise(core, n) if st["letter"] in UNVOICED else hold_voiced(core, n)
+    n = ms * SR // 1000
+    y = hold_noise(core, n) if letter in UNVOICED else hold_voiced(core, n)
     y *= np.sqrt((core**2).mean()) / (np.sqrt((y**2).mean()) + 1e-9)  # 音量和單字裡的子音一樣
-    fi, fo = int(0.04 * SR), int(0.08 * SR)
-    y[:fi] *= np.linspace(0, 1, fi)
-    y[-fo:] *= np.linspace(1, 0, fo) ** 1.5
-    gap = st["gap"] * SR // 1000
-    out = np.concatenate([pcm[:a], y.astype(np.float32), np.zeros(gap, np.float32), pcm[a:]])
-    shift = (n + gap) * 1000 // SR
-    a_ms = a * 1000 // SR
-    return out, [[a_ms, a_ms + n * 1000 // SR, st["say"]]] + [[s + shift, e + shift, t] for s, e, t in words]
+    return fade(y, 40, 80)
 
 
-def post(mp3: bytes, words: list, fx, st=None):
+def build_cut(pcm: np.ndarray, ms: int) -> np.ndarray:
+    """代表字開頭剪 ms 毫秒；中途遇到塞音的閉塞（apple 的 p：音量掉 15dB）就提早停"""
+    db = frame_db(pcm, 5)
+    a = onset_frame(db)
+    b = a + ms // 5
+    for i in range(a + 12, b):
+        if db[i] < db[a:i].max() - 15:
+            b = i
+            break
+    return fade(pcm[a * SR // 200 : b * SR // 200], 5, 30)
+
+
+def voiced_span(pcm: np.ndarray, words: list):
+    """tts 那一段真正有聲音的範圍（樣本）：開頭往前留 10ms，結尾到最後一個 -50dB 以上的音框再留 20ms"""
+    db = frame_db(pcm, 5)
+    a = max(0, onset_frame(db) * 5 - 10)
+    loud = np.where(db > -50)[0]
+    b = max(int(loud[-1]) * 5 + 25, words[-1][1] if words else 0)
+    return a * SR // 1000, min(len(pcm), b * SR // 1000)
+
+
+def build_cue(clips: dict, cue: dict):
+    """把各段接起來，回傳 (pcm, words)。clips：文字 → (pcm, edge-tts 的逐字時間)。words 的字就是字幕上的字（show）"""
+    ms = lambda n: n * 1000 // SR
+    out = [np.zeros(SR // 10, np.float32)]  # 開頭 100ms
+    words = []
+    pos = len(out[0])
+
+    def put(y, tokens):
+        nonlocal pos
+        for t0, t1, txt in tokens:
+            words.append([ms(pos) + t0, ms(pos) + t1, txt])
+        out.append(y.astype(np.float32))
+        pos += len(y)
+
+    def pause(n_ms):
+        nonlocal pos
+        out.append(np.zeros(n_ms * SR // 1000, np.float32))
+        pos += n_ms * SR // 1000
+
+    for k, part in enumerate(cue["parts"]):
+        if k:
+            pause(cue["gap"])
+        show = part["show"]
+        if part["kind"] == "hold":
+            y = build_hold(clips[part["src"]][0], part["letter"], cue["hold"])
+            put(y, [[0, ms(len(y)), show[0]]])
+            continue
+        if part["kind"] == "cut":
+            y, reps = build_cut(clips[part["src"]][0], part["ms"]), part["times"]
+            tts_words = None
+        else:
+            pcm, tw = clips[part["text"]]
+            a, b = voiced_span(pcm, tw)
+            y, reps = pcm[a:b], part["times"]
+            tts_words = [[s - ms(a), e - ms(a), t] for s, e, t in tw]
+        for r in range(reps):
+            if r:
+                pause(cue["repeatGap"])
+            if len(show) == reps:  # 每次重複對到一個字（S, S, S… 的三個 S）
+                tokens = [[0, ms(len(y)), show[r]]]
+            elif tts_words and len(tts_words) == len(show):  # 單字：edge-tts 的字一個對一個（fire truck!）
+                tokens = [[max(0, s), max(0, e), show[i]] for i, (s, e, _) in enumerate(tts_words)]
+            else:  # 對不上就平均分
+                step = ms(len(y)) // len(show)
+                tokens = [[i * step, (i + 1) * step, t] for i, t in enumerate(show)]
+            put(y, tokens)
+    out.append(np.zeros(SR * 3 // 20, np.float32))  # 結尾 150ms
+    return np.concatenate(out), words
+
+
+def post_cue(clips_mp3: dict, cue: dict):
+    """在子行程裡跑：解碼各段、校正逐字時間，再組合"""
+    clips = {}
+    for text, (mp3, words) in clips_mp3.items():
+        pcm = decode(mp3)
+        clips[text] = (pcm, fix_word_starts(pcm, words))
+    pcm, words = build_cue(clips, cue)
+    return encode(pcm), words, None
+
+
+def post(mp3: bytes, words: list, fx):
     """在子行程裡跑（CPU 密集）。回傳 (要寫入的 mp3, 校正後的 words, 失敗說明或 None)"""
     try:
         pcm = decode(mp3)
         words = fix_word_starts(pcm, words)
     except Exception as e:  # 解不開就用原檔、原時間
-        if st:  # 拉長音沒有「原檔」可用（原檔只有單字）：寧可缺檔，讓 npm run audio 報錯
-            raise
         return mp3, words, f"decode: {e}"
-    if st:
-        pcm, words = build_stretch(pcm, words, st)
-        if fx is None:
-            return encode(pcm), words, None
     if fx is None:  # 發音示範：音檔不動
         return mp3, words, None
     try:
@@ -290,38 +385,44 @@ def main():
         need_audio = not has_audio(file)
         if not need_audio and file in timings:
             return None
-        audio, words = b"", []
+        cue = row.get("cue")
+        # 字母音台詞要合成的每一段（字母名稱、停頓音、單字，hold／cut 的來源字）
+        texts = sorted({p.get("text") or p["src"] for p in cue["parts"]}) if cue else [row["text"]]
+        got = {}
         async with sem:
-            for attempt in range(6):
-                try:
-                    audio, words = b"", []
-                    # edge-tts 7 預設只回 SentenceBoundary，字幕要逐字所以指定 WordBoundary
-                    # 拉長音（Sss… snake!）只合成後面的單字，拉長的開頭音在 post() 接上
-                    text = row["stretch"]["word"] if row.get("stretch") else row["text"]
-                    tts = edge_tts.Communicate(
-                        text, row["voice"], rate=row["rate"], pitch=row["pitch"], volume=row["volume"], boundary="WordBoundary"
-                    )
-                    async for chunk in tts.stream():
-                        if chunk["type"] == "audio":
-                            audio += chunk["data"]
-                        elif chunk["type"] == "WordBoundary":
-                            # offset、duration 的單位是 100 奈秒
-                            start = chunk["offset"] / 10_000
-                            end = start + chunk["duration"] / 10_000
-                            words.append([round(start), round(end), chunk["text"]])
-                    if not audio or not words:  # 空檔案不寫入，否則上線後會退回機器人語音
-                        raise RuntimeError("empty audio or no word boundaries")
-                    break
-                except Exception as e:  # 服務偶爾會失敗，重試幾次
-                    if attempt == 5:
-                        print("FAIL", row["key"], row["text"], e)
-                        return None
-                await asyncio.sleep(1.5 * (attempt + 1))
+            for text in texts:
+                for attempt in range(6):
+                    try:
+                        audio, words = b"", []
+                        # edge-tts 7 預設只回 SentenceBoundary，字幕要逐字所以指定 WordBoundary
+                        tts = edge_tts.Communicate(
+                            text, row["voice"], rate=row["rate"], pitch=row["pitch"], volume=row["volume"], boundary="WordBoundary"
+                        )
+                        async for chunk in tts.stream():
+                            if chunk["type"] == "audio":
+                                audio += chunk["data"]
+                            elif chunk["type"] == "WordBoundary":
+                                # offset、duration 的單位是 100 奈秒
+                                start = chunk["offset"] / 10_000
+                                end = start + chunk["duration"] / 10_000
+                                words.append([round(start), round(end), chunk["text"]])
+                        if not audio or not words:  # 空檔案不寫入，否則上線後會退回機器人語音
+                            raise RuntimeError("empty audio or no word boundaries")
+                        got[text] = (audio, words)
+                        break
+                    except Exception as e:  # 服務偶爾會失敗，重試幾次
+                        if attempt == 5:
+                            print("FAIL", row["key"], row["text"], text, e)
+                            return None
+                    await asyncio.sleep(1.5 * (attempt + 1))
         # 只補時間時也重做一次後製：edge-tts 同樣輸入的輸出相同，修剪的位移才對得上已存在的音檔
         try:
-            data, words, note = await loop.run_in_executor(pool, post, audio, words, row.get("fx"), row.get("stretch"))
-        except Exception as e:
-            print("FAIL", row["key"], row["text"], f"stretch: {e}")
+            if cue:
+                data, words, note = await loop.run_in_executor(pool, post_cue, got, cue)
+            else:
+                data, words, note = await loop.run_in_executor(pool, post, *got[row["text"]], row.get("fx"))
+        except Exception as e:  # 字母音台詞沒有「原檔」可用：寧可缺檔，讓 npm run audio 報錯
+            print("FAIL", row["key"], row["text"], f"cue: {e}")
             return None
         if note:
             report[file] = f"{row['key']} [{row['text']}] {note}"

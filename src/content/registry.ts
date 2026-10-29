@@ -2,7 +2,7 @@
 // 這樣不同功能可以各自放在自己的檔案，平行開發時不會改到同一個檔案
 
 import { isPronunciationDemo, withInterjection } from './interjections'
-import { stretchOf } from './stretch'
+import { cueOf, cueSpoken } from './phonics-cue'
 
 export type Speaker = 'dodo' | 'bobo' | 'momo'
 
@@ -43,11 +43,14 @@ export function segments(l: Line): Segment[] {
   return out
 }
 
-/** 去掉 `|`、`||` 的整句文字（平板內建語音備援用；英文語音唸不了中文，中文三明治只留英文；拉長音 Sss… 會被拼成字母，只留單字） */
+/** 去掉 `|`、`||` 的整句文字（平板內建語音備援用；英文語音唸不了中文，中文三明治只留英文；字母音台詞換成唸得出來的版本） */
 export const plainText = (l: Line) =>
   segments(l)
     .filter((s) => s.role !== 'zh')
-    .map((s) => stretchOf(s.text)?.word ?? s.text)
+    .map((s) => {
+      const c = cueOf(s.text)
+      return c ? cueSpoken(c) : s.text
+    })
     .filter(Boolean)
     .join(' ')
 
