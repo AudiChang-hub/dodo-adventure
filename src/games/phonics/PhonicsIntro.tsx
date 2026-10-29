@@ -114,7 +114,7 @@ export function PhonicsIntro({ unit, short, onDone }: Props) {
   const flown = step >= 4
   const longest = Math.max(...unit.keys.map((k) => k.w.length))
   return (
-    // 進出場由外層（ui/Scenes.tsx 的 CardStage）做：從主持的恐龍長出來、收回恐龍；這裡不另外淡入淡出，免得兩層動畫疊成兩段
+    // 進出場由外層（ui/Scenes.tsx 的 CardStage）做：在原地淡入、淡出；這裡不另外淡入淡出，免得兩層動畫疊成兩段
     <div className="teach-layer">
       <motion.div
         className={`ph-card${short ? ' short' : ''}${room ? ' room' : ''}${ready && !tapped ? ' ready' : ''}${nudge && !tapped ? ' nudge' : ''}`}

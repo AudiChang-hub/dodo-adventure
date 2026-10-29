@@ -6,7 +6,7 @@
   position: absolute;
   inset: 0;
 }
-/* 教學卡的鏡頭：從車子長出來、收回車子裡（transform-origin 由 DriveGame 依車子位置給） */
+/* 教學卡：疊在路面上，在原地淡入、淡出 */
 .drive-teach-cam {
   position: absolute;
   inset: 0;

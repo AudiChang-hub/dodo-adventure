@@ -377,7 +377,7 @@ export function PhonicsGame({ gameId, onDone, onExit }: GameProps) {
   const guide = phase === 'guided'
   return (
     <Shell station={def.station} mood={mood} progress={{ total: ROUND_ITEMS, done: idx }} onExit={onExit} onHost={onHost}>
-      {/* 學習循環的卡片從主持的恐龍長出來、題目在後面退開；換題時新題目蓋在舊的上面淡入（ui/Scenes.tsx） */}
+      {/* 學習循環的卡片在原地淡入、題目在後面淡掉；換題時新題目蓋在舊的上面淡入（ui/Scenes.tsx） */}
       <CardStage
         card={
           card &&

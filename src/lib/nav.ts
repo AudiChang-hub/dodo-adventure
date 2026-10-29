@@ -31,20 +31,17 @@ const subs = new Set<() => void>()
 
 /** 換畫面的方式（ui/Scenes.tsx 的整頁轉場用） */
 export interface NavHow {
-  /** 錨點：孩子點的那張卡、那個按鈕。新畫面從它長出來，回來時收回它 */
-  from?: Element | null
-  /** 明確指定往回（收回）；沒給就照畫面的層級判斷 */
+  /** 明確指定往回（上面的畫面淡出）；沒給就照畫面的層級判斷 */
   back?: boolean
 }
 
-let how: { anchor: { x: number; y: number } | null; back?: boolean } = { anchor: null }
+let how: NavHow = {}
 
 /** 這一次換畫面時記下的方式：App 在重新畫的時候讀 */
 export const lastHow = () => how
 
 export function go(r: Route, opts: NavHow = {}) {
-  const box = opts.from?.getBoundingClientRect()
-  how = { anchor: box ? { x: box.left + box.width / 2, y: box.top + box.height / 2 } : null, back: opts.back }
+  how = { back: opts.back }
   route = r
   subs.forEach((f) => f())
 }

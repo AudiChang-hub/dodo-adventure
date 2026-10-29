@@ -42,10 +42,9 @@ export function StationScreen({ id }: { id: StationId }) {
             animate={{ y: 0, opacity: 1 }}
             transition={{ type: 'spring', stiffness: 260, damping: 18, delay: 0.07 * i }}
             whileTap={{ scale: 0.94 }}
-            onClick={(e) => {
+            onClick={() => {
               sfx.pop()
-              // 遊戲從這張卡長出來；玩完回站點時收回這張卡
-              go({ name: 'play', game: g.id, station: id }, { from: e.currentTarget })
+              go({ name: 'play', game: g.id, station: id })
             }}
           >
             <Emoji name={g.icon} />

@@ -63,8 +63,6 @@ export function Adventure() {
   const live = useRef(true)
   /** 爸爸回合是哪一站之後（站的 index），結束後接回蛋裂開 */
   const [coplayAt, setCoplayAt] = useState(-1)
-  /** 旁白卡（主題式冒險）或站牌：遊戲從它長出來 */
-  const story = useRef<HTMLDivElement>(null)
   /** 畫面上現在是哪一段：換段的那一次 render 用它決定往前還是往回 */
   const shownPhase = useRef<Phase>(phase)
   useEffect(() => {
@@ -267,15 +265,11 @@ export function Adventure() {
               : phase === 'rest'
                 ? `rest-${doneCount}`
                 : phase
-  /** 旁白卡進遊戲：遊戲從那張卡長出來；遊戲（爸爸回合、護眼休息）結束回到旅程：收回去，旅程拉遠回來 */
+  /** 遊戲（爸爸回合、護眼休息）結束回到旅程：往回（遊戲淡出、旅程淡回來）；其他都往前 */
   const move = (): SceneMove => {
+    if (phase === 'play') return { back: false }
     const from = shownPhase.current
-    if (phase === 'play') {
-      const box = story.current?.getBoundingClientRect()
-      return { back: false, anchor: box ? { x: box.left + box.width / 2, y: box.top + box.height / 2 } : null }
-    }
-    const fromGame = from === 'play' || from === 'coplay' || from === 'rest'
-    return { back: fromGame, collapse: from === 'play', anchor: null }
+    return { back: from === 'play' || from === 'coplay' || from === 'rest' }
   }
 
   if (!plan) return <div className="screen" />
@@ -331,8 +325,8 @@ export function Adventure() {
         {phase === 'travel' && th && item && (
           <div className="screen">
             <RouteStrip plan={plan} />
-            {/* 故事的這一格：大大的圖在一張紙卡上，後面一圈淡淡的光。跟著這一段一起出現（不另外淡入），只多一點點長大；遊戲從這張卡長出來 */}
-            <motion.div ref={story} className="story-card" style={{ '--deep': th.deep, '--tint': th.tint } as CSSProperties} initial={{ scale: RANGE.fromScale + 0.2, y: 16 }} animate={{ scale: 1, y: 0 }} transition={{ duration: DUR.enter + 0.2, ease: EASE.out }}>
+            {/* 故事的這一格：大大的圖在一張紙卡上，後面一圈淡淡的光。跟著這一段一起出現（不另外淡入），只多一點點長大 */}
+            <motion.div className="story-card" style={{ '--deep': th.deep, '--tint': th.tint } as CSSProperties} initial={{ scale: RANGE.settle, y: 12 }} animate={{ scale: 1, y: 0 }} transition={{ duration: DUR.enter, ease: EASE.out }}>
               <span className="story-card-halo" />
               <motion.span className="story-card-pic" animate={{ y: [0, -6, 0] }} transition={{ duration: 3.2, repeat: Infinity, ease: 'easeInOut', delay: 1 }}>
                 <Emoji name={stopIcon(th, cur)} />
@@ -347,7 +341,7 @@ export function Adventure() {
         {phase === 'travel' && !th && st && item && (
           <div className="screen">
             <RouteStrip plan={plan} />
-            <motion.div ref={story} className="travel-badge" initial={{ scale: 0, rotate: -30 }} animate={{ scale: 1, rotate: 0 }} transition={{ type: 'spring', stiffness: 220, damping: 14, delay: 0.3 }}>
+            <motion.div className="travel-badge" initial={{ scale: 0, rotate: -30 }} animate={{ scale: 1, rotate: 0 }} transition={{ type: 'spring', stiffness: 220, damping: 14, delay: 0.3 }}>
               <Emoji name={st.icon} />
             </motion.div>
             <motion.div className="travel-name" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.6 }}>

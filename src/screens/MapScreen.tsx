@@ -24,7 +24,7 @@ const SPOTS = [
 export function MapScreen() {
   const settings = useSettings()
   const [open, setOpen] = useState(settings.freePlay === 'always')
-  // 站牌一個個彈出來只在 App 一打開就是地圖時做；從首頁長出來、從站點回來時站牌已經在定位
+  // 站牌一個個彈出來只在 App 一打開就是地圖時做；從首頁過來、從站點回來時站牌已經在定位
   const intro = useIntro()
 
   useEffect(() => {
@@ -57,11 +57,10 @@ export function MapScreen() {
           animate={{ scale: 1, y: 0 }}
           transition={{ type: 'spring', stiffness: 240, damping: 15, delay: 0.1 * i }}
           whileTap={{ scale: 0.93 }}
-          onClick={(e) => {
+          onClick={() => {
             sfx.pop()
             if (!open) return void say('map.locked')
-            // 站點從這個站牌長出來；回地圖時收回這個站牌
-            go({ name: 'station', station: s.id }, { from: e.currentTarget.querySelector('.disc') ?? e.currentTarget })
+            go({ name: 'station', station: s.id })
           }}
           aria-label={s.name}
         >

@@ -23,7 +23,7 @@ const isNight = () => {
   return h >= 19 || h < 6
 }
 
-/** 畫面的層級：往深的地方走是「往前」（從點的那張卡長出來），往淺的地方是「往回」（收回去） */
+/** 畫面的層級：往深的地方走是「往前」（新畫面蓋上來淡入），往淺的地方是「往回」（上面的畫面淡出） */
 const DEPTH: Record<Route['name'], number> = { home: 0, map: 1, collection: 1, adventure: 1, parent: 1, bedtime: 1, station: 2, play: 3 }
 
 const keyOf = (r: Route) => (r.name === 'play' ? `play-${r.game}` : r.name === 'station' ? `st-${r.station}` : r.name)
@@ -72,12 +72,12 @@ export function App() {
   return (
     // 系統設定「減少動態效果」：motion 只保留淡入淡出，不做縮放、位移（CSS 動畫在 global.css 另外處理）
     <MotionConfig reducedMotion="user">
-      {/* 整頁切換：新畫面從點的那張卡長出來、舊畫面等新的蓋好才退（ui/motion.ts 的 page） */}
+      {/* 整頁切換：交叉淡化，新畫面蓋好了才卸載舊的，不縮放（ui/motion.ts 的 page） */}
       <Scenes
         id={key}
         move={() => {
           const how = lastHow()
-          return { back: how.back ?? DEPTH[r.name] < DEPTH[prev.current.name], anchor: how.anchor }
+          return { back: how.back ?? DEPTH[r.name] < DEPTH[prev.current.name] }
         }}
       >
         <Screen r={r} />

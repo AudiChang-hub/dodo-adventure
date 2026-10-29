@@ -1,33 +1,34 @@
 import type { Transition, Variants } from 'motion/react'
 
 /**
- * 全站轉場標準：「前景 ↔ 背景」的溫和轉場。
- * 從程式車庫「教學卡（大大的箭頭）↔ 小恐龍開車的地圖」這段整理出來（2026-10-28，家長喜歡它的溫和感）。
+ * 全站轉場標準：溫和的交叉淡化（2026-10-29 起）。
+ * 原本（2026-10-28）是「前景從點的那張卡長出來（0.6 → 1）、收回那張卡」：家長在 TCL 紙感螢幕上錄下來看，
+ * 整個畫面突然縮成一個小框再放大，像子母畫面，很怪。家長喜歡溫和感，但不要縮放，所以改成：
+ * - 前景（新畫面、教學卡）：淡入，只帶一點點推近（0.98 → 1）；收起時淡出，退一點點（1 → 0.98）。
+ * - 背景（舊畫面、題目）：本來就不透明的整頁就待著不動，被新的蓋住；透明的（教學卡後面的題目、冒險的每一段）才跟著淡掉。
+ * 不再有錨點：不管點的是哪張卡，整頁都在原地換，看不到「一個小框變大」。
  *
- * 一段轉場只有兩層：
- * - 前景（例：教學卡）：從錨點（例：車子）的方向長出來、收回錨點，大小只在 0.6 ↔ 1 之間變。
- * - 背景（例：地圖）：前景蓋上之後才往錨點微微推近（1 → 1.06）並淡掉；前景收回時同時拉遠回來（1.06 → 1）並淡入。
- *
- * 紙感螢幕更新慢，所以三條規則：
+ * 紙感螢幕更新慢、會殘影，所以三條規則：
  * 1. 同一個畫面不卸載重掛：換內容是在畫面裡換（或在前景蓋住的時候換），不整塊淡出再淡入。
  * 2. 每個元素在一段轉場裡透明度只往一個方向變一次，不閃回舊內容、不先畫一幀再開始動。
- * 3. 前景先變不透明（DUR.opaque），之後只剩縮放；背景等前景蓋上（DUR.recedeDelay）才退：中間不會露出空白底色。
+ * 3. 縮放最多 2%（RANGE.nudge），不從錨點長出來；背景等前景開始蓋上（DUR.behindDelay）才淡：中間不會露出空白底色。
  *
  * 時間都是秒（motion 的單位）；流程裡要等的毫秒數用 ms() 換算。教學節奏的停頓不在這裡（games/pace.ts）。
  *
  * 2026-10-28 起全站都用這一套（元件在 ui/Scenes.tsx）：
- * - page：App 的整頁切換、今日冒險的每一段（從點的那張卡長出來、收回那張卡；沒有錨點就微縮放）
- * - foreground／background：遊戲裡教學卡 ↔ 題目（卡片從主持的恐龍長出來）
+ * - page：App 的整頁切換、今日冒險的每一段（交叉淡化）
+ * - foreground／background：遊戲裡教學卡 ↔ 題目（交叉淡化）
  * - swap：原地換題、換一回合；turn：貼紙本翻頁
  * - overlay（＋overlayPanel）：慶祝的遮罩、挑貼紙、護眼休息、家長閘門；rise：畫面裡的小卡片（出門任務卡、爸爸回合）
  * 系統設定「減少動態效果」時，App 用 MotionConfig reducedMotion="user"：縮放、位移都不做，只留淡入淡出。
+ * （整頁和教學卡另外用 custom 把那 2% 的縮放拿掉，見 nudge。）
  */
 
 /** 緩動曲線 */
 export const EASE = {
   /** 進場、拉遠回來：一開始就動、最後慢慢停（easeOutQuint 類） */
   out: [0.22, 1, 0.36, 1],
-  /** 前景收回錨點：慢起慢停 */
+  /** 前景收起：慢起慢停 */
   inOut: [0.65, 0, 0.35, 1],
   /** 背景退到後面：慢起、退乾淨 */
   in: [0.4, 0, 1, 1],
@@ -35,20 +36,18 @@ export const EASE = {
 
 /** 時長（秒） */
 export const DUR = {
-  /** 前景進場（縮放 0.6 → 1） */
+  /** 小東西長大（疊加層的面板、小卡片、換內容時的微縮放） */
   enter: 0.5,
-  /** 前景進場時多快變成不透明：不透明之後只剩縮放，不會半透明地疊在背景上閃 */
+  /** 翻頁時新的一頁多快變成不透明 */
   opaque: 0.18,
-  /** 前景收回（縮放 1 → 0.6） */
-  exit: 0.45,
-  /** 前景收回的最後這一段才淡掉 */
+  /** 翻頁時舊的一頁淡掉 */
   exitFade: 0.25,
-  /** 背景等前景先蓋上，才開始退 */
-  recedeDelay: 0.15,
-  /** 背景退到後面（淡掉、推近） */
-  recede: 0.4,
-  /** 背景回來（淡入、拉遠） */
-  return: 0.5,
+  /** 前景（新畫面、教學卡）淡入；背景回來也是這麼長 */
+  fadeIn: 0.34,
+  /** 前景（往回時上面的畫面、教學卡）淡出；背景淡掉也是這麼長 */
+  fadeOut: 0.3,
+  /** 透明的背景等前景開始蓋上才淡：兩層一起半透明的時間很短，不會露出底色 */
+  behindDelay: 0.1,
   /** 換內容：新的淡入（縮放跟 enter 一樣長） */
   swapIn: 0.32,
   /** 換內容：舊的等新的差不多蓋上才淡掉 */
@@ -59,20 +58,16 @@ export const DUR = {
   overlayIn: 0.32,
   /** 疊加層收起 */
   overlayOut: 0.3,
-  /** 新畫面出現多久之後才收點擊：前一個畫面上連點的手，不會點到剛長出來的畫面 */
+  /** 新畫面出現多久之後才收點擊：前一個畫面上連點的手，不會點到剛換上來的畫面 */
   arm: 0.3,
 } as const
 
 /** 變化範圍 */
 export const RANGE = {
-  /** 前景從多大長出來、收回到多大 */
-  fromScale: 0.6,
-  /** 背景退到後面時推近到多大 */
-  push: 1.06,
-  /** 沒有錨點的整頁、疊加層：從多大長出來、收回到多大（微縮放） */
-  settle: 0.96,
-  /** 沒有錨點時，下面的畫面推近到多大（比有錨點時輕） */
-  settlePush: 1.03,
+  /** 整頁、教學卡：淡入時從多大推近到 1、淡出時退到多大（看不出是縮放，只是「輕輕靠過來」） */
+  nudge: 0.98,
+  /** 疊加層的面板、畫面裡的小卡片：從多大長出來、收回到多大（微縮放） */
+  settle: 0.97,
   /** 換內容：新的從多大長到 1 */
   swapFrom: 0.98,
   /** 清單翻頁：新的一頁從旁邊多遠（寬度的比例）滑進來 */
@@ -95,32 +90,34 @@ export const FADE_OUT: Transition = { duration: FADE_OUT_S, ease: EASE.in }
 /** 秒 → 毫秒（流程裡 await wait() 用） */
 export const ms = (s: number) => Math.round(s * 1000)
 
-/** 前景長好、背景也退好的時間：要在這之後才換背景的內容（換的那一刻看不到） */
-export const SETTLED_MS = ms(Math.max(DUR.enter, DUR.recedeDelay + DUR.recede)) + 70
+/** 前景蓋好、背景也淡好的時間：要在這之後才換背景的內容（換的那一刻看不到） */
+export const SETTLED_MS = ms(Math.max(DUR.fadeIn, DUR.behindDelay + DUR.fadeOut)) + 70
 
-/** 前景收回、背景回來整段要多久 */
-export const REVEAL_MS = ms(Math.max(DUR.exit, DUR.return))
+/** 前景淡出、背景回來整段要多久 */
+export const REVEAL_MS = ms(Math.max(DUR.fadeOut, DUR.fadeIn))
 
-/** 前景：從錨點長出來（initial → enter），收回錨點（exit）。transform-origin 由使用的地方給成錨點的位置 */
+/**
+ * 淡入淡出那一層的縮放：custom 給 true（系統設定「減少動態效果」，用 motion 的 useReducedMotion() 傳進來）就完全不縮放。
+ * motion 自己的 reducedMotion 只會把縮放改成「瞬間跳過去」，淡出的那一層會先跳小 2% 再淡掉，所以這裡乾脆不給縮放。
+ */
+const nudge = (reduced?: boolean) => (reduced ? 1 : RANGE.nudge)
+
+const fadeInTx: Transition = { duration: DUR.fadeIn, ease: EASE.out }
+const fadeOutTx: Transition = { duration: DUR.fadeOut, ease: EASE.inOut }
+const behindTx: Transition = { duration: DUR.fadeOut, delay: DUR.behindDelay, ease: EASE.in }
+
+/** 前景（教學卡）：淡入、輕輕推近（initial → enter），淡出、輕輕退開（exit）。custom：減少動態效果（AnimatePresence 也要給同一個 custom） */
 export const foreground: Variants = {
-  initial: { opacity: 0, scale: RANGE.fromScale },
-  enter: {
-    opacity: 1,
-    scale: 1,
-    transition: { scale: { duration: DUR.enter, ease: EASE.out }, opacity: { duration: DUR.opaque, ease: 'easeOut' } },
-  },
-  exit: {
-    opacity: 0,
-    scale: RANGE.fromScale,
-    transition: { scale: { duration: DUR.exit, ease: EASE.inOut }, opacity: { duration: DUR.exitFade, delay: DUR.exit - DUR.exitFade, ease: 'easeIn' } },
-  },
+  initial: (reduced?: boolean) => ({ opacity: 0, scale: nudge(reduced) }),
+  enter: { opacity: 1, scale: 1, transition: fadeInTx },
+  exit: (reduced?: boolean) => ({ opacity: 0, scale: nudge(reduced), transition: fadeOutTx }),
 }
 
-/** 背景：前景出現時退到後面（hidden），前景收回時回來（shown）；第一次出現用 initial（和 hidden 同一個樣子，沒有動畫） */
+/** 背景（題目）：前景出現時在原地淡掉（hidden），前景收起時淡回來（shown）；第一次出現用 initial（和 hidden 同一個樣子，沒有動畫）。不縮放 */
 export const background: Variants = {
-  initial: { opacity: 0, scale: RANGE.push },
-  hidden: { opacity: 0, scale: RANGE.push, transition: { duration: DUR.recede, delay: DUR.recedeDelay, ease: EASE.in } },
-  shown: { opacity: 1, scale: 1, transition: { duration: DUR.return, ease: EASE.out } },
+  initial: { opacity: 0 },
+  hidden: { opacity: 0, transition: behindTx },
+  shown: { opacity: 1, transition: fadeInTx },
 }
 
 /**
@@ -129,8 +126,8 @@ export const background: Variants = {
  */
 export const handoff = {
   initial: { opacity: 0, scale: 0.96 },
-  animate: { opacity: 1, scale: 1, zIndex: 1, transition: { duration: DUR.return, ease: EASE.out } as Transition },
-  exit: { opacity: 0, zIndex: 0, transition: { opacity: { duration: 0.3, delay: DUR.return }, zIndex: { duration: 0 } } as Transition },
+  animate: { opacity: 1, scale: 1, zIndex: 1, transition: { duration: DUR.enter, ease: EASE.out } as Transition },
+  exit: { opacity: 0, zIndex: 0, transition: { opacity: { duration: 0.3, delay: DUR.enter }, zIndex: { duration: 0 } } as Transition },
 }
 
 /* ────────────────────────────────────────────────────────────────────────────
@@ -138,28 +135,28 @@ export const handoff = {
  * 曲線、時長都從上面的 EASE／DUR／RANGE 來，各檔案不另外寫數字。
  * ──────────────────────────────────────────────────────────────────────────── */
 
-const enterTx = foreground.enter as { transition: Transition }
-const exitTx = foreground.exit as { transition: Transition }
-
-/** 整頁（App 層的畫面、冒險的每一段）用的 custom：有沒有錨點（點的那張卡、那個按鈕） */
+/** 整頁（App 層的畫面、冒險的每一段）用的 custom */
 export interface PageCustom {
-  anchored: boolean
+  /** 這一層是不是透明的（冒險的每一段共用外面的故事背景） */
+  clear: boolean
+  /** 系統設定「減少動態效果」：不縮放，只淡入淡出 */
+  reduced: boolean
 }
 
 /**
- * 整頁切換（ui/Scenes.tsx 用）：和 foreground／background 是同一段轉場，只是兩層都是整個畫面。
- * - 往前（進站、進遊戲）：新畫面在上面長出來（enter），有錨點從錨點的 0.6 長出，沒有錨點從 0.96 微縮放；
- *   舊畫面等新的蓋上才往錨點推近、淡掉（behind），之後卸載。
- * - 往回（回地圖、回首頁）：上面的畫面收回錨點（leave）；下面的畫面一開始就是不透明的（本來就在那裡），
- *   只從推近的位置拉遠回來（under → shown），所以整段都不會露出底色。
+ * 整頁切換（ui/Scenes.tsx 用）：交叉淡化，整頁不縮放（只有淡入、淡出的那一層帶 2% 的推近／退開）。
+ * - 往前（進站、進遊戲）：新畫面蓋在上面淡入（enter）；舊畫面是不透明的紙，就待在下面不動，被蓋好了才卸載（behind）。
+ * - 往回（回地圖、回首頁）：上面的畫面淡出（leave）；下面的畫面一開始就是不透明的、在原位（under → shown），
+ *   淡出的過程就是一點一點看到它，所以整段都不會露出底色，也不會兩個完整畫面疊著停很久。
+ * - 透明的一層（冒險）：下面那層沒辦法擋住，所以舊的跟著淡掉、往回時下面的跟著淡入，中間是同一張故事背景。
  */
 export const page: Variants = {
-  initial: (c: PageCustom) => ({ opacity: 0, scale: c.anchored ? RANGE.fromScale : RANGE.settle }),
-  enter: { opacity: 1, scale: 1, transition: enterTx.transition },
-  behind: (c: PageCustom) => ({ opacity: 0, scale: c.anchored ? RANGE.push : RANGE.settlePush, transition: { duration: DUR.recede, delay: DUR.recedeDelay, ease: EASE.in } }),
-  leave: (c: PageCustom) => ({ opacity: 0, scale: c.anchored ? RANGE.fromScale : RANGE.settle, transition: exitTx.transition }),
-  under: (c: PageCustom) => ({ opacity: 1, scale: c.anchored ? RANGE.push : RANGE.settlePush }),
-  shown: { opacity: 1, scale: 1, transition: { duration: DUR.return, ease: EASE.out } },
+  initial: (c: PageCustom) => ({ opacity: 0, scale: nudge(c.reduced) }),
+  enter: { opacity: 1, scale: 1, transition: fadeInTx },
+  behind: (c: PageCustom) => (c.clear ? { opacity: 0, transition: behindTx } : { opacity: 1 }),
+  leave: (c: PageCustom) => ({ opacity: 0, scale: nudge(c.reduced), transition: fadeOutTx }),
+  under: (c: PageCustom) => ({ opacity: c.clear ? 0 : 1, scale: 1 }),
+  shown: { opacity: 1, scale: 1, transition: fadeInTx },
 }
 
 /** 往前：新畫面蓋好、舊畫面也退好，可以卸載舊畫面的時間 */
@@ -220,7 +217,7 @@ export const turn: Variants = {
   }),
 }
 
-/** 畫面裡一張小卡片出現、收起（例：首頁的出門任務卡）：從 0.96 淡入，收起時淡出縮回 0.96 */
+/** 畫面裡一張小卡片出現、收起（例：首頁的出門任務卡）：從 0.97 淡入，收起時淡出縮回 0.97 */
 export const rise: Variants = {
   initial: { opacity: 0, scale: RANGE.settle },
   enter: { opacity: 1, scale: 1, transition: { opacity: { duration: DUR.swapIn, ease: EASE.out }, scale: { duration: DUR.enter, ease: EASE.out } } },

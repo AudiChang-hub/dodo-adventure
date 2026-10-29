@@ -507,7 +507,7 @@ export function SheetGame({ gameId, onDone, onExit, mode }: GameProps & { mode: 
   const deep = stationDef(def.station).deep
   return (
     <Shell station={def.station} mood={mood} progress={{ total: ITEMS, done: idx }} onExit={onExit} onHost={onHost}>
-      {/* 教學卡從主持的恐龍長出來、學習單在後面退開；換題時新的學習單蓋在舊的上面淡入（ui/Scenes.tsx） */}
+      {/* 教學卡在原地淡入、學習單在後面淡掉；換題時新的學習單蓋在舊的上面淡入（ui/Scenes.tsx） */}
       <CardStage
         card={
           card && (

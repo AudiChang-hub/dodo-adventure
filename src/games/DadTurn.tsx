@@ -114,7 +114,7 @@ export function DadTurn({ gameId, station, onDone, onExit }: Props) {
           <motion.div className="dad-turn" variants={rise} initial="initial" animate="enter">
             <motion.div
               className="dad-card"
-              initial={{ scale: RANGE.fromScale, rotate: -6 }}
+              initial={{ scale: RANGE.settle, rotate: -2 }}
               animate={{ scale: 1, rotate: 0 }}
               transition={{ duration: DUR.enter, ease: EASE.out }}
               onPointerDown={() => {

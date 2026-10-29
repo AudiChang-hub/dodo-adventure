@@ -369,7 +369,7 @@ export function SubitizeGame({ gameId, onDone, onExit }: GameProps) {
   const guide = phase === 'guided'
   return (
     <Shell station="math" mood={mood} progress={{ total: ROUNDS, done: r }} onExit={onExit} onHost={onHost}>
-      {/* 教學卡從主持的恐龍長出來、點點卡在後面退開；換一回合時新的蓋在舊的上面淡入（ui/Scenes.tsx） */}
+      {/* 教學卡從主持的恐龍長出來、點點卡在後面淡掉；換一回合時新的蓋在舊的上面淡入（ui/Scenes.tsx） */}
       <CardStage
         card={
           card && (

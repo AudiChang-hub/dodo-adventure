@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { motion } from 'motion/react'
 import { Ride } from '../art/Ride'
 import { Dino } from '../art/Dino'
@@ -28,7 +28,6 @@ export function Home() {
   const install = useInstall()
   // App 一打開的首頁才讓車子開進來、恐龍探頭；從別的畫面回來時大家已經在定位（整頁轉場只做一段）
   const intro = useIntro()
-  const goBtn = useRef<HTMLButtonElement>(null)
 
   // 招呼說完了沒：出門任務卡的「Did you see a bus?」要等招呼說完才問（再回到首頁就不用等）
   const [helloDone, setHelloDone] = useState(greeted)
@@ -57,13 +56,12 @@ export function Home() {
     greeted = true
     if (done) {
       await say('adv.again')
-      return go({ name: 'map' }, { from: goBtn.current })
+      return go({ name: 'map' })
     }
     setLeaving(true)
     sfx.whoosh()
     void say('adv.go')
-    // 今日冒險從「出發」按鈕長出來；回首頁時收回這顆按鈕
-    setTimeout(() => go({ name: 'adventure' }, { from: goBtn.current }), 1100)
+    setTimeout(() => go({ name: 'adventure' }), 1100)
   }
 
   return (
@@ -148,7 +146,6 @@ export function Home() {
       </motion.div>
 
       <motion.button
-        ref={goBtn}
         className={`go-btn${done ? ' map' : ''}`}
         aria-label={done ? '去地圖' : '出發'}
         onClick={start}
@@ -170,10 +167,10 @@ export function Home() {
       </motion.button>
 
       <div className="home-dock">
-        <button className="round-btn" aria-label="地圖" style={{ opacity: mapOpen ? 1 : 0.5 }} onClick={(e) => (mapOpen ? go({ name: 'map' }, { from: e.currentTarget }) : say('map.locked'))}>
+        <button className="round-btn" aria-label="地圖" style={{ opacity: mapOpen ? 1 : 0.5 }} onClick={() => (mapOpen ? go({ name: 'map' }) : say('map.locked'))}>
           <Emoji name="rainbow" size={54} />
         </button>
-        <button className="round-btn" aria-label="我的朋友" onClick={(e) => go({ name: 'collection' }, { from: e.currentTarget })}>
+        <button className="round-btn" aria-label="我的朋友" onClick={() => go({ name: 'collection' })}>
           <Emoji name="hatching-chick" size={56} />
           {friends > 0 && <span className="badge-count">{friends}</span>}
         </button>
