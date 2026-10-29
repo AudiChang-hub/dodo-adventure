@@ -13,6 +13,7 @@
 //   --no-build      不重新打包（沿用 dist/）
 //   --workers N     同時跑幾個瀏覽器（預設 4）
 //   --report PATH   跑完把報告寫到 PATH（截圖放在旁邊的「三歲模擬測試截圖」資料夾）
+//   --out-dir DIR   結果放這裡（預設 test-results/toddler，每次跑會先清空）
 //
 // 結果：test-results/toddler/（findings/*.json、shots/*.png、report.md）
 import { spawnSync } from 'node:child_process'
@@ -33,9 +34,18 @@ for (let i = 0; i < args.length; i++) {
   else if (a === '--no-build') build = false
   else if (a === '--workers') env.TODDLER_WORKERS = args[++i]
   else if (a === '--report') report = path.resolve(args[++i])
+  else if (a === '--out-dir') env.TODDLER_OUT = path.resolve(args[++i])
   else pick.push(a)
 }
 if (pick.length) env.TODDLER_GAMES = pick.join(',')
+// 報告寫上測的是哪一版
+try {
+  const head = spawnSync('git', ['log', '-1', '--format=%h %s'], { cwd: root }).stdout.toString().trim()
+  const dirty = spawnSync('git', ['status', '--porcelain', '--', 'src'], { cwd: root }).stdout.toString().trim()
+  env.TODDLER_VERSION ??= head + (dirty ? '（src 有未提交的改動）' : '')
+} catch {
+  /* 沒有 git */
+}
 
 // Node 24 的 fs.rmSync(recursive) 在中文路徑（善鈞學習APP）上會整個崩掉（exit 127／-1073740791，沒有任何訊息），自己一層層刪
 function rmrf(p) {

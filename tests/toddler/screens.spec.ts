@@ -1,7 +1,7 @@
 import { test, expect, type Page } from '@playwright/test'
 import { boot, homeButton, settle, snap, targets, voicesSince } from './lib/app'
 import { Toddler, hashSeed } from './lib/toddler'
-import { Checker, alive, audit, enterGame, holdHome, toMap, toddlerStep, waitLive } from './lib/flows'
+import { Checker, alive, audit, enterGame, holdHome, pressBack, toMap, toddlerStep, waitLive } from './lib/flows'
 import fs from 'node:fs'
 import path from 'node:path'
 import { GAMES, STATIONS, type StationId } from './catalog'
@@ -277,6 +277,27 @@ test.describe('畫面', () => {
       await k.tap(p!, '站牌')
       await waitLive(page, (l) => l === 'st-math')
       const st = await tryBack('站點')
+      // 遊戲裡的返回手勢、連點返回鍵：都只回一層（遊戲 → 站點）
+      const g = GAMES.find((x) => x.id === 'm-match')!
+      if (await enterGame(k, c, g)) {
+        await k.wait(1500)
+        await tryBack('遊戲')
+        const live1 = (await snap(page)).live
+        c.outcome('遊戲裡按返回手勢', live1 === 'st-math', `到 ${live1}（上一層是 st-math）`)
+        if (await enterGame(k, c, g)) {
+          await k.wait(1500)
+          const h = await homeButton(page)
+          if (h?.tap) {
+            k.behavior = '連點返回鍵'
+            await k.spam(h, 6, h.label)
+            await k.wait(2000)
+            await settle(page)
+            const live2 = (await snap(page)).live
+            c.outcome('遊戲裡連點返回鍵 6 下', live2 === 'st-math', `到 ${live2}（應只回一層到 st-math）`)
+            if (live2 !== 'st-math') await c.once('back-spam', '無法返回', `連點返回鍵 6 下跑到 ${live2}`, '新版返回鍵設計是連點只回一層')
+          }
+        }
+      }
       if (!map && !st)
         await c.once('back-swallowed', '無法返回', 'Android 返回鍵在孩子畫面一律沒反應', `${res.join('；')}。lock.ts 刻意吃掉返回（防誤觸），但孩子想回上一頁時按返回不會有任何反應，只能找左上角並「按住」`, false)
       c.outcome('返回鍵', true, res.join('；'))
@@ -370,7 +391,7 @@ test.describe('畫面', () => {
           await toddlerStep(k, c)
           if (k.r.chance(0.2)) {
             const h = await homeButton(page)
-            if (h) await k.hold(h, 900, '休息中按住回首頁')
+            if (h) await pressBack(k, h, '休息中按返回')
           }
         }
         const gone = !(await page.$('.overlay-layer'))
@@ -448,5 +469,51 @@ test.describe('畫面', () => {
     const dir = path.join(process.env.TODDLER_OUT || 'test-results/toddler', 'findings')
     fs.mkdirSync(dir, { recursive: true })
     fs.writeFileSync(path.join(dir, 'tab1200-settings.json'), JSON.stringify({ name: 'settings', screen: '預設設定', viewport: 'tab1200', seed: 0, findings: [], log: [], outcomes: [], rules }, null, 2))
+  })
+
+  test('來回換畫面 50 次：圖層、字幕（NAV-7）', async ({ page }, info) => {
+    test.skip(!want('layers'))
+    test.setTimeout(10 * 60_000)
+    const { k, c } = await setup(page, info, '來回換畫面')
+    try {
+      k.behavior = '地圖↔站點來回'
+      let n = 0
+      for (let i = 0; i < 25; i++) {
+        if (!(await toMap(k, c))) break
+        const p = await center(page, `.map-stop[aria-label="${STATIONS.math}"]`)
+        if (!p) break
+        await k.tap(p, '站牌')
+        if ((await waitLive(page, (l) => l === 'st-math')) !== 'st-math') break
+        n += 2
+        await settle(page)
+      }
+      // 站點裡點恐龍：牠會說歡迎，字幕出來
+      await settle(page)
+      const z = await page.evaluate(() => Math.max(0, ...[...document.querySelectorAll<HTMLElement>('.scene')].map((e) => Number(e.style.zIndex || 0))))
+      const subZ = await page.evaluate(() => Number(getComputedStyle(document.querySelector('.subtitle')!).zIndex || 0))
+      const host = await page.evaluate(() => {
+        const root = [...document.querySelectorAll<HTMLElement>('.scene')].filter((e) => !e.inert).pop()!
+        const d = root.querySelector('svg[role="button"], [aria-label*="豆豆"], [aria-label*="波波"], [aria-label*="莫莫"], .dino')
+        const r = d?.getBoundingClientRect()
+        return r ? { x: r.left + r.width / 2, y: r.top + r.height / 2 } : null
+      })
+      if (host) await k.tap(host, '點恐龍')
+      await k.wait(1200)
+      const covered = await page.evaluate(() => {
+        const sub = document.querySelector('.sub-pill')
+        if (!sub) return null
+        const b = sub.getBoundingClientRect()
+        if (b.width < 4) return null
+        const hit = document.elementFromPoint(b.left + b.width / 2, b.top + b.height / 2)
+        return !(hit && hit.closest('.subtitle'))
+      })
+      c.rule('NAV-7', z <= 10 && covered !== true, `換了 ${n} 次畫面後整頁圖層 z-index ${z}（字幕 ${subZ}、護眼休息 120）；字幕${covered === null ? '沒出現' : covered ? '被畫面蓋住' : '在最上層'}`)
+      c.outcome(`換畫面 ${n} 次後的圖層`, z < subZ && covered !== true, `整頁圖層 z-index ${z}，字幕 ${subZ}，字幕${covered === null ? '沒出現' : covered ? '被蓋住' : '看得到'}`)
+      if (z >= subZ || covered)
+        await c.once('z-grow', '困惑', `換了 ${n} 次畫面後，整頁圖層的 z-index 長到 ${z}，${covered ? '字幕被蓋住' : `超過字幕的 ${subZ}`}`, `ui/Scenes.tsx 每換一次畫面 seq 就 +1、從不歸零：大約 30 次換畫面後整頁畫面會蓋過字幕（z-index 60），再多會蓋過護眼休息（120）、家長角落（150）。三歲孩子一次玩 20 分鐘就可能換到這麼多次`)
+      await c.flush()
+    } finally {
+      finish(k, c, '來回換畫面')
+    }
   })
 })

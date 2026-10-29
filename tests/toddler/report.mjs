@@ -12,6 +12,9 @@ const args = process.argv.slice(2)
 const outArg = args.includes('--out') ? path.resolve(args[args.indexOf('--out') + 1]) : null
 const out = outArg ?? path.join(res, 'report.md')
 const shotDirName = outArg ? '三歲模擬測試截圖' : 'shots'
+// 同一份報告附上第二輪（例如回歸）時，截圖加前綴避免撞名
+const prefix = args.includes('--shot-prefix') ? args[args.indexOf('--shot-prefix') + 1] : ''
+const title = args.includes('--title') ? args[args.indexOf('--title') + 1] : '三歲模擬測試報告'
 const shotDir = path.join(path.dirname(out), shotDirName)
 
 const files = fs.existsSync(path.join(res, 'findings')) ? fs.readdirSync(path.join(res, 'findings')).filter((f) => f.endsWith('.json')) : []
@@ -61,15 +64,16 @@ const bugs = [...groups.values()].sort((a, b) => SEV.indexOf(a.first.severity) -
 if (fs.existsSync(path.join(res, 'shots'))) {
   fs.mkdirSync(shotDir, { recursive: true })
   if (shotDir !== path.join(res, 'shots'))
-    for (const b of bugs) if (b.first.shot) fs.copyFileSync(path.join(res, 'shots', b.first.shot), path.join(shotDir, b.first.shot))
+    for (const b of bugs) if (b.first.shot) fs.copyFileSync(path.join(res, 'shots', b.first.shot), path.join(shotDir, prefix + b.first.shot))
 }
 
 const esc = (s) => String(s ?? '').replace(/\|/g, '｜').replace(/\n/g, ' ')
 const L = []
 const vps = [...new Set(runs.map((r) => r.viewport))].join('、')
 const base = runs[0].base ?? 20261029
-L.push(`# 三歲模擬測試報告`, '')
-L.push(`> 由 \`npm run test:toddler\` 產生（tests/toddler/report.mjs）。測的是打包版（vite preview），觸控平板 ${vps}，基準 seed ${base}。`)
+const version = process.env.TODDLER_VERSION ?? runs[0].version ?? '（未記錄）'
+L.push(`# ${title}`, '')
+L.push(`> 由 \`npm run test:toddler\` 產生（tests/toddler/report.mjs）。測的版本：**${version}**。打包版（vite preview），觸控平板 ${vps}，基準 seed ${base}。`)
 L.push(`> 產生時間：${new Date().toLocaleString('zh-TW', { timeZone: 'Asia/Taipei' })}`, '')
 
 L.push('## 總覽', '')
@@ -146,7 +150,7 @@ bugs.forEach((b, i) => {
   L.push(`- **推測程式位置**：${where}`)
   const sel = b.run.game?.id ?? ({ 首頁: 'home', 地圖與站點: 'map', 貼紙本: 'collection', 家長區: 'parent', 返回鍵: 'back', 今日冒險: 'adventure', 護眼休息: 'eyebreak', 睡覺畫面: 'bedtime' }[b.run.screen] ?? 'screens')
   L.push(`- **重現**：\`npm run test:toddler -- ${sel} --seed ${base}${f.viewport === 'tab1200' ? ' --quick' : ''}\`（這一段的 seed ${f.seed}，行為「${f.behavior}」，第 ${(f.at / 1000).toFixed(0)} 秒）`)
-  if (f.shot) L.push(`- **截圖**：![${f.title}](${shotDirName}/${encodeURI(f.shot)})`)
+  if (f.shot) L.push(`- **截圖**：![${f.title}](${shotDirName}/${encodeURI(prefix + f.shot)})`)
   else L.push(`- **截圖**：（逐幀問題是事後從探針資料判斷的，截圖拍不到那一幀；數值見說明）`)
   L.push('', '<details><summary>發生前的動作紀錄</summary>', '', '```', ...f.actions.slice(-15), '```', '', '</details>', '')
 })

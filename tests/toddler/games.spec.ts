@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test'
 import { boot, homeButton, settle, snap, targets } from './lib/app'
 import { Toddler, hashSeed } from './lib/toddler'
-import { Checker, alive, attemptsSince, audit, background, checkDoubleRecords, enterGame, grabDuringTeach, holdHome, idle, reload, toMap, toddlerStep, waitLive, wrongMany } from './lib/flows'
+import { Checker, alive, attemptsSince, audit, pressBack, background, checkDoubleRecords, enterGame, grabDuringTeach, holdHome, idle, reload, toMap, toddlerStep, waitLive, wrongMany } from './lib/flows'
 import { DRAWING, STATIONS, selected } from './catalog'
 
 const BASE_SEED = Number(process.env.TODDLER_SEED || 20261029)
@@ -128,11 +128,11 @@ for (const g of selected()) {
         await k.tap(tile, '遊戲卡')
         await k.wait(120)
         // 回首頁鈕的位置（遊戲和站點的左上角鈕在同一個地方）
-        const h = (await homeButton(page)) ?? { x: 64, y: 57, label: '' }
-        k.act('轉場還在進行，按住左上角')
-        await k.hold(h, 1500, '轉場中按住左上角')
-        const live = await waitLive(page, (l) => l === 'home' || l === 'map', 3000)
-        const ok = live === 'home' || live === 'map'
+        const h = (await homeButton(page)) ?? { x: 64, y: 57, label: '', tap: false }
+        k.act(`轉場還在進行，${h.tap ? '點' : '按住'}左上角`)
+        await pressBack(k, h, '轉場中按左上角')
+        const live = await waitLive(page, (l) => l === 'home' || l === 'map' || l === `st-${g.station}`, 3000)
+        const ok = live === 'home' || live === 'map' || live === `st-${g.station}`
         if (!ok) await c.once('home-transition', '無法返回', '轉場中按住左上角 1.5 秒沒有回去', `停在 ${live}；新畫面在轉場剛開始的 ${'ARM_MS'} 內不收點擊，孩子按下去的那一下被吃掉，要再按一次`)
         c.outcome('轉場中按首頁', ok, ok ? `回到 ${live}` : `停在 ${live}，要再按一次`)
         await c.screenOk('轉場中按首頁')

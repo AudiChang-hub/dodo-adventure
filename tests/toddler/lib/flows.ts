@@ -155,7 +155,7 @@ export async function toMap(k: Toddler, c: Checker) {
       if (p) await k.tap(p, '地圖')
     } else {
       const h = await homeButton(page)
-      if (h) await k.hold(h, h.label.includes('回地圖') ? 900 : 1500, h.label)
+      if (h) await pressBack(k, h)
       else await k.tap({ x: 600, y: 400 })
     }
     await waitLive(page, (l) => l === 'map' || l === 'home', 5000)
@@ -208,17 +208,26 @@ export async function enterGame(k: Toddler, c: Checker, g: GameDef, opts: { spam
   return true
 }
 
-/** 按住回首頁；回傳幾秒內回到首頁 */
+/** 按返回鍵：新版（[data-back]）點一下，舊版按住 */
+export async function pressBack(k: Toddler, h: Pt & { label: string; tap?: boolean }, label = h.label) {
+  if (h.tap) await k.tap(h, label)
+  else await k.hold(h, h.label.includes('回地圖') ? 900 : 1500, label)
+}
+
+/** 按返回鍵（舊版：按住回首頁）；回傳有沒有回到上一層或首頁 */
 export async function holdHome(k: Toddler, c: Checker, ctx: string, opts: { second?: Pt[] } = {}) {
   const page = k.page
-  const h = (await homeButton(page)) ?? { x: 64, y: 57, label: '（找不到，按左上角）' }
+  const h = (await homeButton(page)) ?? { x: 64, y: 57, label: '（找不到，按左上角）', tap: false }
+  const before = (await snap(page)).live
   const t = Date.now()
-  if (opts.second) await k.twoFinger(opts.second, h, 1500)
-  else await k.hold(h, 1500, h.label)
-  const want = h.label.includes('回地圖') ? 'map' : 'home'
-  const live = await waitLive(page, (l) => l === want || l === 'home', 4000)
-  const ok = live === want || live === 'home'
-  if (!ok) await c.once(`home:${ctx}`, '無法返回', `${ctx}：按住回首頁 1.5 秒沒有回去`, `按鈕「${h.label}」，之後畫面停在 ${live}`)
+  if (opts.second) await k.twoFinger(opts.second, h, h.tap ? 120 : 1500)
+  else await pressBack(k, h)
+  // 舊版：遊戲→首頁、站點→地圖；新版：回上一層（遊戲→站點→地圖→首頁）
+  const want = h.tap ? null : h.label.includes('回地圖') ? 'map' : 'home'
+  const up = (l: string | null) => (want ? l === want || l === 'home' : !!l && l !== before && !(before?.startsWith('play-') && l.startsWith('play-')))
+  const live = await waitLive(page, up, 4000)
+  const ok = up(live)
+  if (!ok) await c.once(`home:${ctx}`, '無法返回', `${ctx}：${h.tap ? '點返回鍵' : '按住回首頁 1.5 秒'}沒有回去`, `按鈕「${h.label}」，之後畫面停在 ${live}`)
   else await c.screenOk(`${ctx} 回首頁後`)
   c.outcome(ctx, ok, ok ? `${((Date.now() - t) / 1000).toFixed(1)} 秒回到 ${live}` : `停在 ${live}`)
   return ok

@@ -131,7 +131,7 @@ export const targets = (page: Page): Promise<Target[]> =>
       const cs = getComputedStyle(el)
       if (cs.visibility === 'hidden' || cs.pointerEvents === 'none') return
       const label = (el.getAttribute('aria-label') ?? '') + ''
-      if (/回首頁|回地圖|回到孩子模式/.test(label)) return
+      if (/回首頁|回地圖|回到孩子模式/.test(label) || el.closest('[data-back]')) return
       const x = Math.min(W - 4, Math.max(4, r.left + r.width / 2))
       const y = Math.min(H - 4, Math.max(4, r.top + r.height / 2))
       const hit = document.elementFromPoint(x, y)
@@ -152,14 +152,16 @@ export const targets = (page: Page): Promise<Target[]> =>
   })
 
 /** 回首頁鈕（遊戲裡要按住 1.2 秒，地圖、站點、貼紙本 0.6 秒） */
-export async function homeButton(page: Page): Promise<(Pt & { label: string }) | null> {
+export async function homeButton(page: Page): Promise<(Pt & { label: string; tap: boolean }) | null> {
   return page.evaluate(() => {
     const scenes = [...document.querySelectorAll<HTMLElement>('.scene')].filter((e) => !e.inert)
     const root: ParentNode = scenes.pop() ?? document
-    const b = root.querySelector('[aria-label*="回首頁"], [aria-label*="回地圖"]')
+    // 2026-10-29 起（main c843c88）返回鍵是 [data-back]，點一下回上一層；之前是要按住的「回首頁（按住）」
+    const nb = root.querySelector('[data-back]')
+    const b = nb ?? root.querySelector('[aria-label*="回首頁"], [aria-label*="回地圖"]')
     if (!b) return null
     const r = b.getBoundingClientRect()
-    return { x: r.left + r.width / 2, y: r.top + r.height / 2, label: b.getAttribute('aria-label') ?? '' }
+    return { x: r.left + r.width / 2, y: r.top + r.height / 2, label: b.getAttribute('aria-label') ?? '', tap: !!nb }
   })
 }
 
