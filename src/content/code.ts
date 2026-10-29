@@ -359,30 +359,45 @@ export function cPattern(level: number, recent: string[]): ChoiceItem {
 
 // ── 排順序 ─────────────────────────────────────────────────
 // 每個小故事 2–4 張圖，只挑順序不會因家庭習慣而不同的（先穿襪子再穿鞋、蛋先孵出小雞）。
-// 洗澡和刷牙誰先、早餐吃什麼這類每家不一樣的，不放進來
+// 洗澡和刷牙誰先、早餐吃什麼這類每家不一樣的，不放進來。
+//
+// 2026-10-29 重做（家長在平板上看了說「這我看不懂要玩啥」）：依 3 歲 3 個月能理解的「先後」重排難度。
+// 3 歲懂的先後是「自己天天做的事」和「看得到的變化」（蛋裂開跑出小雞、打哈欠然後睡著），
+// 原因看不到、要等很久、或很少親眼看過的（雨停了才有彩虹、毛毛蟲變蝴蝶）延到 2 級。
+//   1 級：兩步、看得到變化或自己天天做（蛋→小雞、蛋→恐龍、襪子→鞋子、下雨→撐傘、洗手→吃飯、打哈欠→睡著）
+//   2 級：兩步、原因看不到或要等很久（hard：雨→彩虹、毛毛蟲→蝴蝶、冰→水、芽→花）
+//   3 級：三步；4 級：四步
+// 刷牙→睡覺拿掉了：早上起床後也刷牙，「先睡覺再刷牙」也說得通，不是唯一的順序。
 export interface Story {
   id: string
   zh: string
   icons: string[]
   /** 每一張圖的旁白（英文，一張一句） */
   lines: string[]
-  /** 2 級放比較容易的三步故事；3 級才出全部 */
-  easy?: boolean
+  /** 兩步故事裡比較難的（原因看不到、要等很久）：2 級才出 */
+  hard?: boolean
 }
 
 export const STORIES: Story[] = [
-  { id: 'shoes', zh: '先穿襪子再穿鞋', icons: ['socks', 'running-shoe'], lines: ['First, | socks.', 'Then, | shoes!'] },
-  { id: 'rain', zh: '下雨後出彩虹', icons: ['cloud-with-rain', 'rainbow'], lines: ['First, | rain.', 'Then, a | rainbow!'] },
-  { id: 'bug', zh: '毛毛蟲變蝴蝶', icons: ['bug', 'butterfly'], lines: ['First, a | caterpillar.', 'Then, a | butterfly!'] },
-  { id: 'bed', zh: '刷牙再睡覺', icons: ['toothbrush', 'bed'], lines: ['First, brush your | teeth.', 'Then, go to | bed!'] },
+  // 1 級
+  { id: 'hatch', zh: '蛋孵出小雞', icons: ['egg', 'hatching-chick'], lines: ['First, an | egg.', 'Crack! A baby | chick!'] },
   { id: 'dino', zh: '恐龍蛋孵出恐龍', icons: ['egg', 'sauropod'], lines: ['First, an | egg.', 'Then, a baby | dinosaur!'] },
-
-  { id: 'chick', zh: '蛋孵出小雞', icons: ['egg', 'hatching-chick', 'baby-chick'], lines: ['First, an | egg.', 'Crack, | crack!', 'Hello, baby | chick!'], easy: true },
-  { id: 'clouds', zh: '雲到彩虹（三步）', icons: ['cloud', 'cloud-with-rain', 'rainbow'], lines: ['Clouds | come.', 'Rain | falls.', 'A | rainbow!'], easy: true },
-  { id: 'flower', zh: '發芽到開花', icons: ['seedling', 'herb', 'sunflower'], lines: ['A tiny | sprout.', 'It grows | bigger.', 'A big | flower!'], easy: true },
+  { id: 'shoes', zh: '先穿襪子再穿鞋', icons: ['socks', 'running-shoe'], lines: ['First, | socks.', 'Then, | shoes!'] },
+  { id: 'umbrella', zh: '下雨了、撐傘', icons: ['cloud-with-rain', 'umbrella-with-rain-drops'], lines: ['Oh, | rain!', 'Open the | umbrella!'] },
+  { id: 'wash', zh: '先洗手再吃飯', icons: ['soap', 'cooked-rice'], lines: ['First, wash your | hands.', 'Then, | eat!'] },
+  { id: 'nap', zh: '打哈欠、睡著了', icons: ['yawning-face', 'sleeping-face'], lines: ['A big | yawn.', 'Now, | sleep!'] },
+  // 2 級
+  { id: 'rain', zh: '下雨後出彩虹', icons: ['cloud-with-rain', 'rainbow'], lines: ['First, | rain.', 'Then, a | rainbow!'], hard: true },
+  { id: 'bug', zh: '毛毛蟲變蝴蝶', icons: ['bug', 'butterfly'], lines: ['First, a | caterpillar.', 'Then, a | butterfly!'], hard: true },
+  { id: 'melt', zh: '冰塊融化成水', icons: ['ice', 'droplet'], lines: ['First, | ice.', 'Then, | water!'], hard: true },
+  { id: 'grow', zh: '小芽長成花', icons: ['seedling', 'sunflower'], lines: ['First, a tiny | sprout.', 'Then, a big | flower!'], hard: true },
+  // 3 級
+  { id: 'chick', zh: '蛋孵出小雞（三步）', icons: ['egg', 'hatching-chick', 'baby-chick'], lines: ['First, an | egg.', 'Crack, | crack!', 'Hello, baby | chick!'] },
+  { id: 'clouds', zh: '雲到彩虹（三步）', icons: ['cloud', 'cloud-with-rain', 'rainbow'], lines: ['Clouds | come.', 'Rain | falls.', 'A | rainbow!'] },
+  { id: 'flower', zh: '發芽到開花', icons: ['seedling', 'herb', 'sunflower'], lines: ['A tiny | sprout.', 'It grows | bigger.', 'A big | flower!'] },
   { id: 'sleep', zh: '打哈欠到睡著', icons: ['yawning-face', 'bed', 'sleeping-face'], lines: ['A big | yawn!', 'Into | bed.', 'Zzz... | sleeping!'] },
   { id: 'day', zh: '早上到晚上', icons: ['sunrise', 'sun', 'crescent-moon'], lines: ['Good | morning!', 'It is | day.', 'Good | night!'] },
-
+  // 4 級
   { id: 'chicken', zh: '蛋到大雞（四步）', icons: ['egg', 'hatching-chick', 'baby-chick', 'chicken'], lines: ['An | egg.', 'Crack, | crack!', 'A baby | chick.', 'A big | chicken!'] },
   { id: 'weather', zh: '晴天到彩虹（四步）', icons: ['sun', 'cloud', 'cloud-with-rain', 'rainbow'], lines: ['A sunny | day.', 'Clouds | come.', 'Rain | falls.', 'A | rainbow!'] },
   { id: 'plant', zh: '發芽到花束（四步）', icons: ['seedling', 'herb', 'tulip', 'bouquet'], lines: ['A tiny | sprout.', 'It grows | bigger.', 'A | flower!', 'Lots of | flowers!'] },
@@ -391,14 +406,17 @@ export const STORIES: Story[] = [
 /** 原本的故事加上主題的故事（themes.ts）：台詞、家長區的名稱、概念都要對得到 */
 export const ALL_STORIES: Story[] = [...STORIES, ...THEME_STORIES]
 
+/** 不再出題的故事：家長區的舊紀錄還叫得出名字（不產生台詞、不算進熟練度） */
+const RETIRED_STORIES: Story[] = [{ id: 'bed', zh: '刷牙再睡覺（已拿掉）', icons: ['toothbrush', 'bed'], lines: [] }]
+
 /**
- * 每一級出幾步的故事：1 級兩步、2 級簡單的三步、3 級全部三步、4 級四步。
+ * 每一級出哪些故事：1 級簡單的兩步、2 級比較難的兩步、3 級三步、4 級四步。
  * 主題的故事只在那個主題的冒險裡出現（extra 是主題的故事 id），自由探索的題目和以前一樣。
  */
 export function storiesFor(level: number, extra: readonly string[] = []): Story[] {
   const pool = ALL_STORIES.filter((s) => STORIES.includes(s) || extra.includes(s.id))
-  if (level <= 1) return pool.filter((s) => s.icons.length === 2)
-  if (level === 2) return pool.filter((s) => s.icons.length === 3 && s.easy)
+  if (level <= 1) return pool.filter((s) => s.icons.length === 2 && !s.hard)
+  if (level === 2) return pool.filter((s) => s.icons.length === 2 && s.hard)
   if (level === 3) return pool.filter((s) => s.icons.length === 3)
   return pool.filter((s) => s.icons.length === 4)
 }
@@ -411,7 +429,7 @@ export function pickStory(level: number, recent: Story[]): Story {
 }
 
 export const seqSkill = (s: Story) => `seq:${s.id}`
-export const story = (id: string) => ALL_STORIES.find((s) => s.id === id)
+export const story = (id: string) => ALL_STORIES.find((s) => s.id === id) ?? RETIRED_STORIES.find((s) => s.id === id)
 
 // ── 圖示 ───────────────────────────────────────────────────
 /** 程式車庫用到的 Fluent Emoji（scripts/build-emoji.ts 會一起打包） */
