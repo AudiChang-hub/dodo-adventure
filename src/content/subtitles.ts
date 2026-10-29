@@ -1,4 +1,4 @@
-import { PHONICS, PHONICS_WORDS, cueText } from './letters'
+import { PHONICS, PHONICS_WORDS } from './letters'
 
 // 字幕的挖空規則（PRD §5.9）：只有「答案就在句中」的問題句，`|` 後那段顯示成空格。
 // 像「Which side has | more?」被加重的是題目條件、不是答案，所以不在這裡。
@@ -18,7 +18,8 @@ export const revealsAnswer = (questionKey: string, nextKey: string) =>
 // ── 自然發音的開頭字母上色（PRD §6.1b）─────────────────────────────
 // 跟挖空一樣用 key 前綴判斷，只看 ph. 開頭的台詞（lines-phonics.ts）：
 // - 每句有一個「目標字母」：ph.b.* 是 b；ph.word.bus（點名）、ph.same.bus（哪個跟 bus 一樣）是那個字的開頭 b。
-// - 句中「以目標字母開頭、而且在自然發音字表裡」的字（bus、ball、buh、Ssssnake、單獨的字母 B…），開頭字母標成同一個顏色。
+// - 句中「以目標字母開頭、而且在自然發音字表裡」的字（bus、ball、buh、單獨的字母 B…），開頭字母標成同一個顏色。
+//   拉長音和單字分開寫（Sss… snake!）：Sss… 和 snake 的 S 上同一個顏色。
 //   They、starts 不在字表裡，所以 They 的 T 不會被當成 /t/；Teddy bear 的 bear 不是 t 開頭，也不會上色。
 // 不會影響挖空：ph. 不在 BLANK_PREFIXES 裡；唯一「答案在句中」的自然發音問題句（聽音找字母）用既有的 en.where. 前綴，照常挖空、不上色；
 // 就算之後有句子同時符合兩條規則，挖空優先（tintTarget 回傳 null）。
@@ -39,7 +40,7 @@ const tintKey = (word: string) => word.toLowerCase().replace(/[^a-z]/g, '')
 const TINT_WORDS = new Set<string>([
   // 多個字的詞（teddy bear、T-rex）：第一個字、整個詞都算
   ...PHONICS_WORDS.flatMap(({ w }) => [tintKey(w.split(/\s+/)[0]), tintKey(w)]),
-  ...PHONICS.filter((u) => u.cue.kind !== 'word').map((u) => tintKey(cueText(u))),
+  ...PHONICS.flatMap((u) => (u.cue.kind === 'word' ? [] : [tintKey(u.cue.say)])),
   ...PHONICS.map((u) => u.letter),
 ])
 

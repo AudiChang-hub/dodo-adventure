@@ -13,14 +13,19 @@ const { allLines, segments, line } = await import('../src/content/lines')
 const { clipName, segmentVoice, segmentFx, segmentGap, BRIDGE_GAP_MS } = await import('../src/lib/clip')
 const { ZH_WORDS, zhClip, bridgeKey } = await import('../src/content/zh-words')
 const { lexWord } = await import('../src/content/lexicon')
+const { STRETCH, stretchOf, misplacedStretch } = await import('../src/content/stretch')
 
 const rows = new Map<string, object>()
 for (const [key, l] of allLines())
   for (const s of segments(l)) {
     // 中文三明治的中文由 gen_zh_words.py（BreezyVoice）產生，不交給 gen_audio.py
     if (s.role === 'zh') continue
+    if (misplacedStretch(s.text)) throw new Error(`拉長音要放在段的開頭，寫成「| Sss… snake!」（stretch.ts）：${key}「${l.text}」`)
     const file = clipName(l, s)
-    if (!rows.has(file)) rows.set(file, { key, file, text: s.text, speaker: l.speaker, role: s.role, ...segmentVoice(l, s), fx: segmentFx(l) })
+    // 拉長音：gen_audio.py 只合成後面的單字，再接上延長的開頭子音（stretch.ts）
+    const st = stretchOf(s.text)
+    const stretch = st && { ...st, hold: STRETCH.holdMs, gap: STRETCH.gapMs }
+    if (!rows.has(file)) rows.set(file, { key, file, text: s.text, speaker: l.speaker, role: s.role, ...segmentVoice(l, s), fx: segmentFx(l), ...(stretch ? { stretch } : {}) })
   }
 mkdirSync('scripts/.cache', { recursive: true })
 writeFileSync('scripts/.cache/lines.json', JSON.stringify([...rows.values()], null, 1))

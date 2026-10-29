@@ -12,7 +12,7 @@ def('ph.intro.letter', 'dodo', 'Listen, and find the letter!')
 // 點名選項、教學卡上的每個字：Bus.
 for (const { w } of PHONICS_WORDS) def(`ph.word.${wordId(w)}`, 'dodo', `${cap(w)}.`)
 
-/** 一個字配上這個音：Ball! | buh, buh, ball! ／ Sun starts like | Ssssnake! */
+/** 一個字配上這個音：Ball! | buh, buh, ball! ／ Sun starts like | Sss… snake! */
 export function echoText(u: SoundUnit, w: string): string {
   const c = u.cue
   if (c.kind === 'sound') return `${cap(w)}! | ${c.repeat === 2 ? `${c.say}, ${c.say}` : c.say}, ${w}!`
@@ -29,7 +29,7 @@ for (const u of PHONICS) {
   def(`ph.${l}.discover`, 'dodo', isSound ? `They all start with | ${cue}!` : `They all start like | ${cue}!`)
   // 字母從單字裡飛出來：先學字母音，字母名稱（B）自然帶入
   def(`ph.${l}.says`, 'dodo', isSound ? `${U} says | ${cue}!` : `${U}, like | ${cue}!`)
-  // 用祈使句、以「!」結尾：實測「Vvvvan?」「eh?」這種問句語調會把拉長的開頭音吃掉，「!」版本才唸得對
+  // 用祈使句、以「!」結尾：實測「Vvvvan?」「eh?」這種問句語調會把開頭音吃掉，「!」版本才唸得對
   def(`ph.${l}.q.start`, 'dodo', isSound ? `Find the one that starts with | ${cue}!` : `Find the one that starts like | ${cue}!`)
   // 聽音找字母：字幕若顯示 buh、apple，孩子看字幕的第一個字母就能找到答案，所以這句要挖空。
   // 沿用既有的挖空前綴 en.where.（舊版「Where is | B?」也是這一類找字母的問題），不改挖空規則：

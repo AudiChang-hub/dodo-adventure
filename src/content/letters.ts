@@ -1,3 +1,5 @@
+import { stretchSay } from './stretch'
+
 export interface LetterEntry {
   letter: string
   word: string
@@ -111,10 +113,18 @@ export const letterEntry = (l: string) => LETTERS.find((e) => e.letter === l)!
 //   教學指引提醒老師不要在 /b/ 後面多加「uh」，但停頓音本來就沒辦法不帶母音單獨唸，TTS 也做不到更短的版本；
 //   所以這個音一定和真的單字一起出現（buh, buh, bus），讓孩子聽到單字裡真正的開頭。
 //   "guh"、"cuh" 會被拼成字母，所以 g 改用單字開頭，c 寫成 kuh。
-// - m 可以單獨拉長："Mmmmm" 是乾淨的哼聲，採用。
-// - s、f、n、l、r、v、z 單獨拉長會被拼成 ess ess…，但「拉長開頭的單字」唸得對：
-//   Ssssnake、Ffffrog、Nnnnest、Llllion、Rrrrabbit、Vvvvan、Zzzzebra——用這個當「這個音」。
-//   （注意字母數要剛好：Sssssun、Fffffish 這種會在中間多出一個母音，所以只用實測過的字。）
+// - m 可以單獨拉長："Mmmmm" 是乾淨的哼聲，採用（2026-10-29 重測，Whisper 聽寫成 Mmm.）。它後面沒有黏著單字，不會被看成錯字，所以不改成 Mmm… 的寫法。
+// - s、f、n、l、r 用「拉長音 → 停一下 → 單字」：字幕寫成 Sss… snake!、Fff… frog!、Nnn… nest!、Lll… lion!、Rrr… rabbit!
+//   （2026-10-29 改，做法在 stretch.ts）。2026-10-29 重新實測（Whisper small 聽寫＋音高、共振峰分析，試聽檔在
+//   docs/voice-samples/拉長音分開/）：
+//   - 單獨的 Sss…、Fff…、Nnn…、Lll…、Rrr…、Vvv…（不管 3 個或 5 個字母、加不加 …）全部被拼成字母名稱
+//     （ess ess ess、eff eff、en en en、el el、ar ar），不能直接交給 TTS。
+//   - 舊寫法「拉長開頭的單字」其實沒有拉長：Ssssnake 和 snake 的 /s/ 一樣長（都約 0.2 秒），
+//     Nnnnest 多唸出一個母音（Whisper 聽成 Nennest），Llllion、Rrrrabbit、Ffffrog 被聽成 Be in、Grab a bit、Fug。
+//   - 所以拉長的音改由 gen_audio.py 從 Ana 唸的單字本身切出開頭子音、延長成 0.7 秒（s、f 是氣音，用隨機小片段疊加；
+//     n、l、r 用一個音高週期疊加），停 0.4 秒再接整個單字。延長的音裡沒有母音：s、f 全程無聲帶振動，
+//     n 的 F1 約 380Hz（鼻音），l 的 F3 約 3250Hz、r 的 F3 約 2050Hz（捲舌音的特徵），和單字裡原本的子音一致。
+//   - v：Ana 的 /v/ 在字首幾乎是清音（聽起來像 f），延長了會變成 fff，所以 v 改用單字開頭（van），和 a、g 一樣。
 // - 母音：eh（/ɛ/）、ah（美式 o 的 /ɑ/）唸得對；a 的 /æ/ 唸不出來（aah、æ 都變成別的音），改用單字 apple。
 
 /** 一個關鍵字：圖示＋英文字 */
@@ -128,7 +138,7 @@ export interface PhonicsWord {
 /**
  * 「這個音」要怎麼唸：
  * - sound：TTS 能正確單獨唸出的音，例如 buh、Mmmmm、eh。
- * - stretch：拉長開頭的單字，例如 Ssssnake（word 是被拉長的那個字）。
+ * - stretch：拉長開頭音、停一下、再唸單字，例如 Sss… snake（say 是 Sss…，word 是 snake；聲音怎麼做見 stretch.ts）。
  * - word：連拉長都不行，只用單字開頭呈現，例如 apple、goat。
  */
 export type Cue = { kind: 'sound'; say: string; repeat: 1 | 2 } | { kind: 'stretch'; say: string; word: string } | { kind: 'word'; word: string }
@@ -148,7 +158,7 @@ export interface SoundUnit {
 
 const W = (w: string, icon: string, alt?: string): PhonicsWord => (alt ? { w, icon, alt } : { w, icon })
 const sound = (say: string, repeat: 1 | 2 = 2): Cue => ({ kind: 'sound', say, repeat })
-const stretch = (say: string, word: string): Cue => ({ kind: 'stretch', say, word })
+const stretch = (word: string): Cue => ({ kind: 'stretch', say: stretchSay(word[0]), word })
 
 // 2026-10-28 單字盤點（docs/單字盤點.md 第 3 章）之後的版本：
 // - 換掉陌生、圖不好認、和別的名字打架的字（notebook → noodles、envelope → elevator、goat／guitar → gift／grapes…）；
@@ -157,18 +167,18 @@ const stretch = (say: string, word: string): Cue => ({ kind: 'stretch', say, wor
 // 複習字第一次當答案之前，一定先用單字卡教過（games/phonics/PhonicsGame.tsx），不再「刻意用沒看過的字考」。
 export const PHONICS: SoundUnit[] = [
   { letter: 'm', phoneme: 'm', ipa: '/m/', cue: sound('Mmmmm', 1), keys: [W('moon', 'crescent-moon'), W('mouse', 'mouse-face'), W('monkey', 'monkey-face')], review: [W('mushroom', 'mushroom'), W('mango', 'mango'), W('milk', 'glass-of-milk')] },
-  { letter: 's', phoneme: 's', ipa: '/s/', cue: stretch('Ssssnake', 'snake'), keys: [W('sun', 'sun-with-face'), W('snake', 'snake'), W('socks', 'socks')], review: [W('soap', 'soap'), W('sandwich', 'sandwich'), W('snail', 'snail')] },
+  { letter: 's', phoneme: 's', ipa: '/s/', cue: stretch('snake'), keys: [W('sun', 'sun-with-face'), W('snake', 'snake'), W('socks', 'socks')], review: [W('soap', 'soap'), W('sandwich', 'sandwich'), W('snail', 'snail')] },
   { letter: 'a', phoneme: 'æ', ipa: '/æ/', cue: { kind: 'word', word: 'apple' }, keys: [W('apple', 'red-apple'), W('ant', 'ant'), W('ambulance', 'ambulance')], review: [] },
   { letter: 't', phoneme: 't', ipa: '/t/', cue: sound('tuh'), keys: [W('tiger', 'tiger-face'), W('turtle', 'turtle'), W('taxi', 'taxi')], review: [W('T-rex', 't-rex', 'd'), W('tomato', 'tomato'), W('toothbrush', 'toothbrush'), W('teddy bear', 'teddy-bear', 'b')] },
   { letter: 'b', phoneme: 'b', ipa: '/b/', cue: sound('buh'), keys: [W('bus', 'bus'), W('ball', 'soccer-ball'), W('bear', 'bear')], review: [W('banana', 'banana'), W('balloon', 'balloon'), W('butterfly', 'butterfly'), W('bike', 'bicycle')] },
-  { letter: 'f', phoneme: 'f', ipa: '/f/', cue: stretch('Ffffrog', 'frog'), keys: [W('fish', 'fish'), W('fox', 'fox'), W('frog', 'frog')], review: [W('fire truck', 'fire-engine', 'c'), W('foot', 'foot', 'l'), W('flower', 'sunflower', 's')] },
-  { letter: 'n', phoneme: 'n', ipa: '/n/', cue: stretch('Nnnnest', 'nest'), keys: [W('nest', 'nest-with-eggs'), W('nose', 'nose'), W('noodles', 'steaming-bowl')], review: [] },
+  { letter: 'f', phoneme: 'f', ipa: '/f/', cue: stretch('frog'), keys: [W('fish', 'fish'), W('fox', 'fox'), W('frog', 'frog')], review: [W('fire truck', 'fire-engine', 'c'), W('foot', 'foot', 'l'), W('flower', 'sunflower', 's')] },
+  { letter: 'n', phoneme: 'n', ipa: '/n/', cue: stretch('nest'), keys: [W('nest', 'nest-with-eggs'), W('nose', 'nose'), W('noodles', 'steaming-bowl')], review: [] },
   { letter: 'd', phoneme: 'd', ipa: '/d/', cue: sound('duh'), keys: [W('dinosaur', 'sauropod'), W('dog', 'dog-face'), W('duck', 'duck')], review: [W('deer', 'deer'), W('dolphin', 'dolphin')] },
   { letter: 'c', phoneme: 'k', ipa: '/k/', cue: sound('kuh'), keys: [W('car', 'automobile'), W('cat', 'cat-face'), W('cow', 'cow-face')], review: [W('cookie', 'cookie'), W('carrot', 'carrot'), W('cake', 'birthday-cake', 'b'), W('cupcake', 'cupcake', 'c')] },
-  { letter: 'r', phoneme: 'r', ipa: '/r/', cue: stretch('Rrrrabbit', 'rabbit'), keys: [W('rabbit', 'rabbit-face'), W('rocket', 'rocket'), W('rainbow', 'rainbow')], review: [W('robot', 'robot'), W('rice', 'cooked-rice')] },
+  { letter: 'r', phoneme: 'r', ipa: '/r/', cue: stretch('rabbit'), keys: [W('rabbit', 'rabbit-face'), W('rocket', 'rocket'), W('rainbow', 'rainbow')], review: [W('robot', 'robot'), W('rice', 'cooked-rice')] },
   { letter: 'p', phoneme: 'p', ipa: '/p/', cue: sound('puh'), keys: [W('pig', 'pig-face'), W('panda', 'panda'), W('penguin', 'penguin')], review: [W('pizza', 'pizza'), W('pear', 'pear'), W('popcorn', 'popcorn'), W('police car', 'police-car', 'c')] },
   { letter: 'e', phoneme: 'ɛ', ipa: '/ɛ/', cue: sound('eh'), keys: [W('egg', 'egg'), W('elephant', 'elephant'), W('elevator', 'elevator')], review: [] },
-  { letter: 'l', phoneme: 'l', ipa: '/l/', cue: stretch('Llllion', 'lion'), keys: [W('lion', 'lion'), W('lemon', 'lemon'), W('lollipop', 'lollipop')], review: [W('leaf', 'leaf-fluttering-in-wind'), W('ladybug', 'lady-beetle', 'b'), W('leg', 'leg', 'f'), W('ladder', 'ladder')] },
+  { letter: 'l', phoneme: 'l', ipa: '/l/', cue: stretch('lion'), keys: [W('lion', 'lion'), W('lemon', 'lemon'), W('lollipop', 'lollipop')], review: [W('leaf', 'leaf-fluttering-in-wind'), W('ladybug', 'lady-beetle', 'b'), W('leg', 'leg', 'f'), W('ladder', 'ladder')] },
   { letter: 'h', phoneme: 'h', ipa: '/h/', cue: sound('huh'), keys: [W('horse', 'horse'), W('helicopter', 'helicopter'), W('hippo', 'hippopotamus')], review: [W('hand', 'raised-hand'), W('hamburger', 'hamburger'), W('house', 'house'), W('hot dog', 'hot-dog')] },
   { letter: 'g', phoneme: 'g', ipa: '/g/', cue: { kind: 'word', word: 'gift' }, keys: [W('gift', 'wrapped-gift', 'p'), W('gorilla', 'gorilla', 'm'), W('grapes', 'grapes')], review: [] },
   { letter: 'w', phoneme: 'w', ipa: '/w/', cue: sound('wuh'), keys: [W('whale', 'spouting-whale'), W('watermelon', 'watermelon'), W('worm', 'worm')], review: [W('wolf', 'wolf', 'd'), W('window', 'window'), W('wheel', 'wheel', 't')] },
@@ -183,7 +193,7 @@ export const PHONICS: SoundUnit[] = [
 export const DEFERRED_PHONICS: SoundUnit[] = [
   { letter: 'o', phoneme: 'ɑ', ipa: '/ɑ/', cue: sound('ah'), keys: [W('octopus', 'octopus'), W('otter', 'otter', 'b'), W('ox', 'ox', 'cb')], review: [] },
   { letter: 'j', phoneme: 'dʒ', ipa: '/dʒ/', cue: sound('juh'), keys: [W('jellyfish', 'jellyfish'), W('jeans', 'jeans'), W('jar', 'jar', 'b')], review: [] },
-  { letter: 'v', phoneme: 'v', ipa: '/v/', cue: stretch('Vvvvan', 'van'), keys: [W('volcano', 'volcano'), W('van', 'minibus', 'b'), W('violin', 'violin')], review: [] },
+  { letter: 'v', phoneme: 'v', ipa: '/v/', cue: { kind: 'word', word: 'van' }, keys: [W('volcano', 'volcano'), W('van', 'minibus', 'b'), W('violin', 'violin')], review: [] },
   { letter: 'y', phoneme: 'j', ipa: '/j/', cue: sound('yuh'), keys: [W('yo-yo', 'yo-yo'), W('yarn', 'yarn'), W('yawn', 'yawning-face', 's')], review: [] },
 ]
 
@@ -216,8 +226,8 @@ export const PHONICS_WORDS: (PhonicsWord & { unit: SoundUnit })[] = PHONICS.flat
 /** 「這個音」被拉長或當作代表的那個字（沒有就是 null） */
 export const cueWord = (u: SoundUnit) => (u.cue.kind === 'sound' ? null : u.cue.word)
 
-/** 唸「這個音」的文字：buh、Mmmmm、Ssssnake、apple */
-export const cueText = (u: SoundUnit) => (u.cue.kind === 'word' ? u.cue.word : u.cue.say)
+/** 唸「這個音」的文字：buh、Mmmmm、Sss… snake、apple */
+export const cueText = (u: SoundUnit) => (u.cue.kind === 'word' ? u.cue.word : u.cue.kind === 'stretch' ? `${u.cue.say} ${u.cue.word}` : u.cue.say)
 
 /**
  * 聽起來容易混淆的音：最高難度時拿來當干擾選項（PRD §5.5「干擾項更相近」）。

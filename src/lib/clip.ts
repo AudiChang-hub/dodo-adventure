@@ -3,6 +3,7 @@ import { segments, type Line, type Segment } from '../content/lines'
 import { E4, SEGMENT_GAP_MS, VOICES, adjust, emphasis, type VoiceSpec } from '../content/voices'
 import { INTERJ } from '../content/interjections'
 import { zhClip } from '../content/zh-words'
+import { STRETCH, stretchOf } from '../content/stretch'
 
 /** 中文三明治：英文和中文之間的停頓（毫秒），前後一樣 */
 export const BRIDGE_GAP_MS = 400
@@ -56,7 +57,9 @@ export function clipName(l: Line, s: Segment): string {
   if (s.role === 'zh') return zhClip(s.text)
   const v = segmentVoice(l, s)
   const fx = segmentFx(l)
-  const base = `${v.voice}|${v.rate}|${v.pitch}|${v.volume}|${s.text}`
+  // 拉長音（Sss… snake!）不是直接合成的，做法的版本也要算進檔名
+  const st = stretchOf(s.text) ? `|stretch${STRETCH.holdMs}-${STRETCH.gapMs}-v${STRETCH.version}` : ''
+  const base = `${v.voice}|${v.rate}|${v.pitch}|${v.volume}|${s.text}${st}`
   // 發音示範的檔名公式維持原樣：原本實測過的音檔原封不動沿用
   return fnv1a(fx ? `${base}|${fx.tag}` : base)
 }

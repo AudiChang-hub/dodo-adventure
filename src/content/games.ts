@@ -240,7 +240,7 @@ const themePick = <T extends PhonicsWord>(pool: readonly T[]): T => {
   return fav.length && Math.random() < THEME_WORD_SHARE ? pick(fav) : pick(pool)
 }
 
-/** 單字卡：字母森林的字（Noodles. → Noodles starts like Nnnnest!，字幕把開頭字母上色） */
+/** 單字卡：字母森林的字（Noodles. → Noodles starts like Nnn… nest!，字幕把開頭字母上色） */
 const soundCard = (x: PhonicsWord, u: SoundUnit): WordCard => ({ key: wkey(x), word: x, lines: [...bridgeLines(wkey(x), `ph.word.${wkey(x)}`), `ph.${u.letter}.echo.${wkey(x)}`] })
 /** 單字卡：只教名字（干擾圖用，不提它的開頭音：This is a | sun.） */
 const nameCard = (x: PhonicsWord): WordCard => ({ key: wkey(x), word: x, lines: bridgeLines(wkey(x)) })
