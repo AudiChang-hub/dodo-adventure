@@ -81,10 +81,12 @@ test.describe('畫面', () => {
       const go = await center(page, '.go-btn')
       if (go) {
         await k.spam(go, 8, '出發')
-        const live = await waitLive(page, (l) => l === 'adventure', 4000)
+        // 今日冒險裡面還有一疊自己的畫面（route、travel-0…），live 會是裡面那一層
+        const live = await waitLive(page, (l) => !!l && l !== 'home', 4000)
         await k.wait(2500)
         const s2 = await snap(page)
-        c.outcome('狂點出發', live === 'adventure', `到 ${live}，之後圖層 ${s2.scenes.map((x) => x.id).join(',')}`)
+        const adv = s2.scenes.some((x) => x.id === 'adventure')
+        c.outcome('狂點出發', adv, `到 ${live}，之後圖層 ${s2.scenes.map((x) => x.id).join(',')}`)
         await c.screenOk('狂點出發')
         await c.flush()
         // 冒險一開始就想回家
@@ -273,6 +275,8 @@ test.describe('畫面', () => {
       await tryBack('首頁')
       await toMap(k, c)
       const map = await tryBack('地圖')
+      // 新版返回手勢會回首頁：再回地圖
+      await toMap(k, c)
       const p = await center(page, `.map-stop[aria-label="${STATIONS.math}"]`)
       await k.tap(p!, '站牌')
       await waitLive(page, (l) => l === 'st-math')

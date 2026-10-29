@@ -89,8 +89,6 @@ for (const g of selected()) {
         const src = ts.find((t) => t.kind === 'drag') ?? ts.find((t) => t.kind === 'canvas') ?? ts.find((t) => t.kind === 'btn')
         const p0 = src ? { x: src.x, y: src.y } : { x: 600, y: 450 }
         await holdHome(k, c, '拖曳中按首頁', { second: [p0, { x: p0.x + 40, y: p0.y - 30 }, { x: p0.x + 90, y: p0.y - 10 }] })
-        const live = (await snap(page)).live
-        c.rule('NAV-2', live === `st-${g.station}`, `遊戲裡按返回到 ${live}（準則：回站點 st-${g.station}）`)
       }
 
       // 8. 一進遊戲（教學、說明語音中）就按首頁
@@ -107,6 +105,8 @@ for (const g of selected()) {
         const s = await snap(page)
         k.act(`狀態 ${s.teaching ?? s.phase ?? '說明中'}，說話中 ${s.speaking}`)
         await holdHome(k, c, `教學中按首頁（${s.teaching ?? (s.speaking ? '說明語音' : '題目')}）`)
+        const back = (await snap(page)).live
+        c.rule('NAV-2', back === `st-${g.station}`, `遊戲裡按返回到 ${back}（準則：回站點 st-${g.station}）`)
       }
 
       // 9. 轉場中按首頁：點遊戲卡後馬上按住左上角
