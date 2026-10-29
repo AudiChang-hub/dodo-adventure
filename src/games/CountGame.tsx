@@ -255,7 +255,9 @@ export function CountGame({ gameId, onDone, onExit }: GameProps) {
   }
 
   const tapObj = async (i: number) => {
-    if (!round || ask || busy.current) return
+    if (!round || busy.current) return
+    // 選數字的時候點到東西：那一個跳一下（有反應，準則 TOUCH-6），不重算
+    if (ask) return setPing({ i, k: Date.now() })
     idle.poke()
     if (counted.includes(i)) {
       extra.current++
@@ -298,7 +300,13 @@ export function CountGame({ gameId, onDone, onExit }: GameProps) {
   const tapChoice = async (n: number) => {
     if (!round || busy.current) return
     idle.poke()
-    if (wrong.includes(n)) return
+    // 又點到剛剛點錯的：輕輕一聲，對的數字亮起來、手在上面點一下（不會毫無反應）
+    if (wrong.includes(n)) {
+      sfx.gentle()
+      setHint(true)
+      setTapAgain((t) => t + 1)
+      return
+    }
     setAskCue(false)
     taps.current.push({ pick: String(n), ms: Math.round(performance.now() - t0.current) })
     if (n === round.n) {
