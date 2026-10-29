@@ -9,6 +9,7 @@
     "preview": "vite preview --host",
     "phrases": "tsx scripts/extract-phrases.ts",
     "audio": "npm run phrases && python scripts/gen_audio.py",
+    "zh:check": "tsx scripts/check-zh.ts",
     "emoji": "tsx scripts/build-emoji.ts && tsx scripts/build-sticker-tones.ts",
     "icons": "node scripts/build-icons.mjs",
     "deploy": "node scripts/deploy.mjs"

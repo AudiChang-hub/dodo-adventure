@@ -4,7 +4,9 @@
 - 字的清單由 `npm run phrases`（scripts/extract-phrases.ts）寫到 scripts/.cache/zh-words.json；檔名由 src/content/zh-words.ts 決定。
 - 可以重跑：已經產生好的字會略過，只補缺的。中斷了（關機、Ctrl+C）再跑一次就會接著做。
 - 每個字產生兩個版本（take），用 Whisper 聽寫、換成不含聲調的拼音比對，挑唸對的；兩個都不對就再多產生，最多 --max-takes 個。
-  都不對的字不放進 index.json（App 對那個字只唸英文），列在 scripts/.cache/zh-report.json 的 rejected，可以人工聽過後用 --accept 放行。
+  都不對的時候改用「強制比對」：把正確的字交給 Whisper，算每個版本唸成這個字的機率，挑最像的那個。
+  這樣挑的字預設不放進 index.json（App 對那個字只唸英文），列在 scripts/.cache/zh-report.json 的 rejected；
+  人工聽過沒問題的用 --accept 放行，或寫進下面的 WHISPER_MISHEARS（每次都放行）。
 - 後製只有三件事：修剪頭尾靜音、太快的換成 0.9 倍速的版本、音量對齊 −20 LUFS（和 Ana 的英文音檔一樣）。
   **不做任何音高處理**（家長否決過 Praat 調整過的聲音）。0.9 倍速是 CosyVoice 官方新版 speed 參數的做法：
   梅爾頻譜在時間軸上拉長再交給聲碼器，音高不變。
@@ -58,6 +60,15 @@ MAX_CPS = 3.2         # 每秒超過這麼多字算太快，換成 0.9 倍速的
 LEAD_MS, TAIL_MS = 30, 60   # 頭尾保留的靜音（和 E4 的英文一樣）
 GAP_MS = 400          # 試聽三明治：中英之間（App 是 src/lib/clip.ts 的 BRIDGE_GAP_MS）
 ASR_PROMPT = "以下是台灣華語，使用繁體中文。"
+# Whisper small 怎麼重試都聽成別的字（多半是台灣口音的 in／ing 不分、ㄘ／ㄔ，或被當成英文）：用強制比對挑最像的版本放行。
+# 家長聽 docs/voice-samples/zh-words/需確認/ 覺得不對的，從這裡拿掉再跑一次，那個字就只唸英文。
+WHISPER_MISHEARS = {
+    "草莓",  # 炒美、超美
+    "鯨魚",  # 金魚
+    "圍巾",  # 維京、為經
+    "披薩",  # Peace out!
+    "梯子",  # T字、提詞
+}
 
 
 # ── 音訊工具 ─────────────────────────────────────────────────
@@ -250,6 +261,27 @@ class Asr:
         r = self.model.transcribe(a, language="zh", fp16=False, initial_prompt=ASR_PROMPT)
         return self.s2t.convert(r["text"].strip())
 
+    def force(self, wav_path, text):
+        """強制比對：這段聲音唸成 text 的對數機率（繁簡都試，取高的）。越接近 0 越像"""
+        import librosa
+        import torch
+        import whisper
+        if not hasattr(self, "tok"):
+            import opencc
+            self.tok = whisper.tokenizer.get_tokenizer(True, language="zh", task="transcribe")
+            self.t2s = opencc.OpenCC("t2s")
+        a, _ = librosa.load(str(wav_path), sr=16000)
+        mel = whisper.log_mel_spectrogram(whisper.pad_or_trim(torch.tensor(a))).unsqueeze(0)
+        sot = list(self.tok.sot_sequence_including_notimestamps)
+        with torch.no_grad():
+            feat = self.model.embed_audio(mel)
+
+            def lp(t):
+                ids = sot + self.tok.encode(t) + [self.tok.eot]
+                out = torch.log_softmax(self.model.logits(torch.tensor([ids]), feat)[0], -1)
+                return sum(out[i - 1, ids[i]].item() for i in range(len(sot), len(ids)))
+            return max(lp(text), lp(self.t2s.convert(text)))
+
 
 # ── 產生一個字 ───────────────────────────────────────────────
 def speak_text(zh):
@@ -301,9 +333,19 @@ def make_word(w, state, ctx, args):
         ensure_take(k)
         k += 1
 
-    # 挑選：唸對的優先；再來是長度合理（亂語通常拖很長）；最後挑語速最接近 MAX_CPS 以下的
+    # 挑選：唸對的優先；再來是長度合理（亂語通常拖很長）；最後挑語速最接近 MAX_CPS 以下的。
+    # 都唸錯（Whisper 聽成別的字）：挑強制比對最像這個字的版本
+    usable = [k for k in takes if (CACHE / f"{stem}_{k}.wav").exists() and not takes[k].get("silent")]
+    forced = ctx.asr_size and usable and not any(takes[k].get("cer", 1) == 0 for k in usable)
+    if forced:
+        for k in usable:
+            if "force" not in takes[k]:
+                takes[k]["force"] = round(ctx.asr().force(CACHE / f"{stem}_{k}.wav", zh), 2)
+
     def score(k):
         t = takes[k]
+        if forced:
+            return (bool(t.get("silent")), -t.get("force", -99.0))
         return (t.get("cer", 0), t["cps"] < 1.0, abs(min(t["cps"], MAX_CPS * 1.5) - 2.8))
     best = min((k for k in takes if (CACHE / f"{stem}_{k}.wav").exists()), key=score)
     if takes[best].get("silent"):
@@ -311,6 +353,7 @@ def make_word(w, state, ctx, args):
     t = takes[best]
     slow = t["cps"] > MAX_CPS
     meta["picked"] = best + ("_s90" if slow else "")
+    meta["forced"] = bool(forced)
     accepted = t.get("cer", 0) == 0 or zh in args.accept or any(k in args.accept for k in w["keys"])
     meta["accepted"] = accepted
     if accepted:
@@ -378,7 +421,7 @@ def main():
     ap.add_argument("--threads", type=int, default=8)
     ap.add_argument("--asr", default="small", help="Whisper 模型大小；空字串＝不檢查（不建議）")
     args = ap.parse_args()
-    args.accept = {x for x in args.accept.split(",") if x}
+    args.accept = {x for x in args.accept.split(",") if x} | WHISPER_MISHEARS
 
     if not LIST.exists():
         raise SystemExit("找不到 scripts/.cache/zh-words.json，請先跑 npm run phrases")
@@ -404,14 +447,15 @@ def main():
     t_all = time.time()
     for i, w in enumerate(todo):
         m = state.get(w["file"])
-        if m and m.get("accepted") and (AUDIO / f"{w['file']}.mp3").exists() and w["zh"] not in args.accept:
+        if m and m.get("accepted") and (AUDIO / f"{w['file']}.mp3").exists():
             continue
         t0 = time.time()
         m = make_word(w, state, ctx, args)
         save()
         t = m["takes"][m["picked"].split("_")[0]]
         print(f"[{i + 1}/{len(todo)}] {w['zh']}: {m['picked']} {'OK' if m['accepted'] else 'REJECTED'} "
-              f"asr={t.get('asr')} cer={t.get('cer')} cps={t['cps']} ({time.time() - t0:.0f}s)", flush=True)
+              f"asr={t.get('asr')} cer={t.get('cer')} cps={t['cps']}{' force=' + str(t['force']) if m.get('forced') else ''} "
+              f"({time.time() - t0:.0f}s)", flush=True)
 
     # 字表裡已經沒有的字：音檔刪掉（只在跑全部時）
     if not args.samples_out and not only:

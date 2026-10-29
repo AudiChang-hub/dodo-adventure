@@ -37,6 +37,9 @@ for (const w of ZH_WORDS) {
   zh.set(w.zh, r)
 }
 const zhRows = [...zh.values()].sort((a, b) => a.rank - b.rank)
+// 單一個字 BreezyVoice 唸得不穩（「狗」4 個版本有 1 個整段沒聲音），一律補成兩個字（小狗、皮球）；數字要寫國字；只放一個叫法（「蟲／蚯蚓」會連斜線一起唸）
+const bad = zhRows.filter((r) => [...r.zh].length < 2 || /[0-9０-９/／、,，]/.test(r.zh))
+if (bad.length) throw new Error(`中文三明治的中文要至少兩個字、數字寫國字、只放一個叫法（lexicon-info.ts、park.ts）：${bad.map((r) => r.zh).join('、')}`)
 
 // 給家長試聽的完整三明治：教學卡實際的順序（第一句英文 → 停 0.4 秒 → 中文 → 停 0.4 秒 → 英文）
 const SAMPLES: [string, string, string][] = [
