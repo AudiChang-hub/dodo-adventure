@@ -15,7 +15,7 @@ import { UNKNOWN_KV } from './words'
  *   words:unknown（家長在「單字清單」勾的「他不認得」）
  * - 清掉（新增）：words:taught（哪些字在教學卡上教過，lib/words.ts）
  * - 清掉：engine:concepts（每週新概念額度）、engine:loadDrop（負擔控制降級日）、achieve（里程碑／貼紙／貼紙本看過）、
- *   plan:{日期}（今日冒險進度、主題輪替紀錄）、coplay:{日期}（爸爸回合次數）、usage:{日期}（今天已玩時間）、
+ *   plan:{日期}（今日冒險進度、主題輪替紀錄）、coplay:{日期}（舊版爸爸回合次數，2026-10-29 拿掉了，舊資料可能還有）、usage:{日期}（今天已玩時間）、
  *   outing.ticks（出門任務卡勾選）、outing.recall（回到 App 的回想題紀錄）、phonics:migrated（舊字母熟練度的一次性換算）、
  *   cues:seen（比較題的題目徽章教過了沒）
  */
