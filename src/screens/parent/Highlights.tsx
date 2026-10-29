@@ -88,7 +88,7 @@ export function Highlights({ d }: { d: ParentData }) {
       <div className="card stk-rules">
         <ol>
           <li>
-            <b>每玩完一關，貼紙卡多 1 顆星。</b>要真的有作答、玩到最後；中途按住回首頁離開的那一關不算。
+            <b>每玩完一關，貼紙卡多 1 顆星。</b>要真的有作答、玩到最後；中途按返回離開的那一關不算。
           </li>
           <li>
             <b>那一關有特別的事，再多 1 顆：</b>學會新東西、錯了自己改對、升級，各 1 顆（一關最多多 {CARD_BONUS_MAX} 顆，所以一關 1–{1 + CARD_BONUS_MAX} 顆）。

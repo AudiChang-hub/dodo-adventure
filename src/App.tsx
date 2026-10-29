@@ -40,7 +40,7 @@ function Screen({ r }: { r: Route }) {
     case 'station':
       return <StationScreen id={r.station} />
     case 'play':
-      return <PlayGame gameId={r.game} onDone={() => go({ name: 'station', station: r.station })} onExit={() => go({ name: 'home' })} />
+      return <PlayGame gameId={r.game} onDone={() => go({ name: 'station', station: r.station })} onExit={() => go({ name: 'station', station: r.station }, { back: true })} />
     case 'collection':
       return <Collection />
     case 'bedtime':

@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { motion } from 'motion/react'
 import { Emoji } from '../art/Emoji'
 import { Dino } from '../art/Dino'
-import { HoldButton } from '../ui/Hold'
+import { BackButton } from '../ui/Back'
 import { HomeIcon } from '../games/Shell'
 import { STATIONS } from '../content/games'
 import { go } from '../lib/nav'
@@ -44,9 +44,9 @@ export function MapScreen() {
         <path d={road} fill="none" stroke="#FBF8F2" strokeWidth={5} strokeDasharray="26 24" strokeLinejoin="round" />
       </svg>
       <div style={{ position: 'absolute', left: 26, top: 18, zIndex: 5 }}>
-        <HoldButton label="回首頁（按住）" ms={600} onHold={() => go({ name: 'home' })}>
+        <BackButton label="回首頁">
           <HomeIcon />
-        </HoldButton>
+        </BackButton>
       </div>
       {STATIONS.map((s, i) => (
         <motion.button

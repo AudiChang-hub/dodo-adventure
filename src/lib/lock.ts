@@ -1,14 +1,15 @@
 // App 層的防護：真正的鎖是 Android 的「螢幕固定＋PIN」，這裡負責擋掉誤觸
-import { currentRoute, go } from './nav'
+import { back } from './nav'
 
 let wakeLock: { release: () => Promise<void> } | null = null
 
 export function installGuards() {
   history.pushState({ trap: 1 }, '')
   window.addEventListener('popstate', () => {
-    // 返回手勢一律吃掉；家長區例外，返回就回首頁
+    // 返回手勢不離開 App（瀏覽器的上一頁一律補回去），只回 App 裡的上一層，跟畫面上的返回鍵一樣：
+    // 遊戲 → 站點 → 地圖 → 首頁；首頁、睡覺畫面就停住。連續的返回手勢也只回一層（nav.ts 的 back）
     history.pushState({ trap: 1 }, '')
-    if (currentRoute().name === 'parent') go({ name: 'home' })
+    back()
   })
   window.addEventListener('contextmenu', (e) => e.preventDefault())
   document.addEventListener('gesturestart', (e) => e.preventDefault())
