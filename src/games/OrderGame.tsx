@@ -22,6 +22,9 @@ const TINTS = ['#F6DE95', '#F3C1B2', '#C9E4D4', '#D3E3F3', '#E2DAF1', '#F8DCC8']
  * 照順序：1、2、3…依序點數字，點對的數字會排到上面的小火車裡。
  * 第一次玩（或沒學過的長度）先由波波示範點 1、2、3，再換孩子。
  */
+/** 點錯的「Try again!」最少隔多久才再說一次 */
+const RETRY_GAP_MS = 4000
+
 export function OrderGame({ gameId, onDone, onExit }: GameProps) {
   const def = gameDef(gameId)
   const [r, setR] = useState(0)
@@ -39,6 +42,7 @@ export function OrderGame({ gameId, onDone, onExit }: GameProps) {
   const first = useRef(0)
   const busy = useRef(true)
   const nextRef = useRef(1)
+  const retrySaid = useRef(-Infinity)
   const idle = useIdle()
   const round0 = useRef(roundState(plays(def.id) === 0))
   /** 這一輪先示範過：答對後多停一下再換題 */
@@ -148,6 +152,9 @@ export function OrderGame({ gameId, onDone, onExit }: GameProps) {
       setShake(n)
       setTimeout(() => setShake(0), 450)
       if (wrongs.current >= 2) setHint(true)
+      // 一直點錯（三歲亂點）：搖一下、亮起來每次都有，「Try again!」最多每 4 秒說一次，不會一直被唸
+      if (performance.now() - retrySaid.current < RETRY_GAP_MS) return idle.poke()
+      retrySaid.current = performance.now()
       // 點錯的回饋，不算閒置提醒；說完才重新計時
       await say(retryKey('bobo'), `m.findnum.${next}`)
       return idle.poke()
