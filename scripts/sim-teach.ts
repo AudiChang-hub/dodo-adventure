@@ -26,7 +26,7 @@ import { gameLevel, level, markPlayed, noteAttempt, plays, recordSkill, reportLe
 import { fluencyKey, fluencyTargets } from '../src/lib/fluency'
 import { NUMBER_RANGE, numberPicker } from '../src/games/sheet/NumberFlow'
 import { planChoice, planCount, planDots, planDrive, planOrder, planPhonics, planSequence, planSheet, roundState } from '../src/games/pick'
-import { patternRounds, seqSkill, PATTERN_TOKS } from '../src/content/code'
+import { patternRounds, seqSkill, storiesFor, ALL_STORIES, PATTERN_TOKS } from '../src/content/code'
 import type { ChoiceItem, PhonicsItem } from '../src/content/games'
 import type { SheetItem } from '../src/content/games-worksheet'
 import { PHONICS, wordId } from '../src/content/letters'
@@ -293,12 +293,23 @@ function playDrive(g: GameDef) {
   }
 }
 
+/** 排順序：每個故事第一次出現時有沒有先演故事＋手示範（SequenceGame 的 demo，pick.ts 的 fresh） */
+const seqSeen = new Map<string, number>()
+let seqDemos = 0
 function playSequence(g: GameDef) {
   const st = { ...roundState(plays(g.id) === 0), stories: [] }
   markPlayed(g.id)
   for (let i = 0; i < 4; i++) {
     const p = planSequence(g, st, i)
-    if (p.fresh) teach(g, seqSkill(p.s))
+    const id = p.s.id
+    if (!seqSeen.has(id)) {
+      seqSeen.set(id, p.lv)
+      if (!p.fresh) violations.push({ day, game: g.id, skill: seqSkill(p.s), why: '新故事第一次出現沒有先示範' })
+    }
+    if (p.fresh) {
+      seqDemos++
+      teach(g, seqSkill(p.s))
+    }
     quiz(g, seqSkill(p.s), p.fresh, '排順序')
   }
 }
@@ -442,6 +453,12 @@ const placed = CHECKED.map((id) => gameLevel(gameOf(id).id)?.placed)
 console.log(`選擇題的探測題 ${probes} 題（都是學過的）；校準完成：${placed.join('、') || '（無）'}`)
 console.log(
   `連點成圖 ${dotsPics} 張：${[...dotsSeen].sort((a, b) => a[0] - b[0]).map(([lv, s]) => `第 ${lv} 級 ${[...s].join('/')}`).join('；')}；最後數字解鎖到 ${unlockedNumbers()}`,
+)
+// 排順序的故事：每一級的清單都有故事、一張圖一句旁白；每個故事第一次出現都先示範
+for (let l = 1; l <= 4; l++) if (!storiesFor(l).length) violations.push({ day: 0, game: 'c-seq', skill: `lv${l}`, why: '這一級沒有故事' })
+for (const s of ALL_STORIES) if (s.lines.length !== s.icons.length) violations.push({ day: 0, game: 'c-seq', skill: seqSkill(s), why: '旁白和圖的張數不一樣' })
+console.log(
+  `排順序：${seqSeen.size} 個故事出現過、示範 ${seqDemos} 次，第一次出現沒先示範 ${bad(/新故事第一次出現沒有先示範/)} 個；各級故事 ${[1, 2, 3, 4].map((l) => `${l} 級 ${storiesFor(l).map((s) => s.id).join('/')}`).join('；')}`,
 )
 for (const [k, n] of [...by].sort((a, b) => b[1] - a[1])) console.log(`  ${String(n).padStart(4)}  ${k}`)
 for (const v of violations.slice(0, 12)) console.log(`  例：第 ${v.day} 天 ${v.game} ${v.skill}（${v.why}）`)

@@ -78,19 +78,19 @@ export interface ThemeDef {
   dad: string
 }
 
-/** 主題專用的排順序小故事：一樣只挑順序不會因家庭習慣而不同的 */
+/** 主題專用的排順序小故事：一樣只挑順序不會因家庭習慣而不同的（hard：原因看不到、要等很久的兩步故事，2 級才出，見 code.ts） */
 export const THEME_STORIES: Story[] = [
   { id: 'bus2', zh: '等公車、公車來了', icons: ['bus-stop', 'bus'], lines: ['First, wait at the | bus stop.', 'Then, here comes the | bus!'] },
-  { id: 'bus3', zh: '等車、坐車、到動物園', icons: ['bus-stop', 'bus', 'lion'], lines: ['Wait at the | bus stop.', 'Ride the | bus.', 'Hello, | lion!'], easy: true },
-  { id: 'farm2', zh: '發芽到紅蘿蔔', icons: ['seedling', 'carrot'], lines: ['First, a little | sprout.', 'Then, a big | carrot!'] },
-  { id: 'fire2', zh: '火、灑水', icons: ['fire', 'droplet'], lines: ['First, a | fire!', 'Then, splash, | water!'] },
-  { id: 'fire3', zh: '火、消防車來了、灑水', icons: ['fire', 'fire-engine', 'droplet'], lines: ['Oh no, a | fire!', 'Here comes the | fire truck!', 'Splash! | Water!'], easy: true },
+  { id: 'bus3', zh: '等車、坐車、到動物園', icons: ['bus-stop', 'bus', 'lion'], lines: ['Wait at the | bus stop.', 'Ride the | bus.', 'Hello, | lion!'] },
+  { id: 'farm2', zh: '發芽到紅蘿蔔', icons: ['seedling', 'carrot'], lines: ['First, a little | sprout.', 'Then, a big | carrot!'], hard: true },
+  { id: 'fire2', zh: '火、灑水', icons: ['fire', 'droplet'], lines: ['First, a | fire!', 'Then, splash, | water!'], hard: true },
+  { id: 'fire3', zh: '火、消防車來了、灑水', icons: ['fire', 'fire-engine', 'droplet'], lines: ['Oh no, a | fire!', 'Here comes the | fire truck!', 'Splash! | Water!'] },
   { id: 'ocean2', zh: '蛋孵出小海龜', icons: ['egg', 'turtle'], lines: ['First, an | egg.', 'Then, a baby | turtle!'] },
-  { id: 'fruit2', zh: '發芽到草莓', icons: ['seedling', 'strawberry'], lines: ['First, a little | sprout.', 'Then, a | strawberry!'] },
-  { id: 'fruit3', zh: '發芽、開花、結草莓', icons: ['seedling', 'blossom', 'strawberry'], lines: ['A tiny | sprout.', 'A pretty | flower.', 'A yummy | strawberry!'], easy: true },
+  { id: 'fruit2', zh: '發芽到草莓', icons: ['seedling', 'strawberry'], lines: ['First, a little | sprout.', 'Then, a | strawberry!'], hard: true },
+  { id: 'fruit3', zh: '發芽、開花、結草莓', icons: ['seedling', 'blossom', 'strawberry'], lines: ['A tiny | sprout.', 'A pretty | flower.', 'A yummy | strawberry!'] },
   { id: 'zoo2', zh: '蛋孵出企鵝', icons: ['egg', 'penguin'], lines: ['First, an | egg.', 'Then, a baby | penguin!'] },
-  { id: 'build2', zh: '磚塊蓋成房子', icons: ['brick', 'house'], lines: ['First, | bricks.', 'Then, a | house!'] },
-  { id: 'build3', zh: '磚塊、蓋房子、新房子', icons: ['brick', 'building-construction', 'house'], lines: ['Here are the | bricks.', 'Build, build, | build!', 'A new | house!'], easy: true },
+  { id: 'build2', zh: '磚塊蓋成房子', icons: ['brick', 'house'], lines: ['First, | bricks.', 'Then, a | house!'], hard: true },
+  { id: 'build3', zh: '磚塊、蓋房子、新房子', icons: ['brick', 'building-construction', 'house'], lines: ['Here are the | bricks.', 'Build, build, | build!', 'A new | house!'] },
   { id: 'party2', zh: '拆禮物', icons: ['wrapped-gift', 'teddy-bear'], lines: ['First, a | gift.', 'Open it! A | teddy bear!'] },
 ]
 
@@ -180,7 +180,7 @@ export const THEMES: ThemeDef[] = [
     vocab: ['umbrella', 'duck', 'frog', 'bird'],
     words: ['rainbow', 'frog', 'duck', 'snail', 'worm', 'socks'],
     count: ['droplet', 'umbrella', 'frog', 'snail'], colors: ['blue', 'yellow', 'green'],
-    goal: goal('rainbow'), stories: ['rain', 'clouds', 'weather'], glyphs: 'UCO', coloring: 'umbrella', dots: ['diamond'],
+    goal: goal('rainbow'), stories: ['umbrella', 'rain', 'clouds', 'weather'], glyphs: 'UCO', coloring: 'umbrella', dots: ['diamond'],
     pattern: ['frog', 'duck', 'umbrella'], sort: ['blue', 'yellow'], tags: ['water'], uses: ['rain'],
     dad: '下雨天出門，讓他說 umbrella，數一數有幾個水窪',
   },
@@ -228,7 +228,7 @@ export const THEMES: ThemeDef[] = [
     vocab: ['bed', 'teddy', 'toothbrush', 'bathtub', 'soap', 'owl', 'cat'],
     words: ['moon', 'mouse', 'teddy bear', 'bear', 'socks', 'toothbrush', 'soap'],
     count: ['ewe', 'star', 'teddy-bear'], colors: ['blue', 'purple', 'yellow'],
-    goal: goal('bed'), stories: ['bed', 'sleep', 'day'], glyphs: 'CO1', dots: ['star', 'house'],
+    goal: goal('bed'), stories: ['nap', 'sleep', 'day'], glyphs: 'CO1', dots: ['star', 'house'],
     pattern: ['star', 'heart', 'circle'], sort: ['star', 'circle', 'purple'], uses: ['bed', 'bath'],
     dad: '睡前一起說 Good night, moon. 數三隻羊再睡',
   },
