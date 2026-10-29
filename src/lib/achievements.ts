@@ -227,6 +227,9 @@ let round: Round | null = null
 /** 還沒慶祝過的里程碑（這一局裡發生的） */
 let pending: Milestone[] = []
 
+/** 現在在玩哪個遊戲（稱讚要說出孩子在這個遊戲做了什麼，games/lines.ts 的 praiseKey） */
+export const roundGame = () => round?.game ?? null
+
 /** 遊戲一開始（在遊戲自己的 markPlayed 之前）呼叫 */
 export function beginRound(game: string) {
   round = { game, startLevel: level(game), calibrating: plays(game) === 0 || isProbing(game), things: [], taught: 0, fixes: 0, codeFixes: 0 }

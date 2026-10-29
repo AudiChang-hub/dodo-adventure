@@ -12,10 +12,10 @@ import { logAttempt, logTeach } from '../lib/record'
 import type { Phase } from '../lib/db'
 import { preload, say, sfx, stopSpeech } from '../lib/audio'
 import { shuffle } from '../lib/random'
-import { praiseKey, wait } from './lines'
+import { challengeKey, praiseKey, wait } from './lines'
 import { useIdle } from './idle'
 import { PACE, nextPause } from './pace'
-import { NUMBER_RANGE, range, useNumberPicker } from './sheet/NumberFlow'
+import { numberRange, range, useNumberPicker } from './sheet/NumberFlow'
 import type { Mood } from '../art/Dino'
 import { FADE } from '../ui/motion'
 import './sheet/sheet.css'
@@ -23,7 +23,7 @@ import './sheet/sheet.css'
 const ROUNDS = 5
 /** 閃現多久（毫秒）：約 1.5 秒，來不及一個一個數，只能「一眼看出來」 */
 const FLASH_MS = 1500
-/** 第 1 級 1–3、第 2 級 1–4、之後 1–5；選項 2 → 3 → 3 → 4 個 */
+/** 第 1、2 級 1–3，第 3 級 1–4，第 4 級 1–5（4、5 要先會數到 5，見 numberRange）；選項 2 → 3 → 3 → 4 個 */
 const OPTS: Record<number, number> = { 1: 2, 2: 3, 3: 3, 4: 4 }
 
 type Dot = [number, number]
@@ -35,24 +35,23 @@ const DICE: Record<number, Dot[]> = {
   4: [[30, 30], [70, 30], [30, 70], [70, 70]],
   5: [[26, 26], [74, 26], [50, 50], [26, 74], [74, 74]],
 }
-/** 第 4 級：不是骰子的排法（一排、三角形、菱形、W 形），要真的看出數量 */
+/** 第 4 級：不是骰子的排法（一排、三角形），要真的看出數量。4、5 一律用骰子排法（V-16：固定的樣子才認得出來） */
 const ALT: Record<number, Dot[]> = {
   1: [[38, 62]],
   2: [[28, 50], [72, 50]],
   3: [[50, 26], [27, 70], [73, 70]],
-  4: [[50, 20], [20, 50], [80, 50], [50, 80]],
-  5: [[18, 36], [34, 66], [50, 36], [66, 66], [82, 36]],
 }
 
 function patternOf(n: number, lv: number): Dot[] {
-  const base = lv >= 4 && Math.random() < 0.6 ? ALT[n] : DICE[n]
+  const base = lv >= 4 && n <= 3 && Math.random() < 0.6 ? ALT[n] : DICE[n]
   // 轉 0 / 90 度，同一個數量不會永遠長一樣
   return Math.random() < 0.5 ? base : base.map(([x, y]) => [100 - y, x] as Dot)
 }
 
-function optionsOf(n: number, lv: number): number[] {
+/** 選項只在這一級的範圍裡：1–3 的時候不會冒出 4、5 */
+function optionsOf(n: number, lv: number, hi: number): number[] {
   const k = OPTS[lv]
-  const near = shuffle(range(1, 5).filter((x) => x !== n)).sort((a, b) => Math.abs(a - n) - Math.abs(b - n))
+  const near = shuffle(range(1, hi).filter((x) => x !== n)).sort((a, b) => Math.abs(a - n) - Math.abs(b - n))
   return shuffle([n, ...near.slice(0, k - 1)]).sort((a, b) => a - b)
 }
 
@@ -127,6 +126,8 @@ export function SubitizeGame({ gameId, onDone, onExit }: GameProps) {
   const wrongs = useRef(0)
   const hintUsed = useRef(false)
   const lv = useRef(1)
+  /** 這一局數量的上限（選項不超過它） */
+  const hiRef = useRef(3)
   const first = useRef(0)
   const firstPlay = useRef(plays(def.id) === 0)
   const resolver = useRef<((ms: number) => void) | null>(null)
@@ -186,7 +187,7 @@ export function SubitizeGame({ gameId, onDone, onExit }: GameProps) {
     const d = patternOf(k, lv.current)
     dotsRef.current = d
     setDots(d)
-    setOpts(optionsOf(k, lv.current))
+    setOpts(optionsOf(k, lv.current, hiRef.current))
     setWrong([])
     setHint(false)
     setRight(null)
@@ -223,7 +224,8 @@ export function SubitizeGame({ gameId, onDone, onExit }: GameProps) {
 
   const start = async (i: number) => {
     lv.current = level(def.id)
-    const [a, b] = NUMBER_RANGE.flash[lv.current]
+    const [a, b] = numberRange('flash', lv.current)
+    hiRef.current = b
     const { n: k, fresh } = picker.pick(a, b)
     nRef.current = k
     setN(k)
@@ -233,6 +235,8 @@ export function SubitizeGame({ gameId, onDone, onExit }: GameProps) {
     locked.current = true
     preload([`teach.count.${k}`, `teach.total.${k}`, 'ws.flash.look', 'ws.flash.ask'])
     if (i === 0) await say(def.intro)
+    // 最後一題先說 Last one!（V-33、TIME-2），進度列的最後一格也同時放大
+    else if (i === ROUNDS - 1) await say(challengeKey('bobo'))
     if (!live.current) return
     const walk = !fresh && firstPlay.current && i === 0
     if (fresh) {

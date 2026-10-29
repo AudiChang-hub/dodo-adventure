@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { isNew, pickTarget, teachable, withTargetFilter } from '../../lib/adaptive'
+import { isNew, mastered, pickTarget, teachable, withTargetFilter } from '../../lib/adaptive'
 
 /** 一局最多教幾個新數量（PRD §5.8） */
 export const MAX_TEACH = 2
@@ -10,7 +10,21 @@ export const range = (a: number, b: number) => Array.from({ length: b - a + 1 },
 export const NUMBER_RANGE: Record<'fill' | 'give' | 'flash', Record<number, [number, number]>> = {
   fill: { 1: [1, 3], 2: [2, 5], 3: [4, 8], 4: [6, 10] },
   give: { 1: [1, 3], 2: [2, 5], 3: [3, 7], 4: [5, 10] },
-  flash: { 1: [1, 3], 2: [1, 4], 3: [1, 5], 4: [1, 5] },
+  // 一眼看幾個：1、2 級只出 1–3（3–4 歲不用數就看得出來的上限，T-49 LOAD-2、成長系統 N1）；
+  // 3 級起才有 4、5，而且要先會數到 5（flashRange）。再往上是十格框看出 6–10（成長系統 N15），到時候加在這裡
+  flash: { 1: [1, 3], 2: [1, 3], 3: [1, 4], 4: [1, 5] },
+}
+
+/** 數到 5 穩了沒：點點數數、塗格子、給波波蛋，任一個遊戲的 4 和 5 都已熟 */
+const countsToFive = () => [4, 5].every((n) => ['count', 'fill', 'give'].some((g) => mastered(`${g}:${n}`)))
+
+/**
+ * 這一級實際出的範圍：一眼看幾個的 4、5 是「看骰子排法認出來」，要先會一個一個數到 5 才有意義，
+ * 所以級數到了、但還沒數熟，就先停在 1–3（看能力，不看年紀）。其他遊戲照 NUMBER_RANGE。
+ */
+export function numberRange(kind: keyof typeof NUMBER_RANGE, lv: number): [number, number] {
+  const [a, b] = NUMBER_RANGE[kind][lv]
+  return kind === 'flash' && b > 3 && !countsToFive() ? [a, 3] : [a, b]
 }
 
 /**

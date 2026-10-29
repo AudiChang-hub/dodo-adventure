@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type CSSProperties } from 'react'
+import { useEffect, useRef, useState, type CSSProperties, type PointerEvent } from 'react'
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import { Shell, type GameProps } from '../Shell'
 import { TeachCard } from '../Teach'
@@ -14,8 +14,8 @@ import { planDrive, roundState } from '../pick'
 import { logAttempt, logTeach } from '../../lib/record'
 import { themeNow } from '../../lib/theme-play'
 import type { Phase } from '../../lib/db'
-import { preload, say, sfx, stopSpeech } from '../../lib/audio'
-import { praiseKey, wait } from '../lines'
+import { audioClock, onSpeech, preload, say, sfx, stopSpeech } from '../../lib/audio'
+import { challengeKey, praiseKey, wait } from '../lines'
 import { useIdle } from '../idle'
 import { PACE, nextPause } from '../pace'
 import { SETTLED_MS, REVEAL_MS, background, foreground, handoff } from '../../ui/motion'
@@ -54,6 +54,11 @@ const slotCardOut = {
       ? { x: '150%', y: '-170%', rotate: 24, scale: 0.6, opacity: 0, transition: { duration: 0.5, ease: [0.4, 0, 1, 1] as const, opacity: { duration: 0.5, ease: 'easeIn' as const } } }
       : { scale: 0.4, opacity: 0, transition: { duration: 0.16 } },
 }
+
+/** 開場還不能玩：作答區（程式列、卡盒）變淡，路面和車子保持全亮 */
+const ANSWER_FADE = 'opacity .4s, filter .4s'
+const DIM: CSSProperties = { opacity: 0.45, filter: 'saturate(0.5)', transition: ANSWER_FADE }
+const LIVE: CSSProperties = { transition: ANSWER_FADE }
 
 const targetOf = (p: DrivePuzzle) => driveTarget(p.target)
 const promptOf = (p: DrivePuzzle) => [`c.drive.to.${p.target}`, ...(p.solution.length > 1 ? [`c.drive.cards.${p.solution.length}`] : [])]
@@ -109,6 +114,12 @@ export function DriveGame({ gameId, onDone, onExit }: GameProps) {
   const [arrivedAt, setArrivedAt] = useState(-1)
   const [mood, setMood] = useState<Mood>('idle')
   const [view, setView] = useState(0)
+  /** 開場：路面、車子、卡盒先擺好，說話時作答區變淡（還不能玩） */
+  const [intro, setIntro] = useState(true)
+  /** 開場說到 arrow cards 的那一刻，卡盒的卡各閃一圈（一次，不循環） */
+  const [cardPing, setCardPing] = useState(0)
+  /** 還不能玩的時候點了：點的地方出現一圈「看這裡」（TOUCH-6），不算作答 */
+  const [looks, setLooks] = useState<{ id: number; x: number; y: number }[]>([])
 
   const live = useRef(true)
   const locked = useRef(true)
@@ -257,17 +268,27 @@ export function DriveGame({ gameId, onDone, onExit }: GameProps) {
     })
   }
 
-  /** 出下一題：先決定這題要不要教 */
-  const present = async (i: number) => {
+  /** 這題練哪個技能、要不要先教（pick.ts，自動檢查 scripts/sim-teach.ts 用同一份） */
+  const plan = (i: number) => {
+    const pl = planDrive(def, round.current, i)
+    const p = drivePuzzle(pl.lv, pl.key, recentTargets.current)
+    recentTargets.current = [p.target, ...recentTargets.current].slice(0, 2)
+    return { ...pl, p }
+  }
+
+  /** 出下一題：先決定這題要不要教（第一題在開場就排好了，路面才能先擺出來） */
+  const present = async (i: number, planned = plan(i)) => {
     idxRef.current = i
     setIdx(i)
-    // 這題練哪個技能、要不要先教（pick.ts，自動檢查 scripts/sim-teach.ts 用同一份）
-    const { key, lv: l, fresh, walk } = planDrive(def, round.current, i)
+    const { key, lv: l, fresh, walk, p } = planned
     lv.current = l
-    const p = drivePuzzle(lv.current, key, recentTargets.current)
-    recentTargets.current = [p.target, ...recentTargets.current].slice(0, 2)
     preload([...promptOf(p), ...driveTeach(p).lines, ...p.solution.map((d) => `c.dir.${d}`), 'teach.here.bobo', 'teach.turn.bobo', 'c.drive.go', 'c.drive.made', 'c.drive.fix'])
 
+    // 最後一題先說 Last one!（V-33、TIME-2），進度列的最後一格也同時放大
+    if (i === ROUNDS - 1) {
+      await say(challengeKey('bobo'))
+      if (!live.current) return
+    }
     if (fresh) {
       await teach(p, false)
       if (!live.current) return
@@ -296,13 +317,40 @@ export function DriveGame({ gameId, onDone, onExit }: GameProps) {
   useEffect(() => {
     live.current = true
     // 延到下一輪才開始：StrictMode 開發模式會先掛載、卸載再掛載一次，避免兩條流程同時跑
+    let offIntro = () => {}
+    const timers: number[] = []
     const boot = window.setTimeout(async () => {
+      // 開場（V-14）：先把第一題的路面、車子、卡盒擺好，再說「Use the arrow cards!」；說到 arrow 的那一刻卡片閃一下
+      const first = plan(0)
       markPlayed(def.id)
-      await say(driver === 'dodo' ? def.intro : `c.intro.drive.${driver}`)
-      if (live.current) present(0)
+      setup(first.p)
+      const key = driver === 'dodo' ? def.intro : `c.intro.drive.${driver}`
+      let lit = false
+      const light = () => {
+        if (lit || !live.current) return
+        lit = true
+        setCardPing((n) => n + 1)
+      }
+      offIntro = onSpeech((e) => {
+        if (!('key' in e) || e.key !== key) return
+        if (e.type === 'whole') return light()
+        if (e.type === 'end') return light()
+        if (e.type !== 'seg') return
+        const w = e.words?.find(([, , t]) => /^arrow/i.test(t))
+        if (w) timers.push(window.setTimeout(light, Math.max(0, (e.at - audioClock()) * 1000 + w[0])))
+      })
+      await wait(REVEAL_MS)
+      if (!live.current) return
+      await say(key)
+      offIntro()
+      if (!live.current) return
+      setIntro(false)
+      present(0, first)
     }, 0)
     return () => {
       live.current = false
+      offIntro()
+      timers.forEach(clearTimeout)
       clearTimeout(boot)
       idle.stop()
       stopSpeech()
@@ -370,6 +418,19 @@ export function DriveGame({ gameId, onDone, onExit }: GameProps) {
   }
 
   const canTouch = () => !locked.current && !running.current && !card
+
+  /**
+   * 開場、車子在開、換題這些還不能玩的時候點下去（V-09、TOUCH-6）：不算作答、不打斷波波說話，
+   * 但點的地方會出現一圈「看這裡」，再加一聲輕輕的點擊聲，孩子知道「有點到，只是現在先看」。
+   */
+  const lookHere = (e: PointerEvent) => {
+    if (canTouch() || card || !rootEl.current) return
+    const r = rootEl.current.getBoundingClientRect()
+    const id = performance.now()
+    sfx.tap()
+    setLooks((l) => [...l.slice(-2), { id, x: e.clientX - r.left, y: e.clientY - r.top }])
+    window.setTimeout(() => live.current && setLooks((l) => l.filter((k) => k.id !== id)), 800)
+  }
 
   const palette = useTapDrag<Src>({
     enabled: canTouch,
@@ -571,6 +632,7 @@ export function DriveGame({ gameId, onDone, onExit }: GameProps) {
           className="drive"
           data-solution={import.meta.env.DEV ? p.solution.join(',') : undefined}
           style={{ pointerEvents: card ? 'none' : undefined }}
+          onPointerDownCapture={lookHere}
           variants={background}
           initial="initial"
           animate={card ? 'hidden' : 'shown'}
@@ -672,7 +734,7 @@ export function DriveGame({ gameId, onDone, onExit }: GameProps) {
           </div>
 
               {/* ── 程式列：卡片一張一張排好，最後按 Go ── */}
-              <div className="prog-strip">
+              <div className="prog-strip" style={intro ? DIM : LIVE}>
                 {prog.map((d, i) => {
                   const isWant = want?.slot === i
                   return (
@@ -726,7 +788,7 @@ export function DriveGame({ gameId, onDone, onExit }: GameProps) {
               </div>
 
               {/* ── 卡盒：箭頭放在它指的那一邊 ── */}
-              <div className="dpad">
+              <div className="dpad" style={intro ? DIM : LIVE}>
                 <i className="dpad-hub" aria-hidden="true" />
                 {p.palette.map((d) => {
                   const lit = want?.dir === d && (guide || hintOn)
@@ -745,10 +807,26 @@ export function DriveGame({ gameId, onDone, onExit }: GameProps) {
                     >
                       <ArrowArt dir={d} />
                       {lit && guide && <Hand x={70} y={66} size="9cqmin" beckon />}
+                      {cardPing > 0 && intro && (
+                        <motion.span key={cardPing} className="go-ping" style={{ borderRadius: '30%' }} aria-hidden="true" initial={{ scale: 0.95, opacity: 0.9 }} animate={{ scale: 1.35, opacity: 0 }} transition={{ duration: 0.9, ease: [0.22, 1, 0.36, 1] }} />
+                      )}
                     </motion.button>
                   )
                 })}
               </div>
+
+              {/* 還不能玩時點的地方：一圈「看這裡」，擴開一次就消失 */}
+              {looks.map((k) => (
+                <motion.span
+                  key={k.id}
+                  className="go-ping"
+                  aria-hidden="true"
+                  style={{ left: k.x, top: k.y, inset: 'auto', width: '9cqmin', height: '9cqmin', translate: '-50% -50%', zIndex: 40 }}
+                  initial={{ scale: 0.5, opacity: 0.85 }}
+                  animate={{ scale: 1.3, opacity: 0 }}
+                  transition={{ duration: 0.7, ease: [0.22, 1, 0.36, 1] }}
+                />
+              ))}
 
               {/* 拖曳中跟著手指的卡 */}
               {palette.ghost && rootEl.current && (
