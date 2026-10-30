@@ -158,6 +158,24 @@ async function playUntil(k: Toddler, c: Checker, stop: (live: string | null, see
   return seen
 }
 
+/**
+ * playUntil，加上孩子亂點按到返回、回到首頁時會再按一次出發（最多 2 次）。
+ * 站都走完了（最後一站蛋裂開、終點念到一半就回家）再進來要從故事的終點接著講，不是直接孵蛋（Adventure 的 donePhase）
+ */
+async function playThrough(k: Toddler, c: Checker, stop: (live: string | null, seen: string[]) => boolean, ms: number, onScene?: (live: string) => Promise<void>) {
+  const seen = await playUntil(k, c, stop, ms, onScene)
+  for (let i = 0; i < 2 && (await snap(k.page)).live === 'home'; i++) {
+    const allDone = (await progress(k.page)).plan?.items.every((x) => x.done)
+    const back = await start(k)
+    if (allDone) {
+      c.outcome('站都走完、終點還沒講就回首頁 → 再進來從終點接著講', back === 'finale', `到 ${back}`)
+      if (back !== 'finale') await c.once('story-resume', '困惑', '最後一站之後回首頁，再進來沒有把故事講完', `到 ${back}`)
+    }
+    seen.push(...(await playUntil(k, c, (l, s) => stop(l, [...seen, ...s]), Math.max(4 * 60_000, ms / 2), onScene)))
+  }
+  return seen
+}
+
 test.describe('故事', () => {
   test('故事播放器：魔法屋開場、搶著點、想返回、結尾', async ({ page }, info) => {
     test.skip(!want('story-player'))
@@ -192,7 +210,7 @@ test.describe('故事', () => {
       // 3. 一路玩到回魔法屋的結尾：每一段都看一下（返回鍵、按鈕大小、靜止時不動）
       k.behavior = '故事亂玩'
       const audited = new Set<string>()
-      const seen = await playUntil(
+      const seen = await playThrough(
         k,
         c,
         (l, seen) => l === 'close' || hatched(l, seen),
@@ -249,17 +267,7 @@ test.describe('故事', () => {
         const live = await start(k)
         c.outcome('出發 → 書房的開場', live === 'open', `到 ${live}`)
         const t0 = await page.evaluate(() => performance.now())
-        const seen = await playUntil(k, c, hatched, 9 * 60_000)
-        // 亂點按到返回、回到首頁：孩子會再按一次進來。站都走完了就要從故事的終點接著講（不是直接孵蛋）
-        for (let i = 0; i < 2 && (await snap(page)).live === 'home'; i++) {
-          const allDone = (await progress(page)).plan?.items.every((x) => x.done)
-          const back = await start(k)
-          if (allDone) {
-            c.outcome('站都走完、終點還沒講就回首頁 → 再進來從終點接著講', back === 'finale', `到 ${back}`)
-            if (back !== 'finale') await c.once('classic-resume', '困惑', '最後一站之後回首頁，再進來沒有把故事講完', `到 ${back}`)
-          }
-          seen.push(...(await playUntil(k, c, hatched, 4 * 60_000)))
-        }
+        const seen = await playThrough(k, c, hatched, 9 * 60_000)
         const end = (await snap(page)).live
         c.outcome('故事時間玩到孵蛋', hatched(end, seen), `經過 ${seen.join('、')}，停在 ${end}`)
         if (!hatched(end, seen)) await c.once('classic-stuck', '卡死', '故事時間沒有走到孵蛋', `經過 ${seen.join('、')}，停在 ${end}`)
@@ -289,8 +297,28 @@ test.describe('故事', () => {
       await seedStory(page, { chapter: 'p1-a01-c5', theme: 'bedtime', items: ITEMS, story: { part: 1, arc: 'p1-a01', next: 4, choices: {}, classicsDone: [], house: [] } })
       k.behavior = '最後一章亂玩'
       await start(k)
-      const seen = await playUntil(k, c, (l, s) => l === 'close-added' || hatched(l, s), 9 * 60_000)
+      const last = `egg-${ITEMS.length}`
+      const seen = await playThrough(k, c, (l, s) => l === last || l === 'close-added' || hatched(l, s), 9 * 60_000)
       let live = (await snap(page)).live
+      // 最後一站蛋裂開時按返回回家（亂點常按到左上角的返回）：終點、結尾都還沒念，這一篇還不算講完；
+      // 再按出發要從終點接著講，講完魔法屋才多東西
+      if (live === last && !seen.includes('finale')) {
+        k.behavior = '最後一站蛋裂開時回家'
+        live = await tapBack(k, c, '最後一站的蛋', (l) => l === 'home')
+        if (live === 'home') {
+          await k.wait(800)
+          const p = await progress(page)
+          c.outcome('終點還沒念就回家 → 還不算講完、魔法屋還沒多東西', !p.row?.done && !p.story?.house.length, `done=${p.row?.done}，house=${JSON.stringify(p.story?.house)}`)
+          if (p.row?.done || p.story?.house.length) await c.once('early-done', '誤記作答', '故事還沒講完就記成講完', JSON.stringify(p))
+          k.behavior = '再出發'
+          const back = await start(k)
+          c.outcome('再進來從終點接著講', back === 'finale', `到 ${back}`)
+          if (back !== 'finale') await c.once('story-resume', '困惑', '最後一站之後回首頁，再進來沒有把故事講完', `到 ${back}`)
+        }
+        k.behavior = '最後一章亂玩'
+        seen.push(...(await playThrough(k, c, (l, s) => l === 'close-added' || hatched(l, [...seen, ...s]), 6 * 60_000)))
+        live = (await snap(page)).live
+      }
       if (live === 'close-added') {
         await settle(page, 1500)
         await audit(k, c, '故事 魔法屋多了東西')
@@ -429,7 +457,7 @@ test.describe('故事（離線）', () => {
       k.behavior = '離線玩一章'
       const live = await start(k)
       c.outcome('離線出發 → 魔法屋的開場', live === 'open', `到 ${live}`)
-      const seen = await playUntil(k, c, hatched, 10 * 60_000)
+      const seen = await playThrough(k, c, hatched, 10 * 60_000)
       const end = (await snap(page)).live
       c.outcome('離線玩完一章（開場 → 兩站 → 結尾 → 孵蛋）', hatched(end, seen) && seen.includes('open') && seen.includes('close'), `經過 ${seen.join('、')}，停在 ${end}`)
       if (!hatched(end, seen)) await c.once('offline-stuck', '卡死', '離線時沒辦法玩完一章', `經過 ${seen.join('、')}，停在 ${end}`)
@@ -441,7 +469,7 @@ test.describe('故事（離線）', () => {
       await seedStory(page, { chapter: 'classic-b01', theme: 'ocean', items: ITEMS.map((i) => ({ ...i, done: false })), story: { ...p.story!, classicsDone: ['A01'] } })
       const live2 = await start(k)
       c.outcome('離線出發 → 書房的開場（挪亞方舟）', live2 === 'open', `到 ${live2}`)
-      const seen2 = await playUntil(k, c, hatched, 10 * 60_000)
+      const seen2 = await playThrough(k, c, hatched, 10 * 60_000)
       const end2 = (await snap(page)).live
       c.outcome('離線講完故事時間', hatched(end2, seen2) && seen2.includes('close'), `經過 ${seen2.join('、')}，停在 ${end2}`)
       if (!hatched(end2, seen2)) await c.once('offline-classic-stuck', '卡死', '離線時沒辦法講完故事時間', `經過 ${seen2.join('、')}，停在 ${end2}`)
