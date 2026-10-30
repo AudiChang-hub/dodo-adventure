@@ -54,6 +54,8 @@ export default defineConfig({
         // 新版只帶程式（約 2MB，幾秒裝好）；語音改成下面的 runtime 快取：播過就存，
         // App 也會在背景照 audio/files.json 慢慢補齊（lib/audio-cache.ts），所以沒網路時一樣有聲音。
         // 音檔檔名包含內容與後製版本（lib/clip.ts），內容改了檔名就會變，CacheFirst 不會拿到舊的聲音
+        // 故事（G-8）：劇本是 content/story 的程式碼，跟著 JS 一起 precache；故事的語音一樣走 dodo-audio，
+        // 冒險一開始講就先把這一篇剩下的章、下一篇的語音補進來（lib/story.ts 的 warmStory，依篇快取），沒網路也講得完
         globPatterns: ['**/*.{js,css,html,svg,png,woff2}', 'audio/timings.json', 'audio/zh/index.json', 'audio/files.json'],
         maximumFileSizeToCacheInBytes: 8 * 1024 * 1024,
         navigateFallback: 'index.html',

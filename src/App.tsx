@@ -6,6 +6,8 @@ import { Adventure } from './screens/Adventure'
 import { MapScreen } from './screens/MapScreen'
 import { StationScreen } from './screens/StationScreen'
 import { Collection } from './screens/Collection'
+import { MagicHouse } from './screens/MagicHouse'
+import { StoryBook } from './screens/StoryBook'
 import { Bedtime } from './screens/Bedtime'
 import { Parent } from './screens/parent/Parent'
 import { PlayGame } from './games/PlayGame'
@@ -24,7 +26,7 @@ const isNight = () => {
 }
 
 /** 畫面的層級：往深的地方走是「往前」（新畫面蓋上來淡入），往淺的地方是「往回」（上面的畫面淡出） */
-const DEPTH: Record<Route['name'], number> = { home: 0, map: 1, collection: 1, adventure: 1, parent: 1, bedtime: 1, station: 2, play: 3 }
+const DEPTH: Record<Route['name'], number> = { home: 0, map: 1, collection: 1, house: 1, adventure: 1, parent: 1, bedtime: 1, station: 2, storybook: 2, play: 3 }
 
 const keyOf = (r: Route) => (r.name === 'play' ? `play-${r.game}` : r.name === 'station' ? `st-${r.station}` : r.name)
 
@@ -43,6 +45,10 @@ function Screen({ r }: { r: Route }) {
       return <PlayGame gameId={r.game} onDone={() => go({ name: 'station', station: r.station })} onExit={() => go({ name: 'station', station: r.station }, { back: true })} />
     case 'collection':
       return <Collection />
+    case 'house':
+      return <MagicHouse />
+    case 'storybook':
+      return <StoryBook />
     case 'bedtime':
       return <Bedtime />
     case 'parent':
@@ -56,7 +62,7 @@ export function App() {
   const breakDue = useSyncExternalStore(onBreakChange, isBreakDue)
   const { nightWarm } = useSettings()
   // 護眼休息只在兩個遊戲之間出現；冒險流程自己處理，避免打斷題目
-  const showBreak = breakDue && (r.name === 'home' || r.name === 'map' || r.name === 'station' || r.name === 'collection')
+  const showBreak = breakDue && (r.name === 'home' || r.name === 'map' || r.name === 'station' || r.name === 'collection' || r.name === 'house')
   const key = keyOf(r)
   // 上一個畫面：換畫面的那一次 render 用它判斷往前還是往回
   const prev = useRef(r)

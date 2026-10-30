@@ -228,7 +228,7 @@ const scenes: Record<SceneKind, (c: Ink) => ReactNode> = {
   ),
 }
 
-export function ThemeScenery({ def }: { def: ThemeDef }) {
+export function ThemeScenery({ def }: { def: Pick<ThemeDef, 'ground' | 'deep' | 'tint' | 'scene'> }) {
   const ink: Ink = {
     ground: def.ground,
     shape: mix(def.ground, def.deep, 0.22),

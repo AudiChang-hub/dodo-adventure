@@ -172,6 +172,10 @@ export function Home() {
         <button className="round-btn" aria-label="地圖" style={{ opacity: mapOpen ? 1 : 0.5 }} onClick={() => (mapOpen ? go({ name: 'map' }) : say('map.locked'))}>
           <Emoji name="rainbow" size={54} />
         </button>
+        {/* 魔法屋：剖面圖（每講完一篇多一樣東西）和故事書都在裡面 */}
+        <button className="round-btn" aria-label="魔法屋" onClick={() => go({ name: 'house' })}>
+          <Emoji name="house-with-garden" size={56} />
+        </button>
         <button className="round-btn" aria-label="我的朋友" onClick={() => go({ name: 'collection' })}>
           <Emoji name="hatching-chick" size={56} />
           {friends > 0 && <span className="badge-count">{friends}</span>}

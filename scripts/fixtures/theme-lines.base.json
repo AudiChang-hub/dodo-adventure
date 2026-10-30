@@ -1,0 +1,1078 @@
+{
+ "bus": [
+  {
+   "slot": "title",
+   "key": "theme.bus.title",
+   "speaker": "momo",
+   "text": "Momo's Bus Trip.",
+   "pic": null,
+   "clips": [
+    "0pdqa8j"
+   ]
+  },
+  {
+   "slot": "intro",
+   "key": "theme.bus.intro",
+   "speaker": "momo",
+   "text": "You know what? || Today, we ride the bus to the | zoo.",
+   "pic": null,
+   "clips": [
+    "1mbidvi",
+    "1dcbln8",
+    "1darqc7"
+   ]
+  },
+  {
+   "slot": "stop.0",
+   "key": "theme.bus.stop.0",
+   "speaker": "momo",
+   "text": "We wait at the | bus stop.",
+   "pic": "bus-stop",
+   "clips": [
+    "0uz2par",
+    "1srfzbp"
+   ]
+  },
+  {
+   "slot": "stop.1",
+   "key": "theme.bus.stop.1",
+   "speaker": "momo",
+   "text": "Here comes the bus. Hop on.",
+   "pic": "bus",
+   "clips": [
+    "1cf4wlm"
+   ]
+  },
+  {
+   "slot": "stop.2",
+   "key": "theme.bus.stop.2",
+   "speaker": "momo",
+   "text": "Red light, wait. Green light, | go.",
+   "pic": "vertical-traffic-light",
+   "clips": [
+    "1um371x",
+    "0umjmxd"
+   ]
+  },
+  {
+   "slot": "stop.3",
+   "key": "theme.bus.stop.3",
+   "speaker": "momo",
+   "text": "Over the big | bridge.",
+   "pic": "bridge-at-night",
+   "clips": [
+    "0mdv8hp",
+    "1s1zaje"
+   ]
+  },
+  {
+   "slot": "stop.4",
+   "key": "theme.bus.stop.4",
+   "speaker": "momo",
+   "text": "Look, I can see a | giraffe.",
+   "pic": "giraffe",
+   "clips": [
+    "1m8qrpm",
+    "1jzocr7"
+   ]
+  },
+  {
+   "slot": "end",
+   "key": "theme.bus.end",
+   "speaker": "momo",
+   "text": "Hooray. We made it to the | zoo.",
+   "pic": null,
+   "clips": [
+    "0sqbh0i",
+    "1darqc7"
+   ]
+  }
+ ],
+ "dino": [
+  {
+   "slot": "title",
+   "key": "theme.dino.title",
+   "speaker": "dodo",
+   "text": "Dodo's Dino Valley!",
+   "pic": null,
+   "clips": [
+    "1v8vxf2"
+   ]
+  },
+  {
+   "slot": "intro",
+   "key": "theme.dino.intro",
+   "speaker": "dodo",
+   "text": "Look! || Let's go to | Dino Valley!",
+   "pic": null,
+   "clips": [
+    "1cupbtt",
+    "00ns074",
+    "1frzr0p"
+   ]
+  },
+  {
+   "slot": "stop.0",
+   "key": "theme.dino.stop.0",
+   "speaker": "dodo",
+   "text": "Stomp, stomp! Big | feet!",
+   "pic": "footprints",
+   "clips": [
+    "1mm74f5",
+    "0q9u8ja"
+   ]
+  },
+  {
+   "slot": "stop.1",
+   "key": "theme.dino.stop.1",
+   "speaker": "dodo",
+   "text": "Look up! A big | dinosaur!",
+   "pic": "sauropod",
+   "clips": [
+    "0f5q71o",
+    "04g7omx"
+   ]
+  },
+  {
+   "slot": "stop.2",
+   "key": "theme.dino.stop.2",
+   "speaker": "dodo",
+   "text": "The volcano goes | puff, puff!",
+   "pic": "volcano",
+   "clips": [
+    "0f3q099",
+    "0wo8tie"
+   ]
+  },
+  {
+   "slot": "stop.3",
+   "key": "theme.dino.stop.3",
+   "speaker": "dodo",
+   "text": "Shh... dinosaur | eggs!",
+   "pic": "nest-with-eggs",
+   "clips": [
+    "13f55yw",
+    "1r8v6b8"
+   ]
+  },
+  {
+   "slot": "stop.4",
+   "key": "theme.dino.stop.4",
+   "speaker": "dodo",
+   "text": "Rawr! A friendly | T-rex!",
+   "pic": "t-rex",
+   "clips": [
+    "19mhgmf",
+    "01vp5is"
+   ]
+  },
+  {
+   "slot": "end",
+   "key": "theme.dino.end",
+   "speaker": "dodo",
+   "text": "Hooray! We found the | nest!",
+   "pic": null,
+   "clips": [
+    "07nirvq",
+    "19gmvv4"
+   ]
+  }
+ ],
+ "farm": [
+  {
+   "slot": "title",
+   "key": "theme.farm.title",
+   "speaker": "bobo",
+   "text": "Bobo's Farm Day!",
+   "pic": null,
+   "clips": [
+    "0pmue2k"
+   ]
+  },
+  {
+   "slot": "intro",
+   "key": "theme.farm.intro",
+   "speaker": "bobo",
+   "text": "You know what? || Let's go to the | farm!",
+   "pic": null,
+   "clips": [
+    "0nv2h2j",
+    "0a8xle1",
+    "0qptuc7"
+   ]
+  },
+  {
+   "slot": "stop.0",
+   "key": "theme.farm.stop.0",
+   "speaker": "bobo",
+   "text": "Hop on the big | tractor!",
+   "pic": "tractor",
+   "clips": [
+    "194k42p",
+    "0nn8n5y"
+   ]
+  },
+  {
+   "slot": "stop.1",
+   "key": "theme.farm.stop.1",
+   "speaker": "bobo",
+   "text": "Moo! Hello, | cows!",
+   "pic": "cow",
+   "clips": [
+    "0f3ri5s",
+    "19iyu9j"
+   ]
+  },
+  {
+   "slot": "stop.2",
+   "key": "theme.farm.stop.2",
+   "speaker": "bobo",
+   "text": "Baa! Hello, | sheep!",
+   "pic": "ewe",
+   "clips": [
+    "03scfpv",
+    "0pcmigq"
+   ]
+  },
+  {
+   "slot": "stop.3",
+   "key": "theme.farm.stop.3",
+   "speaker": "bobo",
+   "text": "Oink, oink! Muddy | pigs!",
+   "pic": "pig",
+   "clips": [
+    "0mrsydu",
+    "0abk5yy"
+   ]
+  },
+  {
+   "slot": "stop.4",
+   "key": "theme.farm.stop.4",
+   "speaker": "bobo",
+   "text": "Cock-a-doodle-doo!",
+   "pic": "chicken",
+   "clips": [
+    "0y6w6sj"
+   ]
+  },
+  {
+   "slot": "end",
+   "key": "theme.farm.end",
+   "speaker": "bobo",
+   "text": "Hooray! What a fun | farm day!",
+   "pic": null,
+   "clips": [
+    "1st4dxb",
+    "0u81k69"
+   ]
+  }
+ ],
+ "fire": [
+  {
+   "slot": "title",
+   "key": "theme.fire.title",
+   "speaker": "dodo",
+   "text": "Dodo's Fire Rescue!",
+   "pic": null,
+   "clips": [
+    "1l1yqdw"
+   ]
+  },
+  {
+   "slot": "intro",
+   "key": "theme.fire.intro",
+   "speaker": "dodo",
+   "text": "Wee-oo! The fire truck needs | help!",
+   "pic": null,
+   "clips": [
+    "0wrahvo",
+    "0ym1p8h"
+   ]
+  },
+  {
+   "slot": "stop.0",
+   "key": "theme.fire.stop.0",
+   "speaker": "dodo",
+   "text": "Hop on the | fire truck!",
+   "pic": "fire-engine",
+   "clips": [
+    "0k96quj",
+    "1w0qvfd"
+   ]
+  },
+  {
+   "slot": "stop.1",
+   "key": "theme.fire.stop.1",
+   "speaker": "dodo",
+   "text": "The police car comes, | too!",
+   "pic": "police-car",
+   "clips": [
+    "01mg8n8",
+    "0aj8kfw"
+   ]
+  },
+  {
+   "slot": "stop.2",
+   "key": "theme.fire.stop.2",
+   "speaker": "dodo",
+   "text": "Up, up the tall | ladder!",
+   "pic": "ladder",
+   "clips": [
+    "1fx37pu",
+    "1y0x8ie"
+   ]
+  },
+  {
+   "slot": "stop.3",
+   "key": "theme.fire.stop.3",
+   "speaker": "dodo",
+   "text": "Splash! Lots of | water!",
+   "pic": "droplet",
+   "clips": [
+    "0bast9h",
+    "17glnvt"
+   ]
+  },
+  {
+   "slot": "stop.4",
+   "key": "theme.fire.stop.4",
+   "speaker": "dodo",
+   "text": "Meow! The cat is | safe!",
+   "pic": "cat",
+   "clips": [
+    "04fs1ta",
+    "1p8d8mb"
+   ]
+  },
+  {
+   "slot": "end",
+   "key": "theme.fire.end",
+   "speaker": "dodo",
+   "text": "Hooray! Everyone is | safe!",
+   "pic": null,
+   "clips": [
+    "15pp62u",
+    "1p8d8mb"
+   ]
+  }
+ ],
+ "ocean": [
+  {
+   "slot": "title",
+   "key": "theme.ocean.title",
+   "speaker": "momo",
+   "text": "Momo's Ocean Day.",
+   "pic": null,
+   "clips": [
+    "15o1wjc"
+   ]
+  },
+  {
+   "slot": "intro",
+   "key": "theme.ocean.intro",
+   "speaker": "momo",
+   "text": "You know what? || Today, we sail on the | sea.",
+   "pic": null,
+   "clips": [
+    "1mbidvi",
+    "0g5mgue",
+    "1o579fs"
+   ]
+  },
+  {
+   "slot": "stop.0",
+   "key": "theme.ocean.stop.0",
+   "speaker": "momo",
+   "text": "Our little boat goes | bob, bob.",
+   "pic": "sailboat",
+   "clips": [
+    "1s5sd92",
+    "0odn37t"
+   ]
+  },
+  {
+   "slot": "stop.1",
+   "key": "theme.ocean.stop.1",
+   "speaker": "momo",
+   "text": "Look, fish are | swimming.",
+   "pic": "tropical-fish",
+   "clips": [
+    "06pnv49",
+    "0tzfnxi"
+   ]
+  },
+  {
+   "slot": "stop.2",
+   "key": "theme.ocean.stop.2",
+   "speaker": "momo",
+   "text": "Hello, | octopus.",
+   "pic": "octopus",
+   "clips": [
+    "0suwef0",
+    "1xmp0by"
+   ]
+  },
+  {
+   "slot": "stop.3",
+   "key": "theme.ocean.stop.3",
+   "speaker": "momo",
+   "text": "Splash! A big | whale.",
+   "pic": "spouting-whale",
+   "clips": [
+    "02u6v0b",
+    "1yud1ee"
+   ]
+  },
+  {
+   "slot": "stop.4",
+   "key": "theme.ocean.stop.4",
+   "speaker": "momo",
+   "text": "I can see the | beach.",
+   "pic": "beach-with-umbrella",
+   "clips": [
+    "0mmlo6t",
+    "0rgqa54"
+   ]
+  },
+  {
+   "slot": "end",
+   "key": "theme.ocean.end",
+   "speaker": "momo",
+   "text": "Hooray. We made it to the | beach.",
+   "pic": null,
+   "clips": [
+    "0sqbh0i",
+    "0rgqa54"
+   ]
+  }
+ ],
+ "rain": [
+  {
+   "slot": "title",
+   "key": "theme.rain.title",
+   "speaker": "bobo",
+   "text": "Bobo's Rainy Day!",
+   "pic": null,
+   "clips": [
+    "0t4yy8p"
+   ]
+  },
+  {
+   "slot": "intro",
+   "key": "theme.rain.intro",
+   "speaker": "bobo",
+   "text": "Drip, drop! It's a | rainy day!",
+   "pic": null,
+   "clips": [
+    "1ws8cg3",
+    "14806nq"
+   ]
+  },
+  {
+   "slot": "stop.0",
+   "key": "theme.rain.stop.0",
+   "speaker": "bobo",
+   "text": "Look at the gray | clouds!",
+   "pic": "cloud",
+   "clips": [
+    "0kg5f4k",
+    "0hu7swh"
+   ]
+  },
+  {
+   "slot": "stop.1",
+   "key": "theme.rain.stop.1",
+   "speaker": "bobo",
+   "text": "Open your | umbrella!",
+   "pic": "umbrella",
+   "clips": [
+    "00z0ikt",
+    "0xd3cmj"
+   ]
+  },
+  {
+   "slot": "stop.2",
+   "key": "theme.rain.stop.2",
+   "speaker": "bobo",
+   "text": "Ribbit! Frogs love | rain!",
+   "pic": "frog",
+   "clips": [
+    "12zzxbu",
+    "0z5y7et"
+   ]
+  },
+  {
+   "slot": "stop.3",
+   "key": "theme.rain.stop.3",
+   "speaker": "bobo",
+   "text": "A slow, slow | snail!",
+   "pic": "snail",
+   "clips": [
+    "1lx2dld",
+    "0hd0pto"
+   ]
+  },
+  {
+   "slot": "stop.4",
+   "key": "theme.rain.stop.4",
+   "speaker": "bobo",
+   "text": "The rain is | stopping!",
+   "pic": "rainbow",
+   "clips": [
+    "0o59er7",
+    "0c2r2sn"
+   ]
+  },
+  {
+   "slot": "end",
+   "key": "theme.rain.end",
+   "speaker": "bobo",
+   "text": "Hooray! Look, a big | rainbow!",
+   "pic": null,
+   "clips": [
+    "120hz7n",
+    "030xko7"
+   ]
+  }
+ ],
+ "fruit": [
+  {
+   "slot": "title",
+   "key": "theme.fruit.title",
+   "speaker": "momo",
+   "text": "Momo's Fruit Market.",
+   "pic": null,
+   "clips": [
+    "0qpssxk"
+   ]
+  },
+  {
+   "slot": "intro",
+   "key": "theme.fruit.intro",
+   "speaker": "momo",
+   "text": "Ooh. || Let's shop at the fruit | market.",
+   "pic": null,
+   "clips": [
+    "1arasnp",
+    "03obor3",
+    "1g86kar"
+   ]
+  },
+  {
+   "slot": "stop.0",
+   "key": "theme.fruit.stop.0",
+   "speaker": "momo",
+   "text": "Here is our | basket.",
+   "pic": "basket",
+   "clips": [
+    "0khcs56",
+    "1duj9sp"
+   ]
+  },
+  {
+   "slot": "stop.1",
+   "key": "theme.fruit.stop.1",
+   "speaker": "momo",
+   "text": "Shiny red | apples.",
+   "pic": "red-apple",
+   "clips": [
+    "0jq0qpa",
+    "127l6l2"
+   ]
+  },
+  {
+   "slot": "stop.2",
+   "key": "theme.fruit.stop.2",
+   "speaker": "momo",
+   "text": "Yummy yellow | bananas.",
+   "pic": "banana",
+   "clips": [
+    "092f4i7",
+    "069sf79"
+   ]
+  },
+  {
+   "slot": "stop.3",
+   "key": "theme.fruit.stop.3",
+   "speaker": "momo",
+   "text": "So many | grapes.",
+   "pic": "grapes",
+   "clips": [
+    "0shssvp",
+    "0lg82h3"
+   ]
+  },
+  {
+   "slot": "stop.4",
+   "key": "theme.fruit.stop.4",
+   "speaker": "momo",
+   "text": "A big, big | watermelon.",
+   "pic": "watermelon",
+   "clips": [
+    "0a0ssbf",
+    "0lt5dad"
+   ]
+  },
+  {
+   "slot": "end",
+   "key": "theme.fruit.end",
+   "speaker": "momo",
+   "text": "Hooray. Our basket is | full.",
+   "pic": null,
+   "clips": [
+    "1y8lzpa",
+    "1opvn02"
+   ]
+  }
+ ],
+ "zoo": [
+  {
+   "slot": "title",
+   "key": "theme.zoo.title",
+   "speaker": "bobo",
+   "text": "Bobo's Zoo Visit!",
+   "pic": null,
+   "clips": [
+    "19t8xdx"
+   ]
+  },
+  {
+   "slot": "intro",
+   "key": "theme.zoo.intro",
+   "speaker": "bobo",
+   "text": "You know what? || Let's visit the | zoo!",
+   "pic": null,
+   "clips": [
+    "0nv2h2j",
+    "0p4e7t5",
+    "0uru0t9"
+   ]
+  },
+  {
+   "slot": "stop.0",
+   "key": "theme.zoo.stop.0",
+   "speaker": "bobo",
+   "text": "Look! A big | elephant!",
+   "pic": "elephant",
+   "clips": [
+    "0s7e1wp",
+    "0ecdn3e"
+   ]
+  },
+  {
+   "slot": "stop.1",
+   "key": "theme.zoo.stop.1",
+   "speaker": "bobo",
+   "text": "A giraffe! So | tall!",
+   "pic": "giraffe",
+   "clips": [
+    "06rh5gk",
+    "0q6sy7k"
+   ]
+  },
+  {
+   "slot": "stop.2",
+   "key": "theme.zoo.stop.2",
+   "speaker": "bobo",
+   "text": "Ooh ooh! Silly | monkeys!",
+   "pic": "monkey",
+   "clips": [
+    "1ow61jq",
+    "110zd27"
+   ]
+  },
+  {
+   "slot": "stop.3",
+   "key": "theme.zoo.stop.3",
+   "speaker": "bobo",
+   "text": "Stripes! A | zebra!",
+   "pic": "zebra",
+   "clips": [
+    "1uudeu0",
+    "0wohls9"
+   ]
+  },
+  {
+   "slot": "stop.4",
+   "key": "theme.zoo.stop.4",
+   "speaker": "bobo",
+   "text": "Roar! A | lion!",
+   "pic": "lion",
+   "clips": [
+    "0v4qp8s",
+    "1jc115l"
+   ]
+  },
+  {
+   "slot": "end",
+   "key": "theme.zoo.end",
+   "speaker": "bobo",
+   "text": "Hooray! Bye-bye, | zoo!",
+   "pic": null,
+   "clips": [
+    "1e1s0kq",
+    "0uru0t9"
+   ]
+  }
+ ],
+ "build": [
+  {
+   "slot": "title",
+   "key": "theme.build.title",
+   "speaker": "bobo",
+   "text": "Bobo's Building Site!",
+   "pic": null,
+   "clips": [
+    "10pl0gp"
+   ]
+  },
+  {
+   "slot": "intro",
+   "key": "theme.build.intro",
+   "speaker": "bobo",
+   "text": "Ooh! || Let's build a | house!",
+   "pic": null,
+   "clips": [
+    "17zdd4o",
+    "1w029f0",
+    "19pv5pp"
+   ]
+  },
+  {
+   "slot": "stop.0",
+   "key": "theme.build.stop.0",
+   "speaker": "bobo",
+   "text": "Let's | go!",
+   "pic": "construction",
+   "clips": [
+    "1xkbyvl",
+    "1s2kdz1"
+   ]
+  },
+  {
+   "slot": "stop.1",
+   "key": "theme.build.stop.1",
+   "speaker": "bobo",
+   "text": "Bring the | blocks!",
+   "pic": "brick",
+   "clips": [
+    "0rijo1p",
+    "1xt7251"
+   ]
+  },
+  {
+   "slot": "stop.2",
+   "key": "theme.build.stop.2",
+   "speaker": "bobo",
+   "text": "Beep, beep! Big | truck!",
+   "pic": "delivery-truck",
+   "clips": [
+    "12emoff",
+    "0rvx1yu"
+   ]
+  },
+  {
+   "slot": "stop.3",
+   "key": "theme.build.stop.3",
+   "speaker": "bobo",
+   "text": "Bang, bang! | Hammer time!",
+   "pic": "hammer",
+   "clips": [
+    "1t0erot",
+    "0cmoxze"
+   ]
+  },
+  {
+   "slot": "stop.4",
+   "key": "theme.build.stop.4",
+   "speaker": "bobo",
+   "text": "Almost | done!",
+   "pic": "house",
+   "clips": [
+    "1fz632k",
+    "0rduykv"
+   ]
+  },
+  {
+   "slot": "end",
+   "key": "theme.build.end",
+   "speaker": "bobo",
+   "text": "Hooray! We built a | house!",
+   "pic": null,
+   "clips": [
+    "1gzrv4i",
+    "19pv5pp"
+   ]
+  }
+ ],
+ "bedtime": [
+  {
+   "slot": "title",
+   "key": "theme.bedtime.title",
+   "speaker": "momo",
+   "text": "Momo's Bedtime.",
+   "pic": null,
+   "clips": [
+    "0vvx3r2"
+   ]
+  },
+  {
+   "slot": "intro",
+   "key": "theme.bedtime.intro",
+   "speaker": "momo",
+   "text": "Ooh. || It is almost | bedtime.",
+   "pic": null,
+   "clips": [
+    "1arasnp",
+    "0g0bnwd",
+    "1skm4m1"
+   ]
+  },
+  {
+   "slot": "stop.0",
+   "key": "theme.bedtime.stop.0",
+   "speaker": "momo",
+   "text": "Splash, splash. | Bath time.",
+   "pic": "bathtub",
+   "clips": [
+    "0x9f8sk",
+    "13aqc5h"
+   ]
+  },
+  {
+   "slot": "stop.1",
+   "key": "theme.bedtime.stop.1",
+   "speaker": "momo",
+   "text": "Brush, brush, | brush.",
+   "pic": "toothbrush",
+   "clips": [
+    "0kv4mqa",
+    "1vqil5n"
+   ]
+  },
+  {
+   "slot": "stop.2",
+   "key": "theme.bedtime.stop.2",
+   "speaker": "momo",
+   "text": "Hug your | teddy bear.",
+   "pic": "teddy-bear",
+   "clips": [
+    "16mnp4x",
+    "1dehngb"
+   ]
+  },
+  {
+   "slot": "stop.3",
+   "key": "theme.bedtime.stop.3",
+   "speaker": "momo",
+   "text": "Hello, big round | moon.",
+   "pic": "crescent-moon",
+   "clips": [
+    "0ch7hiy",
+    "1ltf0s6"
+   ]
+  },
+  {
+   "slot": "stop.4",
+   "key": "theme.bedtime.stop.4",
+   "speaker": "momo",
+   "text": "One big | yawn.",
+   "pic": "bed",
+   "clips": [
+    "056r388",
+    "0zu1uq8"
+   ]
+  },
+  {
+   "slot": "end",
+   "key": "theme.bedtime.end",
+   "speaker": "momo",
+   "text": "Good night, bed. Good night, | moon.",
+   "pic": null,
+   "clips": [
+    "0n99gzn",
+    "1ltf0s6"
+   ]
+  }
+ ],
+ "birthday": [
+  {
+   "slot": "title",
+   "key": "theme.birthday.title",
+   "speaker": "dodo",
+   "text": "Dodo's Birthday Party!",
+   "pic": null,
+   "clips": [
+    "1qg55oy"
+   ]
+  },
+  {
+   "slot": "intro",
+   "key": "theme.birthday.intro",
+   "speaker": "dodo",
+   "text": "Look! || It's a birthday | party!",
+   "pic": null,
+   "clips": [
+    "1cupbtt",
+    "1pdw42r",
+    "1vbzwii"
+   ]
+  },
+  {
+   "slot": "stop.0",
+   "key": "theme.birthday.stop.0",
+   "speaker": "dodo",
+   "text": "Knock, knock! A | present!",
+   "pic": "wrapped-gift",
+   "clips": [
+    "0pjyprw",
+    "14s6i3t"
+   ]
+  },
+  {
+   "slot": "stop.1",
+   "key": "theme.birthday.stop.1",
+   "speaker": "dodo",
+   "text": "So many | balloons!",
+   "pic": "balloon",
+   "clips": [
+    "0tjvjbr",
+    "1abyihi"
+   ]
+  },
+  {
+   "slot": "stop.2",
+   "key": "theme.birthday.stop.2",
+   "speaker": "dodo",
+   "text": "Here is the | cake!",
+   "pic": "birthday-cake",
+   "clips": [
+    "162t96z",
+    "0kxzb82"
+   ]
+  },
+  {
+   "slot": "stop.3",
+   "key": "theme.birthday.stop.3",
+   "speaker": "dodo",
+   "text": "Pop! | Party time!",
+   "pic": "party-popper",
+   "clips": [
+    "11pwc4o",
+    "0oa76j3"
+   ]
+  },
+  {
+   "slot": "stop.4",
+   "key": "theme.birthday.stop.4",
+   "speaker": "dodo",
+   "text": "A new | teddy bear!",
+   "pic": "teddy-bear",
+   "clips": [
+    "0yyd1hj",
+    "039178u"
+   ]
+  },
+  {
+   "slot": "end",
+   "key": "theme.birthday.end",
+   "speaker": "dodo",
+   "text": "Hooray! What a happy | party!",
+   "pic": null,
+   "clips": [
+    "0mwyzqa",
+    "1vbzwii"
+   ]
+  }
+ ],
+ "picnic": [
+  {
+   "slot": "title",
+   "key": "theme.picnic.title",
+   "speaker": "bobo",
+   "text": "Bobo's Park Picnic!",
+   "pic": null,
+   "clips": [
+    "0tba1d8"
+   ]
+  },
+  {
+   "slot": "intro",
+   "key": "theme.picnic.intro",
+   "speaker": "bobo",
+   "text": "You know what? || Let's have a | picnic!",
+   "pic": null,
+   "clips": [
+    "0nv2h2j",
+    "0e6qgvi",
+    "1uxvirx"
+   ]
+  },
+  {
+   "slot": "stop.0",
+   "key": "theme.picnic.stop.0",
+   "speaker": "bobo",
+   "text": "Find a big | tree!",
+   "pic": "deciduous-tree",
+   "clips": [
+    "05ziblg",
+    "04cxhtn"
+   ]
+  },
+  {
+   "slot": "stop.1",
+   "key": "theme.picnic.stop.1",
+   "speaker": "bobo",
+   "text": "Look! A | butterfly!",
+   "pic": "butterfly",
+   "clips": [
+    "017yidf",
+    "0igbg96"
+   ]
+  },
+  {
+   "slot": "stop.2",
+   "key": "theme.picnic.stop.2",
+   "speaker": "bobo",
+   "text": "Yum! | Sandwich time!",
+   "pic": "sandwich",
+   "clips": [
+    "1te15ue",
+    "1ubudpv"
+   ]
+  },
+  {
+   "slot": "stop.3",
+   "key": "theme.picnic.stop.3",
+   "speaker": "bobo",
+   "text": "Up goes the | kite!",
+   "pic": "kite",
+   "clips": [
+    "1sl8pfy",
+    "15yz8og"
+   ]
+  },
+  {
+   "slot": "stop.4",
+   "key": "theme.picnic.stop.4",
+   "speaker": "bobo",
+   "text": "The sun is | warm!",
+   "pic": "sun-with-face",
+   "clips": [
+    "007pj8f",
+    "14gx53a"
+   ]
+  },
+  {
+   "slot": "end",
+   "key": "theme.picnic.end",
+   "speaker": "bobo",
+   "text": "Hooray! What a sunny | picnic!",
+   "pic": null,
+   "clips": [
+    "01l2jg9",
+    "1uxvirx"
+   ]
+  }
+ ]
+}

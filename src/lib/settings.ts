@@ -29,10 +29,15 @@ export interface Settings {
   defaultsV?: number
   /** 單字中文提示：教學卡教還沒學會的字時唸「Apple → 蘋果 → Apple」（lib/words.ts 的 bridgeLines）；關掉就全英文 */
   zhBridge: boolean
+  /**
+   * 故事（G-8，試播）：開啟時每天的冒險是《彩虹蛋之旅》的一章（開場、結尾在魔法屋），每週一章故事時間。
+   * 故事的語氣還在等家長確認（docs/故事世界.md），所以預設關閉：關閉時冒險和以前一模一樣（12 扇魔法門的通用章節）。
+   */
+  story: boolean
 }
 
 const DEFAULTS_V = 2
-const DEFAULTS: Settings = { dailyMinutes: 20, freePlay: 'after', volume: 0.9, theme: 'all', activitiesPerDay: 4, eyeBreakEvery: 10, nightWarm: true, coloringHelp: false, zhBridge: true, defaultsV: DEFAULTS_V }
+const DEFAULTS: Settings = { dailyMinutes: 20, freePlay: 'after', volume: 0.9, theme: 'all', activitiesPerDay: 4, eyeBreakEvery: 10, nightWarm: true, coloringHelp: false, zhBridge: true, story: false, defaultsV: DEFAULTS_V }
 
 let state: Settings = DEFAULTS
 const subs = new Set<() => void>()

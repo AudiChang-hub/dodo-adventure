@@ -1,0 +1,344 @@
+/* 故事（G-8）：故事的圖、魔法屋剖面圖、冒險裡的魔法屋開場與結尾、我的故事書 */
+
+/* ── 故事的圖（ui/StoryPic.tsx）：一張大的，可以疊一張小的在右下角 ───────── */
+.story-pic {
+  position: relative;
+  display: block;
+  width: 100%;
+  aspect-ratio: 1;
+}
+.story-pic-main {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+}
+.story-pic-main > * {
+  width: 100%;
+}
+.story-pic-extra {
+  position: absolute;
+  right: -8%;
+  bottom: -6%;
+  width: 46%;
+  filter: drop-shadow(0 6px 5px rgba(46, 42, 37, 0.14));
+}
+
+/* ── 魔法屋剖面圖（ui/MagicHouseArt.tsx）：畫布是 1200×786，跟著外框等比例縮放 ───── */
+.house-stage {
+  position: relative;
+  width: min(100%, calc(var(--house-h, 100%) * 1200 / 786));
+  aspect-ratio: 1200 / 786;
+  margin: 0 auto;
+}
+.house-svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+.house-stage > div,
+.house-stage > button {
+  transition: opacity 0.5s;
+}
+.house-door,
+.house-item,
+.house-room {
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  -webkit-tap-highlight-color: transparent;
+}
+.house-door,
+.house-item {
+  pointer-events: none;
+}
+.house-door > svg {
+  margin-top: -18%;
+}
+.house-room {
+  z-index: 0;
+  border-radius: 10px;
+}
+/* 書房（打開故事書）：一圈淡淡的框告訴孩子這裡可以點；靜止，不呼吸 */
+.house-room[data-room='book'] {
+  box-shadow: inset 0 0 0 5px rgba(168, 135, 90, 0.45);
+}
+.house-room:active {
+  background: rgba(46, 42, 37, 0.05);
+}
+.house-door,
+.house-item {
+  z-index: 1;
+}
+/* 新加的東西：一圈靜態的光（不閃、不轉） */
+.house-item.is-fresh::before {
+  content: '';
+  position: absolute;
+  inset: -34%;
+  border-radius: 50%;
+  background: radial-gradient(closest-side, rgba(241, 210, 124, 0.55), rgba(241, 210, 124, 0));
+  z-index: -1;
+}
+
+/* ── 魔法屋畫面 ───────────────────────────────────────────── */
+.house-screen {
+  display: grid;
+  place-items: center;
+  padding: 10vh 3vw 4vh;
+  background: linear-gradient(#f6f1e6, var(--paper) 70%);
+}
+.house-screen .house-frame {
+  --house-h: calc(100vh - 14vh);
+  width: 100%;
+  height: 100%;
+  display: grid;
+  place-items: center;
+}
+.house-title {
+  position: absolute;
+  bottom: 22px;
+  left: 30px;
+  font-family: 'Huninn', sans-serif;
+  font-size: 18px;
+  letter-spacing: 0.08em;
+  color: var(--ink-faint);
+}
+.house-book-btn.round-btn {
+  position: absolute;
+  right: 3vw;
+  bottom: 4vh;
+  z-index: 4;
+  /* 準則 TOUCH-1：小班段主要按鈕 ≥ 2 cm */
+  width: 96px;
+  height: 96px;
+}
+
+/* ── 冒險裡的魔法屋（開場、結尾）：左邊是故事卡和說話的恐龍，右邊是剖面圖（亮著今天用到的房間） ───── */
+.story-home {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.5fr);
+  align-items: center;
+  gap: 2vw;
+  padding: 12vh 3vw 5vh 4vw;
+  background: linear-gradient(#f6f1e6, var(--paper));
+}
+.story-home .house-frame {
+  --house-h: 74vh;
+  display: grid;
+  place-items: center;
+  opacity: 0.9;
+  transition: opacity 0.6s;
+}
+.story-home-side {
+  position: relative;
+  display: grid;
+  justify-items: center;
+  align-content: center;
+  gap: 2vh;
+  height: 100%;
+}
+.story-home-card {
+  position: relative;
+  width: min(100%, 44vh);
+  aspect-ratio: 1;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--card);
+  box-shadow:
+    0 0 0 12px color-mix(in srgb, var(--card) 60%, transparent),
+    0 28px 48px -28px color-mix(in srgb, var(--deep, #a8875a) 75%, transparent);
+}
+/* 換一句換一張圖：原地交叉淡化（Scenes 的 Swap），卡片本身不動 */
+.story-home-card .swap-pic {
+  position: absolute;
+  inset: 20%;
+}
+.story-home-dino {
+  width: min(70%, 26vh);
+}
+/* 這一篇講完、魔法屋多了東西：故事卡收起來，剖面圖移到正中間（原地淡入，不縮放、不移動） */
+.story-home.is-added {
+  grid-template-columns: 1fr;
+}
+.story-home.is-added .house-frame {
+  --house-h: 80vh;
+}
+/* 重聽（故事書）沿用同一張卡：放在畫面中間 */
+.book-replay .story-home-card {
+  position: absolute;
+  top: 13vh;
+  left: 50%;
+  width: clamp(220px, 46vh, 380px);
+  translate: -50% 0;
+}
+.book-replay .story-home-dino {
+  position: absolute;
+  bottom: 4vh;
+  left: 50%;
+  width: clamp(130px, 24vh, 220px);
+  translate: calc(-50% - 30vh) 0;
+}
+
+/* ── 我的故事書 ─────────────────────────────────────────── */
+.book-screen {
+  background: linear-gradient(#f2eadb, var(--paper) 60%);
+}
+.book-shelf {
+  position: absolute;
+  /* 左上角留給返回鍵（92px）再空 28px 以上（TOUCH-1） */
+  inset: 13vh 12.5vw 20vh;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  grid-template-rows: repeat(2, 1fr);
+  gap: clamp(28px, 3.4vmin, 40px);
+}
+.book-card {
+  position: relative;
+  display: grid;
+  grid-template-rows: 1fr auto;
+  align-items: center;
+  justify-items: center;
+  padding: 7% 8% 6%;
+  border: 0;
+  border-radius: 22px 30px 30px 22px;
+  background: var(--card);
+  box-shadow:
+    inset 12px 0 0 var(--spine, #c9a57e),
+    0 18px 30px -22px rgba(46, 42, 37, 0.45);
+  font: inherit;
+  color: var(--ink);
+  -webkit-tap-highlight-color: transparent;
+  min-width: 0;
+  min-height: 0;
+}
+.book-card:active {
+  translate: 0 2px;
+}
+.book-card .story-pic {
+  width: min(70%, 15vh);
+}
+.book-card-title {
+  font-family: 'Fredoka', sans-serif;
+  font-weight: 500;
+  font-size: clamp(14px, 2.2vmin, 20px);
+  line-height: 1.2;
+  text-align: center;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.book-pager {
+  position: absolute;
+  bottom: 2.5vh;
+  left: 50%;
+  translate: -50% 0;
+  display: flex;
+  gap: 4vw;
+  align-items: center;
+}
+.book-pager .round-btn {
+  width: 92px;
+  height: 92px;
+}
+.book-pager .round-btn:disabled {
+  opacity: 0.35;
+}
+.book-dots {
+  display: flex;
+  gap: 10px;
+}
+.book-dots i {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  border: 2.5px solid var(--ink-faint);
+}
+.book-dots i.is-on {
+  background: var(--ink-soft);
+  border-color: var(--ink-soft);
+}
+.book-empty {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  align-content: center;
+  gap: 3vh;
+}
+.book-empty .story-pic {
+  width: clamp(160px, 28vmin, 260px);
+}
+
+/* 重聽一章：大大的圖、下面是說故事的恐龍；上面一排小點是講到第幾句 */
+.book-replay {
+  position: absolute;
+  inset: 0;
+}
+.book-progress {
+  position: absolute;
+  top: 4.5vh;
+  left: 50%;
+  translate: -50% 0;
+  display: flex;
+  gap: 7px;
+  padding: 8px 14px;
+  border-radius: 99px;
+  background: rgba(251, 248, 242, 0.7);
+  max-width: 70vw;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+.book-progress i {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--paper-edge);
+}
+.book-progress i.is-done {
+  background: var(--ink-soft);
+}
+
+/* 手機直式（家長遠端看）：只求不壞版 */
+@media (orientation: portrait) {
+  .book-shelf {
+    inset: 18vh 6vw 19vh;
+    grid-template-columns: repeat(2, 1fr);
+    grid-template-rows: repeat(3, 1fr);
+  }
+  .house-screen {
+    padding: 14vh 3vw 10vh;
+  }
+  .house-screen .house-frame {
+    --house-h: 60vh;
+    height: auto;
+  }
+  .story-home {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto auto;
+    align-content: center;
+    padding: 14vh 4vw 4vh;
+  }
+  .story-home .house-frame {
+    --house-h: 40vh;
+  }
+  .story-home-card {
+    width: min(70vw, 30vh);
+  }
+  .story-home-dino {
+    position: absolute;
+    left: 0;
+    bottom: 0;
+    width: 22vw;
+  }
+  .book-replay .story-home-dino {
+    translate: calc(-50% - 28vw) 0;
+  }
+}

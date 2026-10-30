@@ -8,6 +8,7 @@ import { fluencyReady, isFluency } from './fluency'
 import { getSettings, weekTheme } from './settings'
 import { pick } from './random'
 import { planDay, shiftDate, trackNeeds, MASTERY_DAYS } from './tracks'
+import { chapterForNewPlan } from './story'
 
 export interface PlanItem {
   game: string
@@ -21,6 +22,11 @@ export interface Plan {
   date: string
   /** 今天的主題故事（content/themes.ts）。2026-10-28 之前存的冒險沒有，讀的時候補上 */
   theme?: ThemeId
+  /**
+   * 今天講的故事章節（content/story 的章 id，G-8）。家長沒開「故事（試播）」時沒有這個欄位，
+   * 冒險就是今天這扇門的通用章節，和以前一模一樣
+   */
+  chapter?: string
   items: PlanItem[]
   hatched: string | null
 }
@@ -67,10 +73,33 @@ export async function todayPlan(): Promise<Plan> {
   return (last = await readPlan())
 }
 
+/**
+ * 故事（G-8）：家長開、關「故事（試播）」時，今天還沒開始走的冒險跟著換（有門的章節換成那扇門；關掉就拿掉章節、照原本的方式挑門）。
+ * 已經走了一站就不動，從明天開始。
+ */
+async function withStory(p: Plan): Promise<Plan> {
+  if (p.items.some((i) => i.done)) return p
+  // 只管「開了沒有章節」「關了還有章節」兩種：已經排好的章節不換（同一天不會一下長篇、一下故事時間）
+  const on = getSettings().story
+  if (on === !!p.chapter) return p
+  const ch = on ? await chapterForNewPlan(p.date) : null
+  if (on && !ch) return p
+  const next: Plan = { ...p }
+  if (ch) {
+    next.chapter = ch.id
+    if (ch.door) next.theme = ch.door
+  } else {
+    delete next.chapter
+    next.theme = await themeFor(p.date)
+  }
+  await setKV(`plan:${p.date}`, next)
+  return next
+}
+
 async function readPlan(): Promise<Plan> {
   const date = today()
   const saved = await getKV<Plan | null>(`plan:${date}`, null)
-  if (saved) return migrate(saved)
+  if (saved) return withStory(await migrate(saved))
   const attempts = await db.attempts.where('date').aboveOrEqual(shiftDate(date, -(MASTERY_DAYS - 1))).toArray()
   const needs = trackNeeds({ attempts, date, boxOf: (k) => skill(k).box, intros: conceptIntrosNow(), isDue })
   // 每個遊戲裡有幾個今天到期複習的技能：有到期的遊戲比較容易排到（已熟的內容改成複習）
@@ -82,6 +111,12 @@ async function readPlan(): Promise<Plan> {
   const n = Math.max(2, Math.min(5, getSettings().activitiesPerDay))
   const slots = planDay({ date, n, needs, games, lastPlayed, plays, dueIn, overloaded: pauseNew() })
   const plan: Plan = { date, theme: await themeFor(date), items: slots.map((x) => ({ game: x.game, station: x.station, track: x.track, done: false })), hatched: null }
+  // 故事（G-8）：長篇的章指定今天走哪一扇門；故事時間沒有門（遊戲內容照今天挑到的主題）。不改排了哪些遊戲
+  const ch = await chapterForNewPlan(date)
+  if (ch) {
+    plan.chapter = ch.id
+    if (ch.door) plan.theme = ch.door
+  }
   await setKV(`plan:${date}`, plan)
   return plan
 }

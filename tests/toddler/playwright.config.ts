@@ -7,7 +7,7 @@ const quick = process.env.TODDLER_QUICK === '1'
 
 export default defineConfig({
   testDir: '.',
-  testMatch: /(games|screens)\.spec\.ts/,
+  testMatch: /(games|screens|story)\.spec\.ts/,
   outputDir: '../../test-results/toddler/pw',
   timeout: 15 * 60_000,
   fullyParallel: true,
