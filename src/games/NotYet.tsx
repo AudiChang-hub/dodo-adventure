@@ -68,11 +68,11 @@ if (typeof window !== 'undefined') {
   const seen = (e: PointerEvent) => {
     if (e.pointerType === 'touch' && (e.type === 'pointerdown' || fingers.has(e.pointerId))) fingers.set(e.pointerId, performance.now())
   }
-  const gone = (e: PointerEvent) => fingers.delete(e.pointerId)
   window.addEventListener('pointerdown', seen, true)
   window.addEventListener('pointermove', seen, true)
-  window.addEventListener('pointerup', gone, true)
-  window.addEventListener('pointercancel', gone, true)
+  window.addEventListener('pointerup', (e) => fingers.delete(e.pointerId), true)
+  // pointercancel 不是放開：兩指時瀏覽器常先取消第一根（當成縮放手勢），手指其實還壓著；留著等它自己過期
+  window.addEventListener('pointercancel', seen, true)
   document.addEventListener('visibilitychange', () => fingers.clear())
 }
 
