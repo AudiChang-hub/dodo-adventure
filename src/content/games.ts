@@ -336,7 +336,7 @@ const phStart = (level: number, recent: string[]): PhonicsItem => {
 /**
  * 哪個跟 bus 開頭一樣？
  * 2026-10-29 家長回饋（a 的題目上面是 ambulance、選項是 mouse 和 ant、答對後說 Ant starts like apple，一題冒出四個字，很混亂）：
- * - 上面的圖一律是這個音的代表字（第一個關鍵字，學習循環 S, S, S… sss… snake! 唸的那個字），同一個音每一題都一樣；
+ * - 上面的圖一律是這個音的代表字（第一個關鍵字，學習循環 S, S, S… s, s, s… snake! 唸的那個字），同一個音每一題都一樣；
  * - 第 1 級只用教過的字當答案，兩個選項，錯的那張開頭的音要差很多（distractorWords）；
  * - 答對之後只唸答案這個字（A… a, a… ant!），不再提畫面上沒有的字。
  */
@@ -388,7 +388,7 @@ const phLetter = (level: number, recent: string[]): PhonicsItem => {
   const cues = [u, ...wrong].map(cueOf)
   const scaffold = !familiar(u) && cues.every(Boolean)
   const opts = shuffle([u, ...wrong]).map((x): PhonicsOption => ({ id: x.letter, letter: x.letter, ...(scaffold ? { cue: cueOf(x) } : {}) }))
-  // 答對之後：字母卡下面有小圖時唸那張圖的字（S… sss… snake!）；沒有圖就只唸字母和字母音（S… sss…），不提畫面上沒有的字
+  // 答對之後：字母卡下面有小圖時唸那張圖的字（S… s, s, s… snake!）；沒有圖就只唸字母和字母音（S… s, s, s…），不提畫面上沒有的字
   const echo = scaffold ? cueOf(u) : undefined
   return {
     itemId: u.letter,

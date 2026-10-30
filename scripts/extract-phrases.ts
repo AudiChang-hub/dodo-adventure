@@ -21,7 +21,7 @@ for (const [key, l] of allLines())
     // 中文三明治的中文由 gen_zh_words.py（BreezyVoice）產生，不交給 gen_audio.py
     if (s.role === 'zh') continue
     const file = clipName(l, s)
-    // 字母音台詞（S, S, S… sss… snake!）：gen_audio.py 分段合成再接起來（phonics-cue.ts）
+    // 字母音台詞（S, S, S… s, s, s… snake!）：gen_audio.py 分段合成再接起來（phonics-cue.ts）
     const c = cueOf(s.text)
     const cue = c && { parts: cueParts(c), hold: CUE.holdMs, gap: CUE.gapMs, repeatGap: CUE.repeatGapMs }
     if (!rows.has(file)) rows.set(file, { key, file, text: s.text, speaker: l.speaker, role: s.role, ...segmentVoice(l, s), fx: segmentFx(l), ...(cue ? { cue } : {}) })

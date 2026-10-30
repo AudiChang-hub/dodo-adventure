@@ -13,7 +13,7 @@
   text-underline-offset: 0.14em;
   text-decoration-color: color-mix(in srgb, var(--ph-tint) 55%, transparent);
 }
-/* 字母音台詞（S, S, S… sss… snake!）的三種樣子，孩子和家長才不會把字母名稱和字母音混在一起：
+/* 字母音台詞（S, S, S… s, s, s… snake!）的三種樣子，孩子和家長才不會把字母名稱和字母音混在一起：
    字母名稱：整個字大一點、粗、上色；字母音：小寫、細、淡一點的同色，底下一條波浪線（像聲波）；單字照上面只標開頭字母 */
 .sub-w[data-part='name'] {
   color: var(--ph-tint);

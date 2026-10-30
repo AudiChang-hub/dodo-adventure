@@ -13,11 +13,11 @@ def('ph.intro.letter', 'dodo', 'Listen, and find the letter!')
 // 點名選項、教學卡上的每個字：Bus.
 for (const { w } of PHONICS_WORDS) def(`ph.word.${wordId(w)}`, 'dodo', `${cap(w)}.`)
 
-/** 字母名稱 ×3 → 字母音 → 代表字：S, S, S… sss… snake!（學習循環、貼紙本） */
+/** 字母名稱 ×3 → 字母音 → 代表字：S, S, S… s, s, s… snake!（學習循環、貼紙本） */
 const saysText = (u: SoundUnit) => cueText({ unit: u, names: 3, sound: true, word: anchorOf(u).w })
 
 /**
- * 一個字配上這個音：S… sss… socks!（答對之後、單字卡）。
+ * 一個字配上這個音：S… s, s, s… socks!（答對之後、單字卡）。
  * 只提這個字本身：畫面上只有這張圖時，不能再說「像 snake」（2026-10-29 家長回饋：ant 的題目說 like apple，畫面上沒有 apple）。
  * 這裡會一直出現，字母名稱只唸一次（三次太長，學習循環才唸三次）。
  */
@@ -25,7 +25,7 @@ export const echoText = (u: SoundUnit, w: string) => cueText({ unit: u, names: 1
 
 for (const u of PHONICS) {
   const l = u.letter
-  // 只有字母音：sss…、b, b, b…（題目、發現共同的開頭音時，只聽音，不說字母名稱）
+  // 只有字母音：s, s, s…、b, b, b…（題目、發現共同的開頭音時，只聽音，不說字母名稱）
   const snd = cueText({ unit: u, names: 0, sound: true })
   // 發現共同的開頭音（三個字剛唸完）
   def(`ph.${l}.discover`, 'dodo', `They all start with | ${snd}`)

@@ -37,7 +37,7 @@ function paint(root: Element) {
     for (const w of words) {
       const t = w.textContent ?? ''
       if (!w.dataset.tint && tintWord(target, t)) w.dataset.tint = target
-      // 字母音台詞（S, S, S… sss… snake!）：字母名稱、字母音各有自己的樣子
+      // 字母音台詞（S, S, S… s, s, s… snake!）：字母名稱、字母音各有自己的樣子
       const part = cuePart(target, t)
       if (part && w.dataset.part !== part) w.dataset.part = part
     }

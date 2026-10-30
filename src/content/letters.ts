@@ -111,7 +111,7 @@ export const letterEntry = (l: string) => LETTERS.find((e) => e.letter === l)!
 //   教學指引提醒老師不要在 /b/ 後面多加「uh」，但停頓音本來就沒辦法不帶母音單獨唸，TTS 也做不到更短的版本；
 //   所以這個音一定和真的單字一起出現（buh, buh, bus），讓孩子聽到單字裡真正的開頭。
 //   "guh"、"cuh" 會被拼成字母，所以 g 改用單字開頭，c 寫成 kuh。
-// - 2026-10-29 家長指定唸法「字母名稱 ×3 → 字母音 → 單字」（ㄟ斯 ㄟ斯 ㄟ斯 斯斯斯… 司內克），字幕寫成 S, S, S… sss… snake!，
+// - 2026-10-29 家長指定唸法「字母名稱 ×3 → 字母音 → 單字」（ㄟ斯 ㄟ斯 ㄟ斯 斯斯斯… 司內克），字幕寫成 S, S, S… s, s, s… snake!，
 //   組合方式在 phonics-cue.ts，聲音由 gen_audio.py 組合。重新實測（Whisper small 聽寫、強制比對＋音高、共振峰分析，
 //   試聽檔在 docs/voice-samples/拉長音分開/）：
 //   - 字母名稱：edge-tts 的 "S." 就是字母名稱（ess），每個字母產生一次、重複三次。
@@ -140,7 +140,7 @@ export interface PhonicsWord {
 
 /**
  * 「這個音」（字母音）怎麼做出來（gen_audio.py 依這個組合聲音，字幕的寫法見 phonics-cue.ts）：
- * - hold：從第一個關鍵字的開頭切出子音、延長（m、s、f、n、l、r），字幕 sss…
+ * - hold：從第一個關鍵字的開頭切出子音、延長成 0.28 秒，斷開唸三次（m、s、f、n、l、r），字幕 s, s, s…
  * - cut：從第一個關鍵字（或 from 這個字）的開頭剪 ms 毫秒（母音 a、e；g），重複 times 次，字幕 a, a…
  * - say：TTS 唸得對的停頓音（buh），重複 times 次，字幕 b, b, b…
  * - none：做不出來（v），只唸字母名稱和單字
@@ -154,7 +154,7 @@ export interface SoundUnit {
   phoneme: string
   ipa: string
   sound: Sound
-  /** 三個關鍵字：學習循環一開始的三個字。第一個是「代表字」：S, S, S… sss… snake! 唸的字、開頭一樣的題目一直放在上面的圖 */
+  /** 三個關鍵字：學習循環一開始的三個字。第一個是「代表字」：S, S, S… s, s, s… snake! 唸的字、開頭一樣的題目一直放在上面的圖 */
   keys: [PhonicsWord, PhonicsWord, PhonicsWord]
   /** 複習用的新字：熟了之後用沒看過的字確認是真的懂了這個音，而不是記住某一張圖 */
   review: PhonicsWord[]
@@ -228,7 +228,7 @@ export const wordId = (w: string) => w.toLowerCase().replace(/[^a-z0-9]+/g, '-')
 /** 全部的字（去重），找干擾選項、產生台詞用 */
 export const PHONICS_WORDS: (PhonicsWord & { unit: SoundUnit })[] = PHONICS.flatMap((u) => wordsOf(u).map((x) => ({ ...x, unit: u })))
 
-/** 代表字：第一個關鍵字（S, S, S… sss… snake! 的 snake；hold、cut 的聲音也從這個字切） */
+/** 代表字：第一個關鍵字（S, S, S… s, s, s… snake! 的 snake；hold、cut 的聲音也從這個字切） */
 export const anchorOf = (u: SoundUnit) => u.keys[0]
 
 /**

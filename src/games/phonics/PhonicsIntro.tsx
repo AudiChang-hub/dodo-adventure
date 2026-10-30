@@ -24,8 +24,8 @@ const LIFT = 24
 const enterTx = { y: { duration: DUR.enter, ease: EASE.out }, opacity: FADE }
 
 /**
- * 字母飛出來時唸的那句：S, S, S… sss… snake!（snake 是代表字，畫面上一定有）。
- * 家長把代表字勾成「他不認得」時，學習循環換成別的字，畫面上沒有 snake，改唸 S… sss…（不提畫面上沒有的字）。
+ * 字母飛出來時唸的那句：S, S, S… s, s, s… snake!（snake 是代表字，畫面上一定有）。
+ * 家長把代表字勾成「他不認得」時，學習循環換成別的字，畫面上沒有 snake，改唸 S… s, s, s…（不提畫面上沒有的字）。
  */
 const saysLine = (u: SoundUnit) => (u.keys[0].w === soundUnit(u.letter).keys[0].w ? `ph.${u.letter}.says` : `ph.${u.letter}.sound`)
 

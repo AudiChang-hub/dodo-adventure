@@ -11,7 +11,7 @@
    再加軟性天花板與地板（參數在 src/content/voices.ts 的 E4，經 lines.json 傳進來）。PSOLA 不改音長。
    放大失敗（例如整段幾乎沒有有聲的音框）就保留未放大的音檔，記在 scripts/.cache/fx-report.json，不中斷整批。
 發音示範（fx 是 null）的音檔完全不動，只校正字幕時間。
-例外是字母音台詞（台詞清單裡有 cue 的段，例如 S, S, S… sss… snake!）：分段合成、從代表字切出字母音，再照順序接起來（build_cue）。
+例外是字母音台詞（台詞清單裡有 cue 的段，例如 S, S, S… s, s, s… snake!）：分段合成、從代表字切出字母音，再照順序接起來（build_cue）。
 
 字幕時間校正：edge-tts 的 WordBoundary 在「停頓之後的第一個字」（每段第一個字、逗號句號後的字）標得比實際出聲早約 0.1 秒
 （每段第一個字固定標在約 105ms，實際約 200ms 才有聲音）。這種字的開始時間改成實際出聲的位置（往後最多移到該字的中點）；
@@ -137,7 +137,7 @@ def expand_asym(pcm: np.ndarray, fx: dict) -> np.ndarray:
     return y[: len(pcm)]
 
 
-# ── 字母音台詞（S, S, S… sss… snake!，src/content/phonics-cue.ts）──────────
+# ── 字母音台詞（S, S, S… s, s, s… snake!，src/content/phonics-cue.ts）──────────
 # edge-tts 單獨唸 sss…、b… 一定拼成字母名稱，所以這種段一段一段做，再照順序接起來（段與段停 gap、重複之間停 repeatGap）：
 # - tts：直接合成（字母名稱 "S."、停頓音 "buh."、單字 "snake!"），重複 times 次用同一段聲音
 # - hold：從代表字（snake!）的開頭切出子音、延長成 hold 毫秒；和單字裡的子音是同一段聲音，不會多出母音
@@ -274,7 +274,7 @@ def build_hold(pcm: np.ndarray, letter: str, ms: int) -> np.ndarray:
     # 濁音用整段子音找音高標記（穩定段太短，只有幾個週期），自己挑中間那幾顆；音量仍以穩定段為準
     y = hold_noise(core, n) if letter in UNVOICED else hold_voiced(seg, n)
     y *= np.sqrt((core**2).mean()) / (np.sqrt((y**2).mean()) + 1e-9)  # 音量和單字裡的子音一樣
-    return fade(y, 40, 80)
+    return fade(y, 20, 70)  # 斷開唸的短音（0.28 秒）：起音快一點，聽起來是「斯」不是「嘶～」
 
 
 def build_cut(pcm: np.ndarray, ms: int) -> np.ndarray:
@@ -322,10 +322,10 @@ def build_cue(clips: dict, cue: dict):
             pause(cue["gap"])
         show = part["show"]
         if part["kind"] == "hold":
-            y = build_hold(clips[part["src"]][0], part["letter"], cue["hold"])
-            put(y, [[0, ms(len(y)), show[0]]])
-            continue
-        if part["kind"] == "cut":
+            # 2026-10-30 家長改定：斷開唸三次（斯_斯_斯），每一下都是同一段短的子音
+            y, reps = build_hold(clips[part["src"]][0], part["letter"], cue["hold"]), part["times"]
+            tts_words = None
+        elif part["kind"] == "cut":
             y, reps = build_cut(clips[part["src"]][0], part["ms"]), part["times"]
             tts_words = None
         else:
