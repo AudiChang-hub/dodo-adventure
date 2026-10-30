@@ -8,6 +8,28 @@
 import { useSyncExternalStore } from 'react'
 import { BANDS, BAND_FROM_MONTHS, DEFAULT_BAND, FRAMES, RAMP_WEEK, RAMP_WEEKS, type Band, type Frame } from '../content/growth'
 import { db, getKV, setKV, today, uid, type GrowthLogEntry } from './db'
+import { MASTERED_BOX } from './engine'
+import type { TrackId } from '../content/tracks'
+import {
+  DONE_RATIO,
+  FIRM_REV,
+  NESTED_GAMES,
+  REOPEN_DAYS,
+  REOPEN_DROP,
+  REOPEN_FAILS,
+  RUNGS,
+  STRANDS,
+  STUCK_DAYS,
+  STUCK_RATIO,
+  TRANSFER_GAMES,
+  TRANSFER_RATIO,
+  strand,
+  strandRungs,
+  unitOfSkill,
+  unitsOf,
+  type RungDef,
+  type StrandId,
+} from '../content/ladder'
 
 /** kv.profile：生日年月，由家長設定 */
 export interface Profile {
@@ -188,6 +210,346 @@ export function statusOf(profile: Profile | null, growth: GrowthState, day: stri
   return { ...t, frame: FRAMES[growth.band ?? t.band] }
 }
 
+// ── 支線與階梯（G-2，§1.3、§1.4、§5.4）──────────────────────
+// 純函式：輸入是技能點的熟練度和「在哪些遊戲第一次就答對過」，輸出是每一階開了沒、完成了沒、要不要回補。
+// 孩子端（lib/adaptive.ts）每一回合開始時算一次；家長區（G-6）、試算報告（scripts/ladder-report.ts）用同一套。
+
+/** 熟練度裡判斷階梯要用的欄位（db.Skill 的一部分） */
+export interface SkillView {
+  box: number
+  seen: number
+  rev?: number
+  lastReview?: { ts: number; result: 'ok' | 'slow' | 'no' }
+  firmAt?: number
+}
+
+/**
+ * 穩固：已熟，而且通過至少 2 次到期複習（隔 1 天、再隔 2 天都還記得）。同一局連對三題的「已熟」還不算。
+ * 通過過一次就記在 firmAt：之後偶爾答錯一題（rev 從頭算）仍然算穩固，掉出已熟才不算。
+ */
+export const isFirm = (s: SkillView | undefined) => !!s && s.box >= MASTERED_BOX && ((s.rev ?? 0) >= FIRM_REV || s.firmAt != null)
+
+export interface LadderFacts {
+  /** 出現過的技能點 */
+  skills: ReadonlyMap<string, SkillView>
+  /** 技能點 → 在哪些遊戲「自己答」第一次就答對過（遷移） */
+  okGames: ReadonlyMap<string, ReadonlySet<string>>
+}
+
+export interface UnitStat {
+  id: string
+  seen: boolean
+  mastered: boolean
+  firm: boolean
+  /** 能練到它的遊戲有 2 種以上 */
+  transferable: boolean
+  transfer: boolean
+  /** 屬於這個單位、出現過的技能點 */
+  skills: string[]
+}
+
+export interface RungCalc {
+  units: UnitStat[]
+  /** 做出來的單位數；0 就是這一階還沒有內容 */
+  total: number
+  seen: number
+  mastered: number
+  firm: number
+  transferable: number
+  transferred: number
+  /** 穩固的比例 0–1 */
+  ratio: number
+  /** 現在算起來夠不夠「階完成」：80% 穩固，而且能遷移的單位一半以上有遷移 */
+  done: boolean
+  /** 最近的到期複習連續失敗幾次（這一階所有技能點一起看） */
+  fails: number
+}
+
+/** 把出現過的技能點分到各階的各單位，算出每一階的穩固、遷移 */
+export function ladderCalc(facts: LadderFacts): Map<string, RungCalc> {
+  const byUnit = new Map<string, string[]>()
+  for (const key of facts.skills.keys()) {
+    const u = unitOfSkill(key)
+    if (!u) continue
+    const k = `${u.rung}|${u.unit.id}`
+    byUnit.set(k, [...(byUnit.get(k) ?? []), key])
+  }
+  const raw = new Map<string, UnitStat>()
+  for (const r of RUNGS)
+    for (const u of unitsOf(r.id)) {
+      const keys = byUnit.get(`${r.id}|${u.id}`) ?? []
+      const sk = keys.map((k) => facts.skills.get(k)!)
+      const games = new Set(keys.flatMap((k) => [...(facts.okGames.get(k) ?? [])]))
+      raw.set(`${r.id}|${u.id}`, {
+        id: u.id,
+        seen: sk.some((s) => s.seen > 0),
+        mastered: sk.some((s) => s.box >= MASTERED_BOX),
+        firm: sk.some(isFirm),
+        transferable: u.games.length >= TRANSFER_GAMES,
+        transfer: games.size >= TRANSFER_GAMES,
+        skills: keys,
+      })
+    }
+  // 難度越高越包含前面的：同一個遊戲高一級的單位穩固（已熟、出現過）了，低的也算
+  const nested = [...RUNGS].flatMap((r) => unitsOf(r.id).filter((u) => u.game && NESTED_GAMES.has(u.game)).map((u) => ({ u, s: raw.get(`${r.id}|${u.id}`)! })))
+  for (const { u, s } of nested) {
+    const higher = nested.filter((x) => x.u.game === u.game && (x.u.lv ?? 0) > (u.lv ?? 0)).map((x) => x.s)
+    s.seen ||= higher.some((h) => h.seen)
+    s.mastered ||= higher.some((h) => h.mastered)
+    s.firm ||= higher.some((h) => h.firm)
+  }
+  const out = new Map<string, RungCalc>()
+  for (const r of RUNGS) {
+    if (r.with) continue
+    const units = unitsOf(r.id).map((u) => raw.get(`${r.id}|${u.id}`)!)
+    const total = units.length
+    const firm = units.filter((x) => x.firm).length
+    const transferable = units.filter((x) => x.transferable).length
+    const transferred = units.filter((x) => x.transferable && x.transfer).length
+    const reviews = units
+      .flatMap((x) => x.skills.map((k) => facts.skills.get(k)!.lastReview))
+      .filter((x): x is NonNullable<SkillView['lastReview']> => !!x)
+      .sort((a, b) => b.ts - a.ts)
+    let fails = 0
+    while (fails < reviews.length && reviews[fails].result === 'no') fails++
+    const ratio = total ? firm / total : 0
+    out.set(r.id, {
+      units,
+      total,
+      seen: units.filter((x) => x.seen).length,
+      mastered: units.filter((x) => x.mastered).length,
+      firm,
+      transferable,
+      transferred,
+      ratio,
+      done: total > 0 && ratio >= DONE_RATIO && (!transferable || transferred / transferable >= TRANSFER_RATIO),
+      fails,
+    })
+  }
+  for (const r of RUNGS) if (r.with) out.set(r.id, out.get(r.with)!)
+  return out
+}
+
+/**
+ * 一階怎麼開的：
+ * start 沒有前置；prereq 前置都完成；stuck 卡關保險（前一階 60% 穩固、開放滿 3 週）；
+ * legacy 成長系統上線前就已經玩到這一階（舊資料升級時補記，已經開放的不收回）。
+ */
+export type OpenBy = 'start' | 'prereq' | 'stuck' | 'legacy'
+
+export interface Reopen {
+  from: string
+  /** 這一天起結束（YYYY-MM-DD） */
+  until: string
+  /** drop：30% 以上掉出已熟；fail：連續 2 次到期複習失敗 */
+  why: 'drop' | 'fail'
+  /** 掉出已熟的技能點：重跑一次短教學卡 */
+  reteach: string[]
+}
+
+export interface RungMark {
+  open?: string
+  by?: OpenBy
+  done?: string
+  reopen?: Reopen
+}
+
+/** kv.ladder：每一階什麼時候開、什麼時候完成、回補中。開了不收回，完成了不收回（掉了就回補） */
+export interface LadderState {
+  v: number
+  rungs: Record<string, RungMark>
+}
+
+export const LADDER_V = 1
+export const emptyLadder = (): LadderState => ({ v: LADDER_V, rungs: {} })
+
+export interface RungView extends RungCalc {
+  id: string
+  strand: StrandId
+  track: TrackId
+  open: boolean
+  by?: OpenBy
+  openDate?: string
+  doneDate?: string
+  /** 完成了（記下來的，之後掉了也不收回，改成回補） */
+  complete: boolean
+  reopen?: Reopen
+  /** 家長鎖住這條支線，這一階不會再開 */
+  locked: boolean
+  free: boolean
+}
+
+export interface StrandView {
+  id: StrandId
+  track: TrackId
+  name: string
+  /** 完成的階 */
+  done: string[]
+  /** 開了、還在練的階（有內容的） */
+  current: string[]
+  /** 下一個還沒開、已經有內容的階 */
+  next: string | null
+  /** 還沒出現過的新內容（單位）數：開了的階＋還沒開的階 */
+  left: number
+  /** 現有內容都教過了：之後只能橫向加深，要提醒家長（§1.1） */
+  out: boolean
+  /** 回補中的階 */
+  reopen: string[]
+}
+
+export interface LadderView {
+  date: string
+  rungs: Map<string, RungView>
+  strands: StrandView[]
+}
+
+export interface LadderLog {
+  kind: 'rung' | 'reopen'
+  date: string
+  track: TrackId
+  strand: StrandId
+  /** 這條支線的第幾階（從 1 開始） */
+  rung: number
+  data: Record<string, unknown>
+}
+
+export interface StepOpts {
+  /** 家長鎖住的支線 → 鎖在第幾階（kv.growth.locks） */
+  locks?: Record<string, number>
+  /**
+   * 舊資料第一次算（§5.4）：已經玩過的階直接算開放，紀錄都標成「補記」，日期用作答紀錄推回去：
+   * 開放＝這一階第一次出現的日期，完成＝這一階最後一次作答的日期（約略）。
+   */
+  migrate?: { first: (rung: string) => string | undefined; last: (rung: string) => string | undefined; open?: readonly string[] }
+}
+
+/** YYYY-MM-DD 往後 n 天 */
+export function addDays(day: string, n: number): string {
+  const [y, m, d] = day.split('-').map(Number)
+  return new Date(Date.UTC(y, m - 1, d + n)).toISOString().slice(0, 10)
+}
+
+const posIn = (r: RungDef) => strandRungs(r.strand).indexOf(r) + 1
+
+/**
+ * 依今天的資料往前走一步：該開的開、該完成的記完成、該回補的開始回補（回傳新的狀態、要寫進時間軸的紀錄、整理好的樣子）。
+ * - 開：前置都完成，或卡關保險。不看年齡（D1）。家長鎖住的支線，鎖的那一階之後不開（複習照常）。
+ * - 完成：開了的階算起來夠了就記下來，之後不收回。
+ * - 回補：完成的階有 30% 以上的單位掉出已熟，或連續 2 次到期複習失敗：1 週暫停新概念、到期複習加倍、掉出來的重教一次。
+ *   已經開放的下一階不收回；孩子端看不出來，原因只寫在時間軸。
+ */
+export function stepLadder(prev: LadderState, facts: LadderFacts, date: string, opts: StepOpts = {}): { state: LadderState; log: LadderLog[]; view: LadderView } {
+  const calc = ladderCalc(facts)
+  const rungs: Record<string, RungMark> = {}
+  const log: LadderLog[] = []
+  const mig = opts.migrate
+  const backfill = mig ? { backfill: true } : {}
+  const note = (r: RungDef, kind: LadderLog['kind'], day: string, data: Record<string, unknown>) =>
+    log.push({ kind, date: day, track: strand(r.strand).track, strand: r.strand, rung: posIn(r), data: { rung: r.id, ...data, ...backfill } })
+
+  const doneOf = (id: string) => !!rungs[id]?.done
+  const stuckOf = (id: string) => {
+    const mk = rungs[id]
+    const c = calc.get(id)!
+    return !!mk?.open && !mk.done && c.total > 0 && c.ratio >= STUCK_RATIO && daysBetween(mk.open, date) >= STUCK_DAYS
+  }
+
+  for (const r of RUNGS) {
+    const mk: RungMark = { ...prev.rungs[r.id] }
+    const c = calc.get(r.id)!
+    const lock = opts.locks?.[r.strand]
+    const locked = lock !== undefined && posIn(r) > lock
+
+    // 開
+    if (!mk.open) {
+      const ok = r.prereq.every((p) => doneOf(p) || stuckOf(p))
+      const by: OpenBy | null = ok ? (!r.prereq.length ? 'start' : r.prereq.every(doneOf) ? 'prereq' : 'stuck') : mig && (c.seen > 0 || mig.open?.includes(r.id)) ? 'legacy' : null
+      if (by && (!locked || by === 'legacy')) {
+        mk.open = (mig && mig.first(r.id)) || date
+        mk.by = by
+        // 一開始就開著的階（沒有前置）、還沒有內容的階不必寫進時間軸；舊資料升級時，有玩過的都補記
+        if ((by !== 'start' && c.total > 0) || (mig && c.seen > 0)) note(r, 'rung', mk.open, { event: 'open', by, ...(by === 'stuck' ? { from: r.prereq.filter((p) => !doneOf(p)) } : {}) })
+      }
+    }
+    // 完成
+    if (mk.open && !mk.done && !r.free && c.done) {
+      mk.done = (mig && mig.last(r.id)) || date
+      note(r, 'rung', mk.done, { event: 'done', firm: c.firm, total: c.total })
+    }
+    // 回補
+    if (mk.reopen && date >= mk.reopen.until) {
+      note(r, 'reopen', date, { event: 'end', why: mk.reopen.why })
+      delete mk.reopen
+    }
+    if (mk.done && !mk.reopen && c.total) {
+      const dropped = c.units.filter((u) => !u.mastered)
+      const why = dropped.length / c.total >= REOPEN_DROP ? 'drop' : c.fails >= REOPEN_FAILS ? 'fail' : null
+      if (why) {
+        const reteach = dropped.flatMap((u) => u.skills.filter((k) => facts.skills.get(k)!.seen > 0 && facts.skills.get(k)!.box < MASTERED_BOX))
+        mk.reopen = { from: date, until: addDays(date, REOPEN_DAYS), why, reteach }
+        note(r, 'reopen', date, { event: 'start', why, dropped: dropped.map((u) => u.id), mastered: c.mastered, total: c.total })
+      }
+    }
+    rungs[r.id] = mk
+  }
+
+  const state: LadderState = { v: LADDER_V, rungs }
+  return { state, log, view: ladderView(state, calc, date, opts.locks) }
+}
+
+/** 整理成家長區、孩子端要用的樣子 */
+export function ladderView(state: LadderState, calc: Map<string, RungCalc>, date: string, locks?: Record<string, number>): LadderView {
+  const rungs = new Map<string, RungView>()
+  for (const r of RUNGS) {
+    const mk = state.rungs[r.id] ?? {}
+    const lock = locks?.[r.strand]
+    rungs.set(r.id, {
+      ...calc.get(r.id)!,
+      id: r.id,
+      strand: r.strand,
+      track: strand(r.strand).track,
+      open: !!mk.open,
+      by: mk.by,
+      openDate: mk.open,
+      doneDate: mk.done,
+      complete: !!mk.done,
+      reopen: mk.reopen && date < mk.reopen.until ? mk.reopen : undefined,
+      locked: lock !== undefined && posIn(r) > lock && !mk.open,
+      free: !!r.free,
+    })
+  }
+  const strands = STRANDS.map((s): StrandView => {
+    const list = strandRungs(s.id).map((r) => rungs.get(r.id)!)
+    const built = list.filter((x) => x.total > 0 && !RUNGS.find((r) => r.id === x.id)!.with)
+    const left = built.reduce((n, x) => n + (x.total - x.seen), 0)
+    const current = built.filter((x) => x.open && !x.complete).map((x) => x.id)
+    const next = built.find((x) => !x.open)?.id ?? null
+    return {
+      id: s.id,
+      track: s.track,
+      name: s.name,
+      done: list.filter((x) => x.complete).map((x) => x.id),
+      current,
+      next,
+      left,
+      out: built.length > 0 && left === 0,
+      reopen: list.filter((x) => x.reopen).map((x) => x.id),
+    }
+  })
+  return { date, rungs, strands }
+}
+
+/**
+ * 內容庫存（§1.1、§4.1）：照最近 4 週這條支線教新內容的速度，剩下的新內容大約還能撐幾週。
+ * introDates：這條支線每個單位第一次出現的日期。最近 4 週沒教過新的就算不出來（null）。
+ */
+export function contentWeeks(left: number, introDates: readonly string[], date: string): number | null {
+  if (!left) return 0
+  const from = addDays(date, -27)
+  const recent = introDates.filter((d) => d >= from && d <= date).length
+  return recent ? Math.round((left / (recent / 4)) * 10) / 10 : null
+}
+
 // ── 這台平板的狀態 ───────────────────────────────────────
 
 let profile: Profile | null = null
@@ -203,6 +565,28 @@ async function addLog(drafts: LogDraft[]) {
   const ts = Date.now()
   const date = today()
   await db.growthLog.bulkAdd(drafts.map((d, i) => clean({ id: uid(), ts: ts + i, date, ...d, synced: 0 as const })))
+}
+
+/** 支線與階梯的時間軸紀錄（lib/adaptive.ts 寫）。補記的日期是從作答紀錄推回去的，ts 跟著日期排 */
+export async function addLadderLog(entries: readonly LadderLog[]) {
+  if (!entries.length) return
+  const now = Date.now()
+  const day = today()
+  await db.growthLog.bulkAdd(
+    entries.map((e, i) =>
+      clean({
+        id: uid(),
+        ts: (e.date === day ? now : new Date(`${e.date}T12:00:00`).getTime()) + i,
+        date: e.date,
+        kind: e.kind,
+        track: e.track,
+        strand: e.strand,
+        rung: e.rung,
+        data: e.data,
+        synced: 0 as const,
+      }),
+    ),
+  )
 }
 
 /** 依今天重新整理年段；有變就寫回 kv、記進時間軸 */

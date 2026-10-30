@@ -1,5 +1,4 @@
-import { db, getKV, setKV } from '../../lib/db'
-import { level, needsDemo, pickPreferred, teachable, withTargetFilter } from '../../lib/adaptive'
+import { needsDemo, pickPreferred, refreshLadder, rungOpen, teachable, withTargetFilter } from '../../lib/adaptive'
 import { themeNow } from '../../lib/theme-play'
 
 // 描數字、描字母的筆順：座標系 100 × 140，每一筆是一條 SVG 路徑，依序描
@@ -107,56 +106,28 @@ export function glyphPool(lv: number): string[] {
   return [...GLYPH_LEVELS.slice(0, lv - PART_LEVELS.length).join('')]
 }
 
-// ── 什麼時候開放描字母：暫時門檻（G-33）──────────────────────
-// G-2（成長引擎）上線後，lettersOpen 整個換成正式的「階完成判斷」（運筆 H1、H2 完成＋零件 H6b 練熟）；
-// 呼叫端（GlyphGame、scripts/sim-teach.ts）只看 lettersOpen 的結果，不用跟著改。
+// ── 什麼時候開放描字母（V-24、成長系統 §2.4）────────────────────
+// 描字母是能力階梯的 H7：運筆小路（H1）、連點成圖（H2）兩階都完成，零件第 2 組（H6b）也完成，才開放（content/ladder.ts）。
+// 不看年齡：運筆很穩的話，3 歲半也可以開始描字母。開了就一直開著（階開了不收回），之後運筆偶爾沒有第一次就完成，字母也不會又縮回零件。
+// G-33 的暫時門檻（運筆小路 4 級、連點成圖 2 級、最近 5 次都第一次就完成）已經拿掉；用暫時門檻開過的舊資料，升級時算開放（lib/adaptive.ts 的 loadLadder）。
 
-/** 運筆小路到 4 級（彎路）、連點成圖到 2 級，兩個遊戲最近 5 次都是第一次就完成 */
-export const LETTER_GATE = { 'd-trace': 4, 'd-dots': 2 } as const
-export const GATE_RECENT = 5
+/** 描字母那一階 */
+export const LETTER_RUNG = 'H7'
 
-export interface GateFacts {
-  /** 現在的級數 */
-  level: Record<keyof typeof LETTER_GATE, number>
-  /** 最近幾次「自己做」是不是第一次就完成，新的在前 */
-  recent: Record<keyof typeof LETTER_GATE, boolean[]>
-}
+/** 現在能不能描字母（GlyphGame、scripts/sim-teach.ts 都看這個） */
+export const lettersOpen = () => rungOpen(LETTER_RUNG)
 
-export function lettersOpen(f: GateFacts): boolean {
-  return (Object.keys(LETTER_GATE) as (keyof typeof LETTER_GATE)[]).every(
-    (g) => f.level[g] >= LETTER_GATE[g] && f.recent[g].length >= GATE_RECENT && f.recent[g].slice(0, GATE_RECENT).every(Boolean),
-  )
-}
-
-/** 從作答紀錄讀門檻要的資料（App 用；模擬自己記） */
-export async function gateFactsNow(): Promise<GateFacts> {
-  const recent = async (game: string) =>
-    (await db.attempts.where('game').equals(game).toArray())
-      .filter((a) => a.phase === 'quiz' || a.phase == null)
-      .sort((a, b) => b.ts - a.ts)
-      .slice(0, GATE_RECENT)
-      .map((a) => a.firstTryCorrect)
-  return {
-    level: { 'd-trace': level('d-trace'), 'd-dots': level('d-dots') },
-    recent: { 'd-trace': await recent('d-trace'), 'd-dots': await recent('d-dots') },
-  }
-}
-
-const OPEN_KEY = 'glyph:lettersOpen'
-
-/** 開局讀一次：門檻到過一次就一直開著，之後運筆偶爾沒有第一次就完成，字母也不會又縮回零件 */
+/** 開局讀一次：先依現在的熟練度整理一次階梯，再看描字母那一階開了沒 */
 export async function lettersOpenNow(): Promise<boolean> {
-  if (await getKV(OPEN_KEY, false)) return true
-  const open = lettersOpen(await gateFactsNow())
-  if (open) void setKV(OPEN_KEY, true)
-  return open
+  refreshLadder()
+  return lettersOpen()
 }
 
 /**
- * 實際出題的級數：門檻還沒到，最多停在零件的最高級。
+ * 實際出題的級數：描字母那一階還沒開，最多停在零件的級數；零件第 2 組（H6b）也還沒開，就停在第 1 組。
  * 舊資料已經升到字母的級數（或以前描過字母）也一樣，下次就出零件；這不是退步，不播降級的語音（家長區寫明原因）。
  */
-export const glyphLevelCap = (open: boolean, maxLevel: number) => (open ? maxLevel : PART_LEVELS.length)
+export const glyphLevelCap = (open: boolean, maxLevel: number) => (open ? maxLevel : rungOpen('H6b') ? PART_LEVELS.length : 1)
 export const glyphLevel = (stored: number, open: boolean, maxLevel: number) => Math.min(stored, glyphLevelCap(open, maxLevel))
 
 /** 一局最多示範兩個新的（字或零件） */

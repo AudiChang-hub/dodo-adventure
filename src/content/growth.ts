@@ -60,7 +60,7 @@ export interface Frame {
   eyeBreakSec: number
   /** 每條線每週最多幾個新概念 */
   weeklyConcepts: readonly [min: number, max: number]
-  /** 一回合最多教幾個新內容 */
+  /** 一回合最多教幾個新概念（FRAME-8：三個年段都是 1；lib/adaptive.ts 的 canIntroduce 照這個擋） */
   newPerRound: number
   /** 延遲提示從幾毫秒開始 */
   hintDelayMs: number
@@ -95,7 +95,7 @@ export const FRAMES: Record<Band, Frame> = {
     eyeBreakEvery: [10, 10],
     eyeBreakSec: 20,
     weeklyConcepts: [2, 2],
-    newPerRound: 2,
+    newPerRound: 1,
     hintDelayMs: 4000,
     afterWrong: 'retry',
     story: { sentences: [7, 7], words: 40, minutes: [1, 2] },
@@ -118,7 +118,7 @@ export const FRAMES: Record<Band, Frame> = {
     eyeBreakEvery: [10, 10],
     eyeBreakSec: 20,
     weeklyConcepts: [2, 3],
-    newPerRound: 2,
+    newPerRound: 1,
     hintDelayMs: 5000,
     afterWrong: 'contrast',
     story: { sentences: [12, 15], words: 100, minutes: [2, 3] },
@@ -141,7 +141,7 @@ export const FRAMES: Record<Band, Frame> = {
     eyeBreakEvery: [10, 15],
     eyeBreakSec: 20,
     weeklyConcepts: [3, 3],
-    newPerRound: 3,
+    newPerRound: 1,
     hintDelayMs: 6000,
     afterWrong: 'findStep',
     story: { sentences: [20, 30], words: 200, minutes: [3, 5] },

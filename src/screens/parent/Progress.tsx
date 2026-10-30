@@ -4,7 +4,7 @@ import { GAMES, unlockedSounds } from '../../content/games'
 import { ALL_STORIES, DIRS, DIR_ZH, PATTERN_ZH, STORIES, seqSkill, type PatternKind } from '../../content/code'
 import { gameLevel, level, unlockedNumbers } from '../../lib/adaptive'
 import { isQuiz } from '../../lib/db'
-import { GATE_RECENT, LETTER_GATE, PART_ZH, isPart } from '../../games/draw/glyphs'
+import { PART_ZH, isPart } from '../../games/draw/glyphs'
 import { pct, STATION_NAME, type ParentData } from './data'
 import { DueCard, HintCard, ProtegeCard, SpeedCard, placementDots, placementText } from './EngineCards'
 
@@ -153,7 +153,7 @@ export function Progress({ d }: { d: ParentData }) {
         <p>{glyphs.length ? glyphs.join('　') : <span className="empty">還沒有。</span>}</p>
         <p className="sub" style={{ margin: '6px 0 0' }}>
           3 歲的目標是看了示範之後畫出直線和圓，照筆順寫字母是 4～5 歲的事，所以描數字字母前兩級先描字的零件（直線、圓、十字；斜線、半圓、轉角）。
-          等運筆小路到 {LETTER_GATE['d-trace']} 級、連點成圖到 {LETTER_GATE['d-dots']} 級，而且兩個都最近 {GATE_RECENT} 次第一次就完成，才開始描字母。
+          等運筆小路、連點成圖都穩固（八成的級數通過兩次隔天的複習），斜線、半圓、轉角這組零件也穩固，才開始描字母；不看年齡。
           以前描過字母、還沒到這個程度的，也會先回到零件；這不是退步，孩子那邊不會聽到降級的話。
         </p>
       </div>

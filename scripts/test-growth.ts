@@ -47,7 +47,8 @@ console.log('ok 2 年段邊界')
   assert.deepEqual(f.roundItems, [3, 5])
   assert.equal(f.dailyMinutes, 20)
   assert.equal(f.hintDelayMs, 4000)
-  assert.equal(f.newPerRound, 2)
+  // 一回合最多 1 個新概念（FRAME-8，三段都一樣；G-2 對照設計 v0.3.1 改的）
+  for (const b of BANDS) assert.equal(FRAMES[b].newPerRound, 1)
   assert.deepEqual(f.weeklyConcepts, [2, 2])
   // 年段往上，外框只會變寬，不會變窄（觸控大小例外：大班段要放比較多個字母卡）
   for (let i = 1; i < BANDS.length; i++) {
