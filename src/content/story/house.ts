@@ -31,6 +31,8 @@ export interface HouseItem {
   zh: string
   room: RoomId
   pic: Pic
+  /** 在魔法屋剖面圖上的位置（畫布座標：中心 x、y、寬 w）；手寫的東西位置寫在 ui/MagicHouseArt.tsx 的 ITEM_AT */
+  at?: { x: number; y: number; w: number }
 }
 
 /** 每一篇講完多的東西（照故事世界 §4 大綱）。G-9 產生新的篇時，在這裡加一筆、畫面上找一個位置 */

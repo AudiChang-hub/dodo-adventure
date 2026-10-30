@@ -30,6 +30,14 @@ mkdirSync('scripts/.cache', { recursive: true })
 writeFileSync('scripts/.cache/lines.json', JSON.stringify([...rows.values()], null, 1))
 console.log(`${allLines().length} lines, ${rows.size} clips`)
 
+// 審稿佇列（content/story/weekly/，G-9）的故事台詞：跟著上面一起產生（lines-themes.ts 照 allChapters 登記，含佇列裡還沒通過的章節，
+// 家長審稿時才聽得到）。這裡另外列出它們的 key 前綴，scripts/story-weekly.ts 用 gen_audio.py --only 只做這幾章
+const { WEEKLY, draftChapters, draftId } = await import('../src/content/story')
+const queued = WEEKLY.flatMap((d) => draftChapters(d).map((c) => `story.${c.id}.`))
+const queuedClips = [...rows.values()].filter((r) => queued.some((p) => (r as { key: string }).key.startsWith(p))).length
+writeFileSync('scripts/.cache/lines.queue.json', JSON.stringify({ drafts: WEEKLY.map(draftId), prefixes: queued }, null, 1))
+if (WEEKLY.length) console.log(`審稿佇列：${WEEKLY.length} 份劇本、${queued.length} 章、${queuedClips} 個音檔`)
+
 // ── 中文三明治的中文（scripts/gen_zh_words.py）──────────────────
 // 同一個中文只產生一次（飛機：airplane、plane）；第 1 層的字先做，再來顏色、形狀，最後第 2 層
 const rank = (key: string) => (key.includes('.') ? 1 : (lexWord(key)?.tier ?? 2) === 1 ? 0 : 2)

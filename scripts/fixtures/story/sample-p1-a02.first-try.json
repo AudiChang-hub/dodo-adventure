@@ -1,0 +1,313 @@
+{
+ "type": "arc",
+ "rev": 1,
+ "week": "2026-11-02",
+ "by": "sample",
+ "notes": [
+  "範例的「第一次寫」：故意留兩個問題（一句太長、加重的字在句中），驗收 story-weekly 會退回重寫。"
+ ],
+ "house": {
+  "id": "music-corner",
+  "zh": "客廳的音樂角和一個小鼓",
+  "room": "living",
+  "pic": "drum",
+  "at": {
+   "x": 990,
+   "y": 520,
+   "w": 70
+  }
+ },
+ "arc": {
+  "id": "p1-a02",
+  "part": 1,
+  "no": 2,
+  "title": "The Egg Loves Songs",
+  "zh": "蛋喜歡唱歌",
+  "icon": "musical-notes",
+  "band": "small",
+  "houseAdds": "music-corner",
+  "chapters": [
+   {
+    "id": "p1-a02-c1",
+    "door": "bus",
+    "intro": [
+     {
+      "who": "momo",
+      "en": "Good morning! The egg wakes up and sings a song!",
+      "pic": "@rainbow-egg",
+      "zh": "早安！蛋醒來唱了一首歌！"
+     },
+     {
+      "who": "egg",
+      "en": "Gurgle, gurgle!",
+      "pic": "@rainbow-egg",
+      "zh": "咕嚕咕嚕！"
+     },
+     {
+      "who": "all",
+      "en": "Knock, knock! Open, magic door!",
+      "pic": "door",
+      "zh": "叩叩！魔法門，打開！"
+     }
+    ],
+    "stops": [
+     null,
+     null,
+     {
+      "generic": [
+       {
+        "who": "momo",
+        "en": "The bus sings beep, beep!",
+        "pic": "bus+musical-notes",
+        "zh": "公車在唱歌：嗶嗶！"
+       }
+      ],
+      "num": [
+       {
+        "who": "momo",
+        "en": "Beep, beep! Two beeps!",
+        "pic": "bus+keycap-2",
+        "zh": "嗶、嗶！叫了兩聲！"
+       }
+      ],
+      "lang": [
+       {
+        "who": "momo",
+        "en": "Sing a word for the | egg!",
+        "pic": "@rainbow-egg+musical-notes",
+        "zh": "唱一個字給蛋聽！"
+       }
+      ]
+     }
+    ],
+    "end": [
+     {
+      "who": "momo",
+      "en": "Home to the Magic House.",
+      "pic": "house-with-garden",
+      "zh": "回魔法屋囉。"
+     },
+     {
+      "who": "dodo",
+      "en": "La, la, la! Gurgle, gurgle!",
+      "pic": "musical-notes+@rainbow-egg",
+      "zh": "啦啦啦！咕嚕咕嚕！"
+     },
+     {
+      "who": "momo",
+      "en": "Good night, little egg.",
+      "pic": "@rainbow-egg+zzz",
+      "zh": "晚安，小蛋。"
+     }
+    ]
+   },
+   {
+    "id": "p1-a02-c2",
+    "door": "farm",
+    "intro": [
+     {
+      "who": "bobo",
+      "en": "The egg loves songs!",
+      "pic": "@rainbow-egg+musical-notes",
+      "zh": "蛋好喜歡唱歌！"
+     },
+     {
+      "who": "bobo",
+      "en": "Let's find a farm song!",
+      "pic": "@rainbow-egg",
+      "zh": "我們去找農場的歌！"
+     },
+     {
+      "who": "all",
+      "en": "Knock, knock! Open, magic door!",
+      "pic": "door",
+      "zh": "叩叩！魔法門，打開！"
+     }
+    ],
+    "stops": [
+     null,
+     {
+      "generic": [
+       {
+        "who": "bobo",
+        "en": "A | cow song! Moo, moo!",
+        "pic": "cow-face+musical-notes",
+        "zh": "乳牛的歌！哞哞！"
+       }
+      ]
+     }
+    ],
+    "end": [
+     {
+      "who": "bobo",
+      "en": "Home to the Magic House.",
+      "pic": "house-with-garden",
+      "zh": "回魔法屋囉。"
+     },
+     {
+      "who": "egg",
+      "en": "Gurgle! Gurgle!",
+      "pic": "cow-face+@rainbow-egg",
+      "zh": "咕嚕！咕嚕！（蛋跟著唱）"
+     }
+    ]
+   },
+   {
+    "id": "p1-a02-c3",
+    "door": "rain",
+    "intro": [
+     {
+      "who": "dodo",
+      "en": "Drip, drop! A rain song!",
+      "pic": "cloud-with-rain",
+      "zh": "滴答滴答！下雨的歌！"
+     },
+     {
+      "who": "all",
+      "en": "Knock, knock! Open, magic door!",
+      "pic": "door",
+      "zh": "叩叩！魔法門，打開！"
+     }
+    ],
+    "stops": [
+     null,
+     null,
+     null,
+     {
+      "generic": [
+       {
+        "who": "dodo",
+        "en": "Splash, splash! Sing with the | frog!",
+        "pic": "frog+droplet",
+        "zh": "啪啦啪啦！跟青蛙一起唱！"
+       }
+      ]
+     }
+    ],
+    "end": [
+     {
+      "who": "dodo",
+      "en": "Home to the Magic House!",
+      "pic": "house-with-garden",
+      "zh": "回魔法屋囉！"
+     },
+     {
+      "who": "dodo",
+      "en": "Drip, drop. Gurgle, gurgle.",
+      "pic": "droplet+@rainbow-egg",
+      "zh": "滴答滴答。咕嚕咕嚕。"
+     },
+     {
+      "who": "momo",
+      "en": "Good night, little egg.",
+      "pic": "@rainbow-egg+zzz",
+      "zh": "晚安，小蛋。"
+     }
+    ]
+   },
+   {
+    "id": "p1-a02-c4",
+    "door": "zoo",
+    "intro": [
+     {
+      "who": "momo",
+      "en": "The animals sing, too.",
+      "pic": "lion+elephant",
+      "zh": "動物們也會唱歌。"
+     },
+     {
+      "who": "all",
+      "en": "Knock, knock! Open, magic door!",
+      "pic": "door",
+      "zh": "叩叩！魔法門，打開！"
+     }
+    ],
+    "stops": [
+     {
+      "generic": [
+       {
+        "who": "momo",
+        "en": "Roar! A big | lion song!",
+        "pic": "lion+musical-notes",
+        "zh": "吼！獅子大聲唱！"
+       }
+      ]
+     }
+    ],
+    "end": [
+     {
+      "who": "momo",
+      "en": "Home to the Magic House.",
+      "pic": "house-with-garden",
+      "zh": "回魔法屋囉。"
+     },
+     {
+      "who": "egg",
+      "en": "Gurgle, gurgle! Roar!",
+      "pic": "@rainbow-egg+lion",
+      "zh": "咕嚕咕嚕！吼！（蛋學獅子）"
+     }
+    ]
+   },
+   {
+    "id": "p1-a02-c5",
+    "door": "bedtime",
+    "intro": [
+     {
+      "who": "bobo",
+      "en": "A song for bedtime.",
+      "pic": "crescent-moon+musical-notes",
+      "zh": "睡前的歌。"
+     },
+     {
+      "who": "dodo",
+      "en": "I have a little drum!",
+      "pic": "drum",
+      "zh": "我有一個小鼓！"
+     },
+     {
+      "who": "all",
+      "en": "Knock, knock! Open, magic door!",
+      "pic": "door",
+      "zh": "叩叩！魔法門，打開！"
+     }
+    ],
+    "stops": [
+     null,
+     null,
+     {
+      "generic": [
+       {
+        "who": "dodo",
+        "en": "Boom, boom! Soft and slow.",
+        "pic": "drum+@rainbow-egg",
+        "zh": "咚、咚！輕輕的、慢慢的。"
+       }
+      ]
+     }
+    ],
+    "end": [
+     {
+      "who": "momo",
+      "en": "Look! A music corner!",
+      "pic": "drum+musical-notes",
+      "zh": "看！一個音樂角！"
+     },
+     {
+      "who": "egg",
+      "en": "Gurgle, gurgle…",
+      "pic": "@egg-nest",
+      "zh": "咕嚕咕嚕…"
+     },
+     {
+      "who": "momo",
+      "en": "Good night, little egg.",
+      "pic": "@egg-nest+zzz",
+      "zh": "晚安，小蛋。"
+     }
+    ],
+    "houseAdds": "music-corner"
+   }
+  ]
+ }
+}

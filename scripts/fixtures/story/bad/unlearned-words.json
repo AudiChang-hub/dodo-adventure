@@ -1,0 +1,92 @@
+{
+ "expect": [
+  "word"
+ ],
+ "why": "加重的 volcano 沒學過、octopus 家長勾了不認得、太多生字",
+ "type": "classic",
+ "rev": 1,
+ "week": "2026-11-02",
+ "by": "human",
+ "classic": {
+  "id": "A03",
+  "source": "伊索寓言",
+  "zh": "測試",
+  "band": "small",
+  "faith": null,
+  "chapter": {
+   "id": "classic-a03",
+   "look": {
+    "title": "Wind and Sun",
+    "zh": "北風與太陽（故事時間）",
+    "host": "momo",
+    "icon": "open-book",
+    "scene": "park",
+    "tint": "#EFE6D3",
+    "deep": "#A8875A",
+    "ground": "#DCCFB2",
+    "stops": [
+     "sun",
+     "cloud",
+     "sun",
+     "sun",
+     "sun"
+    ],
+    "finale": [
+     "sun"
+    ]
+   },
+   "stops": [
+    {
+     "generic": [
+      {
+       "who": "momo",
+       "en": "Here is a big | volcano.",
+       "pic": "volcano",
+       "zh": "這是一座大火山。"
+      }
+     ]
+    },
+    {
+     "generic": [
+      {
+       "who": "momo",
+       "en": "An | octopus says hello.",
+       "pic": "octopus",
+       "zh": "一隻章魚說哈囉。"
+      }
+     ]
+    },
+    {
+     "generic": [
+      {
+       "who": "momo",
+       "en": "The magnificent wind investigates everything.",
+       "pic": "cloud",
+       "zh": "壯麗的風調查每一樣東西。"
+      }
+     ]
+    },
+    {
+     "generic": [
+      {
+       "who": "momo",
+       "en": "The sun feels extraordinarily jubilant.",
+       "pic": "sun",
+       "zh": "太陽覺得非常歡欣。"
+      }
+     ]
+    },
+    {
+     "generic": [
+      {
+       "who": "momo",
+       "en": "Wind and sun smile.",
+       "pic": "sun+cloud",
+       "zh": "風和太陽都笑了。"
+      }
+     ]
+    }
+   ]
+  }
+ }
+}

@@ -12,11 +12,21 @@ import { NOAH } from './classics/b01'
 import { artParts } from './art'
 import type { Band } from '../growth'
 import { HOUSE_ITEMS } from './house'
+import { WEEKLY_DRAFTS } from './weekly'
+import { draftChapters, draftId, normalizeDraft, type StoryDraft } from './draft'
 import type { Arc, Beat, Chapter, ChapterLook, Classic, Part, Pic, Who } from './types'
 
 export type * from './types'
 export { EVERGREEN, doorStop, lookOf } from './evergreen'
 export { HOUSE_ITEMS, ROOMS, houseItem, type HouseItem, type Room, type RoomId } from './house'
+export { chapterHash, draftChapters, draftId, draftTitle, draftZh, normalizeDraft, type StoryDraft, type ArcDraft, type ClassicDraft } from './draft'
+
+/** 審稿佇列裡的劇本（G-9，content/story/weekly/）：要家長通過才會進孩子端（lib/review.ts） */
+export const WEEKLY: StoryDraft[] = WEEKLY_DRAFTS.map(normalizeDraft)
+const WEEKLY_CH = new Map(WEEKLY.flatMap((d) => draftChapters(d).map((c) => [c.id, d] as const)))
+/** 這一章是審稿佇列裡的（要家長通過才能播）；手寫的示範章節、通用章節是 null */
+export const weeklyOf = (chapterId: string): StoryDraft | null => WEEKLY_CH.get(chapterId) ?? null
+export const weeklyById = (id: string) => WEEKLY.find((d) => draftId(d) === id) ?? null
 
 export const ARCS: Arc[] = [A01]
 
@@ -56,6 +66,24 @@ export const classicVersions = (c: Classic): Chapter[] => [c.chapter, ...Object.
 
 /** 這一章是哪一則故事時間（每個年段的版本都算） */
 export const classicOfChapter = (id: string) => CLASSICS.find((c) => classicVersions(c).some((x) => x.id === id)) ?? null
+
+// 審稿佇列的篇、故事時間接在手寫的後面（同一個 id 已經有手寫的就不重複放）
+for (const d of WEEKLY) {
+  if (d.type === 'classic') {
+    if (!CLASSICS.some((c) => c.id === d.classic.id)) CLASSICS.push(d.classic)
+    continue
+  }
+  if (ARCS.some((a) => a.id === d.arc.id)) continue
+  ARCS.push(d.arc)
+  if (d.house && !HOUSE_ITEMS.some((h) => h.id === d.house!.id)) HOUSE_ITEMS.push(d.house)
+  let part = PARTS.find((p) => p.no === d.arc.part)
+  if (!part) PARTS.push((part = { no: d.arc.part, title: `Part ${d.arc.part}`, zh: `第 ${d.arc.part} 部`, band: d.arc.band, seasons: [] }))
+  let season = d.season ? part.seasons.find((x) => x.id === d.season) : part.seasons[part.seasons.length - 1]
+  if (!season) part.seasons.push((season = { id: d.season ?? `p${part.no}-s1`, zh: '', arcs: [] }))
+  season.arcs.push(d.arc.id)
+}
+// 長篇的篇照篇號排（審稿佇列的篇可能比手寫的早寫好）
+for (const p of PARTS) for (const se of p.seasons) se.arcs.sort((a, b) => (ARCS.find((x) => x.id === a)?.no ?? 0) - (ARCS.find((x) => x.id === b)?.no ?? 0))
 
 export const arcOf = (id: string) => ARCS.find((a) => a.id === id) ?? null
 

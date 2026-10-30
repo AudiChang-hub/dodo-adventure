@@ -5,6 +5,7 @@ import { achieveForSync, type CardProgress, type Milestone } from './achievement
 import { wipeCloudLearning, type WipeFs, type WipeResult } from './reset-cloud'
 import { UNKNOWN_KV } from './words'
 import { growthForSync, type GrowthState, type Profile } from './growth'
+import { mergeVerdicts, type Verdict } from './review'
 
 const cfg = {
   apiKey: env('VITE_FIREBASE_API_KEY'),
@@ -164,9 +165,36 @@ async function upload() {
       story: story?.value ?? null,
       updated: Date.now(),
     })
+    // 故事審稿：家長可能在手機上審，平板每次同步時把決定讀回來
+    await reviewRoundTrip(f, uid)
     set({ status: 'idle', last: Date.now() })
   } catch (e) {
     set({ status: 'error', error: friendly(e) })
+  }
+}
+
+/**
+ * 故事審稿的決定（lib/review.ts）：讀雲端的 users/{uid}/meta/review，和這台的合併（同一章以比較晚的為準），再寫回去。
+ * 兩台裝置都這樣做，最後會一樣。這份文件只有審稿的決定，不碰 meta/state 的學習資料（手機上審稿不會蓋掉平板的進度）。
+ */
+async function reviewRoundTrip(f: FB, uid: string) {
+  const { fs, store } = f
+  const ref = fs.doc(store, 'users', uid, 'meta', 'review')
+  const snap = await fs.getDoc(ref)
+  const merged = await mergeVerdicts(snap.data()?.verdicts as Record<string, Verdict> | undefined)
+  if (JSON.stringify(merged) !== JSON.stringify(snap.data()?.verdicts ?? {})) await fs.setDoc(ref, { verdicts: merged, updated: Date.now() })
+}
+
+/** 審稿頁打開、家長按了通過或退回：只同步審稿的決定（沒登入、沒網路就略過，決定還在這台裝置上） */
+export async function syncReview(): Promise<boolean> {
+  if (!syncConfigured || !state.user || !navigator.onLine) return false
+  const f = await initSync()
+  if (!f || !state.user) return false
+  try {
+    await reviewRoundTrip(f, state.user.uid)
+    return true
+  } catch {
+    return false
   }
 }
 

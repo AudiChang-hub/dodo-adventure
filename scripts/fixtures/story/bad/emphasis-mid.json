@@ -1,0 +1,95 @@
+{
+ "expect": [
+  "emph"
+ ],
+ "why": "加重的字在句中（劇本示範的寫法，G-8 說要拆成兩句）",
+ "type": "classic",
+ "rev": 1,
+ "week": "2026-11-02",
+ "by": "human",
+ "classic": {
+  "id": "A03",
+  "source": "伊索寓言",
+  "zh": "測試",
+  "band": "small",
+  "faith": null,
+  "chapter": {
+   "id": "classic-a03",
+   "look": {
+    "title": "Wind and Sun",
+    "zh": "北風與太陽（故事時間）",
+    "host": "momo",
+    "icon": "open-book",
+    "scene": "park",
+    "tint": "#EFE6D3",
+    "deep": "#A8875A",
+    "ground": "#DCCFB2",
+    "stops": [
+     "sun",
+     "cloud",
+     "sun",
+     "sun",
+     "sun"
+    ],
+    "finale": [
+     "sun"
+    ]
+   },
+   "stops": [
+    {
+     "generic": [
+      {
+       "who": "momo",
+       "en": "Here is | Rabbit. Hop, hop, fast!",
+       "pic": "rabbit",
+       "zh": "這是兔子。跳跳跳，好快！"
+      }
+     ]
+    },
+    {
+     "generic": [
+      {
+       "who": "momo",
+       "en": "A round | basket! Just right!",
+       "pic": "@rainbow-egg",
+       "zh": "一個圓圓的籃子！剛剛好！"
+      }
+     ]
+    },
+    {
+     "generic": [
+      {
+       "who": "momo",
+       "en": "The sun shines. Warm, warm.",
+       "pic": "sun",
+       "zh": "太陽照著。暖暖的。"
+      }
+     ]
+    },
+    {
+     "generic": [
+      {
+       "who": "momo",
+       "en": "The wind is a friend.",
+       "pic": "cloud",
+       "zh": "風也是朋友。"
+      }
+     ]
+    },
+    {
+     "generic": [
+      {
+       "who": "momo",
+       "en": "Wind and sun smile.",
+       "pic": "sun+cloud",
+       "zh": "風和太陽都笑了。"
+      }
+     ]
+    }
+   ]
+  }
+ },
+ "cast": [
+  "Rabbit"
+ ]
+}
