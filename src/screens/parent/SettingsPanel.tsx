@@ -185,6 +185,15 @@ export function SettingsPanel({ onChanged }: { onChanged: () => void }) {
           </select>
         </Field>
         <Field
+          label="故事（試播）"
+          hint="開啟後，每天的冒險是《彩虹蛋之旅》的一章：開場和結尾在魔法屋，每週還有一章莫莫講的故事時間。目前只有示範的第 1 篇和龜兔賽跑。今天的冒險還沒開始走就從今天開始，走了就從明天開始。關閉時冒險和以前一樣。講過的章節都在「魔法屋 → 書架」可以重聽。"
+        >
+          <select value={s.story ? 'on' : 'off'} onChange={(e) => set({ story: e.target.value === 'on' })}>
+            <option value="off">關閉</option>
+            <option value="on">開啟</option>
+          </select>
+        </Field>
+        <Field
           label="著色：幫忙不塗出線"
           hint="預設關閉：完全自由塗，手畫到哪裡顏色就到哪裡，從線外畫進來、一筆畫過好幾塊都會有顏色（黑線一直在最上面，塗出線也好看）。開啟後，一筆只會塗在下筆的那一塊：從車子外面開始畫，整筆都塗不到車子上，孩子可能會以為畫了沒有顏色。"
         >

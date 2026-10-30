@@ -8,6 +8,8 @@ export type Route =
   | { name: 'station'; station: StationId }
   | { name: 'play'; game: string; station: StationId }
   | { name: 'collection' }
+  | { name: 'house' }
+  | { name: 'storybook' }
   | { name: 'bedtime' }
   | { name: 'parent' }
 
@@ -19,7 +21,7 @@ function initialRoute(): Route {
   try {
     const r = sessionStorage.getItem(RESUME_KEY)
     sessionStorage.removeItem(RESUME_KEY)
-    if (r === 'home' || r === 'map' || r === 'collection' || r === 'parent') return { name: r }
+    if (r === 'home' || r === 'map' || r === 'collection' || r === 'house' || r === 'storybook' || r === 'parent') return { name: r }
   } catch {
     /* 讀不到就照網址 */
   }
@@ -89,14 +91,17 @@ export function useRoute(): Route {
 // ── 返回：點一下回上一層 ─────────────────────────────────────
 // 不跳出 App 交給 Android 的螢幕固定；App 裡的返回只回上一層，最上層（首頁）就停住。
 
-/** 上一層：遊戲 → 站點 → 地圖 → 首頁；朋友、冒險、家長區 → 首頁。首頁和睡覺畫面沒有上一層 */
+/** 上一層：遊戲 → 站點 → 地圖 → 首頁；故事書 → 魔法屋 → 首頁；朋友、冒險、家長區 → 首頁。首頁和睡覺畫面沒有上一層 */
 export function parentOf(r: Route): Route | null {
   switch (r.name) {
     case 'play':
       return { name: 'station', station: r.station }
     case 'station':
       return { name: 'map' }
+    case 'storybook':
+      return { name: 'house' }
     case 'map':
+    case 'house':
     case 'collection':
     case 'adventure':
     case 'parent':

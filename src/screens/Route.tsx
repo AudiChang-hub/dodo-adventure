@@ -5,6 +5,8 @@ import { Egg } from '../art/Egg'
 import { Ride } from '../art/Ride'
 import { station as stationDef } from '../content/games'
 import { theme as themeDef, type ThemeDef } from '../content/themes'
+import { lookOf, stopPic, type ChapterLook, type Pic, type Script } from '../content/story'
+import { StoryPic } from '../ui/StoryPic'
 import { samplePath } from '../games/draw/track'
 import type { Plan } from '../lib/plan'
 import './route.css'
@@ -30,9 +32,10 @@ function Flag({ done, color, scale = 1 }: { done: boolean; color: string; scale?
  * 開局的今日路線（benchmark 手法 8，Plan & Play 的「先計畫」）：
  * 今天要去的每一站插著一面小旗，終點是恐龍蛋；豆豆的車停在現在要去的那一站前面。
  */
-export function RouteMap({ plan }: { plan: Plan }) {
+export function RouteMap({ plan, script }: { plan: Plan; script?: Script | null }) {
+  if (script) return <ThemeRouteMap plan={plan} th={script.look} pic={(i) => stopPic(script, i)} />
   const th = themeDef(plan.theme)
-  if (th) return <ThemeRouteMap plan={plan} th={th} />
+  if (th) return <ThemeRouteMap plan={plan} th={lookOf(th)} pic={(i) => stopIcon(th, i)} />
   return <StationRouteMap plan={plan} />
 }
 
@@ -108,10 +111,11 @@ function StationRouteMap({ plan }: { plan: Plan }) {
 }
 
 /** 轉場畫面上方的小路線：每完成一站，一面旗子亮起；最後是恐龍蛋 */
-export function RouteStrip({ plan }: { plan: Plan }) {
+export function RouteStrip({ plan, script }: { plan: Plan; script?: Script | null }) {
   const cur = plan.items.findIndex((i) => !i.done)
+  if (script) return <ThemeStrip plan={plan} th={script.look} pic={(i) => stopPic(script, i)} cur={cur} />
   const th = themeDef(plan.theme)
-  if (th) return <ThemeStrip plan={plan} th={th} cur={cur} />
+  if (th) return <ThemeStrip plan={plan} th={lookOf(th)} pic={(i) => stopIcon(th, i)} cur={cur} />
   return (
     <div className="route-strip" aria-hidden="true">
       {plan.items.map((it, i) => {
@@ -138,15 +142,48 @@ export function RouteStrip({ plan }: { plan: Plan }) {
 /** 主題路線上第 i 站的故事圖 */
 export const stopIcon = (th: ThemeDef, i: number) => th.stops[Math.min(i, th.stops.length - 1)]
 
+/** 路線圖（SVG）上的一張圖：一般的圖示直接畫；故事自己的圖（@rainbow-egg）是 HTML，放在 foreignObject 裡 */
+function SvgOne({ name, x, y, size }: { name: string; x: number; y: number; size: number }) {
+  if (!name.startsWith('@'))
+    return (
+      <g transform={`translate(${x} ${y})`}>
+        <Emoji name={name} size={size} />
+      </g>
+    )
+  return (
+    <foreignObject x={x} y={y} width={size} height={size} style={{ overflow: 'visible' }}>
+      <StoryPic pic={name} />
+    </foreignObject>
+  )
+}
+
+/** 路線圖上的一張故事圖（x、y 是左上角，size 是邊長）；疊圖（bus+@rainbow-egg）的第二張小小的靠在右下角，跟 StoryPic 一樣 */
+function SvgPic({ pic, x, y, size, opacity }: { pic: Pic; x: number; y: number; size: number; opacity?: number }) {
+  const [main, extra] = pic.split('+')
+  if (!extra && !main.startsWith('@'))
+    return (
+      <g transform={`translate(${x} ${y})`} opacity={opacity}>
+        <Emoji name={main} size={size} />
+      </g>
+    )
+  return (
+    <g opacity={opacity}>
+      <SvgOne name={main} x={x} y={y} size={size} />
+      {extra && <SvgOne name={extra} x={x + size * 0.62} y={y + size * 0.6} size={size * 0.46} />}
+    </g>
+  )
+}
+
 /** 站在路上的位置（0–1）：最後一段留給故事的終點 */
 const stopAt = (i: number, n: number) => (i + 0.75) / (n + 0.9)
 
-function ThemeRouteMap({ plan, th }: { plan: Plan; th: ThemeDef }) {
+/** 主題（門）或故事的路線圖：th 是畫面的樣子（門的、故事時間的書的），pic 是第 i 站的圖 */
+function ThemeRouteMap({ plan, th, pic }: { plan: Plan; th: ChapterLook; pic: (i: number) => Pic }) {
   const n = plan.items.length
   const cur = plan.items.findIndex((i) => !i.done)
   const pts = useMemo(() => samplePath(ROAD, 4), [])
   const at = (f: number) => pts[Math.round(Math.min(1, Math.max(0, f)) * (pts.length - 1))]
-  const stops = plan.items.map((it, i) => ({ ...it, p: at(stopAt(i, n)), icon: stopIcon(th, i) }))
+  const stops = plan.items.map((it, i) => ({ ...it, p: at(stopAt(i, n)), icon: pic(i) }))
   const end = at(0.985)
   // 車子停在下一站前面一點點（第一站之前就是起點）；走過的路塗上主題的淡色
   const carF = cur <= 0 ? 0.035 : stopAt(cur - 0.28, n)
@@ -163,9 +200,7 @@ function ThemeRouteMap({ plan, th }: { plan: Plan; th: ThemeDef }) {
           <rect width={cardW} height={108} rx={54} fill="#FBF8F2" />
           <rect width={cardW} height={108} rx={54} fill="none" stroke={th.deep} strokeOpacity={0.2} strokeWidth={3} />
           <circle cx={54} cy={54} r={40} fill={th.tint} />
-          <g transform="translate(24 24)">
-            <Emoji name={th.icon} size={60} />
-          </g>
+          <SvgPic pic={th.icon} x={24} y={24} size={60} />
           <text x={112} y={60} className="route-theme-title">
             {th.title}
           </text>
@@ -189,9 +224,7 @@ function ThemeRouteMap({ plan, th }: { plan: Plan; th: ThemeDef }) {
             <motion.g initial={{ scale: 0, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ type: 'spring', stiffness: 260, damping: 15, delay: 0.45 + i * 0.16 }}>
               {now && <circle r={68} fill="none" stroke={th.deep} strokeWidth={5} opacity={0.6} />}
               <circle r={56} fill="#FBF8F2" stroke={s.done ? th.deep : th.tint} strokeWidth={7} />
-              <g transform="translate(-36 -36)" opacity={s.done ? 0.5 : 1}>
-                <Emoji name={s.icon} size={72} />
-              </g>
+              <SvgPic pic={s.icon} x={-36} y={-36} size={72} opacity={s.done ? 0.5 : 1} />
               {/* 走過的站：右下角一個打勾的小圓（不能只靠顏色區分） */}
               {s.done && (
                 <g transform="translate(40 40)">
@@ -242,12 +275,18 @@ function ThemeRouteMap({ plan, th }: { plan: Plan; th: ThemeDef }) {
 }
 
 /** 轉場畫面上方的故事小路線：每一格是那一站的故事圖，走過的打勾；最後是恐龍蛋 */
-function ThemeStrip({ plan, th, cur }: { plan: Plan; th: ThemeDef; cur: number }) {
+function ThemeStrip({ plan, th, pic, cur }: { plan: Plan; th: ChapterLook; pic: (i: number) => Pic; cur: number }) {
   return (
     <div className="route-strip" aria-hidden="true">
       {plan.items.map((it, i) => (
         <div key={i} className={`route-chip theme${it.done ? ' is-done' : ''}${i === cur ? ' is-now' : ''}`} style={{ '--deep': th.deep } as CSSProperties}>
-          <Emoji name={stopIcon(th, i)} size={28} className="route-chip-pic" />
+          {pic(i).includes('+') || pic(i).startsWith('@') ? (
+            <span className="route-chip-pic" style={{ width: 28 }}>
+              <StoryPic pic={pic(i)} />
+            </span>
+          ) : (
+            <Emoji name={pic(i)} size={28} className="route-chip-pic" />
+          )}
           {it.done && (
             <svg className="route-chip-tick" viewBox="-10 -10 20 20" aria-hidden="true">
               <circle r={9} fill={th.deep} />

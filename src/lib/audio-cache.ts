@@ -78,6 +78,37 @@ export async function fillAudioCache() {
   if (failed || state.cached < state.total) retryTimer = window.setTimeout(() => void fillAudioCache(), RETRY_MS)
 }
 
+/**
+ * 先把這幾個語音存進快取（依篇快取：今天這一章、這一篇剩下的章、下一篇；lib/story.ts 的 warmStory）。
+ * 檔名是 audio/ 底下的相對路徑。已經存了的不再下載；失敗的不管，背景的 fillAudioCache 之後會再補。
+ */
+export async function warmAudio(files: string[]) {
+  if (!('caches' in window) || !files.length) return
+  try {
+    const cache = await caches.open(CACHE)
+    const urls = [...new Set(files)].map((f) => new URL(`${BASE}audio/${f}`, location.href).href)
+    const have = new Set((await cache.keys()).map((r) => r.url))
+    const missing = urls.filter((u) => !have.has(u))
+    let i = 0
+    const worker = async () => {
+      while (i < missing.length) {
+        if (!navigator.onLine) return
+        const u = missing[i++]
+        try {
+          const r = await fetch(u)
+          if (r.ok && !(await cache.match(u))) await cache.put(u, r)
+        } catch {
+          /* 背景補齊時會再試 */
+        }
+      }
+    }
+    await Promise.all(Array.from({ length: PARALLEL }, worker))
+    if (missing.length) window.__dodoBoot?.log(`語音快取：今天的故事先存了 ${missing.length} 個`)
+  } catch {
+    /* 沒有 Cache Storage（私密模式）就算了 */
+  }
+}
+
 /** 啟動後等一下再開始（先讓開場的語音、畫面載完），連上網路時也補一次 */
 export function initAudioCache() {
   window.setTimeout(() => void fillAudioCache(), 15_000)
