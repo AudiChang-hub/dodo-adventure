@@ -153,7 +153,7 @@ function allConcept(game: string, v: string): string | null {
 }
 
 /** 難度本身就是內容單位的遊戲：升到沒到過的難度，算一個新概念（見 levelConcepts） */
-const LEVEL_GAMES: Record<string, number> = { 'd-trace': 6, 'd-dots': 4, 'd-glyph': 4 }
+const LEVEL_GAMES: Record<string, number> = { 'd-trace': 6, 'd-dots': 4, 'd-glyph': 6 }
 
 export const levelConcept = (game: string, level: number) => (LEVEL_GAMES[game] ? `lv:${game}:${level}` : null)
 

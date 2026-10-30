@@ -10,6 +10,7 @@ import { PHONICS, phonicsSkill } from '../src/content/letters'
 import { VOCAB } from '../src/content/vocab'
 import { COLORS, SHAPES } from '../src/content/park'
 import { STORIES, seqSkill } from '../src/content/code'
+import { PART_LEVELS } from '../src/games/draw/glyphs'
 
 // ── 固定亂數：每次跑結果一樣 ─────────────────────────────────
 let seed = 20261102
@@ -44,11 +45,12 @@ const CONTENT: Record<string, string[]> = {
   'p-findall': ['apple', 'chick', 'red', 'blue', 'circle', 'triangle', 'bug', 'car', 'green', 'star'].map((x) => `all:${x}`),
   'd-trace': range(1, 6, (n) => `trace:${n}`),
   'd-dots': range(1, 8, (n) => `dots:p${n}`),
-  'd-glyph': [...'1ILTH0OCEFUDPBJ'].map((g) => `glyph:${g}`),
+  // 前兩級是字的零件（V-24），之後才是字
+  'd-glyph': [...PART_LEVELS.flat().map((p) => `part:${p}`), ...[...'1ILTH0OCEFUDPBJ'].map((g) => `glyph:${g}`)],
   'd-color': range(1, 6, (n) => `coloring:c${n}`),
   'p-lasso': ['apple', 'red', 'circle', 'car'].map((x) => `lasso:${x}`),
 }
-const MAX_LEVEL: Record<string, number> = { 'd-trace': 6, 'd-dots': 4, 'd-glyph': 4, 'c-drive': 4, 'c-seq': 4, 'c-pattern': 4 }
+const MAX_LEVEL: Record<string, number> = { 'd-trace': 6, 'd-dots': 4, 'd-glyph': 6, 'c-drive': 4, 'c-seq': 4, 'c-pattern': 4 }
 
 // ── 模擬的孩子：數學強、語言弱；第 3 週有三天很累 ─────────────
 const ABILITY: Record<TrackId, number> = { lang: 0.6, num: 0.95, think: 0.8, hand: 0.85 }
