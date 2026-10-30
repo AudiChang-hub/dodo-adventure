@@ -254,11 +254,13 @@ function playBuffer(buf: AudioBuffer, speaker: Speaker, dur: number, onStart: (a
     src.buffer = buf
     src.connect(voiceGain)
     src.onended = () => {
+      clearTimeout(guard)
       if (current?.stop === stop) current = null
       stopLevel()
       resolve()
     }
     const stop = () => {
+      clearTimeout(guard)
       src.onended = null
       try {
         src.stop()
@@ -267,6 +269,13 @@ function playBuffer(buf: AudioBuffer, speaker: Speaker, dur: number, onStart: (a
       }
       resolve()
     }
+    // 保險：AudioContext 被暫停（剛從背景切回來、系統搶走音訊）時 onended 永遠不會來，說話的 await 會讓遊戲卡住。
+    // 超過應有的長度還沒結束就當作說完（並停掉，免得之後恢復時跟下一句疊在一起）
+    const guard = setTimeout(() => {
+      if (current?.stop === stop) current = null
+      stopLevel()
+      stop()
+    }, (dur + 1.5) * 1000)
     current = { stop }
     startLevel(speaker, false)
     const at = c.currentTime

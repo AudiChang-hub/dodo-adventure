@@ -324,7 +324,8 @@ export async function drawAndMeasure(k: Toddler, pts: Pt[], cv: Target, opts: { 
 
 /** 一個隨機的三歲動作 */
 /**
- * fading：連點成圖這種「碰到還沒輪到的點，那一段先留 0.6 秒再淡掉」的遊戲（設計如此）。
+ * fading：連點成圖這種「碰到還沒輪到的點，那一段先留 0.6 秒再淡掉」的遊戲，
+ * 以及運筆小路、描字「沒描到（車子沒動、沒碰到字）的線放開後淡掉」（設計如此）。
  * 一筆畫很久時前面幾段量的時候已經淡掉了，只有幾乎完全沒墨（< 15%）才算「畫了沒墨跡」。
  */
 export async function toddlerStep(k: Toddler, c: Checker, opts: { drawing?: boolean; free?: boolean; fading?: boolean } = {}) {
@@ -422,6 +423,7 @@ export async function grabDuringTeach(k: Toddler, c: Checker, g: GameDef) {
   const page = k.page
   k.behavior = '搶著操作'
   const before = new Set((await attempts(page)).map((a) => a.id))
+  const from = await pageNow(page)
   const tapsAt: { t: number; kind: string }[] = []
   const end = Date.now() + 30_000
   let saw = false
@@ -472,14 +474,17 @@ export async function grabDuringTeach(k: Toddler, c: Checker, g: GameDef) {
   }
   await k.wait(1500)
   const after = (await attempts(page)).filter((a) => !before.has(a.id))
+  // 頁內記下的每一下按下（probe.js 的 P.taps）：狀態是按下那一刻的，不是測試端點之前看到的
+  const downs = await page.evaluate((from) => window.__toddler.taps.filter((x) => x.t >= from), from)
   // 示範中點了之後 1.5 秒內出現的「自己答」（教學卡、筆的示範時連「一起練」也不該有）
   // 每一筆紀錄算在它之前最後一下點擊的頭上：那一下是在示範、教學卡、念題目中（不是一起練時指著答案的手）就是誤記。
   // （T-51：念題目中多了 'wait' 這個狀態；念完、手指著答案時再點下去的那一下記成一起練是對的，不能因為 1.5 秒內前一下是 'wait' 就算錯）
   const bad = after.filter((a) => {
-    const last = tapsAt.filter((x) => x.t <= a.ts).pop()
+    const last = downs.filter((x) => x.t <= a.ts).pop()
     if (!last || a.ts - last.t >= 1500) return false
-    if (a.phase === 'quiz') return last.kind !== 'hand'
-    return a.phase === 'guided' && last.kind !== 'hand'
+    // 按下那一刻還在示範、教學卡、念題目（不收作答）才算；指著答案的手、已經可以作答（null）都是正常的
+    const early = last.kind === 'teach-card' || last.kind === 'demo' || last.kind === 'wait'
+    return early && (a.phase === 'quiz' || a.phase === 'guided')
   })
   const quizBad = bad.filter((a) => a.phase === 'quiz')
   const guidedBad = bad.filter((a) => a.phase !== 'quiz')

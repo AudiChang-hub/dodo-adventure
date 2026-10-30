@@ -243,6 +243,8 @@ declare global {
       frames: number
       teaching: () => string | null
       phase: () => string | null
+      /** 每一下按下：Date.now() 和那一刻的 teaching() */
+      taps: { t: number; kind: string | null }[]
     }
   }
 }

@@ -8,7 +8,7 @@ import { game as gameDef } from '../../content/games'
 import { markPlayed } from '../../lib/adaptive'
 import { logAttempt } from '../../lib/record'
 import { say, sfx, stopSpeech } from '../../lib/audio'
-import { wait } from '../lines'
+import { wait, within } from '../lines'
 import { useIdle } from '../idle'
 import { firstFinger } from '../NotYet'
 
@@ -74,7 +74,8 @@ export function FreeDraw({ gameId, onDone, onExit }: GameProps) {
     hideHand()
     sfx.done()
     const compact = strokes.map((s) => ({ c: s.color, s: s.size, p: s.pts.filter((_, i) => i % 2 === 0).map((p) => [Math.round(p.x), Math.round(p.y), Math.round(p.p * 100) / 100]) }))
-    await saveDrawing(def.id, '自由畫畫', ink.current!.snapshot(), compact)
+    // 存作品、說話等不到（剛從背景切回來、資料庫出錯）也一定收尾（三歲模擬測試 B01）
+    await within(Promise.resolve().then(() => saveDrawing(def.id, '自由畫畫', ink.current!.snapshot(), compact)), 3000, undefined)
     void logAttempt({
       station: 'draw',
       game: def.id,
@@ -91,7 +92,7 @@ export function FreeDraw({ gameId, onDone, onExit }: GameProps) {
       hintUsed: false,
       metrics: { strokes: strokes.length, colors: new Set(strokes.map((s) => s.color)).size },
     })
-    await say('d.free.done')
+    await within(say('d.free.done'), 6000, undefined)
     await wait(300)
     if (live.current) onDone({ items: 1, firstTry: 1 })
   }

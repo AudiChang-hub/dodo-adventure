@@ -5,6 +5,8 @@ import { Checker, alive, attemptsSince, audit, pressBack, background, checkDoubl
 import { DRAWING, STATIONS, selected } from './catalog'
 
 const BASE_SEED = Number(process.env.TODDLER_SEED || 20261029)
+/** 沒畫到該畫的地方時，線放開後會淡掉的遊戲（設計如此，墨跡門檻放寬，見 flows.ts toddlerStep） */
+const FADING = new Set(['dots', 'trace', 'glyph'])
 
 /**
  * 每個遊戲：一個三歲小孩從地圖進去，依序做這些事（同一個 seed 動作一樣）：
@@ -56,7 +58,7 @@ for (const g of selected()) {
           k.behavior = '亂玩'
           continue
         }
-        await toddlerStep(k, c, { drawing, free: g.kind === 'coloring' || g.kind === 'free', fading: g.kind === 'dots' })
+        await toddlerStep(k, c, { drawing, free: g.kind === 'coloring' || g.kind === 'free', fading: FADING.has(g.kind) })
         if (i % 6 === 5) {
           await c.flush()
           await c.screenOk('亂玩')
@@ -154,7 +156,7 @@ for (const g of selected()) {
 
         // 11. 玩到一半重新整理
         await k.wait(500)
-        for (let i = 0; i < 4; i++) await toddlerStep(k, c, { drawing, free: g.kind === 'coloring' || g.kind === 'free', fading: g.kind === 'dots' })
+        for (let i = 0; i < 4; i++) await toddlerStep(k, c, { drawing, free: g.kind === 'coloring' || g.kind === 'free', fading: FADING.has(g.kind) })
         await reload(k, c)
       }
     } finally {

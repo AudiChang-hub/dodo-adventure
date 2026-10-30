@@ -15,7 +15,7 @@ import { themeNow } from '../../lib/theme-play'
 import { getSettings } from '../../lib/settings'
 import { logAttempt, logTeach } from '../../lib/record'
 import { say, sfx, stopSpeech } from '../../lib/audio'
-import { wait } from '../lines'
+import { wait, within } from '../lines'
 import { useIdle } from '../idle'
 import { DUR, EASE, ms } from '../../ui/motion'
 
@@ -29,6 +29,9 @@ const READY = 0.15
 const PALM_MS = 800
 /** 手指、筆剛離開畫紙這麼久以內點到完成鍵：當成畫畫的手順便碰到，不算（準則 DRAW-6） */
 const LIFT_MS = 500
+/** 完成時存縮圖、存作品各最多等 3 秒，「完成囉」最多等 6 秒，等不到就照樣收尾 */
+const STEP_MS = 3000
+const SAY_MAX_MS = 6000
 
 // 筆在附近嗎（接觸、懸停或剛離開）：用筆塗的時候，手掌碰到畫紙不會畫出一筆
 let penAt = -Infinity
@@ -392,11 +395,21 @@ export function ColoringGame({ gameId, onDone, onExit }: GameProps) {
     idle.stop()
     setHandOn(false)
     sfx.done()
+    // 不管哪一步失敗或等不到（剛從背景切回來：圖片解碼、資料庫、聲音都可能一直沒回應），最後一定收尾離開（三歲模擬測試 B01）
+    try {
+      await celebrate()
+    } catch (e) {
+      console.warn(e)
+    }
+    if (live_.current) onDone({ items: 1, firstTry: 1 })
+  }
+
+  const celebrate = async () => {
     const cov = regions.coverage(base.current!)
-    const thumb = svg.current ? await svgThumb(svg.current, 480, PAPER, base.current!) : ''
+    const thumb = svg.current ? await within(svgThumb(svg.current, 480, PAPER, base.current!), STEP_MS, '') : ''
     const strokes = log.current
     const help = getSettings().coloringHelp
-    await saveDrawing(def.id, `著色：${pic.title}`, thumb, { picture: pic.id, help, strokes })
+    await within(saveDrawing(def.id, `著色：${pic.title}`, thumb, { picture: pic.id, help, strokes }), STEP_MS, undefined)
     const colors = new Set(strokes.filter((s) => s.c !== ERASER).map((s) => s.c))
     void logAttempt({
       station: 'draw',
@@ -445,9 +458,8 @@ export function ColoringGame({ gameId, onDone, onExit }: GameProps) {
     for (const a of regions.areas) fx.fill(a.path)
     fx.restore()
     setAlive(true)
-    await Promise.all([say(...(VEHICLES.has(pic.id) ? ['d.color.beep'] : []), 'd.color.done'), wait(1800)])
+    await Promise.all([within(say(...(VEHICLES.has(pic.id) ? ['d.color.beep'] : []), 'd.color.done'), SAY_MAX_MS, undefined), wait(1800)])
     await wait(ms(DUR.arm))
-    if (live_.current) onDone({ items: 1, firstTry: 1 })
   }
 
   const full: CSSProperties = { position: 'absolute', inset: 0, width: '100%', height: '100%' }

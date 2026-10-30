@@ -58,8 +58,32 @@ export function WaitShield({ on, z }: { on: boolean; /** 作答區裡有自己 z
   )
 }
 
+// 自己記哪些手指還按著（pointerId → 最後一次有動靜的時間）。
+// 瀏覽器的 isPrimary 不能單獨相信：某一根手指的放開被吃掉時（切到背景、系統手勢搶走），之後每一下都被當成「第二根手指」，
+// 所有按鈕都不理孩子，整個遊戲像卡死一樣（三歲模擬測試 B01）。
+const fingers = new Map<number, number>()
+/** 按著不動超過這麼久的手指不算還按著（放開被吃掉的那一根） */
+const STALE_MS = 2500
+if (typeof window !== 'undefined') {
+  const seen = (e: PointerEvent) => {
+    if (e.pointerType === 'touch' && (e.type === 'pointerdown' || fingers.has(e.pointerId))) fingers.set(e.pointerId, performance.now())
+  }
+  const gone = (e: PointerEvent) => fingers.delete(e.pointerId)
+  window.addEventListener('pointerdown', seen, true)
+  window.addEventListener('pointermove', seen, true)
+  window.addEventListener('pointerup', gone, true)
+  window.addEventListener('pointercancel', gone, true)
+  document.addEventListener('visibilitychange', () => fingers.clear())
+}
+
 /**
  * 多點觸控（準則 TOUCH-3）：同時有兩根以上手指、或手掌壓著時，只有第一根手指算數。
  * 用在作答的 onPointerDown：不是第一根手指的就不理。
+ * 瀏覽器說「不是第一根」時，再確認真的有別的手指正按著（剛剛還有動靜）；沒有就照樣算數。
  */
-export const firstFinger = (e: { isPrimary?: boolean; pointerType?: string }) => e.isPrimary !== false || e.pointerType === 'mouse'
+export const firstFinger = (e: { isPrimary?: boolean; pointerType?: string; pointerId?: number }) => {
+  if (e.isPrimary !== false || e.pointerType === 'mouse') return true
+  const now = performance.now()
+  for (const [id, at] of fingers) if (id !== e.pointerId && now - at < STALE_MS) return false
+  return true
+}

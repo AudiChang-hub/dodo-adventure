@@ -141,6 +141,20 @@
     if ([...live.querySelectorAll('.demo-hand, [data-demo-hand]')].some(shown)) return 'hand'
     return null
   }
+  // 每一下按下去的當下是什麼狀態（示範、教學卡、念題目、一起練的手…）。
+  // 誤記作答要看「真的點下去那一刻」：測試端先看狀態再點、或連點好幾下時，中間狀態可能已經變了（T-51 p-shape）
+  P.taps = []
+  addEventListener(
+    'pointerdown',
+    () => {
+      try {
+        P.taps.push({ t: Date.now(), kind: P.teaching() })
+      } catch {
+        /* 只觀察 */
+      }
+    },
+    true,
+  )
   P.phase = () => {
     const live = [...document.querySelectorAll('.scene')].filter((e) => !e.inert).pop() || document
     return live.querySelector('[data-phase]')?.getAttribute('data-phase') || null

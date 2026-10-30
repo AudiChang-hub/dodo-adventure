@@ -24,6 +24,8 @@ const TINTS = ['#F6DE95', '#F3C1B2', '#C9E4D4', '#D3E3F3', '#E2DAF1', '#F8DCC8']
  */
 /** 點錯的「Try again!」最少隔多久才再說一次 */
 const RETRY_GAP_MS = 4000
+/** 點錯後補問的「Where is 下一個?」最多每 12 秒一次（一直點錯時題目不會被唸 8 次） */
+const ASK_GAP_MS = 12000
 
 export function OrderGame({ gameId, onDone, onExit }: GameProps) {
   const def = gameDef(gameId)
@@ -43,6 +45,7 @@ export function OrderGame({ gameId, onDone, onExit }: GameProps) {
   const busy = useRef(true)
   const nextRef = useRef(1)
   const retrySaid = useRef(-Infinity)
+  const askSaid = useRef(-Infinity)
   const idle = useIdle()
   const round0 = useRef(roundState(plays(def.id) === 0))
   /** 這一輪先示範過：答對後多停一下再換題 */
@@ -156,7 +159,9 @@ export function OrderGame({ gameId, onDone, onExit }: GameProps) {
       if (performance.now() - retrySaid.current < RETRY_GAP_MS) return idle.poke()
       retrySaid.current = performance.now()
       // 點錯的回饋，不算閒置提醒；說完才重新計時
-      await say(retryKey('bobo'), `m.findnum.${next}`)
+      const ask = performance.now() - askSaid.current >= ASK_GAP_MS
+      if (ask) askSaid.current = performance.now()
+      await say(retryKey('bobo'), ...(ask ? [`m.findnum.${next}`] : []))
       return idle.poke()
     }
     sfx.count(n)

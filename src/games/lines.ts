@@ -24,3 +24,27 @@ export const retryKey = (host: Speaker) => `retry.${host}.${rand(RETRY_COUNT)}`
 export const challengeKey = (host: Speaker) => (host === 'dodo' ? 'challenge' : `challenge.${host}`)
 
 export const wait = (ms: number) => new Promise((r) => setTimeout(r, ms))
+
+/**
+ * 等 p，但最多等 ms：逾時或失敗都回傳 fallback。
+ * 給「完成」流程裡不能卡住的那幾步用（存縮圖、存作品、說話）：哪一步出錯或剛從背景切回來時一直等不到，遊戲仍然收尾。
+ */
+export function within<T>(p: Promise<T>, ms: number, fallback: T): Promise<T> {
+  return new Promise((resolve) => {
+    const t = setTimeout(() => {
+      console.warn(`within：等了 ${ms} ms 還沒好，先往下走`)
+      resolve(fallback)
+    }, ms)
+    p.then(
+      (v) => {
+        clearTimeout(t)
+        resolve(v)
+      },
+      (e) => {
+        clearTimeout(t)
+        console.warn(e)
+        resolve(fallback)
+      },
+    )
+  })
+}
