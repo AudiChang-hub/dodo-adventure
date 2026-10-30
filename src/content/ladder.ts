@@ -33,6 +33,11 @@ export const REOPEN_DROP = 0.3
 export const REOPEN_FAILS = 2
 /** 回補中：這條支線暫停新概念 1 週、到期複習的間隔減半 */
 export const REOPEN_DAYS = 7
+/**
+ * 同一階連續回補幾次還沒回來（結束時還是掉著）就停下來，改在家長區提醒（時間軸 reopen 的 hold）：
+ * 一直回補會讓這條支線每週都暫停新內容，孩子卻沒有更好（G-5 成長模擬：描字零件最多連續回補 61 次）
+ */
+export const REOPEN_MAX = 2
 /** 太順就加速：連續 5 個有玩這條支線的日子，第一次答對率都 ≥ 92%、速度也變快 → 這條支線每週額度 +1 */
 export const FAST_DAYS = 5
 export const FAST_RATE = 0.92

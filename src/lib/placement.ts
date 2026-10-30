@@ -64,6 +64,14 @@ export function beginProbe(l: GameLevel): GameLevel | null {
   return { ...l, level: start, up: 0, down: 0, probe: { from: l.level, start, steps: [] } }
 }
 
+/** 探測到一半停在現在的難度：這一題記下來，不升不降（lib/adaptive.ts 的 reportLevel） */
+export function stopProbe(l: GameLevel, ok: boolean, skill?: string): GameLevel {
+  const p = l.probe!
+  const steps: ProbeStep[] = [...p.steps, { level: l.level, ok, ...(skill ? { skill } : {}) }]
+  const { probe: _p, ...rest } = l
+  return { ...rest, up: 0, down: 0, placed: { ts: Date.now(), from: p.from, to: l.level, steps } }
+}
+
 /**
  * 探測一題的結果（階梯法）：答對往上一級、答錯退一級；
  * 出滿 3 題或錯 2 題就結束，停在當時的難度。

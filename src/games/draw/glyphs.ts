@@ -1,4 +1,4 @@
-import { needsDemo, pickPreferred, refreshLadder, rungOpen, teachable, withTargetFilter } from '../../lib/adaptive'
+import { needsDemo, pickPreferred, refreshLadder, reopenExtras, rungOpen, teachable, withTargetFilter } from '../../lib/adaptive'
 import { themeNow } from '../../lib/theme-play'
 
 // 描數字、描字母的筆順：座標系 100 × 140，每一筆是一條 SVG 路徑，依序描
@@ -139,8 +139,10 @@ export const GLYPH_MAX_DEMO = 2
  * recent：這一局描過的（新的在前）。剛描完的不連著出；描過 0 就不出 O（反過來也一樣，V-23）。
  */
 export function planGlyph(game: string, lv: number, st: { firstPlay: boolean; demos: number; recent: string[] }, i: number) {
+  // 零件那一階回補中、這一級已經是字母：掉出已熟的零件混進這一局（lib/adaptive.ts 的 reopenExtras）
+  const extra = reopenExtras(game, lv).filter((k) => k.startsWith('part:')).map((k) => k.slice(5))
   // 剛描完的不連著再描一次（一局示範滿兩個、只剩學過的可以出時也一樣）
-  const pool = glyphPool(lv).filter((x) => x !== st.recent[0] && !st.recent.some((r) => lookAlike(r) === x))
+  const pool = [...new Set([...glyphPool(lv), ...extra])].filter((x) => x !== st.recent[0] && !st.recent.some((r) => lookAlike(r) === x))
   // 主題式冒險先描主題的字（公車旅行的 B、C、O），這一級還沒有就照常挑
   const g = withTargetFilter(teachable(game, st.demos, GLYPH_MAX_DEMO), () =>
     pickPreferred(pool.filter((x) => themeNow()?.glyphs.includes(x)), pool, glyphSkill, st.recent),

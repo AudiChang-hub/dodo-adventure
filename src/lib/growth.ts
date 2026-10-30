@@ -17,6 +17,7 @@ import {
   REOPEN_DAYS,
   REOPEN_DROP,
   REOPEN_FAILS,
+  REOPEN_MAX,
   RUNGS,
   STRANDS,
   STUCK_DAYS,
@@ -352,6 +353,10 @@ export interface RungMark {
   by?: OpenBy
   done?: string
   reopen?: Reopen
+  /** 連續回補了幾次（回補結束時還是掉著，就接著再回補一次；回來了就清掉） */
+  again?: number
+  /** 連續回補 REOPEN_MAX 次還沒回來：從這一天起不再回補，改在家長區提醒（回來了就清掉） */
+  held?: string
 }
 
 /** kv.ladder：每一階什麼時候開、什麼時候完成、回補中。開了不收回，完成了不收回（掉了就回補） */
@@ -374,6 +379,8 @@ export interface RungView extends RungCalc {
   /** 完成了（記下來的，之後掉了也不收回，改成回補） */
   complete: boolean
   reopen?: Reopen
+  /** 連續回補還沒回來、停下來改提醒家長的日子（RungMark.held） */
+  held?: string
   /** 家長鎖住這條支線，這一階不會再開 */
   locked: boolean
   free: boolean
@@ -395,6 +402,8 @@ export interface StrandView {
   out: boolean
   /** 回補中的階 */
   reopen: string[]
+  /** 連續回補還沒回來、要提醒家長的階 */
+  held: string[]
 }
 
 export interface LadderView {
@@ -437,6 +446,7 @@ const posIn = (r: RungDef) => strandRungs(r.strand).indexOf(r) + 1
  * - 完成：開了的階算起來夠了就記下來，之後不收回。
  * - 回補：完成的階有 30% 以上的單位掉出已熟，或連續 2 次到期複習失敗：1 週暫停新概念、到期複習加倍、掉出來的重教一次。
  *   已經開放的下一階不收回；孩子端看不出來，原因只寫在時間軸。
+ *   連續回補 REOPEN_MAX 次（結束時還是掉著）就停下來，時間軸記一筆 hold 提醒家長；回來了再記一筆 back。
  */
 export function stepLadder(prev: LadderState, facts: LadderFacts, date: string, opts: StepOpts = {}): { state: LadderState; log: LadderLog[]; view: LadderView } {
   const calc = ladderCalc(facts)
@@ -447,7 +457,8 @@ export function stepLadder(prev: LadderState, facts: LadderFacts, date: string, 
   const note = (r: RungDef, kind: LadderLog['kind'], day: string, data: Record<string, unknown>) =>
     log.push({ kind, date: day, track: strand(r.strand).track, strand: r.strand, rung: posIn(r), data: { rung: r.id, ...data, ...backfill } })
 
-  const doneOf = (id: string) => !!rungs[id]?.done
+  // 沒有對錯的階（著色、自由畫）不會「完成」：開著就算前置滿足（H13 畫故事裡的東西的前置是 H11）
+  const doneOf = (id: string) => !!rungs[id]?.done || (!!RUNGS.find((r) => r.id === id)?.free && !!rungs[id]?.open)
   const stuckOf = (id: string) => {
     const mk = rungs[id]
     const c = calc.get(id)!
@@ -484,10 +495,23 @@ export function stepLadder(prev: LadderState, facts: LadderFacts, date: string, 
     if (mk.done && !mk.reopen && c.total) {
       const dropped = c.units.filter((u) => !u.mastered)
       const why = dropped.length / c.total >= REOPEN_DROP ? 'drop' : c.fails >= REOPEN_FAILS ? 'fail' : null
-      if (why) {
-        const reteach = dropped.flatMap((u) => u.skills.filter((k) => facts.skills.get(k)!.seen > 0 && facts.skills.get(k)!.box < MASTERED_BOX))
-        mk.reopen = { from: date, until: addDays(date, REOPEN_DAYS), why, reteach }
-        note(r, 'reopen', date, { event: 'start', why, dropped: dropped.map((u) => u.id), mastered: c.mastered, total: c.total })
+      if (!why) {
+        // 回來了：重新算連續次數；停下來的提醒也收掉
+        if (mk.held) note(r, 'reopen', date, { event: 'back' })
+        delete mk.again
+        delete mk.held
+      } else if (!mk.held) {
+        const again = (mk.again ?? 0) + 1
+        if (again > REOPEN_MAX) {
+          // 連續回補還是沒回來：不再暫停這條支線，改在家長區提醒（到期複習照常）
+          mk.held = date
+          note(r, 'reopen', date, { event: 'hold', why, dropped: dropped.map((u) => u.id), times: REOPEN_MAX })
+        } else {
+          const reteach = dropped.flatMap((u) => u.skills.filter((k) => facts.skills.get(k)!.seen > 0 && facts.skills.get(k)!.box < MASTERED_BOX))
+          mk.again = again
+          mk.reopen = { from: date, until: addDays(date, REOPEN_DAYS), why, reteach }
+          note(r, 'reopen', date, { event: 'start', why, dropped: dropped.map((u) => u.id), mastered: c.mastered, total: c.total })
+        }
       }
     }
     rungs[r.id] = mk
@@ -514,6 +538,7 @@ export function ladderView(state: LadderState, calc: Map<string, RungCalc>, date
       doneDate: mk.done,
       complete: !!mk.done,
       reopen: mk.reopen && date < mk.reopen.until ? mk.reopen : undefined,
+      held: mk.held,
       locked: lock !== undefined && posIn(r) > lock && !mk.open,
       free: !!r.free,
     })
@@ -534,6 +559,7 @@ export function ladderView(state: LadderState, calc: Map<string, RungCalc>, date
       left,
       out: built.length > 0 && left === 0,
       reopen: list.filter((x) => x.reopen).map((x) => x.id),
+      held: list.filter((x) => x.held).map((x) => x.id),
     }
   })
   return { date, rungs, strands }

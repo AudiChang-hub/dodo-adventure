@@ -44,9 +44,11 @@ export function numberPicker(prefix: string, game: string) {
       for (let k = 0; k < 6 && !ok(`${prefix}:${n}`); k++) n = withTargetFilter(ok, gen)
       // 這一級的範圍裡沒有能出的（例如程度校準一下跳到 6–10，卻一個都還沒學過、也不能再教新的數字）：
       // 先往下找學過、能出的數字，不要硬教第二個新概念（FRAME-8）或還沒開放的數字（成長系統 N2、N3）
+      // 往下也沒有（例如剛教了 4、答錯降回 1–3）：往上找學過的
       if (!ok(`${prefix}:${n}`)) {
         const lower = range(1, hi).filter((x) => ok(`${prefix}:${x}`))
-        if (lower.length) n = withTargetFilter(ok, () => pickTarget(lower, (x) => `${prefix}:${x}`, recent))
+        const near = lower.length ? lower : range(hi + 1, 20).filter((x) => !isNew(`${prefix}:${x}`))
+        if (near.length) n = withTargetFilter(ok, () => pickTarget(near, (x) => `${prefix}:${x}`, recent))
       }
       recent = [n, ...recent].slice(0, 2)
       const fresh = isNew(`${prefix}:${n}`)

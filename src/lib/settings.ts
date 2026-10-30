@@ -42,9 +42,9 @@ export interface Settings {
   story: boolean
 }
 
-/** 預設值跟著年段走的設定（準則 FRAME-6、FRAME-7）：每日時間上限、護眼休息 */
-export type BandSetting = 'dailyMinutes' | 'eyeBreakEvery'
-const BAND_SETTINGS: readonly BandSetting[] = ['dailyMinutes', 'eyeBreakEvery']
+/** 預設值跟著年段走的設定（準則 FRAME-6、FRAME-7）：每日時間上限、護眼休息、今日冒險的站數 */
+export type BandSetting = 'dailyMinutes' | 'eyeBreakEvery' | 'activitiesPerDay'
+const BAND_SETTINGS: readonly BandSetting[] = ['dailyMinutes', 'eyeBreakEvery', 'activitiesPerDay']
 
 const DEFAULTS_V = 3
 const DEFAULTS: Settings = { dailyMinutes: 20, freePlay: 'after', volume: 0.9, theme: 'all', activitiesPerDay: 4, eyeBreakEvery: 10, nightWarm: true, coloringHelp: false, zhBridge: true, story: true, defaultsV: DEFAULTS_V }
@@ -101,12 +101,12 @@ export const followsBand = (k: BandSetting, s: Settings = state) => !s.chosen?.i
 /**
  * 跟著年段的設定現在實際是多少（FRAME-6、7；TIME-1 家長設定優先）：
  * 家長選過（chosen），或舊版存下來的值不是原本的預設（那是家長改的），就照家長的；
- * 沒選過就照年段：每日 20／25／30 分鐘、護眼每 10／10／15 分鐘。小班段跟 App 原本的預設一樣。
+ * 沒選過就照年段：每日 20／25／30 分鐘、護眼每 10／10／15 分鐘、站數 4／4／5 站（外框的上限）。小班段跟 App 原本的預設一樣。
  */
 export function bandSetting(k: BandSetting, s: Settings = state): number {
   if (!followsBand(k, s)) return s[k]
   const f = getFrame()
-  return k === 'dailyMinutes' ? f.dailyMinutes : f.eyeBreakEvery[1]
+  return k === 'dailyMinutes' ? f.dailyMinutes : k === 'eyeBreakEvery' ? f.eyeBreakEvery[1] : f.stationsPerDay[1]
 }
 
 /** 取消本週主題。設定會同步到 Firestore，不能留 undefined 的欄位，所以整個拿掉 */

@@ -4,7 +4,7 @@
 // 執行：npx tsx scripts/test-ladder.ts（失敗就 exit 1）
 import assert from 'node:assert/strict'
 import { addDays, contentWeeks, isFirm, ladderCalc, stepLadder, emptyLadder, type LadderFacts, type LadderState, type SkillView } from '../src/lib/growth'
-import { fastStrands, strandLoad } from '../src/lib/tracks'
+import { budgetOf, fastStrands, strandLoad } from '../src/lib/tracks'
 import { RUNGS, entryRung, levelRung, strandOfSkill, unitOfSkill, unitsOf } from '../src/content/ladder'
 import type { Attempt } from '../src/lib/db'
 
@@ -205,6 +205,35 @@ const step = (st: LadderState, f: LadderFacts, day = D0, opts = {}) => stepLadde
   const r4 = step(step(emptyLadder(), facts(t)).state, facts({ ...t, 'phonics:a': { ...FIRM, lastReview: fail(2) }, 'phonics:t': { ...FIRM, lastReview: { ts: 3, result: 'ok' } } }), d1)
   assert.ok(!r4.view.rungs.get('L5')!.reopen, '失敗之後又通過一次，不算連續')
   ok('回補')
+
+  // 連續回補 2 次（結束時還是掉著）就停下來、改提醒家長；回來了再記一筆
+  const low = facts({ ...t, 'phonics:m': { box: 2, seen: 12 }, 'phonics:s': { box: 1, seen: 12 } })
+  let h = step(step(emptyLadder(), facts(t)).state, low, d1)
+  assert.equal(h.view.rungs.get('L5')!.reopen?.why, 'drop')
+  h = step(h.state, low, addDays(d1, 7))
+  assert.ok(h.view.rungs.get('L5')!.reopen, '第 1 次結束還是掉著：接著第 2 次')
+  assert.deepEqual(h.log.map((x) => x.data.event), ['end', 'start'])
+  h = step(h.state, low, addDays(d1, 14))
+  assert.ok(!h.view.rungs.get('L5')!.reopen, '第 2 次結束還是掉著：不再回補（這條支線不再暫停）')
+  assert.equal(h.view.rungs.get('L5')!.held, addDays(d1, 14))
+  assert.deepEqual(h.view.strands.find((s) => s.id === 'phon')!.held, ['L5'])
+  assert.deepEqual(h.log.map((x) => x.data.event), ['end', 'hold'])
+  h = step(h.state, low, addDays(d1, 15))
+  assert.equal(h.log.length, 0, '停下來之後不會每天重新開始')
+  h = step(h.state, facts(t), addDays(d1, 20))
+  assert.ok(!h.view.rungs.get('L5')!.held)
+  assert.deepEqual(h.log.map((x) => x.data.event), ['back'])
+  h = step(h.state, low, addDays(d1, 30))
+  assert.ok(h.view.rungs.get('L5')!.reopen, '回來之後又掉：重新算，照常回補')
+  ok('連續回補還沒回來：停下來提醒家長')
+}
+
+// 9b. 沒有對錯的階（著色、自由畫）不會完成：開著就算前置滿足
+{
+  const r = step(emptyLadder(), facts({}))
+  assert.ok(r.view.rungs.get('H11')!.open && !r.view.rungs.get('H11')!.complete)
+  assert.equal(r.view.rungs.get('H13')!.by, 'prereq', '畫故事裡的東西：前置是著色（H11）')
+  ok('前置是著色的階會開')
 }
 
 // 10. 舊資料升級（§5.4）：已經玩過的階算開放，時間軸補記
@@ -288,6 +317,30 @@ function dayOf(date: string, mathOk: number, langOk: number) {
   // 只看今天以前的完整日子
   assert.equal(strandLoad(lang, '2026-11-04', strandOf, 3).strands.length, 0)
   ok('依支線的負擔控制')
+
+  // 一條支線自己的暫停一次最多 7 天；解除之後要再有 3 個新的差日子才會再暫停
+  const d20 = Array.from({ length: 20 }, (_, i) => addDays('2026-11-02', i))
+  const badPhon = (ds: string[]) => ds.flatMap((d) => dayOf(d, 5, 2))
+  const p = badPhon(d20.slice(0, 3))
+  assert.deepEqual(strandLoad(p, d20[3], strandOf, 3).strands, ['phon'])
+  assert.deepEqual(strandLoad(p, addDays(d20[2], 7), strandOf, 3).strands, ['phon'], '第 7 天還在暫停')
+  assert.deepEqual(strandLoad(p, addDays(d20[2], 8), strandOf, 3).strands, [], '過了 7 天：沒再玩到這條支線也解除（降級後可能不再出它的題目）')
+  // 每天都差：暫停 7 天後解除，再差 3 天才又暫停
+  const every = badPhon(d20)
+  assert.deepEqual(strandLoad(every, d20[9], strandOf, 3).strands, ['phon'])
+  assert.deepEqual(strandLoad(every, d20[10], strandOf, 3).strands, [], '第一段暫停是第 4–10 天（d20[3]–d20[9]）')
+  assert.deepEqual(strandLoad(every, d20[12], strandOf, 3).strands, [], '解除後只差了 2 天（d20[10]、d20[11]）')
+  assert.deepEqual(strandLoad(every, d20[13], strandOf, 3).strands, ['phon'], '解除之後又連續 3 天差：再暫停')
+  ok('依支線的暫停一次最多 7 天')
+}
+
+// 13b. 每週新概念額度照年段外框
+{
+  const intros = new Map([['n:1', { date: '2026-10-01', track: 'num' as const, taught: true }], ['n:2', { date: '2026-11-01', track: 'num' as const, taught: true }], ['n:3', { date: '2026-11-02', track: 'num' as const, taught: true }]])
+  assert.equal(budgetOf('num', intros, '2026-11-02').left, 0, '沒給就是 2 個')
+  assert.equal(budgetOf('num', intros, '2026-11-02', 3).left, 1, '中班、大班 3 個')
+  assert.equal(budgetOf('lang', new Map(), '2026-11-02', 3).limit, 5, '剛開始玩的頭 7 天還是 5 個')
+  ok('每週新概念額度照年段外框')
 }
 
 // 14. 太順就加速：連續 5 個有玩的日子都 ≥ 92% 而且變快
@@ -321,6 +374,26 @@ function dayOf(date: string, mathOk: number, langOk: number) {
   assert.ok(!G.lettersOpen(), '空資料不能描字母')
   assert.equal(G.glyphLevelCap(false, 6), 1, '零件第 2 組也還沒開：停在第 1 級')
   ok('孩子端：一回合最多 1 個新概念、前置條件擋新內容、描字母關著')
+
+  // 這個遊戲的內容什麼都還沒學過：不做程度校準，從第 1 級開始（之後也不探測）
+  A.markPlayed('m-match')
+  assert.equal(A.level('m-match'), 1)
+  assert.ok(!A.isProbing('m-match') && A.gameLevel('m-match')!.placed?.skipped)
+  // 在點點數數學過 3 之後，第一次玩給波波蛋（也練數字 3）：照常探測
+  A.recordSkill('count:3', true)
+  A.markPlayed('m-give')
+  assert.ok(A.isProbing('m-give'))
+  ok('什麼都還沒學過的遊戲不做程度校準')
+
+  // 難度就是內容的遊戲：升級當下就記成新概念（額度、回來第一天不教新的才擋得到）
+  A.markPlayed('d-trace')
+  for (let i = 0; i < 3; i++) A.reportLevel('d-trace', true, 6)
+  assert.equal(A.level('d-trace'), 2)
+  assert.ok(A.conceptIntrosNow().has('lv:d-trace:2'))
+  assert.deepEqual(A.roundNewConcepts(), ['lv:d-trace:2'])
+  for (let i = 0; i < 3; i++) A.reportLevel('d-trace', true, 6)
+  assert.equal(A.level('d-trace'), 2, '這一回合已經有一個新概念：先不升')
+  ok('升級當下就記成新概念')
 }
 
 // 15. 和 ladderCalc 的一致：P2 跟著 P1 算

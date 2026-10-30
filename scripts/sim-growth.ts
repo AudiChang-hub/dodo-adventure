@@ -65,7 +65,9 @@ import {
   rungOpen,
   skill,
   strandLoadNow,
+  stalledGame,
   unlockedNumbers,
+  weeklyNew,
 } from '../src/lib/adaptive'
 import { fluencyKey, fluencyReady, fluencyTargets, isFluency } from '../src/lib/fluency'
 import { numberPicker, numberRange } from '../src/games/sheet/NumberFlow'
@@ -78,7 +80,7 @@ import { BAND_ZH, FRAMES, RAMP_WEEK, RAMP_WEEKS, type Band, type Frame } from '.
 import { budgetOf, planDay, trackNeeds, MASTERY_DAYS } from '../src/lib/tracks'
 import { trackOf, type TrackId } from '../src/content/tracks'
 import { FAST_BONUS, RUNGS, STRANDS, STUCK_DAYS, STUCK_RATIO, entryRung, rung as rungDef, strandRungs, unitsOf, type StrandId } from '../src/content/ladder'
-import { getSettings } from '../src/lib/settings'
+import { bandSetting } from '../src/lib/settings'
 
 const ARGS = process.argv.slice(2)
 const arg = (k: string) => ARGS.find((a) => a.startsWith(`--${k}=`))?.slice(k.length + 3)
@@ -160,6 +162,8 @@ interface KidResult {
     stuckOpens: number
     reopens: number
     reopenRecovered: number
+    /** 連續回補還沒回來、停下來改提醒家長（時間軸 reopen 的 hold） */
+    reopenHeld: number
     reopenDays: number[]
     pauseMax: Record<string, number>
     globalPauseMax: number
@@ -295,6 +299,7 @@ async function runKid(kid: KidDef, small: 'legacy' | 'new'): Promise<KidResult> 
     stuckOpens: 0,
     reopens: 0,
     reopenRecovered: 0,
+    reopenHeld: 0,
     reopenDays: [],
     pauseMax: {},
     globalPauseMax: 0,
@@ -597,7 +602,7 @@ async function runKid(kid: KidDef, small: 'legacy' | 'new'): Promise<KidResult> 
     roundFirst = plays(id) === 0
     const before = snapshotLadder()
     const t = trackOf(id)
-    const b0 = t ? budgetOf(t, conceptIntrosNow(), date) : null
+    const b0 = t ? budgetOf(t, conceptIntrosNow(), date, weeklyNew()) : null
     const leave = enterTheme(theme)
     try {
       playOne(g)
@@ -660,13 +665,13 @@ async function runKid(kid: KidDef, small: 'legacy' | 'new'): Promise<KidResult> 
   function planToday(): string[] {
     const from = addDays(date, -(MASTERY_DAYS - 1))
     const recent = attempts.filter((a) => a.date >= from)
-    const needs = trackNeeds({ attempts: recent, date, boxOf: (k) => skill(k).box, intros: conceptIntrosNow(), isDue })
+    const needs = trackNeeds({ attempts: recent, date, boxOf: (k) => skill(k).box, intros: conceptIntrosNow(), isDue, perWeek: weeklyNew() })
     const byGame = new Map<string, Set<string>>()
     for (const a of recent) byGame.set(a.game, (byGame.get(a.game) ?? new Set()).add(a.skill))
     const dueIn = (g: string) => [...(byGame.get(g) ?? [])].filter(isDue).length
     const games = GAMES.filter((g) => g.kind !== 'free' && trackOf(g.id) && (!isFluency(g.id) || fluencyReady()) && playable(g.id))
-    const n = Math.max(2, Math.min(5, getSettings().activitiesPerDay))
-    return planDay({ date, n, needs, games, lastPlayed, plays, dueIn, overloaded: pauseNew() }).map((s) => s.game)
+    const n = Math.max(2, Math.min(5, bandSetting('activitiesPerDay')))
+    return planDay({ date, n, needs, games, lastPlayed, plays, dueIn, focus: stalledGame, overloaded: pauseNew() }).map((s) => s.game)
   }
 
   const breakDays = new Set<string>()
@@ -782,6 +787,12 @@ async function runKid(kid: KidDef, small: 'legacy' | 'new'): Promise<KidResult> 
       const e = growthLog[logSeen]
       if (e.kind !== 'reopen') continue
       const r = String(e.data.rung)
+      // 連續回補還沒回來，引擎停下來改提醒家長（REOPEN_MAX）：這一段回補到這裡結束，不再暫停這條支線
+      if (e.data.event === 'hold') {
+        const cur = [...reopenOpen].find(([k, x]) => k.startsWith(`${r}|`) && !x.ended)
+        if (cur) cur[1].ended = e.date
+        S.reopenHeld++
+      }
       if (e.data.event === 'start') {
         const cur = [...reopenOpen].find(([k, x]) => k.startsWith(`${r}|`) && !x.ended)
         if (cur) cur[1].again++
@@ -1109,7 +1120,7 @@ function writeReport(rs: KidResult[], cross: Violation[], main: 'legacy' | 'new'
   p()
   p('## 各種孩子的總覽（幾次模擬的中位數）')
   p()
-  p('| 孩子 | 設定 | 第一次答對率 | 65–90% 的週 | 卡關保險開的階 | 回補（回來了） | 支線最長連續暫停（有玩的日子） | 一回合 0／1／2+ 個新概念 | 答對但偏慢不升格 | 第一次玩先教一個（超過額度） |')
+  p('| 孩子 | 設定 | 第一次答對率 | 65–90% 的週 | 卡關保險開的階 | 回補（回來了／停下來提醒家長） | 支線最長連續暫停（有玩的日子） | 一回合 0／1／2+ 個新概念 | 答對但偏慢不升格 | 第一次玩先教一個（超過額度） |')
   p('|---|---|---|---|---|---|---|---|---|---|')
   for (const c of cols) {
     const xs = runs(c)
@@ -1122,7 +1133,7 @@ function writeReport(rs: KidResult[], cross: Violation[], main: 'legacy' | 'new'
     const pauseTop = (r: KidResult) => Math.max(0, ...Object.values(r.stats.pauseMax))
     const rn = [0, 1, 2].map((i) => Math.round(m((r) => r.stats.roundNew[i])))
     p(
-      `| ${colName(c)} | ${k.desc}${c.variant ? `；${variantName(xs[0])}` : ''} | ${pct(m((r) => r.stats.rate))} | ${pct(m(goodWeeks))} | ${m((r) => r.stats.stuckOpens)} | ${m((r) => r.stats.reopens)}（${m((r) => r.stats.reopenRecovered)}） | ${m(pauseTop)}（最長 ${Math.max(...xs.map(pauseTop))}） | ${rn.join('／')} | ${pct(m((r) => r.stats.slowOk / r.stats.quizzes))} | ${m((r) => r.stats.firstPlayOver)} |`,
+      `| ${colName(c)} | ${k.desc}${c.variant ? `；${variantName(xs[0])}` : ''} | ${pct(m((r) => r.stats.rate))} | ${pct(m(goodWeeks))} | ${m((r) => r.stats.stuckOpens)} | ${m((r) => r.stats.reopens)}（${m((r) => r.stats.reopenRecovered)}／${m((r) => r.stats.reopenHeld ?? 0)}） | ${m(pauseTop)}（最長 ${Math.max(...xs.map(pauseTop))}） | ${rn.join('／')} | ${pct(m((r) => r.stats.slowOk / r.stats.quizzes))} | ${m((r) => r.stats.firstPlayOver)} |`,
     )
   }
   p()

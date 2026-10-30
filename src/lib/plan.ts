@@ -3,10 +3,10 @@ import { GAMES } from '../content/games'
 import { FRIENDS } from '../content/park'
 import { trackOf, type TrackId } from '../content/tracks'
 import { pickTheme, theme, THEME_GAP_DAYS, type ThemeId } from '../content/themes'
-import { conceptIntrosNow, isDue, lastPlayed, pauseNew, plays, rungOpen, skill } from './adaptive'
+import { conceptIntrosNow, isDue, lastPlayed, pauseNew, plays, rungOpen, skill, stalledGame, weeklyNew } from './adaptive'
 import { entryRung } from '../content/ladder'
 import { fluencyReady, isFluency } from './fluency'
-import { getSettings, weekTheme } from './settings'
+import { bandSetting, getSettings, weekTheme } from './settings'
 import { pick } from './random'
 import { planDay, shiftDate, trackNeeds, MASTERY_DAYS } from './tracks'
 import { chapterForNewPlan } from './story'
@@ -102,7 +102,7 @@ async function readPlan(): Promise<Plan> {
   const saved = await getKV<Plan | null>(`plan:${date}`, null)
   if (saved) return withStory(await migrate(saved))
   const attempts = await db.attempts.where('date').aboveOrEqual(shiftDate(date, -(MASTERY_DAYS - 1))).toArray()
-  const needs = trackNeeds({ attempts, date, boxOf: (k) => skill(k).box, intros: conceptIntrosNow(), isDue })
+  const needs = trackNeeds({ attempts, date, boxOf: (k) => skill(k).box, intros: conceptIntrosNow(), isDue, perWeek: weeklyNew() })
   // 每個遊戲裡有幾個今天到期複習的技能：有到期的遊戲比較容易排到（已熟的內容改成複習）
   const byGame = new Map<string, Set<string>>()
   for (const a of attempts) byGame.set(a.game, (byGame.get(a.game) ?? new Set()).add(a.skill))
@@ -111,8 +111,9 @@ async function readPlan(): Promise<Plan> {
   // 還沒玩過、而且起點那一階還沒開的遊戲先不排（成長系統 §1.4：前置條件擋，不看年齡），例如連點成圖要等 1–5 穩固
   const ready = (id: string) => plays(id) > 0 || !entryRung(id) || rungOpen(entryRung(id)!)
   const games = GAMES.filter((g) => g.kind !== 'free' && trackOf(g.id) && (!isFluency(g.id) || fluencyReady()) && ready(g.id))
-  const n = Math.max(2, Math.min(5, getSettings().activitiesPerDay))
-  const slots = planDay({ date, n, needs, games, lastPlayed, plays, dueIn, overloaded: pauseNew() })
+  // 站數：家長沒選過就照年段外框（小班、中班 4 站，大班 5 站；lib/settings.ts 的 bandSetting）
+  const n = Math.max(2, Math.min(5, bandSetting('activitiesPerDay')))
+  const slots = planDay({ date, n, needs, games, lastPlayed, plays, dueIn, focus: stalledGame, overloaded: pauseNew() })
   const plan: Plan = { date, theme: await themeFor(date), items: slots.map((x) => ({ game: x.game, station: x.station, track: x.track, done: false })), hatched: null }
   // 故事（G-8）：長篇的章指定今天走哪一扇門；故事時間沒有門（遊戲內容照今天挑到的主題）。不改排了哪些遊戲
   const ch = await chapterForNewPlan(date)
