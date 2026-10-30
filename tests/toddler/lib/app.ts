@@ -245,6 +245,8 @@ declare global {
       phase: () => string | null
       /** 每一下按下：Date.now() 和那一刻的 teaching() */
       taps: { t: number; kind: string | null }[]
+      /** 最後一次放開手指的 Date.now() */
+      lastUp: number
     }
   }
 }
