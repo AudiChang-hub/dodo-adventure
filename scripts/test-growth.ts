@@ -202,7 +202,7 @@ console.log('ok 6 每週的混合外框')
   console.log('ok 9 家長覆寫')
 }
 
-// 10. 遊戲怎麼讀外框（G-3，src/games/frame.ts）：小班段（和沒設生日）跟現在完全一樣，中班段、大班段照外框
+// 10. 遊戲怎麼讀外框（G-3，src/games/frame.ts）：三段都照外框；小班段一回合也照準則改短（家長 2026-10-30 決定），沒設生日＝小班段
 {
   const day = '2030-03-15'
   const small = statusOf(null, EMPTY, day)
@@ -212,10 +212,14 @@ console.log('ok 6 每週的混合外框')
   assert.equal(middle.frame, FRAMES.middle)
   assert.equal(bandOf(big, 'drag'), 'big')
 
-  // 小班段：一回合 6 題、最多教 2 個、選項數不動、閒置 15／15／40 秒、延遲提示照 adaptive、錯 2 次就標出答案
-  assert.equal(roundItemsOf(small, 6), 6)
-  assert.equal(roundItemsOf(small, 3), 3)
-  assert.equal(maxTeachOf(small, 2), 2)
+  // 小班段（沒設生日）：選擇題 6 題 → 5 題、最多教 1 個（LOAD-3、ADAPT-3）；選項數不動、閒置 15／15／40 秒、延遲提示照 adaptive、錯 2 次就標出答案
+  assert.equal(small.source, 'default')
+  assert.deepEqual([3, 4, 6, 9].map((n) => roundItemsOf(small, n)), [3, 4, 5, 5])
+  assert.equal(maxTeachOf(small, 2), 1)
+  // 家長把年段固定在小班段，跟沒設生日一樣
+  const fixedSmall = fixed('small')
+  assert.equal(roundItemsOf(fixedSmall, 6), 5)
+  assert.equal(maxTeachOf(fixedSmall, 2), 1)
   assert.equal(optionCapOf(small, true), null)
   assert.deepEqual(idleTimesOf(small), { repeat: 15_000, hint: 15_000, again: 40_000 })
   assert.equal(hintDelayOf(small, 4000), 4000)
@@ -242,13 +246,13 @@ console.log('ok 6 每週的混合外框')
   assert.equal(retryLineOf(big), 'another')
   assert.equal(asksHowOf(big), true)
 
-  // 放寬中：每一項照它那一週是哪一段（第 1 週題數、閒置換了；第 3 週才換新內容的數量；第 4 週才換選項）
+  // 放寬中：每一項照它那一週是哪一段（第 1 週題數、閒置換了；第 4 週才換選項）
   const p = P('2026-01')
   const ramp = reconcile(p, EMPTY, day).growth
   const w1 = statusOf(p, ramp, day)
   assert.equal(roundItemsOf(w1, 3), 4)
   assert.deepEqual(idleTimesOf(w1), idleTimesOf(middle))
-  assert.equal(maxTeachOf(w1, 2), 2)
+  assert.equal(maxTeachOf(w1, 2), 1)
   assert.equal(optionCapOf(w1, true), null)
   const w3 = statusOf(p, ramp, plus(day, 14))
   assert.equal(maxTeachOf(w3, 2), 1)
@@ -261,7 +265,7 @@ console.log('ok 6 每週的混合外框')
   assert.deepEqual(capOptions(opts, 'a', 3).map((o) => o.id), ['a', 'b', 'c'])
   assert.equal(capOptions(opts, 'a', 4), opts)
   assert.equal(capOptions(opts, 'a', null), opts)
-  console.log('ok 10 遊戲讀外框：小班段照舊、中班段大班段照外框、放寬中逐項換')
+  console.log('ok 10 遊戲讀外框：小班段（沒設生日）一回合 5 題、教 1 個；中班段大班段照外框；放寬中逐項換')
 }
 
 console.log('ALL PASS')

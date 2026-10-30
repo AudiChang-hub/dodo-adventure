@@ -3,16 +3,16 @@
 // 外框是上限（準則 FRAME 共同規則）：實際出幾個選項、一回合幾題，還是由每個遊戲自己的等級決定，這裡只把它們夾在外框裡。
 // 跨段的 4 週放寬中，每一項各自照「那一項現在是哪一段」來算（RAMP_WEEK）。
 //
-// 小班段維持 App 現在的樣子：有兩項現行值還沒照準則改，小班段照舊、中班段起才照外框：
-// - 一回合題數：現行選擇題 6 題（LOAD-3 是 3–5 題）
-// - 一回合最多教幾個新的：現行 2 個（ADAPT-3 是 1 個）
-// 小班段要改成準則的值是另一件事（要家長確認），改的時候把 LEGACY_SMALL 拿掉就好。
+// 小班段（和沒設生日）也照準則（家長 2026-10-30 決定「照準則改短」）：
+// - 一回合題數：選擇題、自然發音從 6 題改成 5 題（LOAD-3 是 3–5 題）
+// - 一回合最多教幾個新的：從 2 個改成 1 個（ADAPT-3、FRAME-8）
+// LEGACY_SMALL 改回 true 就是 G-3 之前的樣子（小班段 6 題、最多教 2 個）。
 import { BANDS, FRAMES, RAMP_WEEK, type Band, type Frame } from '../content/growth'
 import { getGrowth, type GrowthStatus } from '../lib/growth'
 import { HINT_DELAY_MAX } from '../lib/engine'
 
-/** 現行值還沒照準則改的項目：小班段照舊（見檔頭） */
-const LEGACY_SMALL = true
+/** true：小班段照 G-3 之前的值（6 題、最多教 2 個）；false：照準則（見檔頭） */
+const LEGACY_SMALL = false
 
 /** 兩段提醒都做過之後，每隔多久手再安靜地示範一次（現行 40 秒；年段的第三段比它長就用第三段） */
 const IDLE_AGAIN_MS = 40_000
@@ -26,15 +26,14 @@ export function bandOf(g: GrowthStatus, key: keyof Frame): Band {
 const clamp = (n: number, [a, b]: readonly [number, number]) => Math.min(b, Math.max(a, n))
 
 /**
- * 一回合幾題：遊戲自己的題數夾在年段的範圍裡（FRAME-5）。
- * 小班段照遊戲現在的題數（見檔頭）。
+ * 一回合幾題：遊戲自己的題數夾在年段的範圍裡（FRAME-5）。小班段選擇題 6 → 5 題。
  */
 export function roundItemsOf(g: GrowthStatus, own: number): number {
   if (LEGACY_SMALL && bandOf(g, 'roundItems') === 'small') return own
   return clamp(own, g.frame.roundItems)
 }
 
-/** 一回合最多教幾個新的（FRAME-8）；小班段照現行的 own（見檔頭） */
+/** 一回合最多教幾個新的（FRAME-8）：三段都是 1 個 */
 export function maxTeachOf(g: GrowthStatus, own: number): number {
   if (LEGACY_SMALL && bandOf(g, 'newPerRound') === 'small') return own
   return Math.min(own, g.frame.newPerRound)
