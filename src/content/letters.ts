@@ -128,6 +128,8 @@ export const letterEntry = (l: string) => LETTERS.find((e) => e.letter === l)!
 //     g 後面接前母音更像 d）。從 gum、gull、gut、gust 等字的開頭剪 0.13 秒比較，gust 的版本強制比對最像 guh（−9.9，kuh −12.8），
 //     所以 g 的字母音從 gust 剪（gust 只當來源，孩子不會聽到這個字），唸三次。
 //   - 其他停頓音沿用實測過的 buh、tuh、duh、puh、kuh、huh、wuh，唸三次。
+//   - n、l、r 改唸 nuh、luh、ruh ×3（2026-10-30 家長選定）：單獨的 n、l、r 哼聲和 m 幾乎分不出來，
+//     能分辨它們的線索在接到母音的那一下；edge-tts 的 nuh／luh／ruh 長約 0.4 秒，不會拼成字母。
 //   - v：Ana 的 /v/ 在字首幾乎是清音（聽起來像 f），延長了會變成 fff，所以 v 不唸字母音（v 是延後的音，只在貼紙本出現）。
 
 /** 一個關鍵字：圖示＋英文字 */
@@ -177,13 +179,13 @@ export const PHONICS: SoundUnit[] = [
   { letter: 't', phoneme: 't', ipa: '/t/', sound: say('tuh'), keys: [W('tiger', 'tiger-face'), W('turtle', 'turtle'), W('taxi', 'taxi')], review: [W('T-rex', 't-rex', 'd'), W('tomato', 'tomato'), W('toothbrush', 'toothbrush'), W('teddy bear', 'teddy-bear', 'b')] },
   { letter: 'b', phoneme: 'b', ipa: '/b/', sound: say('buh'), keys: [W('bus', 'bus'), W('ball', 'soccer-ball'), W('bear', 'bear')], review: [W('banana', 'banana'), W('balloon', 'balloon'), W('butterfly', 'butterfly'), W('bike', 'bicycle')] },
   { letter: 'f', phoneme: 'f', ipa: '/f/', sound: hold, keys: [W('fish', 'fish'), W('fox', 'fox'), W('frog', 'frog')], review: [W('fire truck', 'fire-engine', 'c'), W('foot', 'foot', 'l'), W('flower', 'sunflower', 's')] },
-  { letter: 'n', phoneme: 'n', ipa: '/n/', sound: hold, keys: [W('nest', 'nest-with-eggs'), W('nose', 'nose'), W('noodles', 'steaming-bowl')], review: [] },
+  { letter: 'n', phoneme: 'n', ipa: '/n/', sound: say('nuh'), keys: [W('nest', 'nest-with-eggs'), W('nose', 'nose'), W('noodles', 'steaming-bowl')], review: [] },
   { letter: 'd', phoneme: 'd', ipa: '/d/', sound: say('duh'), keys: [W('dinosaur', 'sauropod'), W('dog', 'dog-face'), W('duck', 'duck')], review: [W('deer', 'deer'), W('dolphin', 'dolphin')] },
   { letter: 'c', phoneme: 'k', ipa: '/k/', sound: say('kuh'), keys: [W('car', 'automobile'), W('cat', 'cat-face'), W('cow', 'cow-face')], review: [W('cookie', 'cookie'), W('carrot', 'carrot'), W('cake', 'birthday-cake', 'b'), W('cupcake', 'cupcake', 'c')] },
-  { letter: 'r', phoneme: 'r', ipa: '/r/', sound: hold, keys: [W('rabbit', 'rabbit-face'), W('rocket', 'rocket'), W('rainbow', 'rainbow')], review: [W('robot', 'robot'), W('rice', 'cooked-rice')] },
+  { letter: 'r', phoneme: 'r', ipa: '/r/', sound: say('ruh'), keys: [W('rabbit', 'rabbit-face'), W('rocket', 'rocket'), W('rainbow', 'rainbow')], review: [W('robot', 'robot'), W('rice', 'cooked-rice')] },
   { letter: 'p', phoneme: 'p', ipa: '/p/', sound: say('puh'), keys: [W('pig', 'pig-face'), W('panda', 'panda'), W('penguin', 'penguin')], review: [W('pizza', 'pizza'), W('pear', 'pear'), W('popcorn', 'popcorn'), W('police car', 'police-car', 'c')] },
   { letter: 'e', phoneme: 'ɛ', ipa: '/ɛ/', sound: cut(150, 2), keys: [W('egg', 'egg'), W('elephant', 'elephant'), W('elevator', 'elevator')], review: [] },
-  { letter: 'l', phoneme: 'l', ipa: '/l/', sound: hold, keys: [W('lion', 'lion'), W('lemon', 'lemon'), W('lollipop', 'lollipop')], review: [W('leaf', 'leaf-fluttering-in-wind'), W('ladybug', 'lady-beetle', 'b'), W('leg', 'leg', 'f'), W('ladder', 'ladder')] },
+  { letter: 'l', phoneme: 'l', ipa: '/l/', sound: say('luh'), keys: [W('lion', 'lion'), W('lemon', 'lemon'), W('lollipop', 'lollipop')], review: [W('leaf', 'leaf-fluttering-in-wind'), W('ladybug', 'lady-beetle', 'b'), W('leg', 'leg', 'f'), W('ladder', 'ladder')] },
   { letter: 'h', phoneme: 'h', ipa: '/h/', sound: say('huh'), keys: [W('horse', 'horse'), W('helicopter', 'helicopter'), W('hippo', 'hippopotamus')], review: [W('hand', 'raised-hand'), W('hamburger', 'hamburger'), W('house', 'house'), W('hot dog', 'hot-dog')] },
   { letter: 'g', phoneme: 'g', ipa: '/g/', sound: cut(130, 3, 'gust'), keys: [W('gift', 'wrapped-gift', 'p'), W('gorilla', 'gorilla', 'm'), W('grapes', 'grapes')], review: [] },
   { letter: 'w', phoneme: 'w', ipa: '/w/', sound: say('wuh'), keys: [W('whale', 'spouting-whale'), W('watermelon', 'watermelon'), W('worm', 'worm')], review: [W('wolf', 'wolf', 'd'), W('window', 'window'), W('wheel', 'wheel', 't')] },
