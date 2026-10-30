@@ -22,7 +22,7 @@
 // 執行：npx tsx scripts/sim-teach.ts [亂數種子] [--first=遊戲 id] [--old-glyph]（有違規時 exit 1）
 //   --first：第 1 天空資料庫第一個玩的遊戲（例如 --first=ph-start：什麼字都還沒教過時，字母森林怎麼出干擾圖）
 //   --old-glyph：舊資料——改版前已經描過字母（描數字字母升到 4 級、1 I L T 學過），門檻還沒到：下次要出零件
-import { GAMES, PHONICS_MAKERS, ROUND_ITEMS, game as gameOf, type GameDef } from '../src/content/games'
+import { GAMES, PHONICS_MAKERS, game as gameOf, type GameDef } from '../src/content/games'
 import { SHEET_MAKERS } from '../src/content/games-worksheet'
 import { THEMES } from '../src/content/themes'
 import { enterTheme, themeNow } from '../src/lib/theme-play'
@@ -256,7 +256,7 @@ function quiz(g: GameDef, k: string, taughtNow: boolean, why: string, opts?: { p
 function playChoice(g: GameDef) {
   const st = roundState(plays(g.id) === 0)
   markPlayed(g.id)
-  for (let i = 0; i < ROUND_ITEMS; i++) {
+  for (let i = 0; i < st.items; i++) {
     const p = planChoice(g, st, i)
     if (p.fresh) teach(g, p.it.skill)
     checkChoice(g, p.it, p.fresh)
@@ -280,7 +280,7 @@ function playPattern(g: GameDef) {
 function playPhonics(g: GameDef) {
   const st = roundState(plays(g.id) === 0)
   markPlayed(g.id)
-  for (let i = 0; i < ROUND_ITEMS; i++) {
+  for (let i = 0; i < st.items; i++) {
     const p = planPhonics(g, PHONICS_MAKERS[g.id], st, i)
     if (p.fresh) teach(g, p.it.skill)
     checkPhonics(g, p.it, p.fresh)

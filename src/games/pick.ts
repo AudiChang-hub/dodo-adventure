@@ -10,7 +10,7 @@ import { noteTaught } from '../lib/words'
 import { wordId } from '../content/letters'
 import { capOptions, frameNow, maxTeachOf, optionCapOf, roundItemsOf } from './frame'
 
-/** 一局最多教幾個新內容，其餘都是複習（PRD §5.8）。中班段起照年段外框（games/frame.ts，FRAME-8 是 1 個） */
+/** 一局最多教幾個新內容的舊值（PRD §5.8）；實際照年段外框（games/frame.ts，FRAME-8：三段都是 1 個） */
 export const MAX_TEACH = 2
 
 /** 一局裡跨題目記著的東西：教了幾個、剛出過什麼、是不是第一次玩這個遊戲 */
@@ -136,6 +136,8 @@ export function planSheet(def: GameDef, make: SheetMaker, mode: 'tap' | 'lasso',
   // 這局已經教滿、負擔過重，或這條主線本週的新概念額度用完：出學過的
   const ok = teachable(def.id, st.taught, st.maxTeach)
   for (let k = 0; k < 10 && !ok(it.skill); k++) it = withTargetFilter(ok, gen)
+  // 還是新的：學過的只有剛出過的那幾張（例如這局剛教的那一個）。寧可再出一次剛出過的，也不在同一局教第二個新概念（FRAME-8）
+  for (let k = 0; k < 10 && !ok(it.skill); k++) it = withTargetFilter(ok, () => make(lv, []))
   st.recent = [it.itemId, ...st.recent].slice(0, 3)
   // 圈選：概念在「找出全部」學過就不用再看教學卡，只要學怎麼圈
   const fresh = (isNew(it.skill) && (mode === 'tap' || isNew(`all:${it.itemId}`))) || !!it.needTeach

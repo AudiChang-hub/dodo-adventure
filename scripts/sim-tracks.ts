@@ -5,7 +5,9 @@ import type { Attempt, StationId } from '../src/lib/db'
 import { loadCheck, MASTERED_BOX } from '../src/lib/engine'
 import { budgetOf, noteIntro, planDay, radarScores, shiftDate, trackNeeds, type Intros } from '../src/lib/tracks'
 import { conceptLabel, conceptOf, levelConcepts, trackOf, TRACKS, type TrackId } from '../src/content/tracks'
-import { GAMES } from '../src/content/games'
+import { GAMES, ROUND_ITEMS } from '../src/content/games'
+import { MAX_TEACH } from '../src/games/pick'
+import { maxTeach, roundItems } from '../src/games/frame'
 import { PHONICS, phonicsSkill } from '../src/content/letters'
 import { VOCAB } from '../src/content/vocab'
 import { COLORS, SHAPES } from '../src/content/park'
@@ -89,6 +91,10 @@ function canIntroduce(game: string, skill: string, date: string, paused: boolean
 
 const budgetLog: string[] = []
 
+// 一局幾題、最多教幾個新的：跟選擇題、自然發音實際用的一樣（games/frame.ts；這個孩子沒設生日＝小班段）
+const ROUND = roundItems(ROUND_ITEMS)
+const TEACH = maxTeach(MAX_TEACH)
+
 function playGame(game: string, date: string, paused: boolean) {
   const t = trackOf(game)!
   const lv = levels.get(game) ?? 1
@@ -97,9 +103,9 @@ function playGame(game: string, date: string, paused: boolean) {
   const known = pool.filter((k) => seen.get(k))
   let taught = 0
   let okRun = 0
-  for (let i = 0; i < 6; i++) {
-    const fresh = pool.find((k) => !seen.get(k) && taught < 2 && canIntroduce(game, k, date, paused))
-    // 一局最多教 2 個；其餘出學過的（遊戲裡什麼都沒學過時，照常教一個）
+  for (let i = 0; i < ROUND; i++) {
+    const fresh = pool.find((k) => !seen.get(k) && taught < TEACH && canIntroduce(game, k, date, paused))
+    // 一局最多教 TEACH 個；其餘出學過的（遊戲裡什麼都沒學過時，照常教一個）
     const k = fresh && (i % 2 === 1 || !known.length) ? fresh : known.length ? known[Math.floor(rnd() * known.length)] : pool[0]
     if (!seen.get(k)) {
       const c = conceptOf(game, k)
@@ -167,3 +173,18 @@ for (const l of budgetLog) console.log('  ' + l)
 const counts = new Map<string, number>()
 for (const a of attempts) if (a.phase === 'quiz') counts.set(trackOf(a.game)!, (counts.get(trackOf(a.game)!) ?? 0) + 1)
 console.log('\n4 週各線的自己答題數：', [...counts].map(([t, n]) => `${fmtTrack(t as TrackId)} ${n}`).join('、'))
+
+// 每天大約玩幾分鐘（估計，不是量的）：自己答一題約 20 秒（念題目、作答、稱讚），教一個新的再加約 30 秒（教學卡＋一起練），
+// 每個遊戲的開場說明和結束慶祝約 25 秒
+const SEC = { quiz: 20, teach: 30, game: 25 }
+const days = new Map<string, { quiz: number; teach: number; games: Set<string> }>()
+for (const a of attempts) {
+  const d = days.get(a.date) ?? { quiz: 0, teach: 0, games: new Set<string>() }
+  if (a.phase === 'quiz') d.quiz++
+  else d.teach++
+  d.games.add(a.game)
+  days.set(a.date, d)
+}
+const mins = [...days.values()].map((d) => (d.quiz * SEC.quiz + d.teach * SEC.teach + d.games.size * SEC.game) / 60)
+const avg = mins.reduce((s, x) => s + x, 0) / mins.length
+console.log(`一局 ${ROUND} 題、最多教 ${TEACH} 個新的；每天大約玩 ${avg.toFixed(1)} 分鐘（${Math.min(...mins).toFixed(1)}–${Math.max(...mins).toFixed(1)}；估計：自己答一題 ${SEC.quiz} 秒、教一個 +${SEC.teach} 秒、每個遊戲開場和慶祝 ${SEC.game} 秒）`)
