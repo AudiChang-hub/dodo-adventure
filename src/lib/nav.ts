@@ -1,5 +1,6 @@
 import { useEffect, useRef, useSyncExternalStore } from 'react'
 import type { StationId } from './db'
+import { shownFor, type Shown } from './shown'
 
 export type Route =
   | { name: 'home' }
@@ -112,24 +113,28 @@ export function parentOf(r: Route): Route | null {
   }
 }
 
-/** 返回之後這麼久不再收返回：一次轉場還沒走完，下一層的返回鍵就在同一個位置 */
+/** 返回之後（下一層畫面看得到）這麼久不再收返回：一次轉場還沒走完，下一層的返回鍵就在同一個位置 */
 const BACK_LOCK_MS = 1000
 /** 孩子還在同一個地方連點：每點一下再延長這麼久，連點停下來才收下一次返回 */
 const BACK_BURST_MS = 700
 /** 離上一次返回點的地方多近算「同一個地方」 */
 const BACK_NEAR_PX = 140
 
-let backQuietUntil = 0
-let backAt: { x: number; y: number } | null = null
+/**
+ * 上一次返回之後的鎖。時間都用按下去那一下自己的 e.timeStamp 判斷，鎖多久用「孩子真的看得到畫面」的時間算（lib/shown.ts）：
+ * 平板忙的時候主執行緒卡住，計時器走完了下一層畫面卻還沒出現，排隊的連點又在之後才處理，會多跳一層（T-67）。
+ */
+let backLock: { shown: Shown; burst: number; at: { x: number; y: number } | null } | null = null
+const locked = (t: number) => !!backLock && (t < backLock.shown.at || t < backLock.burst)
 
 // 連點的手被舊畫面（轉場中不收點擊）吃掉，按鈕收不到；在最外層看位置，還在同一處連點就一直延長
 if (typeof window !== 'undefined') {
   window.addEventListener(
     'pointerdown',
     (e) => {
-      const now = performance.now()
-      if (now >= backQuietUntil || !backAt) return
-      if (Math.hypot(e.clientX - backAt.x, e.clientY - backAt.y) <= BACK_NEAR_PX) backQuietUntil = Math.max(backQuietUntil, now + BACK_BURST_MS)
+      const l = backLock
+      if (!l?.at || !locked(e.timeStamp)) return
+      if (Math.hypot(e.clientX - l.at.x, e.clientY - l.at.y) <= BACK_NEAR_PX) l.burst = Math.max(l.burst, e.timeStamp + BACK_BURST_MS)
     },
     { capture: true },
   )
@@ -159,15 +164,16 @@ export function useBack(fn: BackHandler) {
  * 連點、轉場中再點都不會多跳一層：剛返回過的這段時間裡的返回一律不理。
  * run 是按鈕自己的返回（遊戲的 onExit）；沒給就問畫面自己的處理，再沒有就照 parentOf。
  */
-export function back(at?: { x: number; y: number }, run?: () => void): boolean {
-  const now = performance.now()
-  if (now < backQuietUntil) {
-    backQuietUntil = Math.max(backQuietUntil, now + BACK_BURST_MS)
+export function back(at?: { x: number; y: number; t?: number }, run?: () => void): boolean {
+  // 按下去的時間（返回鍵給的 e.timeStamp）；Android 的返回手勢沒有，用現在
+  const t = at?.t ?? performance.now()
+  if (backLock && locked(t)) {
+    backLock.burst = Math.max(backLock.burst, t + BACK_BURST_MS)
     return false
   }
   const lock = () => {
-    backQuietUntil = now + BACK_LOCK_MS
-    backAt = at ?? null
+    backLock?.shown.cancel()
+    backLock = { shown: shownFor(BACK_LOCK_MS), burst: 0, at: at ? { x: at.x, y: at.y } : null }
     return true
   }
   if (run) {

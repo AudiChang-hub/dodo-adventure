@@ -17,28 +17,29 @@ const SAME_PRESS_MS = 500
  * - 兩指被瀏覽器當成手勢接走（pointercancel）也算按到了。鍵盤（Enter／空白鍵）還是走 click。
  */
 export function BackButton({ label, onTap, children }: { label: string; onTap?: () => void; children: ReactNode }) {
-  // 在這顆鍵上按下去的那根手指（pointer、touch 各記各的）：從別處滑進來放開的不算
-  const finger = useRef<{ id: number; x: number; y: number } | null>(null)
-  const touch = useRef<{ id: number; x: number; y: number } | null>(null)
+  // 在這顆鍵上按下去的那根手指（pointer、touch 各記各的）：從別處滑進來放開的不算。
+  // t 是按下去那一下自己的 e.timeStamp：連點要不要算由它判斷（lib/nav.ts），不是由處理到它的時間
+  const finger = useRef<{ id: number; x: number; y: number; t: number } | null>(null)
+  const touch = useRef<{ id: number; x: number; y: number; t: number } | null>(null)
   const firedAt = useRef(-Infinity)
-  const fire = (x: number, y: number) => {
+  const fire = (x: number, y: number, t: number) => {
     const now = performance.now()
     if (now - firedAt.current < SAME_PRESS_MS) return
     firedAt.current = now
-    if (back({ x, y }, onTap)) sfx.tap()
+    if (back({ x, y, t }, onTap)) sfx.tap()
   }
   const up = (e: PointerEvent) => {
     const f = finger.current
     if (!f || f.id !== e.pointerId) return
     finger.current = null
     // pointercancel 沒有可靠的座標：用按下去的位置（nav.ts 用它判斷是不是還在同一處連點）
-    fire(f.x, f.y)
+    fire(f.x, f.y, f.t)
   }
   const touchUp = (e: TouchEvent) => {
     const t = touch.current
     if (!t || !Array.from(e.changedTouches).some((c) => c.identifier === t.id)) return
     touch.current = null
-    fire(t.x, t.y)
+    fire(t.x, t.y, t.t)
   }
   return (
     <button
@@ -46,14 +47,14 @@ export function BackButton({ label, onTap, children }: { label: string; onTap?: 
       data-back=""
       aria-label={label}
       onPointerDown={(e) => {
-        finger.current = { id: e.pointerId, x: e.clientX, y: e.clientY }
+        finger.current = { id: e.pointerId, x: e.clientX, y: e.clientY, t: e.timeStamp }
       }}
       onPointerUp={up}
       onPointerCancel={up}
       onTouchStart={(e) => {
         const me = e.currentTarget
         const c = Array.from(e.changedTouches).find((t) => t.target instanceof Node && me.contains(t.target))
-        if (c) touch.current = { id: c.identifier, x: c.clientX, y: c.clientY }
+        if (c) touch.current = { id: c.identifier, x: c.clientX, y: c.clientY, t: e.timeStamp }
       }}
       onTouchEnd={touchUp}
       onTouchCancel={touchUp}
@@ -61,7 +62,7 @@ export function BackButton({ label, onTap, children }: { label: string; onTap?: 
         // detail 0：鍵盤按的（手指、滑鼠已經在 pointerup／touchend 返回了）
         if (e.detail === 0) {
           const r = e.currentTarget.getBoundingClientRect()
-          fire(r.left + r.width / 2, r.top + r.height / 2)
+          fire(r.left + r.width / 2, r.top + r.height / 2, e.timeStamp)
         }
       }}
     >
