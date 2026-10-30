@@ -260,10 +260,12 @@ function scribble(k: Toddler, cv: Target, page: Page, from: 'inside' | 'outside'
 }
 
 /** 每個點附近有沒有墨（每點一個數字：不透明像素的數量） */
+/** 每一點附近的墨，加上量的那一刻離最後一次放開手指多久（upAgo，毫秒） */
 const inkPts = (page: Page, pts: Pt[]) =>
   page.evaluate((pts) => {
+    const upAgo = Date.now() - window.__toddler.lastUp
     const cs = [...document.querySelectorAll('canvas')]
-    return pts.map((p) => {
+    const v = pts.map((p) => {
       let total = 0
       for (const c of cs) {
         const r = c.getBoundingClientRect()
@@ -295,6 +297,7 @@ const inkPts = (page: Page, pts: Pt[]) =>
       }
       return total
     })
+    return { v, upAgo }
   }, pts)
 
 /** 線段中間補點：檢查墨跡時沿著整條線看 */
@@ -313,14 +316,35 @@ function along(pts: Pt[], step = 24): Pt[] {
 export async function drawAndMeasure(k: Toddler, pts: Pt[], cv: Target, opts: { fast?: boolean } = {}) {
   const page = k.page
   const probe = along(pts).filter((p) => Math.abs(p.x - cv.x) < cv.w / 2 - 6 && Math.abs(p.y - cv.y) < cv.h / 2 - 6)
-  const before = await inkPts(page, probe)
+  const before = (await inkPts(page, probe)).v
   await k.drag(pts, { stepMs: opts.fast ? 4 : 14, label: '畫' })
   await k.wait(250)
-  const after = await inkPts(page, probe)
+  const { v: after, upAgo } = await inkPts(page, probe)
   // 那一點原本就已經塗滿（前面畫過的線、示範留下的筆觸）：看不出有沒有新的墨，當作有（T-51：自由畫畫越畫越滿，舊的量法會越量越低）
   const got = probe.filter((_, i) => after[i] > before[i] + 2 || (before[i] >= 60 && after[i] >= before[i])).length
-  return { n: probe.length, got, ratio: probe.length ? got / probe.length : 1 }
+  return { n: probe.length, got, ratio: probe.length ? got / probe.length : 1, upAgo }
 }
+
+/** 記下現在畫面上的畫布；之後 canvasChanged 看有沒有換上新的（換題）或整個不見（玩完、進慶祝） */
+const markCanvases = (page: Page) =>
+  page.evaluate(() => {
+    ;(window as unknown as { __marked?: Element[] }).__marked = [...document.querySelectorAll('canvas')]
+  })
+const canvasChanged = (page: Page) =>
+  page.evaluate(() => {
+    const marked = (window as unknown as { __marked?: Element[] }).__marked ?? []
+    const now = [...document.querySelectorAll('canvas')]
+    return now.some((c) => !marked.includes(c)) || marked.some((c) => !c.isConnected)
+  })
+/**
+ * from 之後第一下按下去（就是這一筆）的那一刻，是不是還在示範、說明、教學卡（probe.js 的 P.taps）。
+ * 測試端先看狀態、找畫布、才下筆，負載高時中間可能已經過了一兩秒，狀態早就變了。
+ */
+const busyAtDown = (page: Page, from: number) =>
+  page.evaluate((from) => {
+    const d = window.__toddler.taps.find((x) => x.t >= from)
+    return !!d && (d.kind === 'teach-card' || d.kind === 'teach-card-ready' || d.kind === 'demo' || d.kind === 'wait')
+  }, from)
 
 /** 一個隨機的三歲動作 */
 /**
@@ -339,10 +363,20 @@ export async function toddlerStep(k: Toddler, c: Checker, opts: { drawing?: bool
     const cv = k.r.pick(canvases)
     const from = k.r.chance(0.3) ? 'outside' : 'inside'
     const s = await snap(page)
+    const n0 = (await attempts(page)).length
+    await markCanvases(page)
+    const t0 = await pageNow(page)
     const m = await drawAndMeasure(k, scribble(k, cv, page, from), cv, { fast: k.r.chance(0.5) })
     // 畫到一半換了一題、開始示範（例如車子開到家、下一條路的「Watch me!」）：那一筆被丟掉是對的，不算
     const s2 = await snap(page)
     if (s2.teaching && !s.teaching) return
+    // 畫到一半完成了這一題、換上了下一題（畫布換新的）、或整局玩完進了慶祝（畫布不見了）：前半段的墨跟著上一題一起淡掉，
+    // 新的一題要放開、重新下筆才出墨（src/games/draw/adopt.ts），不算
+    if ((await attempts(page)).length > n0 || (await canvasChanged(page))) return
+    // 下筆那一刻已經在示範、說明（換到下一題的「Watch me!」）：整筆都不出墨是對的，不算
+    if (await busyAtDown(page, t0)) return
+    // 放開後一會兒就淡掉的遊戲（沒推動車子、沒描到字的那一筆 0.7 秒後開始淡）：負載高時量得太晚，墨已經照設計淡掉了，不算
+    if (opts.fading && m.upAgo > 650) return
     if (!s.teaching && opts.free && m.n >= 4) c.rule('DRAW-1', m.ratio >= 0.9, `${from === 'outside' ? '從畫布外畫進來' : '亂畫'}：${m.n} 個檢查點有墨 ${m.got}（${Math.round(m.ratio * 100)}%）`)
     if (!s.teaching && opts.drawing && m.n >= 4 && m.ratio < (opts.fading ? 0.15 : 0.5))
       await c.once(`ink:${from}`, '困惑', `畫了卻只有 ${Math.round(m.ratio * 100)}% 的地方出現墨跡`, `${from === 'outside' ? '從畫布外畫進來' : '在畫布內亂畫'}，經過 ${m.n} 個檢查點只有 ${m.got} 個有墨（畫布 ${Math.round(cv.w)}×${Math.round(cv.h)}）`)
@@ -454,9 +488,13 @@ export async function grabDuringTeach(k: Toddler, c: Checker, g: GameDef) {
     const canv = ts.filter((x) => x.kind === 'canvas')
     if (canv.length && k.r.chance(0.5)) {
       const cv = k.r.pick(canv)
+      const t0 = await pageNow(page)
       const m = await drawAndMeasure(k, scribble(k, cv, page), cv, { fast: true })
-      inkTries++
-      if (m.got >= 3) inkDuringDemo++
+      // 只算下筆那一刻還在示範、說明的那幾筆：看到示範中、真的按下去時示範已經結束，畫得出來是對的
+      if (await busyAtDown(page, t0)) {
+        inkTries++
+        if (m.got >= 3) inkDuringDemo++
+      }
     } else {
       const btns = ts.filter((x) => x.kind !== 'canvas')
       const p = btns.length && k.r.chance(0.7) ? inside(k.r.pick(btns), k) : randomPoint(k, page)

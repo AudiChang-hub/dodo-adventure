@@ -155,6 +155,9 @@
     },
     true,
   )
+  // 最後一次放開手指的時間：放開後一會兒就淡掉的筆觸（運筆小路、描字沒描到的線），量墨跡時要知道離放開多久了
+  P.lastUp = 0
+  addEventListener('pointerup', () => (P.lastUp = Date.now()), true)
   P.phase = () => {
     const live = [...document.querySelectorAll('.scene')].filter((e) => !e.inert).pop() || document
     return live.querySelector('[data-phase]')?.getAttribute('data-phase') || null

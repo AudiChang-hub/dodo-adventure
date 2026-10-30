@@ -13,7 +13,7 @@ import { logAttempt, logTeach } from '../../lib/record'
 import { say, sfx, stopSpeech } from '../../lib/audio'
 import { praiseKey, wait } from '../lines'
 import { useIdle } from '../idle'
-import { Swap } from '../../ui/Scenes'
+import { Swap, useSwapRef } from '../../ui/Scenes'
 
 /**
  * 照運筆的發展順序（benchmark 手法 5）：直線（由上往下）→ 橫線（由左往右）→ 弧線 → 圓 →
@@ -64,6 +64,8 @@ export function TraceGame({ gameId, onDone, onExit }: GameProps) {
   /** 閒置提示「筆再示範一次」：筆在路上的位置（取樣點），null 表示沒有在示範 */
   const [again, setAgain] = useState<number | null>(null)
   const ink = useRef<InkHandle>(null)
+  // 畫布在 Swap 裡：用 callback ref，舊的一回合淡出卸載時不會把 ink 清成 null（以前第二回合起 ink 是 null，沒畫到該畫的地方的線都不會淡掉）
+  const inkRef = useSwapRef(ink)
   /** 這一筆有沒有推動車子（沒有的話放開後淡掉） */
   const moved = useRef(false)
   const tracker = useRef<PathTracker | null>(null)
@@ -306,7 +308,7 @@ export function TraceGame({ gameId, onDone, onExit }: GameProps) {
             </g>
           )}
         </svg>
-        <Ink ref={ink} w={1000} h={600} color="rgba(46,42,37,0.55)" size={16} disabled={hold} onDown={onDown} onMove={onMove} onUp={onUp} />
+        <Ink ref={inkRef} w={1000} h={600} color="rgba(46,42,37,0.55)" size={16} disabled={hold} onDown={onDown} onMove={onMove} onUp={onUp} />
         </>
       </Swap>
     </Shell>

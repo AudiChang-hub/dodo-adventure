@@ -14,7 +14,7 @@ import { logAttempt, logTeach } from '../../lib/record'
 import { say, sfx, stopSpeech } from '../../lib/audio'
 import { praiseKey, wait } from '../lines'
 import { useIdle } from '../idle'
-import { Swap } from '../../ui/Scenes'
+import { Swap, useSwapRef } from '../../ui/Scenes'
 
 const ROUNDS = 3
 const LANE = 20
@@ -85,6 +85,8 @@ export function GlyphGame({ gameId, onDone, onExit }: GameProps) {
   /** 閒置提示「手再描一次」：手在這一筆上的位置（取樣點），null 表示沒有 */
   const [again, setAgain] = useState<number | null>(null)
   const ink = useRef<InkHandle>(null)
+  // 畫布在 Swap 裡：用 callback ref，舊的一回合淡出卸載時不會把 ink 清成 null（以前第二回合起 ink 是 null，沒畫到該畫的地方的線都不會淡掉）
+  const inkRef = useSwapRef(ink)
   /** 這一筆有沒有描到（沒有的話放開後淡掉：亂畫的線不會一直蓋在字上，準則 DRAW-3） */
   const moved = useRef(false)
   /** 現在建議的工具，與示範時用手指還是筆 */
@@ -340,7 +342,7 @@ export function GlyphGame({ gameId, onDone, onExit }: GameProps) {
         {/* 建議工具的大圖示：一直留到這個字描完 */}
         {(!done || demo) && <ToolBadge tool={tool} pulse={pulse} />}
         <Ink
-          ref={ink}
+          ref={inkRef}
           w={100}
           h={140}
           color="rgba(46,42,37,0.6)"
