@@ -1,14 +1,16 @@
 // 故事的目錄：部、季、篇、故事時間，以及「這一章今天實際要念哪些句子」（純函式，排課的結果傳進來）。
 // 決定今天播哪一章、記錄進度在 lib/story.ts；台詞在 lines.ts 產生；畫面在 screens/Adventure.tsx、StoryBook.tsx。
 //
-// 第一批正式故事由 G-9、G-11 產生。現在只有示範：第一部第 1 篇〈彩虹蛋滾進來了〉、故事時間 A01 龜兔賽跑。
-// 挪亞方舟（故事世界 §7.2）等家長確認講法之後才放。
+// 第一批正式故事由 G-9、G-11 產生。現在只有示範：第一部第 1 篇〈彩虹蛋滾進來了〉、故事時間 A01 龜兔賽跑、B01 挪亞方舟。
 import type { Speaker } from '../registry'
 import { theme, type ThemeId } from '../themes'
 import type { TrackId } from '../tracks'
 import { EVERGREEN, doorStop, lookOf } from './evergreen'
 import { A01 } from './part1/a01'
 import { RABBIT_TURTLE } from './classics/a01'
+import { NOAH } from './classics/b01'
+import { artParts } from './art'
+import type { Band } from '../growth'
 import { HOUSE_ITEMS } from './house'
 import type { Arc, Beat, Chapter, ChapterLook, Classic, Part, Pic, Who } from './types'
 
@@ -28,12 +30,36 @@ export const PARTS: Part[] = [
   },
 ]
 
-/** 故事時間，照講的順序（故事世界 §5.4 小班段第一輪） */
-export const CLASSICS: Classic[] = [RABBIT_TURTLE]
+/**
+ * 故事時間第一輪的順序（故事世界 §5.4 小班段第一輪）：龜兔賽跑 → 兔子與月亮 → 獅子與老鼠 → 挪亞方舟 → …
+ * 還沒有劇本的（J02、A02 等 G-11 產生）先跳過，輪到下一則有劇本的；之後加進來，照這個順序排在還沒講的前面。
+ */
+export const CLASSIC_ROUND = ['A01', 'J02', 'A02', 'B01', 'A04', 'P01', 'A06', 'C01'] as const
+
+const WRITTEN: Classic[] = [RABBIT_TURTLE, NOAH]
+
+/** 有劇本的故事時間，照講的順序 */
+export const CLASSICS: Classic[] = CLASSIC_ROUND.map((id) => WRITTEN.find((c) => c.id === id)).filter((c): c is Classic => !!c)
+
+/** 這一則照年段挑的那一版：沒有這個年段的長大版，就用比較小的年段裡最大的那一版 */
+export function classicFor(c: Classic, band: Band): Chapter {
+  if (band === 'big') return c.grown?.big ?? c.grown?.middle ?? c.chapter
+  if (band === 'middle') return c.grown?.middle ?? c.chapter
+  return c.chapter
+}
+
+/** kv.story 的 classicsDone 記的名字：本來那一版是編號（A01），長大版加年段（B01@middle），長大之後還能再講一次長大版 */
+export const classicDoneKey = (c: Classic, ch: Chapter) => (ch.id === c.chapter.id ? c.id : `${c.id}@${ch.band}`)
+
+/** 這一則的每一個年段的版本 */
+export const classicVersions = (c: Classic): Chapter[] => [c.chapter, ...Object.values(c.grown ?? {}).filter((x): x is Chapter => !!x)]
+
+/** 這一章是哪一則故事時間（每個年段的版本都算） */
+export const classicOfChapter = (id: string) => CLASSICS.find((c) => classicVersions(c).some((x) => x.id === id)) ?? null
 
 export const arcOf = (id: string) => ARCS.find((a) => a.id === id) ?? null
 
-const ALL: Chapter[] = [...Object.values(EVERGREEN), ...ARCS.flatMap((a) => a.chapters), ...CLASSICS.map((c) => c.chapter)]
+const ALL: Chapter[] = [...Object.values(EVERGREEN), ...ARCS.flatMap((a) => a.chapters), ...CLASSICS.flatMap(classicVersions)]
 export const allChapters = () => ALL
 export const chapterOf = (id: string | null | undefined): Chapter | null => (id ? (ALL.find((c) => c.id === id) ?? null) : null)
 export const evergreenOf = (door: ThemeId) => EVERGREEN[door]
@@ -174,7 +200,8 @@ export const STORY_ICONS: string[] = [
     ]
       .filter((x): x is string => !!x)
       .flatMap((p) => p.split('+'))
-      .filter((p) => !p.startsWith('@')),
+      // 故事自己畫的圖裡用到的圖示（@two-elephant 是兩隻大象）也要打包
+      .flatMap((p) => (p.startsWith('@') ? (artParts(p) ?? []) : [p])),
   ),
 ]
 

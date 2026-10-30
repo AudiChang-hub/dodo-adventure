@@ -1,6 +1,7 @@
 import { memo, useId, type ReactElement } from 'react'
 import { Emoji } from '../art/Emoji'
 import type { Pic } from '../content/story'
+import { TWO } from '../content/story/art'
 
 // 故事的畫面（content/story 的 Pic）：Fluent Emoji，或 @ 開頭的故事自己的圖；用 + 疊兩張（第二張小小的靠在右下角）。
 // 畫風跟 art/Egg.tsx 一樣：紙色、淡墨線、低彩度；靜止不動（畫面靜止時不留循環動畫，MOTION-2）。
@@ -76,13 +77,90 @@ function EggNest() {
   )
 }
 
+const WOOD = '#C9A57E'
+const WOOD_DEEP = '#A8875A'
+
+/** 方舟：木頭的大船（一條一條的木板），上面一間有屋頂的小屋，兩扇窗。沒有人、沒有宗教符號（故事世界 §5.1） */
+function ArkSvg() {
+  const s = { stroke: INK, strokeOpacity: 0.55, strokeWidth: 4, strokeLinejoin: 'round' as const }
+  return (
+    <svg viewBox="0 0 200 200" width="100%" height="100%" style={{ display: 'block', overflow: 'visible' }} aria-hidden="true">
+      <ellipse cx={100} cy={176} rx={84} ry={8} fill="rgba(46,42,37,.1)" />
+      {/* 小屋 */}
+      <path d="M58 104 V70 H142 V104 Z" fill="#EFDDBF" {...s} />
+      <path d="M48 74 L100 40 L152 74 Z" fill="#B98A64" {...s} />
+      <rect x={70} y={80} width={20} height={16} rx={4} fill="#FBF4E6" {...s} strokeWidth={3} />
+      <rect x={110} y={80} width={20} height={16} rx={4} fill="#FBF4E6" {...s} strokeWidth={3} />
+      {/* 船身 */}
+      <path d="M14 104 H186 Q176 162 136 168 H64 Q24 162 14 104 Z" fill={WOOD} {...s} />
+      <path d="M20 124 H180 M30 146 H170" stroke={WOOD_DEEP} strokeWidth={3.5} strokeLinecap="round" fill="none" />
+      {[60, 100, 140].map((x) => (
+        <circle key={x} cx={x} cy={114} r={3.5} fill={WOOD_DEEP} />
+      ))}
+    </svg>
+  )
+}
+
+/** 方舟，長頸鹿從屋頂後面探出頭、大象從窗戶探出頭（大家在船裡暖暖的） */
+function ArkFull() {
+  return (
+    <div style={{ position: 'relative', width: '100%', aspectRatio: '1' }}>
+      <div style={{ position: 'absolute', left: '54%', top: '-4%', width: '40%' }}>
+        <Emoji name="giraffe" />
+      </div>
+      <div style={{ position: 'absolute', inset: 0 }}>
+        <ArkSvg />
+      </div>
+      <div style={{ position: 'absolute', left: '14%', top: '20%', width: '38%' }}>
+        <Emoji name="elephant" />
+      </div>
+    </div>
+  )
+}
+
+/** 兩隻一樣的動物面對面（第二隻左右翻過來、稍微疊在一起）：「兩隻兩隻」看得出是一對，每一隻也夠大 */
+function Two({ name }: { name: string }) {
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%', aspectRatio: '1' }}>
+      <div style={{ width: '60%', flex: 'none' }}>
+        <Emoji name={name} />
+      </div>
+      <div style={{ width: '60%', flex: 'none', marginLeft: '-16%', transform: 'scaleX(-1)' }}>
+        <Emoji name={name} />
+      </div>
+    </div>
+  )
+}
+
+/** 一對一對的動物：兩隻獅子、兩隻斑馬、兩隻烏龜（一排一對，數一數有幾對） */
+function Pairs() {
+  return (
+    <div style={{ display: 'grid', gridTemplateRows: 'repeat(3, 1fr)', width: '100%', aspectRatio: '1', alignItems: 'center' }}>
+      {['lion', 'zebra', 'turtle'].map((n) => (
+        <div key={n} style={{ display: 'flex', justifyContent: 'center' }}>
+          <div style={{ width: '34%' }}>
+            <Emoji name={n} />
+          </div>
+          <div style={{ width: '34%', marginLeft: '-4%', transform: 'scaleX(-1)' }}>
+            <Emoji name={n} />
+          </div>
+        </div>
+      ))}
+    </div>
+  )
+}
+
 const ART: Record<string, () => ReactElement> = {
   '@rainbow-egg': () => <RainbowEgg />,
   '@blanket': Blanket,
   '@egg-nest': EggNest,
+  '@ark': ArkSvg,
+  '@ark-full': ArkFull,
+  '@pairs': Pairs,
 }
 
 function One({ name }: { name: string }) {
+  if (name.startsWith(TWO)) return <Two name={name.slice(TWO.length)} />
   const A = ART[name]
   return A ? <A /> : <Emoji name={name} />
 }

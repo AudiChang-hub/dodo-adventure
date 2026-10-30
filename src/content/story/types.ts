@@ -152,7 +152,13 @@ export interface Classic {
   zh: string
   band: Band
   faith: Faith
+  /** 這一則給的年段（band）的那一版 */
   chapter: Chapter
+  /**
+   * 同一則的「長大版」（§5.4：中班段、大班段可以再講一次長大的版本，例如挪亞方舟到中班多了鴿子和綠葉子）。
+   * 播放時照孩子的年段挑：沒有那個年段的版本，就用比較小的年段裡最大的那一版
+   */
+  grown?: Partial<Record<Exclude<Band, 'small'>, Chapter>>
 }
 
 export const TRACK_IDS: readonly TrackId[] = ['lang', 'num', 'think', 'hand']

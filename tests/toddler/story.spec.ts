@@ -3,9 +3,9 @@ import { boot, homeButton, settle, snap, targets, voicesSince } from './lib/app'
 import { Toddler, hashSeed } from './lib/toddler'
 import { Checker, audit, pressBack, toddlerStep, waitLive } from './lib/flows'
 
-// 故事（G-8）的三歲模擬測試：魔法屋的開場、結尾，故事時間，我的故事書，魔法屋剖面圖，飛航模式玩完一章。
+// 故事（G-8）的三歲模擬測試：魔法屋的開場、結尾，故事時間（龜兔賽跑、挪亞方舟），我的故事書，魔法屋剖面圖，飛航模式玩完一章。
 // 三歲孩子會做的事：旁白還在念就一直點（搶著點）、亂點、走到一半想回家（返回）。
-// 故事要家長開「故事（試播）」才會播：每個測試都在設定裡打開，再把今天的冒險換成要測的那一章（2 站、選擇題，玩得完）。
+// 「故事（試播）」預設開啟；測試還是在設定裡明確打開，再把今天的冒險換成要測的那一章（2 站、選擇題，玩得完）。
 
 const BASE_SEED = Number(process.env.TODDLER_SEED || 20261029)
 const only = (process.env.TODDLER_GAMES ?? '').trim()
@@ -72,7 +72,7 @@ async function seedStory(page: Page, s: Seed) {
 const progress = (page: Page) =>
   page.evaluate(
     () =>
-      new Promise<{ row: { ref: string; done: boolean; kind: string } | null; story: { next: number; house: string[]; classicsDone: string[] } | null }>((res) => {
+      new Promise<{ row: { ref: string; done: boolean; kind: string; faith?: string } | null; story: { next: number; house: string[]; classicsDone: string[] } | null }>((res) => {
         const d = new Date()
         const date = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
         const rq = indexedDB.open('dodo-adventure')
@@ -232,32 +232,42 @@ test.describe('故事', () => {
     }
   })
 
-  test('故事時間：站比段落少、終點補講、回書房', async ({ page }, info) => {
-    test.skip(!want('story-classic'))
-    test.setTimeout(12 * 60_000)
-    const { k, c } = await setup(page, info, '故事時間')
-    try {
-      await seedStory(page, { chapter: 'classic-a01', theme: 'park', items: ITEMS })
-      k.behavior = '故事時間亂玩'
-      const live = await start(k)
-      c.outcome('出發 → 書房的開場', live === 'open', `到 ${live}`)
-      const t0 = await page.evaluate(() => performance.now())
-      const seen = await playUntil(k, c, hatched, 9 * 60_000)
-      const end = (await snap(page)).live
-      c.outcome('故事時間玩到孵蛋', hatched(end, seen), `經過 ${seen.join('、')}，停在 ${end}`)
-      if (!hatched(end, seen)) await c.once('classic-stuck', '卡死', '故事時間沒有走到孵蛋', `經過 ${seen.join('、')}，停在 ${end}`)
-      // 只排 2 站，故事有 5 段：第 3–5 段在終點講完（Turtle wins!），最後闔上書
-      const said = (await voicesSince(page, t0)).map((v) => v.text ?? '').join(' | ')
-      const told = /Turtle wins/.test(said) && /Close the old book/.test(said)
-      c.outcome('沒排到的段落在終點補講、最後闔上書', told, said.slice(-300))
-      if (!told) await c.once('classic-rest', '困惑', '故事時間只講了一半', said.slice(-400))
-      const p = await progress(page)
-      c.outcome('講過的經典記下來', !!p.story?.classicsDone.includes('A01'), JSON.stringify(p.story))
-      await c.flush()
-    } finally {
-      finish(k, c, '故事時間')
-    }
-  })
+  // 故事時間：龜兔賽跑（伊索）、挪亞方舟（聖經，faith: bible）。只排 2 站、故事有 5 段：第 3–5 段在終點講完，最後闔上書
+  const CLASSIC_RUNS = [
+    { name: '故事時間', want: 'story-classic', chapter: 'classic-a01', id: 'A01', theme: 'park', tail: /Turtle wins/, faith: undefined },
+    { name: '故事時間-挪亞方舟', want: 'story-noah', chapter: 'classic-b01', id: 'B01', theme: 'ocean', tail: /rainbow/, faith: 'bible' },
+  ]
+  for (const run of CLASSIC_RUNS)
+    test(`${run.name}：站比段落少、終點補講、回書房`, async ({ page }, info) => {
+      test.skip(!want(run.want))
+      test.setTimeout(12 * 60_000)
+      const { k, c } = await setup(page, info, run.name)
+      try {
+        await seedStory(page, { chapter: run.chapter, theme: run.theme, items: ITEMS })
+        k.behavior = '故事時間亂玩'
+        const live = await start(k)
+        c.outcome('出發 → 書房的開場', live === 'open', `到 ${live}`)
+        const t0 = await page.evaluate(() => performance.now())
+        const seen = await playUntil(k, c, hatched, 9 * 60_000)
+        const end = (await snap(page)).live
+        c.outcome('故事時間玩到孵蛋', hatched(end, seen), `經過 ${seen.join('、')}，停在 ${end}`)
+        if (!hatched(end, seen)) await c.once('classic-stuck', '卡死', '故事時間沒有走到孵蛋', `經過 ${seen.join('、')}，停在 ${end}`)
+        const said = (await voicesSince(page, t0)).map((v) => v.text ?? '').join(' | ')
+        const told = run.tail.test(said) && /Close the old book/.test(said)
+        c.outcome('沒排到的段落在終點補講、最後闔上書', told, said.slice(-300))
+        if (!told) await c.once('classic-rest', '困惑', '故事時間只講了一半', said.slice(-400))
+        // 宗教經典當故事講（故事世界 §5.1）：孩子端不說出處、沒有神和禱告
+        const preach = said.match(/\b(God|Lord|pray\w*|Bible|Jesus|Buddha|sin)\b/i)
+        c.outcome('孩子端沒有出處、神、禱告', !preach, preach?.[0] ?? '')
+        if (preach) await c.once('classic-preach', '困惑', '故事時間出現宗教字眼', preach[0])
+        const p = await progress(page)
+        c.outcome('講過的經典記下來', !!p.story?.classicsDone.includes(run.id), JSON.stringify(p.story))
+        c.outcome('章節紀錄的宗教標籤', p.row?.faith === run.faith, `faith=${p.row?.faith}`)
+        await c.flush()
+      } finally {
+        finish(k, c, run.name)
+      }
+    })
 
   test('一篇講完：魔法屋多一樣東西', async ({ page }, info) => {
     test.skip(!want('story-house'))
@@ -374,9 +384,9 @@ test.describe('故事', () => {
 test.describe('故事（離線）', () => {
   test.use({ serviceWorkers: 'allow' })
 
-  test('飛航模式下從頭玩完示範篇的一章', async ({ page, context }, info) => {
+  test('飛航模式下從頭玩完示範篇的一章和故事時間', async ({ page, context }, info) => {
     test.skip(!want('story-offline'))
-    test.setTimeout(15 * 60_000)
+    test.setTimeout(25 * 60_000)
     const { k, c } = await setup(page, info, '飛航模式')
     try {
       k.behavior = '等離線準備好'
@@ -414,6 +424,19 @@ test.describe('故事（離線）', () => {
       if (!hatched(end, seen)) await c.once('offline-stuck', '卡死', '離線時沒辦法玩完一章', `經過 ${seen.join('、')}，停在 ${end}`)
       const p = await progress(page)
       c.outcome('離線也記成講完', !!p.row?.done && p.story?.next === 1, JSON.stringify(p))
+
+      // 還是離線：故事時間（挪亞方舟）也從頭講完
+      k.behavior = '離線講故事時間'
+      await seedStory(page, { chapter: 'classic-b01', theme: 'ocean', items: ITEMS.map((i) => ({ ...i, done: false })), story: { ...p.story!, classicsDone: ['A01'] } })
+      const live2 = await start(k)
+      c.outcome('離線出發 → 書房的開場（挪亞方舟）', live2 === 'open', `到 ${live2}`)
+      const seen2 = await playUntil(k, c, hatched, 10 * 60_000)
+      const end2 = (await snap(page)).live
+      c.outcome('離線講完故事時間', hatched(end2, seen2) && seen2.includes('close'), `經過 ${seen2.join('、')}，停在 ${end2}`)
+      if (!hatched(end2, seen2)) await c.once('offline-classic-stuck', '卡死', '離線時沒辦法講完故事時間', `經過 ${seen2.join('、')}，停在 ${end2}`)
+      const p2 = await progress(page)
+      c.outcome('離線也記下講過的經典', !!p2.story?.classicsDone.includes('B01'), JSON.stringify(p2.story))
+
       const audio = failed.filter((u) => /\/audio\//.test(u))
       c.outcome('沒有抓不到的語音', audio.length === 0, audio.slice(0, 5).join(' '))
       if (audio.length) await c.once('offline-audio', '小問題', '離線時有語音抓不到', audio.slice(0, 8).join(' '))

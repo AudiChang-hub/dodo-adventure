@@ -1,6 +1,6 @@
 // 故事系統的執行期（docs/成長系統設計.md §3、§5.1）：
 // - 決定今天播哪一章：故事沒開（家長設定「故事（試播）」）→ 今天這扇門的通用章節，冒險和以前一模一樣；
-//   開了 → 長篇的下一章（指定今天走哪一扇門），每週一章故事時間（莫莫講經典）。
+//   開了 → 長篇的下一章（指定今天走哪一扇門），每週一章故事時間（莫莫講經典，照年段挑那一則的版本）。
 // - 記錄進度：每天一筆 chapters（id 是日期），念完結尾才算講完；kv.story 記長篇講到哪、講過哪些經典、魔法屋多了什麼。
 // - 依主線的旁白：每一站念哪一句由 content/story 的 scriptOf 照排課的主線挑。
 // - 依篇快取：今天這一章、這一篇剩下的章、下一篇的語音先補進快取（lib/audio-cache.ts 的 warmAudio），沒網路也講得完。
@@ -13,7 +13,7 @@ import { fnv1a } from './hash'
 import { warmAudio } from './audio-cache'
 import { clipName } from './clip'
 import { line, segments, hasLine } from '../content/lines'
-import { ARCS, CLASSICS, arcOf, arcsOfPart, chapterLines, chapterOf, evergreenOf, houseItem, scriptOf, type Arc, type Chapter, type Pic, type Script } from '../content/story'
+import { ARCS, CLASSICS, arcOf, arcsOfPart, chapterLines, chapterOf, classicDoneKey, classicFor, classicOfChapter, evergreenOf, houseItem, scriptOf, type Arc, type Chapter, type Pic, type Script } from '../content/story'
 import type { ThemeId } from '../content/themes'
 import type { Plan } from './plan'
 
@@ -24,6 +24,7 @@ export interface StoryState {
   /** 這一篇下一個要講的是第幾章（0 起算） */
   next: number
   choices: Record<string, string>
+  /** 講完的故事時間：本來那一版記編號（A01），長大版加年段（B01@middle，見 classicDoneKey） */
   classicsDone: string[]
   house: string[]
 }
@@ -73,6 +74,18 @@ function epicAt(st: StoryState): { arc: Arc; chapter: Chapter } | null {
 }
 
 /**
+ * 下一則要講的故事時間（照 CLASSICS 第一輪的順序、孩子的年段挑版本）；講過的不再講，長大之後可以講長大版。
+ * 都講過了回傳 null
+ */
+export function nextClassic(st: Pick<StoryState, 'classicsDone'>, band = getGrowth().band): Chapter | null {
+  for (const c of CLASSICS) {
+    const ch = classicFor(c, band)
+    if (!st.classicsDone.includes(classicDoneKey(c, ch))) return ch
+  }
+  return null
+}
+
+/**
  * 新排一天的冒險時，今天講哪一章（lib/plan.ts 排好站之後呼叫）。故事沒開回傳 null（冒險照舊用今天的門）。
  * 長篇的章指定今天走哪一扇門；故事時間沒有門（遊戲內容照今天挑到的主題）。
  */
@@ -80,8 +93,8 @@ export async function chapterForNewPlan(date: string): Promise<Chapter | null> {
   if (!storyOn()) return null
   const st = await storyState()
   if (weekday(date) >= CLASSIC_FROM_WEEKDAY || weekday(date) === 0) {
-    const c = CLASSICS.find((x) => !st.classicsDone.includes(x.id))
-    if (c && !(await classicThisWeek(date))) return c.chapter
+    const c = nextClassic(st)
+    if (c && !(await classicThisWeek(date))) return c
   }
   return epicAt(st)?.chapter ?? null
 }
@@ -171,8 +184,9 @@ async function finish(plan: Plan, s: Script): Promise<string | null> {
   const st = await storyState()
   let added: string | null = null
   if (ch.kind === 'classic') {
-    const c = CLASSICS.find((x) => x.chapter.id === ch.id)
-    if (c && !st.classicsDone.includes(c.id)) st.classicsDone = [...st.classicsDone, c.id]
+    const c = classicOfChapter(ch.id)
+    const k = c && classicDoneKey(c, ch)
+    if (k && !st.classicsDone.includes(k)) st.classicsDone = [...st.classicsDone, k]
   } else if (ch.kind === 'epic') {
     const arc = arcOf(ch.arc)
     if (arc && st.arc === arc.id && arc.chapters[st.next]?.id === ch.id) st.next++

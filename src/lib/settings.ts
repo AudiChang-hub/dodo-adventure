@@ -26,6 +26,8 @@ export interface Settings {
   /**
    * 設定改過預設值的版本。2：coloringHelp 預設從開改成關（2026-10-29），
    * 舊裝置存著的 true 是當時的預設、不是家長選的，讀進來時改成關一次；之後家長再打開就照家長的。
+   * 3：story 預設從關改成開（2026-10-30，家長確認故事世界的語氣）。版本 3 以前沒有正式版能在家長區選故事，
+   * 舊裝置存著的 false 只會是當時的預設，讀進來時改成開一次；之後家長在家長區關掉就照家長的。
    */
   defaultsV?: number
   /** 單字中文提示：教學卡教還沒學會的字時唸「Apple → 蘋果 → Apple」（lib/words.ts 的 bridgeLines）；關掉就全英文 */
@@ -34,7 +36,8 @@ export interface Settings {
   chosen?: BandSetting[]
   /**
    * 故事（G-8，試播）：開啟時每天的冒險是《彩虹蛋之旅》的一章（開場、結尾在魔法屋），每週一章故事時間。
-   * 故事的語氣還在等家長確認（docs/故事世界.md），所以預設關閉：關閉時冒險和以前一模一樣（12 扇魔法門的通用章節）。
+   * 家長 2026-10-30 確認故事世界的語氣，預設開啟。家長關掉時冒險和以前一模一樣（12 扇魔法門的通用章節）。
+   * 開關的時候今天的冒險還沒走就跟著換，已經走了一站就從明天開始（lib/plan.ts 的 withStory）。
    */
   story: boolean
 }
@@ -43,16 +46,20 @@ export interface Settings {
 export type BandSetting = 'dailyMinutes' | 'eyeBreakEvery'
 const BAND_SETTINGS: readonly BandSetting[] = ['dailyMinutes', 'eyeBreakEvery']
 
-const DEFAULTS_V = 2
-const DEFAULTS: Settings = { dailyMinutes: 20, freePlay: 'after', volume: 0.9, theme: 'all', activitiesPerDay: 4, eyeBreakEvery: 10, nightWarm: true, coloringHelp: false, zhBridge: true, story: false, defaultsV: DEFAULTS_V }
+const DEFAULTS_V = 3
+const DEFAULTS: Settings = { dailyMinutes: 20, freePlay: 'after', volume: 0.9, theme: 'all', activitiesPerDay: 4, eyeBreakEvery: 10, nightWarm: true, coloringHelp: false, zhBridge: true, story: true, defaultsV: DEFAULTS_V }
 
 let state: Settings = DEFAULTS
 const subs = new Set<() => void>()
 
 /** 舊版存下來的設定：改過預設值的欄位換成新的預設（見 Settings.defaultsV） */
 export function migrateSettings(saved: Partial<Settings>): { s: Partial<Settings>; changed: boolean } {
-  if ((saved.defaultsV ?? 1) >= DEFAULTS_V) return { s: saved, changed: false }
-  return { s: { ...saved, coloringHelp: false, defaultsV: DEFAULTS_V }, changed: Object.keys(saved).length > 0 }
+  const v = saved.defaultsV ?? 1
+  if (v >= DEFAULTS_V) return { s: saved, changed: false }
+  const s: Partial<Settings> = { ...saved, defaultsV: DEFAULTS_V }
+  if (v < 2) s.coloringHelp = false
+  if (v < 3) s.story = true
+  return { s, changed: Object.keys(saved).length > 0 }
 }
 
 export async function loadSettings() {
