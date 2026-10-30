@@ -9,7 +9,7 @@ import type { Cue } from './games'
 // （4–5 歲「問他為什麼」、5–6 歲「請他教你」），引擎不用改。
 const GAME_HINTS: Record<string, string> = {
   // 字母森林
-  'ph-start': '跟他一起把開頭的音拉長，念圖的名字，像 Sss… snake',
+  'ph-start': '跟他一起把開頭的音斷開唸三次，再念圖的名字，像 s, s, s… snake',
   'ph-same': '把兩張圖的名字都念一次，問他：開頭一樣嗎？',
   'ph-letter': '跟他一起念那個音，再問他：是哪個字母？',
   // 數字工地
