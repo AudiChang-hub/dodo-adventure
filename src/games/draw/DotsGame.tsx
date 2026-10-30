@@ -26,6 +26,8 @@ const HIT = 70
 /** 從上一個到達的點出發：按下去、或畫的時候經過離它這麼近，這一筆才開始算 */
 const ARM = 86
 const HOME_R = 44
+/** 沒連到點的那一筆：留多久才開始淡掉 */
+const KEEP_MS = 600
 const INK = '#2E2A25'
 const GREEN = '#6FAE86'
 const BUTTER = '#F1D27C'
@@ -197,7 +199,12 @@ export function DotsGame({ gameId, onDone, onExit }: GameProps) {
   /** 家跳一下（筆到家、最後一個數字連完、閉合） */
   const [hop, setHop] = useState(0)
   /** 閒置第二段提示：下一個點慢慢亮起來 */
-  const [nudge, setNudge] = useState(false)
+  const [again, setAgain] = useState<P | null>(null)
+  /**
+   * 示範、說明中：孩子畫不出線（準則 PHASE-2），下一個點也不發光（發光是「輪到你，點我」，V-29）。
+   * 說完「Your turn! Start at home!」才打開。
+   */
+  const [hold, setHold] = useState(true)
 
   const stepRef = useRef(0)
   const picRef = useRef(pic)
@@ -324,25 +331,47 @@ export function DotsGame({ gameId, onDone, onExit }: GameProps) {
     shown.current = show
     // 要示範的話，示範完才換孩子畫；不示範就邊聽邊可以開始
     busy.current = show
+    setHold(show)
+    setAgain(null)
     idle.stop()
-    setNudge(false)
     t0.current = performance.now()
-    if (i === 0) await say(def.intro)
+    // 要示範的回合：開場只說「Watch me!」就示範（showMe），「Start at home!」留到示範之後（準則 PHASE-3）
+    if (i === 0 && !show) await say(def.intro)
     if (!live.current) return
     if (show) {
       await showMe(p)
       if (!live.current) return
       t0.current = performance.now()
       busy.current = false
+      setHold(false)
     } else if (i > 0 && stepRef.current === 0) await say('d.dots.start')
     if (!live.current) return
     // 閒置：15 秒再提醒一次（還沒出發：開場那句；連到一半：「Where is three?」；數字連完：「Now, back home!」）
-    // → 再 15 秒下一個點慢慢亮起來 → 之後安靜
+    // → 再 15 秒筆從最後到達的點畫到下一個點（不出墨）→ 之後每 40 秒筆再安靜地示範一次
     const remind = () => {
       const s = stepRef.current
       return s === 0 ? def.intro : s === p.pts.length - 1 ? 'd.dots.gohome' : `d.dots.find.${s + 1}`
     }
-    if (picRef.current === p && stepRef.current < p.pts.length) idle.start({ repeat: () => void say(remind()), hint: () => setNudge(true) })
+    if (picRef.current === p && stepRef.current < p.pts.length) idle.start({ repeat: () => void say(remind()), hint: () => void showAgain(p) })
+  }
+
+  /** 閒置第二段：筆從最後到達的點慢慢走到下一個點（不出墨），再回到出發的點停著 */
+  const showAgain = async (p: DotsPic) => {
+    const s = stepRef.current
+    const L = p.pts.length
+    if (picRef.current !== p || s >= L) return
+    const [ax, ay] = p.pts[s % L]
+    const [bx, by] = p.pts[(s + 1) % L]
+    const same = () => live.current && picRef.current === p && stepRef.current === s
+    setAgain({ x: ax, y: ay })
+    await wait(400)
+    if (!same()) return setAgain(null)
+    await tween(1300, (f) => setAgain({ x: ax + (bx - ax) * f, y: ay + (by - ay) * f }), same, easeInOut)
+    if (!same()) return setAgain(null)
+    await wait(500)
+    if (!same()) return setAgain(null)
+    // 回到出發的點停著（靜態），孩子一動手就收起來
+    setAgain({ x: ax, y: ay })
   }
 
   useEffect(() => {
@@ -364,6 +393,8 @@ export function DotsGame({ gameId, onDone, onExit }: GameProps) {
   const finish = async () => {
     const p = picRef.current
     idle.stop()
+    // 圖連好了、在慶祝：畫不出線，碰到只出現「看這裡」的圈圈（不是畫了沒反應）；下一張圖開始時 start() 再打開
+    setHold(true)
     sfx.hatch()
     setReveal(true)
     setHop((h) => h + 1)
@@ -412,8 +443,9 @@ export function DotsGame({ gameId, onDone, onExit }: GameProps) {
     const s = stroke.current
     stroke.current = null
     if (!s) return
-    putInk((list) => list.map((g) => (g.id === s.id ? { ...g, fade: true } : g)))
-    window.setTimeout(() => putInk((list) => list.filter((g) => g.id !== s.id)), ms(FADE_OUT_S) + 80)
+    // 先留 0.6 秒讓孩子看到自己畫的線（不是畫了沒反應，B09），再慢慢淡掉
+    window.setTimeout(() => putInk((list) => list.map((g) => (g.id === s.id ? { ...g, fade: true } : g))), KEEP_MS)
+    window.setTimeout(() => putInk((list) => list.filter((g) => g.id !== s.id)), KEEP_MS + ms(FADE_OUT_S) + 80)
   }
 
   const connect = (n: number, pt: Pt) => {
@@ -422,7 +454,7 @@ export function DotsGame({ gameId, onDone, onExit }: GameProps) {
     const s = stroke.current
     stroke.current = null
     goStep(n)
-    setNudge(false)
+    setAgain(null)
     wrongSeen.current.clear()
     wrongHold.current = null
     if (n === L) return void finish()
@@ -440,6 +472,7 @@ export function DotsGame({ gameId, onDone, onExit }: GameProps) {
     pressed.current = { pen: type === 'pen' }
     if (busy.current || stepRef.current >= picRef.current.pts.length) return
     idle.poke()
+    setAgain(null)
     begin(pt, type === 'pen')
   }
 
@@ -506,7 +539,7 @@ export function DotsGame({ gameId, onDone, onExit }: GameProps) {
   const c = centroid(pic)
   const target = step < L ? (step + 1) % L : -1
   const home = pts[0]
-  const homeNext = target === 0 && !reveal
+  const homeNext = target === 0 && !reveal && !hold
   const startPt = pts[step % L]
   // 示範的圖擦掉時（erasing），點點和家同時淡回來、而且已經是「還沒連」的樣子：圖 → 點點只換一次，中間不會露出空白
   const back = reveal && !erasing
@@ -555,11 +588,10 @@ export function DotsGame({ gameId, onDone, onExit }: GameProps) {
             {pts.map(([x, y], i) => {
               if (i === 0) return null
               const isDone = i <= dotStep
-              const isNext = i === target && !reveal
+              const isNext = i === target && !reveal && !hold
               const lb = labelAt(pic, i)
               return (
                 <g key={i} data-dot={i}>
-                  {isNext && nudge && !pen && <circle className="nudge-path" cx={x} cy={y} r={78} fill={BUTTER} />}
                   {isNext && <motion.circle cx={x} cy={y} fill={GREEN} initial={{ r: 32, opacity: 0.4 }} animate={{ r: [32, 48, 32], opacity: [0.4, 0.14, 0.4] }} transition={breathe} />}
                   {isNext && flash?.i === i && (
                     <motion.circle key={`f${flash.k}`} cx={x} cy={y} fill="none" stroke={GREEN} strokeWidth={8} initial={{ r: 28, opacity: 0.9 }} animate={{ r: 74, opacity: 0 }} transition={{ duration: 0.9, ease: [0.22, 1, 0.36, 1] }} />
@@ -603,7 +635,6 @@ export function DotsGame({ gameId, onDone, onExit }: GameProps) {
             {homeNext && flash?.i === 0 && (
               <motion.circle key={`hf${flash.k}`} cx={home[0]} cy={home[1]} fill="none" stroke={BUTTER} strokeWidth={9} initial={{ r: HOME_R, opacity: 0.95 }} animate={{ r: HOME_R + 44, opacity: 0 }} transition={{ duration: 0.9, ease: [0.22, 1, 0.36, 1] }} />
             )}
-            {homeNext && nudge && !pen && <circle className="nudge-path" cx={home[0]} cy={home[1]} r={HOME_R + 40} fill={BUTTER} />}
             <g transform={`translate(${home[0]} ${home[1]})`}>
               <motion.g key={hop} initial={{ y: 0, scale: 1 }} animate={hop ? { y: [0, -16, 0, -5, 0], scale: [1, 1.08, 0.97, 1.02, 1] } : {}} transition={{ duration: 0.75, ease: 'easeOut' }}>
                 <circle r={HOME_R} fill={homeNext ? '#FFF3D2' : PAPER} stroke={INK} strokeWidth={5} />
@@ -617,6 +648,12 @@ export function DotsGame({ gameId, onDone, onExit }: GameProps) {
             <motion.circle key={`s${startPulse}`} cx={startPt[0]} cy={startPt[1]} fill="none" stroke={BUTTER} strokeWidth={9} initial={{ r: 30, opacity: 0.95 }} animate={{ r: 96, opacity: 0 }} transition={{ duration: 0.9, ease: easeOut }} />
           )}
 
+          {/* 閒置提示：筆從最後到達的點走到下一個點（不出墨），做完停在出發的點 */}
+          {again && !pen && (
+            <g data-demo-hand="" transform={`translate(${again.x} ${again.y})`} opacity={0.85}>
+              <PenArt scale={1.6} />
+            </g>
+          )}
           {pen && (
             <g transform={`translate(${pen.x} ${pen.y})`}>
               <motion.g initial={{ opacity: 0, scale: 0.6 }} animate={{ opacity: 1, scale: 1 }}>
@@ -630,7 +667,7 @@ export function DotsGame({ gameId, onDone, onExit }: GameProps) {
             <Sparkles count={16} />
           </div>
         )}
-        <Ink w={1000} h={600} ink={false} onDown={down} onMove={move} onUp={up} />
+        <Ink w={1000} h={600} ink={false} disabled={hold} onDown={down} onMove={move} onUp={up} />
         </>
       </Swap>
     </Shell>

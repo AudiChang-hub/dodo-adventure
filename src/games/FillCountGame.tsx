@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type PointerEvent as RPointerEvent } from 
 import { AnimatePresence, motion } from 'motion/react'
 import { Shell, type GameProps } from './Shell'
 import { Hand } from './Demo'
+import { WaitShield, firstFinger } from './NotYet'
 import { Emoji } from '../art/Emoji'
 import { Sparkles } from '../ui/Sparkles'
 import { game as gameDef, station as stationDef } from '../content/games'
@@ -72,6 +73,10 @@ export function FillCountGame({ gameId, onDone, onExit }: GameProps) {
   const [mood, setMood] = useState<Mood>('idle')
   const [finger, setFinger] = useState<{ x: number; y: number; tap: number } | null>(null)
   const [party, setParty] = useState(0)
+  /** 示範、說明、念題目中：學習單上蓋透明擋板，點了只出現「看這裡」的圈圈（準則 PHASE-2、PHASE-3） */
+  const [hold, setHold] = useState(true)
+  /** 閒置提示的手（不是示範）：孩子一動手就收起來 */
+  const againHand = useRef(false)
 
   const live = useRef(true)
   const locked = useRef(true)
@@ -141,10 +146,41 @@ export function FillCountGame({ gameId, onDone, onExit }: GameProps) {
     setOrderBoth([])
     void logTeach({ station: 'math', game: def.id, itemId: String(k), skill: `fill:${k}`, level: lv.current, ms: Math.round(performance.now() - s) })
     setMood('idle')
-    await say('teach.turn.bobo')
   }
 
-  const ask = async (k: number, ph: Phase, afterGuide: boolean) => {
+  /** 閒置第二段、點恐龍：手從下一個東西移到下一個空格點一下（不會真的塗），或在「好了」上點一下；之後停在那裡 */
+  const showAgain = async () => {
+    if (locked.current || paint.current) return
+    const k = nRef.current
+    const c = orderRef.current.length
+    if (phaseRef.current === 'quiz') hintUsed.current = true
+    againHand.current = true
+    const my = step.current
+    const ok = () => live.current && againHand.current && step.current === my
+    if (c === k) {
+      setFinger((f) => ({ x: DONE.x, y: DONE.y, tap: f?.tap ?? 0 }))
+      await wait(520)
+      if (ok()) setFinger((f) => f && { ...f, tap: f.tap + 1 })
+      return
+    }
+    if (c > k) return setGlow('extra')
+    const objs = objsOf(k)
+    const cs = cellsOf(cellsRef.current)
+    const cell = cs.findIndex((_, i) => !orderRef.current.includes(i))
+    setFinger((f) => ({ x: objs[c].x, y: objs[c].y, tap: f?.tap ?? 0 }))
+    await wait(700)
+    if (!ok() || cell < 0) return
+    setFinger((f) => ({ x: cs[cell].x, y: cs[cell].y, tap: f?.tap ?? 0 }))
+    await wait(520)
+    if (ok()) setFinger((f) => f && { ...f, tap: f.tap + 1 })
+  }
+  const dropAgain = () => {
+    if (!againHand.current) return
+    againHand.current = false
+    setFinger(null)
+  }
+
+  const ask = async (_k: number, ph: Phase, afterGuide: boolean) => {
     phaseRef.current = ph
     setPhase(ph)
     setOrderBoth([])
@@ -154,20 +190,18 @@ export function FillCountGame({ gameId, onDone, onExit }: GameProps) {
     wrongs.current = { few: 0, many: 0 }
     hintUsed.current = false
     setMood(ph === 'guided' ? 'happy' : 'idle')
-    locked.current = false
-    t0.current = performance.now()
+    locked.current = true
+    setHold(true)
     const done = ph === 'guided' ? new Promise<void>((res) => (resolver.current = res)) : null
     const my = ++step.current
+    // 題目念完才收（準則 PHASE-3、V-12）
     await say(...(afterGuide ? ['teach.turn.bobo'] : []), 'ws.fill.ask')
-    if (live.current && step.current === my)
-      idle.start({
-        repeat: () => void say('ws.fill.ask'),
-        hint: () => {
-          if (ph === 'quiz') hintUsed.current = true
-          const c = orderRef.current.length
-          setGlow(c < k ? 'next' : c > k ? 'extra' : 'done')
-        },
-      })
+    if (!live.current || step.current !== my) return
+    locked.current = false
+    setHold(false)
+    t0.current = performance.now()
+    // 閒置：15 秒再問一次 → 再 15 秒手示範下一格怎麼塗 → 之後每 40 秒手再安靜地示範一次
+    idle.start({ repeat: () => void say('ws.fill.ask'), hint: () => void showAgain() })
     if (done) await done
   }
 
@@ -188,8 +222,10 @@ export function FillCountGame({ gameId, onDone, onExit }: GameProps) {
     setMood('idle')
     idle.stop()
     locked.current = true
+    setHold(true)
     preload(['ws.fill.ask', 'ws.fill.more', 'ws.fill.toomany', `teach.total.${k}`])
-    if (i === 0) await say(def.intro)
+    // 要示範的回合：開場只說「Watch me!」就示範，指令留到示範之後（ask 念的「Color the boxes!」）
+    if (i === 0 && !fresh) await say(def.intro)
     if (!live.current) return
     const walk = !fresh && firstPlay.current && i === 0
     if (fresh) {
@@ -278,6 +314,7 @@ export function FillCountGame({ gameId, onDone, onExit }: GameProps) {
   const check = async () => {
     if (locked.current) return
     idle.poke()
+    dropAgain()
     const k = nRef.current
     const c = orderRef.current.length
     if (c === 0) return void say('ws.fill.ask')
@@ -305,6 +342,7 @@ export function FillCountGame({ gameId, onDone, onExit }: GameProps) {
       setScaffold(true)
       await say(`teach.total.${k}`)
     }
+    if (!live.current) return
     locked.current = false
     idle.poke()
   }
@@ -339,10 +377,12 @@ export function FillCountGame({ gameId, onDone, onExit }: GameProps) {
     } else sfx.pop()
   }
   const down = (e: RPointerEvent) => {
-    if (locked.current || paint.current) return
+    // 兩根手指、手掌：只算第一根手指（準則 TOUCH-3）
+    if (locked.current || paint.current || !firstFinger(e.nativeEvent)) return
     const i = cellAt(e)
     if (i < 0) return
     idle.poke()
+    dropAgain()
     try {
       ;(e.currentTarget as Element).setPointerCapture(e.pointerId)
     } catch {
@@ -369,9 +409,12 @@ export function FillCountGame({ gameId, onDone, onExit }: GameProps) {
   const nextObj = (glow === 'next' || (phase === 'guided' && !finger)) && filled < n ? filled : -1
   const nextCell = nextObj >= 0 ? cs.findIndex((_, i) => !order.includes(i)) : -1
   return (
-    <Shell station="math" mood={mood} progress={{ total: ROUNDS, done: r }} onExit={onExit} onHost={() => {
+    <Shell station="math" mood={mood} progress={{ total: ROUNDS, done: r }} onExit={onExit} demo={hold && !!finger && !againHand.current} onHost={() => {
+        if (locked.current) return
         idle.poke()
+        // 點恐龍：再問一次，手再示範一次下一格怎麼塗
         void say('ws.fill.ask')
+        void showAgain()
       }}>
       {/* 換一回合：新的學習單蓋在舊的上面淡入，舊的（答對的樣子）等一下才淡掉，不會一下子變空（ui/Scenes.tsx 的 Swap） */}
       <Swap id={r} className="sheet-area">
@@ -436,6 +479,7 @@ export function FillCountGame({ gameId, onDone, onExit }: GameProps) {
             </div>
           )}
           <AnimatePresence>{finger && <Hand key="finger" x={(finger.x / 1000) * 100 + 0.8} y={(finger.y / 600) * 100 + 2} tap={finger.tap} size="9cqmin" cuff="#F0B088" />}</AnimatePresence>
+          <WaitShield on={hold} />
         </div>
       </Swap>
     </Shell>

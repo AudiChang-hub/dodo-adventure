@@ -1,5 +1,7 @@
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 'react'
 import { PenArt } from '../Demo'
+import { localPoint, useNotYet } from '../NotYet'
+import { useAdopt } from './adopt'
 import './ink.css'
 import { getStroke } from 'perfect-freehand'
 
@@ -17,6 +19,8 @@ export interface Stroke {
 
 export interface InkHandle {
   clear: () => void
+  /** 最後一筆在 delay 毫秒後慢慢淡掉、拿掉（例如運筆小路裡沒有推動車子、畫在路外面的線） */
+  fadeLast: (delay?: number) => void
   strokes: () => Stroke[]
   snapshot: (bg?: string, maxW?: number) => string
 }
@@ -29,6 +33,13 @@ interface Props {
   size?: number
   /** false 時只回報座標、不留下筆跡 */
   ink?: boolean
+  /**
+   * 示範、說明中（準則 PHASE-2）：孩子的手指和筆完全不出墨、不回報座標（遊戲收不到 onDown／onMove），
+   * 只在碰到的地方出現「看這裡」的圈圈。畫到一半變成 disabled，那一筆直接丟掉。
+   */
+  disabled?: boolean
+  /** disabled 時被擋下的觸碰（遊戲可以讓示範的手、起點亮一下） */
+  onBlocked?: (p: Pt) => void
   /** 第二個參數是 pointerType（'pen' | 'touch' | 'mouse'），遊戲可以用來判斷孩子用的是手指還是筆 */
   onDown?: (p: Pt, type: string) => void
   onMove?: (p: Pt) => void
@@ -66,7 +77,7 @@ function toPath(outline: number[][]): Path2D {
   return p
 }
 
-export const Ink = forwardRef<InkHandle, Props>(function Ink({ w, h, color = '#2E2A25', size = 14, ink = true, onDown, onMove, onUp }, ref) {
+export const Ink = forwardRef<InkHandle, Props>(function Ink({ w, h, color = '#2E2A25', size = 14, ink = true, disabled = false, onBlocked, onDown, onMove, onUp }, ref) {
   const base = useRef<HTMLCanvasElement>(null)
   const live = useRef<HTMLCanvasElement>(null)
   const strokes = useRef<Stroke[]>([])
@@ -78,13 +89,15 @@ export const Ink = forwardRef<InkHandle, Props>(function Ink({ w, h, color = '#2
   const [ghost, setGhost] = useState<{ x: number; y: number; n: number } | null>(null)
   const ghostTimer = useRef(0)
   useEffect(() => () => clearTimeout(ghostTimer.current), [])
-  const props = useRef({ color, size, ink, onDown, onMove, onUp })
-  props.current = { color, size, ink, onDown, onMove, onUp }
+  const props = useRef({ color, size, ink, disabled, onBlocked, onDown, onMove, onUp })
+  props.current = { color, size, ink, disabled, onBlocked, onDown, onMove, onUp }
+  const notYet = useNotYet()
 
   const draw = (ctx: CanvasRenderingContext2D, s: Stroke, last: boolean) => {
     const out = getStroke(
       s.pts.map((p) => [p.x, p.y, p.p]),
-      { size: s.size, thinning: isPen.current ? 0.55 : 0.25, smoothing: 0.55, streamline: 0.45, simulatePressure: !isPen.current, last },
+      // 手指的線要緊跟著手（T-51：streamline 0.45 時快速轉彎會被抄近路，線不在手指走過的地方）；筆維持比較平順
+      { size: s.size, thinning: isPen.current ? 0.55 : 0.25, smoothing: 0.55, streamline: isPen.current ? 0.45 : 0.15, simulatePressure: !isPen.current, last },
     )
     ctx.fillStyle = s.color
     ctx.fill(toPath(out))
@@ -128,11 +141,45 @@ export const Ink = forwardRef<InkHandle, Props>(function Ink({ w, h, color = '#2
     ctx.restore()
   }
 
+  const fadeTimers = useRef<number[]>([])
+  useEffect(() => () => fadeTimers.current.forEach(clearTimeout), [])
+  const redrawBase = (fading?: Stroke, alpha = 1) => {
+    const c = base.current
+    if (!c) return
+    clearCanvas(c)
+    const ctx = c.getContext('2d')!
+    for (const s of strokes.current) {
+      ctx.globalAlpha = s === fading ? alpha : 1
+      draw(ctx, s, true)
+    }
+    ctx.globalAlpha = 1
+  }
+
   useImperativeHandle(ref, () => ({
     clear: () => {
       strokes.current = []
       clearCanvas(base.current)
       clearCanvas(live.current)
+    },
+    fadeLast: (delay = 700) => {
+      const s = strokes.current[strokes.current.length - 1]
+      if (!s) return
+      fadeTimers.current.push(
+        window.setTimeout(() => {
+          const t0 = performance.now()
+          const step = (now: number) => {
+            if (!strokes.current.includes(s)) return
+            const f = Math.min(1, (now - t0) / 450)
+            if (f >= 1) {
+              strokes.current = strokes.current.filter((x) => x !== s)
+              return redrawBase()
+            }
+            redrawBase(s, 1 - f)
+            requestAnimationFrame(step)
+          }
+          requestAnimationFrame(step)
+        }, delay),
+      )
     },
     strokes: () => strokes.current,
     snapshot: (bg = '#FBF8F2', maxW = 480) => {
@@ -149,7 +196,7 @@ export const Ink = forwardRef<InkHandle, Props>(function Ink({ w, h, color = '#2
     },
   }))
 
-  const toPt = (e: PointerEvent | React.PointerEvent): Pt => {
+  const toPt = (e: PointerEvent): Pt => {
     const c = live.current!
     const r = c.getBoundingClientRect()
     const g = geo.current
@@ -169,12 +216,28 @@ export const Ink = forwardRef<InkHandle, Props>(function Ink({ w, h, color = '#2
     if (props.current.ink) draw(c.getContext('2d')!, cur.current, last)
   }
 
-  const down = (e: React.PointerEvent) => {
+  /** 示範中變成 disabled：畫到一半的那一筆直接丟掉（不留墨、遊戲也不會收到 onUp） */
+  useEffect(() => {
+    if (!disabled || active.current === null) return
+    active.current = null
+    cur.current = null
+    clearCanvas(live.current)
+  }, [disabled])
+
+  /** captured：這一筆是從畫布上下筆的（拿得到 pointer capture）；從畫布外滑進來的那一筆沒有 */
+  const down = (e: PointerEvent, captured: boolean) => {
+    if (props.current.disabled) {
+      if (!e.isPrimary && e.pointerType === 'touch') return
+      const c = live.current!
+      const lp = localPoint(c, e.clientX, e.clientY)
+      notYet.ping(lp.x, lp.y)
+      props.current.onBlocked?.(toPt(e))
+      return
+    }
     if (e.pointerType === 'touch' && penNearby() && active.current === null) {
       const c = live.current!
-      const r = c.getBoundingClientRect()
-      const k = c.offsetWidth ? r.width / c.offsetWidth : 1
-      setGhost((g) => ({ x: (e.clientX - r.left) / k, y: (e.clientY - r.top) / k, n: (g?.n ?? 0) + 1 }))
+      const lp = localPoint(c, e.clientX, e.clientY)
+      setGhost((g) => ({ ...lp, n: (g?.n ?? 0) + 1 }))
       clearTimeout(ghostTimer.current)
       ghostTimer.current = window.setTimeout(() => setGhost(null), 900)
       return
@@ -188,21 +251,22 @@ export const Ink = forwardRef<InkHandle, Props>(function Ink({ w, h, color = '#2
     if (active.current !== null) return
     active.current = e.pointerId
     isPen.current = e.pointerType === 'pen'
-    try {
-      ;(e.target as Element).setPointerCapture(e.pointerId)
-    } catch {
-      /* 指標已經消失時拿不到 capture，照樣可以畫 */
-    }
+    if (captured)
+      try {
+        live.current!.setPointerCapture(e.pointerId)
+      } catch {
+        /* 指標已經消失時拿不到 capture，照樣可以畫 */
+      }
     const p = toPt(e)
     cur.current = { color: props.current.color, size: props.current.size, pts: [p] }
     redrawLive()
     props.current.onDown?.(p, e.pointerType)
   }
 
-  const move = (e: React.PointerEvent) => {
+  const move = (e: PointerEvent) => {
     if (e.pointerId !== active.current || !cur.current) return
-    const evs = e.nativeEvent.getCoalescedEvents?.() ?? [e.nativeEvent]
-    for (const ev of evs.length ? evs : [e.nativeEvent]) {
+    const evs = e.getCoalescedEvents?.() ?? [e]
+    for (const ev of evs.length ? evs : [e]) {
       const p = toPt(ev)
       cur.current.pts.push(p)
       props.current.onMove?.(p)
@@ -210,7 +274,7 @@ export const Ink = forwardRef<InkHandle, Props>(function Ink({ w, h, color = '#2
     redrawLive()
   }
 
-  const up = (e: React.PointerEvent) => {
+  const up = (e: PointerEvent) => {
     if (e.pointerId !== active.current) return
     active.current = null
     if (cur.current && props.current.ink && cur.current.pts.length) {
@@ -222,11 +286,28 @@ export const Ink = forwardRef<InkHandle, Props>(function Ink({ w, h, color = '#2
     props.current.onUp?.()
   }
 
+  // 從畫布外面下筆、滑進畫布的那一筆也要出墨（三歲模擬測試 B09：孩子常從畫紙邊緣外開始畫）
+  useAdopt(live, {
+    can: (e) => active.current === null && !props.current.disabled && !(e.pointerType === 'touch' && penNearby()),
+    down: (e) => down(e, false),
+    move,
+    up,
+  })
+
   const style = { position: 'absolute', inset: 0, width: '100%', height: '100%' } as const
   return (
     <>
       <canvas ref={base} style={{ ...style, pointerEvents: 'none' }} />
-      <canvas ref={live} style={{ ...style, touchAction: 'none' }} onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerCancel={up} />
+      <canvas
+        ref={live}
+        data-accepting={disabled ? 'false' : 'true'}
+        style={{ ...style, touchAction: 'none' }}
+        onPointerDown={(e) => down(e.nativeEvent, true)}
+        onPointerMove={(e) => move(e.nativeEvent)}
+        onPointerUp={(e) => up(e.nativeEvent)}
+        onPointerCancel={(e) => up(e.nativeEvent)}
+      />
+      {notYet.view}
       {ghost && (
         <svg key={ghost.n} className="ink-ghost" style={{ left: ghost.x, top: ghost.y }} viewBox="-20 -90 80 100" aria-hidden="true">
           <PenArt scale={0.9} />

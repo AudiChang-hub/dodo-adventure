@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { motion } from 'motion/react'
 import { Shell, type GameProps } from '../Shell'
-import { Ink } from './Ink'
+import { Ink, type InkHandle } from './Ink'
 import { PathTracker, samplePath } from './track'
 import { GLYPHS, GLYPH_LEVELS } from './glyphs'
 import { HandArt, PenArt, easeInOut, tween } from '../Demo'
@@ -80,8 +80,13 @@ export function GlyphGame({ gameId, onDone, onExit }: GameProps) {
   const demos = useRef(0)
   const firstPlay = useRef(plays(def.id) === 0)
   const idle = useIdle()
-  /** 閒置第二段提示：現在這一筆慢慢亮起來 */
-  const [nudge, setNudge] = useState(false)
+  /** 示範、說明中：孩子畫不出線（準則 PHASE-2；家長回報「還在說明時他就已經可以畫」） */
+  const [hold, setHold] = useState(true)
+  /** 閒置提示「手再描一次」：手在這一筆上的位置（取樣點），null 表示沒有 */
+  const [again, setAgain] = useState<number | null>(null)
+  const ink = useRef<InkHandle>(null)
+  /** 這一筆有沒有描到（沒有的話放開後淡掉：亂畫的線不會一直蓋在字上，準則 DRAW-3） */
+  const moved = useRef(false)
   /** 現在建議的工具，與示範時用手指還是筆 */
   const [tool, setTool] = useState<Tool>('finger')
   const toolRef = useRef<Tool | null>(null)
@@ -120,7 +125,22 @@ export function GlyphGame({ gameId, onDone, onExit }: GameProps) {
     setDemo(false)
     begin(g, 0)
     if (isNew) void logTeach({ station: 'draw', game: def.id, itemId: g, skill: `glyph:${g}`, level: lv.current, ms: Math.round(performance.now() - s) })
-    await say('teach.turn.dodo')
+    // 指令（從綠點開始、往這邊走）放在示範之後，說完「Your turn!」才開放（準則 PHASE-3）
+    await say(def.intro, 'teach.turn.dodo')
+  }
+
+  /** 閒置第二段：手（筆）沿著現在這一筆描一小段（不出墨），再回到起點停著 */
+  const showAgain = async () => {
+    const t = tracker.current
+    if (!t || t.done) return
+    const from = t.progress
+    const to = Math.min(t.samples.length - 1, from + Math.max(6, Math.round((t.samples.length - 1) * 0.4)))
+    const same = () => live.current && tracker.current === t
+    await tween(1500, (f) => setAgain(Math.round(from + (to - from) * f)), same, easeInOut)
+    if (!same()) return setAgain(null)
+    await wait(300)
+    if (same()) setAgain(t.progress)
+    else setAgain(null)
   }
 
   const start = async (i: number) => {
@@ -145,10 +165,12 @@ export function GlyphGame({ gameId, onDone, onExit }: GameProps) {
     const isNew = demos.current < MAX_DEMO && needsDemo(firstPlay.current && i === 0, `glyph:${g}`)
     const show = isNew || switched
     busy.current = show
+    setHold(show)
+    setAgain(null)
     idle.stop()
-    setNudge(false)
     t0.current = performance.now()
-    if (i === 0) await say(def.intro, nameLine(g))
+    // 要示範的回合：先念這個字、建議的工具，就直接示範；「Start at the green dot! Go this way!」留到示範之後
+    if (i === 0 && !show) await say(def.intro, nameLine(g))
     else await say(nameLine(g))
     if (!live.current) return
     if (switched) await say(toolLine(t))
@@ -158,9 +180,10 @@ export function GlyphGame({ gameId, onDone, onExit }: GameProps) {
       if (!live.current) return
       t0.current = performance.now()
       busy.current = false
+      setHold(false)
     }
-    // 閒置：15 秒再唸一次題目 → 再 15 秒現在這一筆慢慢亮起來 → 之後安靜
-    if (glyphRef.current === g && !busy.current) idle.start({ repeat: () => void say(def.intro), hint: () => setNudge(true) })
+    // 閒置：15 秒再唸一次題目 → 再 15 秒手再描一小段 → 之後每 40 秒手再安靜地描一次
+    if (glyphRef.current === g && !busy.current) idle.start({ repeat: () => void say(def.intro), hint: () => void showAgain() })
   }
 
   useEffect(() => {
@@ -190,6 +213,7 @@ export function GlyphGame({ gameId, onDone, onExit }: GameProps) {
     }
     setDone(true)
     busy.current = true
+    setHold(true)
     idle.stop()
     const off = devs.current.reduce((a, d) => a + d.offRatio, 0) / devs.current.length
     const good = off < 0.4
@@ -231,6 +255,8 @@ export function GlyphGame({ gameId, onDone, onExit }: GameProps) {
     }
     // 有畫線就重新計時
     idle.poke()
+    setAgain(null)
+    moved.current = false
     drawing.current = tracker.current.near(p)
   }
   const onMove = (p: { x: number; y: number }) => {
@@ -239,6 +265,7 @@ export function GlyphGame({ gameId, onDone, onExit }: GameProps) {
     idle.poke()
     if (!drawing.current) return
     if (t.feed(p)) {
+      moved.current = true
       setProg(t.progress)
       if (t.done) {
         drawing.current = false
@@ -266,7 +293,6 @@ export function GlyphGame({ gameId, onDone, onExit }: GameProps) {
           ))}
           {!done && (
             <>
-              {nudge && !demo && <path className="nudge-path" d={strokes[stroke]} fill="none" stroke="#F1D27C" strokeWidth={LANE} strokeLinecap="round" strokeLinejoin="round" />}
               <path d={strokes[stroke]} fill="none" stroke="#9FD0B3" strokeWidth={LANE} strokeLinecap="round" strokeLinejoin="round" pathLength={total} strokeDasharray={`${prog} ${total + 5}`} />
               <path d={strokes[stroke]} fill="none" stroke="#B9AE9C" strokeWidth={1.2} strokeDasharray="3 3" strokeLinecap="round" />
               <motion.circle cx={st.x} cy={st.y} r={6} fill="#6FAE86" animate={{ r: prog > 0 ? 4 : [5, 7.5, 5] }} transition={{ duration: 1.2, repeat: prog > 0 ? 0 : Infinity }} />
@@ -276,6 +302,18 @@ export function GlyphGame({ gameId, onDone, onExit }: GameProps) {
                 </g>
               )}
             </>
+          )}
+          {/* 閒置提示：手再描一小段，做完停在起點 */}
+          {again !== null && !demo && !done && samples[again] && (
+            <g data-demo-hand="" transform={`translate(${samples[again].x} ${samples[again].y})`} opacity={0.85}>
+              {tool === 'finger' ? (
+                <g transform="scale(0.32) translate(-22 -6)">
+                  <HandArt cuff="#BFB2DF" />
+                </g>
+              ) : (
+                <PenArt scale={0.3} />
+              )}
+            </g>
           )}
           {demo && (
             <g transform={`translate(${tip.x} ${tip.y})`}>
@@ -299,7 +337,20 @@ export function GlyphGame({ gameId, onDone, onExit }: GameProps) {
         )}
         {/* 建議工具的大圖示：一直留到這個字描完 */}
         {(!done || demo) && <ToolBadge tool={tool} pulse={pulse} />}
-        <Ink w={100} h={140} color="rgba(46,42,37,0.6)" size={3.2} ink={!demo} onDown={onDown} onMove={onMove} />
+        <Ink
+          ref={ink}
+          w={100}
+          h={140}
+          color="rgba(46,42,37,0.6)"
+          size={3.2}
+          disabled={hold}
+          onDown={onDown}
+          onMove={onMove}
+          onUp={() => {
+            if (!moved.current) ink.current?.fadeLast()
+            moved.current = false
+          }}
+        />
         </>
       </Swap>
     </Shell>

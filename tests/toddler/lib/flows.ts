@@ -279,6 +279,20 @@ const inkPts = (page: Page, pts: Pt[]) =>
           /* */
         }
       }
+      // 用 SVG 畫的孩子墨跡（連點成圖、圈圈看）：[data-ink="child"] 底下的線，看那一點附近有沒有被線蓋到
+      for (const el of document.querySelectorAll<SVGGraphicsElement>('[data-ink="child"]')) {
+        const paths = el instanceof SVGPathElement ? [el] : [...el.querySelectorAll('path')]
+        for (const path of paths) {
+          if (Number(getComputedStyle(path).opacity) < 0.05) continue
+          const m = path.getScreenCTM()
+          if (!m) continue
+          const inv = m.inverse()
+          for (const [dx, dy] of [[0, 0], [4, 0], [-4, 0], [0, 4], [0, -4]]) {
+            const q = new DOMPoint(p.x + dx, p.y + dy).matrixTransform(inv)
+            if (path.isPointInFill(q) || path.isPointInStroke(q)) total += 6
+          }
+        }
+      }
       return total
     })
   }, pts)
@@ -303,12 +317,17 @@ export async function drawAndMeasure(k: Toddler, pts: Pt[], cv: Target, opts: { 
   await k.drag(pts, { stepMs: opts.fast ? 4 : 14, label: '畫' })
   await k.wait(250)
   const after = await inkPts(page, probe)
-  const got = probe.filter((_, i) => after[i] > before[i] + 2).length
+  // 那一點原本就已經塗滿（前面畫過的線、示範留下的筆觸）：看不出有沒有新的墨，當作有（T-51：自由畫畫越畫越滿，舊的量法會越量越低）
+  const got = probe.filter((_, i) => after[i] > before[i] + 2 || (before[i] >= 60 && after[i] >= before[i])).length
   return { n: probe.length, got, ratio: probe.length ? got / probe.length : 1 }
 }
 
 /** 一個隨機的三歲動作 */
-export async function toddlerStep(k: Toddler, c: Checker, opts: { drawing?: boolean; free?: boolean } = {}) {
+/**
+ * fading：連點成圖這種「碰到還沒輪到的點，那一段先留 0.6 秒再淡掉」的遊戲（設計如此）。
+ * 一筆畫很久時前面幾段量的時候已經淡掉了，只有幾乎完全沒墨（< 15%）才算「畫了沒墨跡」。
+ */
+export async function toddlerStep(k: Toddler, c: Checker, opts: { drawing?: boolean; free?: boolean; fading?: boolean } = {}) {
   const page = k.page
   const ts = await targets(page)
   const btns = ts.filter((t) => t.kind === 'btn' || t.kind === 'svg')
@@ -320,8 +339,11 @@ export async function toddlerStep(k: Toddler, c: Checker, opts: { drawing?: bool
     const from = k.r.chance(0.3) ? 'outside' : 'inside'
     const s = await snap(page)
     const m = await drawAndMeasure(k, scribble(k, cv, page, from), cv, { fast: k.r.chance(0.5) })
+    // 畫到一半換了一題、開始示範（例如車子開到家、下一條路的「Watch me!」）：那一筆被丟掉是對的，不算
+    const s2 = await snap(page)
+    if (s2.teaching && !s.teaching) return
     if (!s.teaching && opts.free && m.n >= 4) c.rule('DRAW-1', m.ratio >= 0.9, `${from === 'outside' ? '從畫布外畫進來' : '亂畫'}：${m.n} 個檢查點有墨 ${m.got}（${Math.round(m.ratio * 100)}%）`)
-    if (!s.teaching && opts.drawing && m.n >= 4 && m.ratio < 0.5)
+    if (!s.teaching && opts.drawing && m.n >= 4 && m.ratio < (opts.fading ? 0.15 : 0.5))
       await c.once(`ink:${from}`, '困惑', `畫了卻只有 ${Math.round(m.ratio * 100)}% 的地方出現墨跡`, `${from === 'outside' ? '從畫布外畫進來' : '在畫布內亂畫'}，經過 ${m.n} 個檢查點只有 ${m.got} 個有墨（畫布 ${Math.round(cv.w)}×${Math.round(cv.h)}）`)
     return
   }
@@ -348,16 +370,37 @@ export async function toddlerStep(k: Toddler, c: Checker, opts: { drawing?: bool
   return k.wait(800 + k.r.int(2500), '發呆一下')
 }
 
+/** 畫布上的墨（每 8 px 取樣一次的不透明度總和）：點一下留下墨點也算有反應 */
+const inkSum = (page: Page) =>
+  page.evaluate(() => {
+    let sum = 0
+    for (const c of document.querySelectorAll('canvas')) {
+      if (!c.width || !c.height) continue
+      const ctx = c.getContext('2d', { willReadFrequently: true })
+      if (!ctx) continue
+      try {
+        const d = ctx.getImageData(0, 0, c.width, c.height).data
+        for (let i = 3; i < d.length; i += 32 * 4) sum += d[i]
+      } catch {
+        /* */
+      }
+    }
+    return sum
+  })
+/** 點了之後的反應：DOM 增減、class 變化（選蠟筆、按鈕亮起來）、語音、畫布上的墨 */
+const react = async (page: Page) => ({ ...(await snap(page)), resp: await page.evaluate(() => window.__toddler.resp), ink: await inkSum(page) })
+
 /** 能不能繼續：一段時間內畫面有變化、或點了東西之後有反應 */
 export async function alive(k: Toddler, c: Checker, ctx: string, budget = 45_000) {
   const page = k.page
-  const s0 = await snap(page)
+  const s0 = await react(page)
   const end = Date.now() + budget
   let last = s0
+  const moved = (a: typeof s0, b: typeof s0) => a.live !== s0.live || a.mut !== b.mut || a.voices !== b.voices || a.resp !== b.resp || a.ink !== b.ink
   while (Date.now() < end) {
     await k.wait(2000)
-    const s = await snap(page)
-    if (s.live !== s0.live || s.mut !== last.mut || s.voices !== last.voices) return true
+    const s = await react(page)
+    if (moved(s, last)) return true
     last = s
     const ts = (await targets(page)).filter((t) => t.kind !== 'canvas')
     if (ts.length) {
@@ -365,8 +408,8 @@ export async function alive(k: Toddler, c: Checker, ctx: string, budget = 45_000
       await k.tap({ x: t.x, y: t.y }, `試試看 ${t.label}`)
     } else await k.tap({ x: k.r.range(200, 1000), y: k.r.range(200, 700) }, '試試看（沒有可點的東西）')
     await k.wait(600)
-    const s2 = await snap(page)
-    if (s2.live !== s0.live || s2.mut !== last.mut || s2.voices !== last.voices) return true
+    const s2 = await react(page)
+    if (moved(s2, last)) return true
   }
   await c.once(`stuck:${ctx}`, '卡死', `${ctx}之後 ${Math.round(budget / 1000)} 秒畫面沒有任何變化`, `一直點畫面上的東西都沒有反應。畫面 ${s0.live}，教學狀態 ${s0.teaching}`)
   return false
@@ -430,11 +473,13 @@ export async function grabDuringTeach(k: Toddler, c: Checker, g: GameDef) {
   await k.wait(1500)
   const after = (await attempts(page)).filter((a) => !before.has(a.id))
   // 示範中點了之後 1.5 秒內出現的「自己答」（教學卡、筆的示範時連「一起練」也不該有）
+  // 每一筆紀錄算在它之前最後一下點擊的頭上：那一下是在示範、教學卡、念題目中（不是一起練時指著答案的手）就是誤記。
+  // （T-51：念題目中多了 'wait' 這個狀態；念完、手指著答案時再點下去的那一下記成一起練是對的，不能因為 1.5 秒內前一下是 'wait' 就算錯）
   const bad = after.filter((a) => {
-    const near = tapsAt.filter((x) => a.ts >= x.t && a.ts - x.t < 1500)
-    if (!near.length) return false
-    if (a.phase === 'quiz') return true
-    return a.phase === 'guided' && near.some((x) => x.kind !== 'hand')
+    const last = tapsAt.filter((x) => x.t <= a.ts).pop()
+    if (!last || a.ts - last.t >= 1500) return false
+    if (a.phase === 'quiz') return last.kind !== 'hand'
+    return a.phase === 'guided' && last.kind !== 'hand'
   })
   const quizBad = bad.filter((a) => a.phase === 'quiz')
   const guidedBad = bad.filter((a) => a.phase !== 'quiz')
@@ -538,7 +583,7 @@ export async function idle(k: Toddler, c: Checker, ms = 75_000) {
   c.rule('NAV-5', ok, ok ? '發呆後仍可繼續' : '發呆後卡住')
   c.outcome('發呆', ok && !rep.length, `${Math.round(ms / 1000)} 秒內說了 ${vs.length} 句${vs.length ? `（${vs.map((v) => `${v.t}s ${v.text ?? ''}`).join('／')}）` : '（完全沒有提示）'}；之後${ok ? '點了有反應' : '沒反應'}；狀態 ${s.teaching ?? s.phase ?? ''}`)
   // 看得到的提示：發光的答案、輕輕點的手
-  const glow = await k.page.evaluate(() => !!document.querySelector('.hint, .guide, .nudge, .glow, .demo-hand'))
+  const glow = await k.page.evaluate(() => !!document.querySelector('.hint, .guide, .nudge, .glow, .demo-hand, [data-demo-hand]'))
   if (!vs.length && (s.live ?? '').startsWith('play-') && !glow && !s.teaching)
     await c.once('idle-silent', '困惑', `發呆 ${Math.round(ms / 1000)} 秒完全沒有提示`, `畫面 ${s.live}：沒有語音、沒有發光或手的提示`)
   await c.flush()

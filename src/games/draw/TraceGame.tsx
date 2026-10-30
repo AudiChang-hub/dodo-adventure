@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { motion } from 'motion/react'
 import { Shell, type GameProps } from '../Shell'
-import { Ink } from './Ink'
+import { Ink, type InkHandle } from './Ink'
 import { PathTracker } from './track'
 import { PenArt, easeInOut, tween } from '../Demo'
 import { Ride } from '../../art/Ride'
@@ -34,9 +34,18 @@ const ROUNDS = 3
 /** 一局最多示範兩條新的路 */
 const MAX_DEMO = 2
 
+/** 示範開車的速度：每個取樣點幾毫秒（2026-10-29 放慢 1.5 倍，V-28：孩子剛進遊戲常常還在看別的地方） */
+const DEMO_MS_PER = 33
+/** 下筆不在車子附近：「Start at the car!」每條路最多說兩次 */
+const START_SAY_MAX = 2
+
 /**
  * 運筆小路：用筆帶豆豆的車沿著路開回家。
- * 新的路（或第一次玩）先「Watch me!」：一支筆推著車沿路開一次，再「Your turn!」。
+ * 新的路（或第一次玩）先「Watch me!」：一支筆推著車沿路慢慢開一次，示範走過的路留下一條淡淡的虛線當範本，
+ * 車子回到起點，接著才說指令和「Your turn!」（先示範、再叫孩子動手，準則 PHASE-3）。
+ * 示範和說明的時候畫不出線（Ink disabled），碰到的地方出現「看這裡」的圈圈。
+ * 從哪裡下筆都有回應：線一定跟著手；不是從車子出發的話，車子那裡亮一圈、豆豆說 Start at the car!，
+ * 畫的時候經過車子就接著開；沒推動車子的線一下子就淡掉，不會越畫越亂。
  */
 export function TraceGame({ gameId, onDone, onExit }: GameProps) {
   const def = gameDef(gameId)
@@ -45,6 +54,18 @@ export function TraceGame({ gameId, onDone, onExit }: GameProps) {
   const [prog, setProg] = useState(0)
   const [done, setDone] = useState(false)
   const [demo, setDemo] = useState(false)
+  /** 示範、說明中：孩子畫不出線（準則 PHASE-2） */
+  const [hold, setHold] = useState(true)
+  /** 示範走過的路：淡淡的虛線範本，留到這條路開完 */
+  const [template, setTemplate] = useState(false)
+  /** 下筆不在車子附近：車子那裡亮一圈（每次加一，重新播一次） */
+  const [startRing, setStartRing] = useState(0)
+  const startSaid = useRef(0)
+  /** 閒置提示「筆再示範一次」：筆在路上的位置（取樣點），null 表示沒有在示範 */
+  const [again, setAgain] = useState<number | null>(null)
+  const ink = useRef<InkHandle>(null)
+  /** 這一筆有沒有推動車子（沒有的話放開後淡掉） */
+  const moved = useRef(false)
   const tracker = useRef<PathTracker | null>(null)
   const drawing = useRef(false)
   const busy = useRef(true)
@@ -54,8 +75,6 @@ export function TraceGame({ gameId, onDone, onExit }: GameProps) {
   const first = useRef(0)
   const nudged = useRef(false)
   const idle = useIdle()
-  /** 閒置第二段提示：整條路慢慢亮起來 */
-  const [nudge, setNudge] = useState(false)
   const demos = useRef(0)
   const firstPlay = useRef(plays(def.id) === 0)
 
@@ -67,18 +86,39 @@ export function TraceGame({ gameId, onDone, onExit }: GameProps) {
     setDemo(true)
     await say('teach.watch.dodo')
     if (!live.current) return
-    await tween(Math.max(1800, total * 22), (f) => setProg(Math.round(f * total)), () => live.current, easeInOut)
+    // 先讓孩子看到筆在車子上，停一下再開
+    await wait(800)
+    if (!live.current) return
+    await tween(Math.max(2700, total * DEMO_MS_PER), (f) => setProg(Math.round(f * total)), () => live.current, easeInOut)
     if (!live.current) return
     sfx.tap()
-    await wait(380)
-    // 倒車回起點，換孩子開
-    await tween(520, (f) => setProg(Math.round((1 - f) * total)), () => live.current)
+    await wait(600)
     if (!live.current) return
+    // 不倒車：示範走過的路留成淡淡的虛線範本，車子回到起點等孩子
+    setTemplate(true)
     tracker.current = new PathTracker(ROADS[idx].d, 8, ROADS[idx].lane * 0.75)
     setProg(0)
     setDemo(false)
     void logTeach({ station: 'draw', game: def.id, itemId: `road-${idx + 1}`, skill: `trace:${idx + 1}`, level: lv.current, ms: Math.round(performance.now() - s) })
-    await say('teach.turn.dodo')
+    await wait(400)
+    if (!live.current) return
+    // 指令放在示範之後，說完「Your turn!」才開放（準則 PHASE-3）
+    await say(def.intro, 'teach.turn.dodo')
+  }
+
+  /** 閒置第二段：筆從車子出發、沿著路畫一小段（不出墨、車子不動），再回到車子上停著 */
+  const showAgain = async () => {
+    const t = tracker.current
+    if (!t || t.done) return
+    const from = t.progress
+    const to = Math.min(t.samples.length - 1, from + Math.max(8, Math.round((t.samples.length - 1) * 0.3)))
+    const same = () => live.current && tracker.current === t
+    await tween(1600, (f) => setAgain(Math.round(from + (to - from) * f)), same, easeInOut)
+    if (!same()) return setAgain(null)
+    await wait(300)
+    if (!same()) return setAgain(null)
+    // 回到車子上停著（靜態），孩子一動手就收起來
+    setAgain(t.progress)
   }
 
   const start = async (i: number) => {
@@ -93,20 +133,25 @@ export function TraceGame({ gameId, onDone, onExit }: GameProps) {
     // 要示範的話，示範完才讓孩子開；不示範就跟以前一樣，邊聽邊可以開始
     const show = demos.current < MAX_DEMO && needsDemo(firstPlay.current && i === 0, `trace:${idx + 1}`)
     busy.current = show
+    setHold(show)
+    setTemplate(false)
+    setAgain(null)
+    startSaid.current = 0
     idle.stop()
-    setNudge(false)
     nudged.current = false
     t0.current = performance.now()
-    if (i === 0) await say(def.intro)
+    // 要示範的回合：開場只說「Watch me!」就示範，指令留到示範之後（showMe）
+    if (i === 0 && !show) await say(def.intro)
     if (!live.current) return
     if (show) {
       await showMe(idx)
       if (!live.current) return
       t0.current = performance.now()
       busy.current = false
+      setHold(false)
     }
-    // 閒置：15 秒再唸一次題目 → 再 15 秒整條路慢慢亮起來 → 之後安靜
-    if (!tracker.current?.done) idle.start({ repeat: () => void say(def.intro), hint: () => setNudge(true) })
+    // 閒置：15 秒再唸一次題目 → 再 15 秒筆再示範一小段 → 之後每 40 秒筆再安靜地示範一次
+    if (!tracker.current?.done) idle.start({ repeat: () => void say(def.intro), hint: () => void showAgain() })
   }
 
   useEffect(() => {
@@ -160,18 +205,32 @@ export function TraceGame({ gameId, onDone, onExit }: GameProps) {
 
   const onDown = (p: { x: number; y: number }) => {
     const t = tracker.current
+    moved.current = false
     if (!t || done || busy.current) return
     // 有畫線就重新計時
     idle.poke()
+    setAgain(null)
     drawing.current = t.near(p)
-    if (drawing.current) sfx.tap()
+    if (drawing.current) return void sfx.tap()
+    // 不是從車子出發：線照樣跟著手，車子那裡亮一圈，告訴孩子從車子開始（每條路最多說兩次）
+    setStartRing((n) => n + 1)
+    if (startSaid.current < START_SAY_MAX) {
+      startSaid.current++
+      void say('d.trace.start')
+    }
   }
   const onMove = (p: { x: number; y: number }) => {
     const t = tracker.current
     if (!t || done || busy.current) return
     idle.poke()
-    if (!drawing.current) return
+    // 從別的地方下筆、畫著畫著經過車子：接著開
+    if (!drawing.current) {
+      if (!t.near(p)) return
+      drawing.current = true
+      sfx.tap()
+    }
     if (t.feed(p)) {
+      moved.current = true
       setProg(t.progress)
       if (t.done) {
         drawing.current = false
@@ -181,6 +240,9 @@ export function TraceGame({ gameId, onDone, onExit }: GameProps) {
   }
   const onUp = () => {
     drawing.current = false
+    // 沒推動車子的那一筆（畫在路外面、亂畫）：一下子就淡掉，畫面不會越畫越亂
+    if (!moved.current) ink.current?.fadeLast()
+    moved.current = false
     const t = tracker.current
     // 開到一半放開筆：每條路最多鼓勵一次「Keep going!」，不要一直講
     if (t && !t.done && !busy.current && t.progress > 0 && !nudged.current) {
@@ -203,9 +265,12 @@ export function TraceGame({ gameId, onDone, onExit }: GameProps) {
         <svg viewBox="0 0 1000 600" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%' }} aria-hidden="true">
           <path d={road.d} fill="none" stroke="#D9CFBE" strokeWidth={road.lane + 14} strokeLinecap="round" strokeLinejoin="round" />
           <path d={road.d} fill="none" stroke="#EFE8DA" strokeWidth={road.lane} strokeLinecap="round" strokeLinejoin="round" />
-          {nudge && !done && <path className="nudge-path" d={road.d} fill="none" stroke="#F1D27C" strokeWidth={road.lane} strokeLinecap="round" strokeLinejoin="round" />}
           <path d={road.d} fill="none" stroke="#C9E4D4" strokeWidth={road.lane} strokeLinecap="round" strokeLinejoin="round" pathLength={total} strokeDasharray={`${prog} ${total + 10}`} />
           <path d={road.d} fill="none" stroke="#FBF8F2" strokeWidth={6} strokeDasharray="22 22" strokeLinecap="round" />
+          {/* 示範走過的路：淡紫色虛線範本（準則 DRAW-7），跟孩子的灰色筆跡分得出來 */}
+          {template && !done && (
+            <motion.path d={road.d} fill="none" stroke="#8F7CC0" strokeWidth={10} strokeDasharray="4 22" strokeLinecap="round" initial={{ opacity: 0 }} animate={{ opacity: 0.45 }} transition={{ duration: 0.6 }} />
+          )}
           <foreignObject x={end.x - 70} y={road.home === 'below' ? end.y + 40 : end.y - 150} width={140} height={140}>
             <motion.div animate={done ? { scale: [1, 1.25, 1], rotate: [0, -6, 6, 0] } : {}} style={{ width: '100%', height: '100%', position: 'relative' }}>
               <Emoji name="house-with-garden" />
@@ -217,8 +282,21 @@ export function TraceGame({ gameId, onDone, onExit }: GameProps) {
               <Ride who="dodo" width={150} moving={prog > 0 && !done} mood={done ? 'cheer' : 'happy'} />
             </g>
           </g>
-          {prog === 0 && !demo && (
+          {/* 起點：輪到孩子才亮（示範、說明中不亮，準則 PHASE-3） */}
+          {prog === 0 && !hold && !done && (
             <motion.circle cx={s[0]?.x ?? 130} cy={s[0]?.y ?? 320} r={30} fill="none" stroke="#6FAE86" strokeWidth={8} animate={{ r: [26, 40, 26], opacity: [1, 0.4, 1] }} transition={{ duration: 1.4, repeat: Infinity }} />
+          )}
+          {/* 不是從車子出發：車子那裡亮一圈（只動一次） */}
+          {startRing > 0 && !done && !hold && (
+            <motion.circle key={startRing} cx={car.x} cy={car.y} fill="none" stroke="#F1D27C" strokeWidth={12} initial={{ r: 40, opacity: 1 }} animate={{ r: 120, opacity: 0 }} transition={{ duration: 1, ease: [0.22, 1, 0.36, 1] }} />
+          )}
+          {/* 閒置提示：筆再示範一小段（不出墨），做完停在車子上 */}
+          {again !== null && !demo && !done && s[again] && (
+            <g data-demo-hand="" transform={`translate(${s[again].x + 10} ${s[again].y + 6})`}>
+              <motion.g initial={{ opacity: 0 }} animate={{ opacity: 0.85 }}>
+                <PenArt scale={1.5} />
+              </motion.g>
+            </g>
           )}
           {demo && (
             <g transform={`translate(${car.x + 10} ${car.y + 6})`}>
@@ -228,7 +306,7 @@ export function TraceGame({ gameId, onDone, onExit }: GameProps) {
             </g>
           )}
         </svg>
-        <Ink w={1000} h={600} color="rgba(46,42,37,0.55)" size={16} ink={!demo} onDown={onDown} onMove={onMove} onUp={onUp} />
+        <Ink ref={ink} w={1000} h={600} color="rgba(46,42,37,0.55)" size={16} disabled={hold} onDown={onDown} onMove={onMove} onUp={onUp} />
         </>
       </Swap>
     </Shell>

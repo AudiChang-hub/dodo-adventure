@@ -1,5 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react'
 import { motion } from 'motion/react'
+import { WaitShield } from '../NotYet'
 import { Shell, type GameProps } from '../Shell'
 import { Sparkles } from '../../ui/Sparkles'
 import { Swap } from '../../ui/Scenes'
@@ -100,6 +101,8 @@ export function PatternGame({ gameId, onDone, onExit }: GameProps) {
   const [guideBox, setGuideBox] = useState<{ from: Box; to: Box } | null>(null)
   const [shake, setShake] = useState(0)
   const [nudge, setNudge] = useState<{ id: string; n: number } | null>(null)
+  /** 收不收作答（示範、念題目中不收）：給畫面用（變淡、擋板），流程判斷用 locked */
+  const [open, setOpen] = useState(false)
   const [burst, setBurst] = useState(0)
   const [mood, setMood] = useState<Mood>('idle')
   const [view, setView] = useState(0)
@@ -282,6 +285,7 @@ export function PatternGame({ gameId, onDone, onExit }: GameProps) {
     setStage('demo')
     setGuide(false)
     locked.current = true
+    setOpen(false)
     setMood('happy')
     const order = reorder(inf.opts, inf.ans.id)
     const t0 = performance.now()
@@ -325,6 +329,7 @@ export function PatternGame({ gameId, onDone, onExit }: GameProps) {
     setGuide(ph === 'guided')
     setLoopOff(false)
     locked.current = true
+    setOpen(false)
     acted.current = false
     taps.current = []
     wrongs.current = 0
@@ -333,24 +338,21 @@ export function PatternGame({ gameId, onDone, onExit }: GameProps) {
     setMood(ph === 'guided' ? 'happy' : 'idle')
     const order = reorder(inf.opts, inf.ans.id, o.prev)
     const done = new Promise<void>((res) => (answered.current = res))
-    // 開進來的時候就可以碰（從進遊戲到能作答不超過 3 秒），一邊說「Your turn!」
+    // 火車開進來、跑一次節奏、念完「What comes next?」才收作答（準則 PHASE-3、V-12：念題的時候亂點不算答錯）。
+    // 這段時間月台上的車廂淡一點，點了只出現「看這裡」的圈圈
     const lead = [...(o.intro ? [def.intro] : []), ...(o.afterGuide ? [`teach.turn.${host}`] : [])]
     const coming = arrive(inf, order)
     const talk = lead.length ? say(...lead) : Promise.resolve()
-    await wait(ARRIVE_MS * 0.6)
-    if (!ok()) return
-    locked.current = false
-    shownAt.current = performance.now()
     void (async () => {
       await Promise.all([coming, talk])
       if (!ok()) return
-      // 孩子已經先動手了：不再接著念題目，只開始閒置計時
-      if (!acted.current) {
-        await rhythm(true)
-        if (!ok()) return
-        if (!acted.current) await say('c.pat.what', ...(ph === 'guided' ? [`teach.here.${host}`] : []))
-        if (!ok()) return
-      }
+      await rhythm(true)
+      if (!ok()) return
+      await say('c.pat.what', ...(ph === 'guided' ? [`teach.here.${host}`] : []))
+      if (!ok()) return
+      locked.current = false
+      setOpen(true)
+      shownAt.current = performance.now()
       let asked = false
       ladder.start([
         // 5 秒：空位脈動得更明顯
@@ -642,11 +644,14 @@ export function PatternGame({ gameId, onDone, onExit }: GameProps) {
     void rhythm()
   }
 
+  // 點恐龍：節奏再跑一次、再問一次，然後手再示範一次（半透明的手把對的車廂拿過去、再拿回來，準則 PHASE-4）
   const onHost = () => {
-    if (locked.current || !infoRef.current) return
+    if (locked.current || !infoRef.current || busy.current || filledRef.current) return
     touched()
-    void rhythm().then((r) => {
-      if (r) void say('c.pat.what')
+    void rhythm().then(async (r) => {
+      if (!r) return
+      await say('c.pat.what')
+      if (live.current && !acted.current && !busy.current && !filledRef.current) void hintDemo()
     })
   }
 
@@ -656,7 +661,7 @@ export function PatternGame({ gameId, onDone, onExit }: GameProps) {
   const showLoop = guide && !!guideBox && !loopOff && !filled
   const enterX = root.current?.offsetWidth ?? 1400
   return (
-    <Shell station={def.station} mood={mood} progress={{ total: rounds, done: idx }} onExit={onExit} onHost={onHost}>
+    <Shell station={def.station} mood={mood} progress={{ total: rounds, done: idx }} onExit={onExit} onHost={onHost} demo={stage === 'demo'}>
       <div ref={root} className="pt" style={{ '--n': n } as CSSProperties}>
         {/* 鐵軌 */}
         <div className="pt-rails" aria-hidden="true" />
@@ -719,7 +724,8 @@ export function PatternGame({ gameId, onDone, onExit }: GameProps) {
                     animate={
                       nudge?.id === t.id
                         ? { x: [0, -8, 8, -4, 0], y: 0, opacity: 0.42, scale: 0.92 }
-                        : { x: 0, y: 0, opacity: wrong ? 0.42 : dim ? 0.4 : 1, scale: wrong || dim ? 0.92 : 1 }
+                        : // 示範、念題目中：還不能點，淡一點（準則 PHASE-1、V-13）
+                          { x: 0, y: 0, opacity: wrong ? 0.42 : dim ? 0.4 : !open ? 0.45 : 1, scale: wrong || dim ? 0.92 : 1 }
                     }
                     transition={{ type: 'spring', stiffness: 360, damping: 24, delay: quiet ? 0 : 0.06 * j, opacity: FADE }}
                     {...drag.bind(t.id)}
@@ -736,6 +742,7 @@ export function PatternGame({ gameId, onDone, onExit }: GameProps) {
         {showLoop && guideBox && <GuideLoop key={`${view}-${train?.n}`} from={guideBox.from} to={guideBox.to} />}
         <GhostView ghost={carry.ghost} render={(id) => <WagonArt v={patternTok(id)?.v} />} className="pt-ghost" onGrab={demoLive && stage !== 'demo' ? () => void grabDemo() : undefined} />
         <HandView hand={carry.hand} />
+        <WaitShield on={!open} z={40} />
         {/* 給自動測試看現在是哪一段、答案是哪一個（畫面上看不到） */}
         <span hidden data-stage={stage} data-ans={ansId} data-lv={itemLevel.current} data-kind={info?.it.skill} />
       </div>

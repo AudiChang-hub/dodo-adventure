@@ -1,12 +1,14 @@
 import { useEffect, useId, useMemo, useRef, useState, type CSSProperties } from 'react'
-import { AnimatePresence, motion, type TargetAndTransition } from 'motion/react'
+import { motion, type TargetAndTransition } from 'motion/react'
 import { Shell, type GameProps } from '../Shell'
 import { CheckButton } from './Palette'
 import { CrayonBox, CRAYONS, ERASER } from './CrayonBox'
 import { BG, CrayonStroke, RegionMap, clearCanvas, setupCanvas, type CrayonPt } from './crayon'
 import { PICTURES, type Picture } from './pictures'
 import { svgThumb, saveDrawing } from './save'
-import { HandArt, Hand, easeInOut, tween } from '../Demo'
+import { HandArt, easeInOut, tween } from '../Demo'
+import { localPoint, useNotYet } from '../NotYet'
+import { useAdopt } from './adopt'
 import { game as gameDef } from '../../content/games'
 import { markPlayed, pickPreferred, plays } from '../../lib/adaptive'
 import { themeNow } from '../../lib/theme-play'
@@ -21,10 +23,12 @@ const W = 1000
 const H = 600
 const PAPER = '#FBF8F2'
 const INK = '#2E2A25'
-/** 塗了線稿面積的這個比例以上，完成鍵才出現（再加上要按住 0.6 秒），畫到一半誤按也不會結束 */
+/** 孩子自己塗了線稿面積的這個比例以上（示範留下的不算），完成鍵才出現 */
 const READY = 0.15
 /** 筆離開螢幕後這段時間內的手指觸碰當成手掌，忽略 */
 const PALM_MS = 800
+/** 手指、筆剛離開畫紙這麼久以內點到完成鍵：當成畫畫的手順便碰到，不算（準則 DRAW-6） */
+const LIFT_MS = 500
 
 // 筆在附近嗎（接觸、懸停或剛離開）：用筆塗的時候，手掌碰到畫紙不會畫出一筆
 let penAt = -Infinity
@@ -68,10 +72,12 @@ interface StrokeLog {
 
 /**
  * 蠟筆著色：孩子用手指或筆在線稿上真的塗（不是點一下就填滿）。
- * - 預設「幫忙不塗出線」（家長區設定）：一筆被限制在下筆的那一塊，怎麼亂塗都好看；關掉就完全自由。
- * - 線稿的黑線永遠在最上層；右邊是 8 支蠟筆和橡皮擦。
- * - 沒有對錯。塗了夠多（READY）完成鍵才出現，而且要按住，畫到一半誤碰不會結束。
- * - 第一次玩先示範：手拿起一支蠟筆，在一塊區域裡來回塗（真的蠟筆筆觸），再換孩子。
+ * - 預設完全自由（準則 DRAW-1）：手畫到哪裡顏色就到哪裡，從畫紙外面畫進來也有顏色。
+ *   家長區可以打開「幫忙不塗出線」：一筆只塗在下筆的那一塊。
+ * - 線稿的黑線永遠在最上層；右邊是 6 支大蠟筆和橡皮擦（≥ 2 cm，準則 TOUCH-1）。
+ * - 沒有對錯。塗了夠多（READY）完成鍵才出現；點一下就完成，但手還在畫、或剛放開時不算（手掌誤碰）。
+ * - 第一次玩先示範：手拿起一支蠟筆，在一塊區域裡來回塗（真的蠟筆筆觸），示範塗的那一塊留在畫上（「我幫你塗了一點」），
+ *   示範完才說「Pick a crayon, and color it in! Your turn!」。示範中孩子塗不出顏色，碰到的地方出現「看這裡」的圈圈。
  * - 完成後圖活起來一下，存進作品集（縮圖是孩子塗的筆觸＋線稿）。
  * 主題式冒險塗主題的圖（公車旅行塗公車）。
  */
@@ -82,9 +88,16 @@ export function ColoringGame({ gameId, onDone, onExit }: GameProps) {
   const [tool, setTool] = useState<string>(CRAYONS[0].hex)
   const [ready, setReady] = useState(false)
   const [handOn, setHandOn] = useState(false)
-  const [demoFade, setDemoFade] = useState(false)
-  const [hint, setHint] = useState<{ x: number; y: number } | null>(null)
+  /** 正在示範（給三歲模擬測試的 data-demo）；閒置提示的手不算 */
+  const [showing, setShowing] = useState(false)
+  /** 示範、說明中：塗不出顏色、蠟筆也換不了（準則 PHASE-2） */
+  const [hold, setHold] = useState(true)
   const [alive, setAlive] = useState(false)
+  const notYet = useNotYet()
+  /** 示範留下的那一塊佔了多少（完成鍵只看孩子自己塗的） */
+  const demoCov = useRef(0)
+  /** 最後一次放開畫紙的時間：剛放開時點到完成鍵當成手掌誤碰 */
+  const liftedAt = useRef(0)
 
   const layer = useRef<HTMLDivElement>(null)
   const paper = useRef<HTMLDivElement>(null)
@@ -144,6 +157,7 @@ export function ColoringGame({ gameId, onDone, onExit }: GameProps) {
   /** 示範：手拿起一支蠟筆，在最大的那一塊裡來回塗（真的蠟筆筆觸，限制在那一塊裡），再換孩子 */
   const showMe = async () => {
     const s = performance.now()
+    setShowing(true)
     await say('teach.watch.dodo')
     if (!live_.current) return
     const pickHex = CRAYONS.find((c) => c.id === (VEHICLES.has(pic.id) ? 'blue' : 'green'))!.hex
@@ -198,31 +212,61 @@ export function ColoringGame({ gameId, onDone, onExit }: GameProps) {
     if (!live_.current) return
     await wait(300)
     setHandOn(false)
-    // 示範的那幾筆慢慢淡掉，畫紙還給孩子
-    setDemoFade(true)
-    await say('teach.turn.dodo')
-    if (!live_.current) return
+    setShowing(false)
+    // 示範塗的那一塊留在畫上（準則 DRAW-7、V-30「我幫你塗了一點」）：併進孩子的畫布，孩子可以接著塗、也可以用橡皮擦擦掉
+    base.current!.getContext('2d')!.drawImage(demoCv.current!, 0, 0, W, H)
+    clearCanvas(demoCv.current!)
+    demoCov.current = regions.coverage(base.current!).any
     void logTeach({ station: 'draw', game: def.id, itemId: pic.id, skill: `coloring:${pic.id}`, level: 1, ms: Math.round(performance.now() - s) })
+  }
+
+  /** 閒置第二段：手在最大的那一塊上方來回比劃一下（不出顏色），再停在那裡（靜態），孩子一動手就收起來 */
+  const handOn_ = useRef(false)
+  handOn_.current = handOn
+  const showAgain = async () => {
+    if (busy.current || active.current) return
+    const b = regions.bounds(regions.biggest()) ?? { x: 400, y: 200, w: 200, h: 200 }
+    const cx = b.x + b.w / 2
+    const cy = b.y + b.h / 2
+    const dx = Math.min(140, b.w * 0.3)
+    const dy = Math.min(50, b.h * 0.15)
+    const zig = [
+      [-dx, -dy],
+      [dx, -dy / 2],
+      [-dx, 0],
+      [dx, dy / 2],
+      [-dx, dy],
+    ]
+    placeHand(toLayer(cx + zig[0][0], cy + zig[0][1]))
+    setHandOn(true)
+    handOn_.current = true
+    await wait(350)
+    const ok = () => live_.current && !active.current && handOn_.current
+    for (let i = 1; i < zig.length && ok(); i++) {
+      const [ax, ay] = zig[i - 1]
+      const [bx, by] = zig[i]
+      await tween(420, (f) => placeHand(toLayer(cx + ax + (bx - ax) * f, cy + ay + (by - ay) * f)), ok, easeInOut)
+    }
   }
 
   const start = async () => {
     busy.current = firstPlay.current
-    await say(def.intro)
-    if (!live_.current) return
+    setHold(firstPlay.current)
     if (firstPlay.current) {
+      // 先示範，指令放在示範之後，說完「Your turn!」才開放（準則 PHASE-3）
       await showMe()
       if (!live_.current) return
+      await say(def.intro, 'teach.turn.dodo')
+      if (!live_.current) return
       busy.current = false
+      setHold(false)
+    } else {
+      await say(def.intro)
+      if (!live_.current) return
     }
     t0.current = performance.now()
-    // 閒置：15 秒再唸一次 → 再 15 秒一隻手在最大的那一塊上輕輕點 → 之後安靜
-    idle.start({
-      repeat: () => void say(def.intro),
-      hint: () => {
-        const b = regions.bounds(regions.biggest())
-        if (b) setHint({ x: ((b.x + b.w / 2) / W) * 100, y: ((b.y + b.h / 2) / H) * 100 })
-      },
-    })
+    // 閒置：15 秒再唸一次 → 再 15 秒手在最大的那一塊上比劃一下 → 之後每 40 秒手再安靜地比劃一次
+    idle.start({ repeat: () => void say(def.intro), hint: () => void showAgain() })
   }
 
   useEffect(() => {
@@ -247,7 +291,7 @@ export function ColoringGame({ gameId, onDone, onExit }: GameProps) {
    * 所以畫面還在淡入（帶一點點推近）的時候就開始塗，筆觸也落在手指底下；下筆在哪一塊（clip）也用這個座標判斷。
    * 畫布本身是固定的 1000 × 600 邏輯座標、用 CSS 撐滿畫紙，縮放只影響顯示，不用重量、不用重畫。
    */
-  const toPt = (e: PointerEvent | React.PointerEvent): CrayonPt => {
+  const toPt = (e: PointerEvent): CrayonPt => {
     const r = paper.current!.getBoundingClientRect()
     return {
       x: ((e.clientX - r.left) / r.width) * W,
@@ -262,17 +306,31 @@ export function ColoringGame({ gameId, onDone, onExit }: GameProps) {
     if (live.current) clearCanvas(live.current)
   }
 
-  const down = (e: React.PointerEvent) => {
-    if (busy.current) return
+  /** 示範、說明中變成不能畫：畫到一半的那一筆丟掉 */
+  useEffect(() => {
+    if (hold && active.current) drop()
+  }, [hold])
+
+  /** captured：從畫紙上下筆（拿得到 pointer capture）；從畫紙外滑進來的那一筆沒有 */
+  const down = (e: PointerEvent, captured: boolean) => {
+    if (busy.current) {
+      // 示範、說明中：塗不出顏色，碰到的地方出現「看這裡」的圈圈（準則 TOUCH-6）
+      if (hold && layer.current && (e.isPrimary || e.pointerType !== 'touch')) {
+        const lp = localPoint(layer.current, e.clientX, e.clientY)
+        notYet.ping(lp.x, lp.y)
+      }
+      return
+    }
     if (e.pointerType === 'touch' && penNear() && !active.current) return
     // 手掌先碰到、筆才下來：筆優先，丟掉手掌那一筆（還在 live 層，沒有留下來）
     if (active.current && e.pointerType === 'pen' && active.current.type !== 'pen' && toolRef.current !== ERASER) drop()
     if (active.current) return
-    try {
-      e.currentTarget.setPointerCapture(e.pointerId)
-    } catch {
-      /* 指標已經消失時拿不到 capture，照樣可以畫 */
-    }
+    if (captured)
+      try {
+        paper.current!.setPointerCapture(e.pointerId)
+      } catch {
+        /* 指標已經消失時拿不到 capture，照樣可以畫 */
+      }
     const p = toPt(e)
     const eraser = toolRef.current === ERASER
     // 下筆的那一塊：「幫忙不塗出線」開著才拿來 clip；關著也記下來（作答紀錄看孩子塗了哪幾塊）
@@ -282,21 +340,22 @@ export function ColoringGame({ gameId, onDone, onExit }: GameProps) {
     // 蠟筆先畫在 live 層，放開才併進 base；橡皮擦直接擦 base
     const ctx = (eraser ? base.current! : live.current!).getContext('2d')!
     cur.current = new CrayonStroke(ctx, { color: eraser ? '#000' : toolRef.current, eraser, pen: e.pointerType === 'pen', clip: clip ? (c) => regions.clip(c, region) : null }, p)
-    setHint(null)
+    setHandOn(false)
+    handOn_.current = false
     idle.poke()
   }
 
-  const move = (e: React.PointerEvent) => {
+  const move = (e: PointerEvent) => {
     if (!active.current || e.pointerId !== active.current.id || !cur.current) return
-    const n = e.nativeEvent
-    const evs = n.getCoalescedEvents?.() ?? []
-    for (const ev of evs.length ? evs : [n]) cur.current.to(toPt(ev))
+    const evs = e.getCoalescedEvents?.() ?? []
+    for (const ev of evs.length ? evs : [e]) cur.current.to(toPt(ev))
   }
 
-  const up = (e: React.PointerEvent) => {
+  const up = (e: PointerEvent) => {
     const a = active.current
     const s = cur.current
     if (!a || e.pointerId !== a.id || !s) return
+    liftedAt.current = performance.now()
     if (!s.opts.eraser) {
       base.current!.getContext('2d')!.drawImage(live.current!, 0, 0, W, H)
       clearCanvas(live.current!)
@@ -314,7 +373,7 @@ export function ColoringGame({ gameId, onDone, onExit }: GameProps) {
     active.current = null
     idle.poke()
     const cov = regions.coverage(base.current!)
-    const ok = cov.any >= READY
+    const ok = cov.any - demoCov.current >= READY
     if (ok !== ready) setReady(ok)
     if (ok && !readySaid.current) {
       readySaid.current = true
@@ -322,13 +381,16 @@ export function ColoringGame({ gameId, onDone, onExit }: GameProps) {
     }
   }
 
+  // 從畫紙外面下筆、滑進畫紙的那一筆也要有顏色（三歲模擬測試 B09、準則 DRAW-1）
+  useAdopt(paper, { can: (e) => !busy.current && !active.current && !(e.pointerType === 'touch' && penNear()), down: (e) => down(e, false), move, up })
+
   // ── 完成 ──────────────────────────────────────────────────────
   const finish = async () => {
     if (finishing.current || busy.current) return
     finishing.current = true
     busy.current = true
     idle.stop()
-    setHint(null)
+    setHandOn(false)
     sfx.done()
     const cov = regions.coverage(base.current!)
     const thumb = svg.current ? await svgThumb(svg.current, 480, PAPER, base.current!) : ''
@@ -392,15 +454,18 @@ export function ColoringGame({ gameId, onDone, onExit }: GameProps) {
   const eyes = new Set(pic.ink ?? [])
   const uid = 'cg' + useId().replace(/[^a-zA-Z0-9_-]/g, '')
   return (
-    <Shell station="draw" mood="idle" onExit={onExit} hideHost demo={handOn}>
+    <Shell station="draw" mood="idle" onExit={onExit} hideHost demo={showing}>
       <div ref={layer} style={{ position: 'absolute', inset: 0 }}>
-        <div style={{ position: 'absolute', inset: '0 16% 4% 3%', containerType: 'size' }}>
+        {/* 畫紙在蠟筆盒左邊（蠟筆盒寬 = 兩格 92 px ＋ 間距 34 px ＋ 邊 28 px，draw/tools.css） */}
+        <div style={{ position: 'absolute', inset: '0 246px 4% 3%', containerType: 'size' }}>
           <div
             ref={paper}
-            onPointerDown={down}
-            onPointerMove={move}
-            onPointerUp={up}
-            onPointerCancel={up}
+            data-paper=""
+            data-accepting={hold ? 'false' : 'true'}
+            onPointerDown={(e) => down(e.nativeEvent, true)}
+            onPointerMove={(e) => move(e.nativeEvent)}
+            onPointerUp={(e) => up(e.nativeEvent)}
+            onPointerCancel={(e) => up(e.nativeEvent)}
             onContextMenu={(e) => e.preventDefault()}
             style={{
               position: 'absolute',
@@ -421,13 +486,7 @@ export function ColoringGame({ gameId, onDone, onExit }: GameProps) {
           >
             <canvas ref={base} style={{ ...full, pointerEvents: 'none' }} />
             <canvas ref={live} style={{ ...full, pointerEvents: 'none' }} />
-            <motion.canvas
-              ref={demoCv}
-              style={{ ...full, pointerEvents: 'none' }}
-              initial={false}
-              animate={{ opacity: demoFade ? 0 : 1 }}
-              transition={{ duration: 0.6, ease: EASE.in }}
-            />
+            <canvas ref={demoCv} style={{ ...full, pointerEvents: 'none' }} />
             {/* 會動的那一層：完成後線稿＋線稿裡的筆觸一起活起來 */}
             <motion.div
               style={{ ...full, pointerEvents: 'none', transformOrigin: ORIGIN[pic.id] ?? '50% 50%' }}
@@ -470,17 +529,22 @@ export function ColoringGame({ gameId, onDone, onExit }: GameProps) {
                 </g>
               </svg>
             </motion.div>
-            <AnimatePresence>{hint && <Hand key="hint" x={hint.x} y={hint.y} beckon size="11cqmin" />}</AnimatePresence>
           </div>
         </div>
         <CrayonBox
           ref={box}
           value={tool}
+          disabled={hold}
+          onBlocked={(e) => {
+            if (!layer.current) return
+            const lp = localPoint(layer.current, e.clientX, e.clientY)
+            notYet.ping(lp.x, lp.y)
+          }}
           onChange={(v) => {
             if (busy.current) return
             setTool(v)
           }}
-          done={ready && !alive ? <CheckButton onPress={() => void finish()} /> : null}
+          done={ready && !alive ? <CheckButton onPress={() => void finish()} guard={() => !!active.current || performance.now() - liftedAt.current < LIFT_MS} /> : null}
         />
         {/* 示範的手：位置每一幀直接改 style（跟著蠟筆走，不能有彈簧的延遲） */}
         <motion.div
@@ -495,6 +559,7 @@ export function ColoringGame({ gameId, onDone, onExit }: GameProps) {
             <HandArt />
           </svg>
         </motion.div>
+        {notYet.view}
       </div>
     </Shell>
   )

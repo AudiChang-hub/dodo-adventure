@@ -2,12 +2,14 @@ import { forwardRef, type ReactNode } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
 import { COLORS } from '../../content/park'
 import { sfx } from '../../lib/audio'
-import { EASE, rise } from '../../ui/motion'
+import { rise } from '../../ui/motion'
+import { firstFinger } from '../NotYet'
+import './tools.css'
 
 const INK = '#2E2A25'
 
-/** 8 支蠟筆：照彩虹的順序，再加粉紅、咖啡（顏色跟彩虹公園學的一樣） */
-const ORDER = ['red', 'orange', 'yellow', 'green', 'blue', 'purple', 'pink', 'brown'] as const
+/** 6 支大蠟筆：照彩虹的順序（顏色跟彩虹公園學的一樣）。2026-10-29 從 8 支減到 6 支，每一支才放得下 2 cm 的格子（V-20） */
+const ORDER = ['red', 'orange', 'yellow', 'green', 'blue', 'purple'] as const
 export const CRAYONS = ORDER.map((id) => COLORS.find((c) => c.id === id)!).map((c) => ({ id: c.id, hex: c.hex, zh: c.zh }))
 export const ERASER = 'eraser'
 
@@ -49,52 +51,41 @@ interface Props {
   onChange: (v: string) => void
   /** 塗了夠多才出現的「完成」鍵 */
   done?: ReactNode
+  /** 示範、說明中：蠟筆欄變淡、換不了顏色，點了只出現「看這裡」的圈圈（onBlocked） */
+  disabled?: boolean
+  onBlocked?: (e: PointerEvent) => void
 }
 
 /**
- * 右邊的蠟筆盒：蠟筆一支一支橫躺，平常收在畫面右邊、只露出前半；選到的那一支整支滑出來、稍微變大。
- * 最下面是橡皮擦，同一種選法。整欄都在畫紙外面，塗畫的手不會碰到。
+ * 右邊的蠟筆盒：兩欄大格子（每格 ≥ 2 cm、間距 ≥ 0.6 cm，準則 TOUCH-1、V-20），每一格斜放一支胖蠟筆，選到的那一格粗外框、稍微變大。
+ * 最上面一排是橡皮擦和完成鍵（完成鍵離畫面下緣最遠，TOUCH-5），下面 6 支蠟筆照彩虹的順序。整欄都在畫紙外面，塗畫的手不會碰到。
  */
-export const CrayonBox = forwardRef<HTMLDivElement, Props>(function CrayonBox({ value, onChange, done }, ref) {
+export const CrayonBox = forwardRef<HTMLDivElement, Props>(function CrayonBox({ value, onChange, done, disabled, onBlocked }, ref) {
   const item = (id: string, label: string, art: ReactNode) => {
     const on = value === id
     return (
-      <motion.button
+      <button
         key={id}
         data-crayon={id}
+        className={`tool${on ? ' on' : ''}`}
         aria-label={label}
         aria-pressed={on}
         onPointerDown={(e) => {
           e.preventDefault()
+          if (!firstFinger(e.nativeEvent)) return
+          if (disabled) return onBlocked?.(e.nativeEvent)
           if (!on) sfx.pop()
           onChange(id)
         }}
-        initial={false}
-        animate={{ x: on ? '0%' : '34%', scale: on ? 1.08 : 1 }}
-        transition={{ duration: 0.32, ease: EASE.out }}
-        style={{
-          position: 'relative',
-          flex: 'none',
-          width: '24cqh',
-          height: '7cqh',
-          padding: 0,
-          background: 'none',
-          transformOrigin: '100% 50%',
-          filter: on ? 'drop-shadow(0 5px 0 rgba(46,42,37,.18))' : 'none',
-          touchAction: 'none',
-        }}
       >
-        {art}
-      </motion.button>
+        <span className="tool-art">{art}</span>
+      </button>
     )
   }
   return (
-    <div
-      ref={ref}
-      style={{ position: 'absolute', right: 0, top: '1%', bottom: '3%', width: '15%', display: 'flex', flexDirection: 'column', alignItems: 'flex-end', zIndex: 3, overflow: 'hidden', paddingLeft: '2cqh' }}
-    >
-      {/* 完成鍵在最上面：畫面最下緣 2 cm 是孩子手腕靠的地方（準則 TOUCH-5、V-34） */}
-      <div style={{ flex: 'none', alignSelf: 'center', height: '17cqh', display: 'grid', placeItems: 'center' }}>
+    <div ref={ref} className={`tool-col${disabled ? ' waiting' : ' waiting-off'}`} data-accepting={disabled ? 'false' : 'true'}>
+      {item(ERASER, '橡皮擦', <EraserArt />)}
+      <div style={{ width: '100%', height: '100%', display: 'grid', placeItems: 'center' }}>
         <AnimatePresence>
           {done && (
             <motion.div key="done" variants={rise} initial="initial" animate="enter" exit="exit">
@@ -103,11 +94,7 @@ export const CrayonBox = forwardRef<HTMLDivElement, Props>(function CrayonBox({ 
           )}
         </AnimatePresence>
       </div>
-      <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'flex-end', gap: '1.1cqh' }}>
-        {CRAYONS.map((c) => item(c.hex, `${c.zh}色蠟筆`, <CrayonArt hex={c.hex} />))}
-        <div style={{ height: '1.2cqh' }} />
-        {item(ERASER, '橡皮擦', <EraserArt />)}
-      </div>
+      {CRAYONS.map((c) => item(c.hex, `${c.zh}色蠟筆`, <CrayonArt hex={c.hex} />))}
     </div>
   )
 })

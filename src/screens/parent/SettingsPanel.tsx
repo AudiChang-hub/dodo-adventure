@@ -140,7 +140,10 @@ export function SettingsPanel({ onChanged }: { onChanged: () => void }) {
             <option value="off">關</option>
           </select>
         </Field>
-        <Field label="著色：幫忙不塗出線" hint="開啟時，蠟筆只會塗在下筆的那一塊裡面，孩子怎麼亂塗都不會塗到旁邊；關閉就是完全自由塗，可以塗出線外。">
+        <Field
+          label="著色：幫忙不塗出線"
+          hint="預設關閉：完全自由塗，手畫到哪裡顏色就到哪裡，從線外畫進來、一筆畫過好幾塊都會有顏色（黑線一直在最上面，塗出線也好看）。開啟後，一筆只會塗在下筆的那一塊：從車子外面開始畫，整筆都塗不到車子上，孩子可能會以為畫了沒有顏色。"
+        >
           <select value={s.coloringHelp ? 'on' : 'off'} onChange={(e) => set({ coloringHelp: e.target.value === 'on' })}>
             <option value="on">開啟</option>
             <option value="off">關閉</option>

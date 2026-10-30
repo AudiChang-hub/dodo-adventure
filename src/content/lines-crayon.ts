@@ -8,6 +8,6 @@ def('d.color.intro', 'dodo', 'Pick a crayon, and color it in!')
 // 示範：手在一塊區域裡來回塗的時候
 def('d.color.demo', 'dodo', 'Scribble, scribble!')
 // 塗了一些之後，完成鍵出現（只說一次）
-def('d.color.ready', 'dodo', 'All done? Hold the check!')
+def('d.color.ready', 'dodo', 'All done? Tap the check!')
 // 完成：車子類的圖開走一點點時
 def('d.color.beep', 'dodo', 'Beep beep!')

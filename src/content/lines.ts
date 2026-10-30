@@ -152,6 +152,8 @@ def('d.intro.free', 'dodo', 'Draw anything you like!')
 def('d.intro.glyph', 'dodo', 'Start at the green dot! Go this way!')
 def('d.trace.done', 'dodo', "We're home! Thank you!")
 def('d.trace.keep', 'dodo', "Keep going! We're not home yet!")
+// 運筆小路：不是從車子出發時（每條路最多兩次）
+def('d.trace.start', 'dodo', 'Start at the car!')
 def('d.color.done', 'dodo', 'So pretty!')
 def('d.free.done', 'dodo', 'I love it!')
 def('d.glyph.done', 'dodo', 'Great writing!')

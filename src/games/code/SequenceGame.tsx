@@ -1,5 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from 'react'
 import { motion } from 'motion/react'
+import { WaitShield } from '../NotYet'
 import { Shell, type GameProps } from '../Shell'
 import { Emoji } from '../../art/Emoji'
 import { Sparkles } from '../../ui/Sparkles'
@@ -93,6 +94,8 @@ export function SequenceGame({ gameId, onDone, onExit }: GameProps) {
   /** 演完之後圖卡從格子飛下來（打亂）：每一張從哪裡飛過來 */
   const [fly, setFly] = useState<{ n: number; d: Record<number, { x: number; y: number }> } | null>(null)
 
+  /** 收不收作答（示範、念題目中不收）：給畫面用（圖卡變淡、擋板），流程判斷用 locked */
+  const [open, setOpen] = useState(false)
   const live = useRef(true)
   const locked = useRef(true)
   const busy = useRef(false)
@@ -389,6 +392,7 @@ export function SequenceGame({ gameId, onDone, onExit }: GameProps) {
     stageRef.current = 'demo'
     setStage('demo')
     locked.current = true
+    setOpen(false)
     setMood('happy')
     setup(s)
     // 先演故事：下面的圖卡先藏起來，格子不脈動（還不是孩子要動手的時候）
@@ -433,10 +437,9 @@ export function SequenceGame({ gameId, onDone, onExit }: GameProps) {
     setMood(ph === 'guided' ? 'happy' : 'idle')
     setLoopOff(false)
     locked.current = true
+    setOpen(false)
     await wait(320)
     if (!live.current || stepRef.current !== my) return order
-    locked.current = false
-    t0.current = performance.now()
     const finished = waitStep()
     // 豆豆在起點跳一跳：故事從這裡開始，第一格在脈動
     window.setTimeout(() => {
@@ -444,7 +447,12 @@ export function SequenceGame({ gameId, onDone, onExit }: GameProps) {
     }, 380)
     void (async () => {
       await say(...(o.intro ? [def.intro] : []), ...(o.afterGuide ? ['teach.turn.bobo'] : []), question(), ...(ph === 'guided' ? ['teach.here.bobo'] : []))
-      if (live.current && stepRef.current === my) startLadder(my)
+      if (!live.current || stepRef.current !== my) return
+      // 題目念完才收（準則 PHASE-3、V-12）；念的時候圖卡淡一點，點了只出現「看這裡」的圈圈
+      locked.current = false
+      setOpen(true)
+      t0.current = performance.now()
+      startLadder(my)
     })()
     await finished
     return order
@@ -726,7 +734,7 @@ export function SequenceGame({ gameId, onDone, onExit }: GameProps) {
   const showLoop = lead && !!guideBox && !loopOff && !done && !busy.current && want < n - 1
 
   return (
-    <Shell station={def.station} mood={mood} progress={{ total: ROUNDS, done: idx }} onExit={onExit} onHost={onHost}>
+    <Shell station={def.station} mood={mood} progress={{ total: ROUNDS, done: idx }} onExit={onExit} onHost={onHost} demo={stage === 'demo'}>
       <div ref={stage0} className="seq-stage" style={{ '--n': n } as CSSProperties}>
         {st && (
           <Swap id={view} className="seq">
@@ -804,7 +812,7 @@ export function SequenceGame({ gameId, onDone, onExit }: GameProps) {
                           aria-label={`圖 ${j + 1}`}
                           data-k={k}
                           initial={from ? { x: from.x, y: from.y, scale: 1.04 } : quiet ? false : { y: 28, scale: 0.94 }}
-                          animate={nudged ? { x: [0, -12, 12, -7, 0], y: 0, opacity: 1, scale: 1 } : { x: 0, y: 0, opacity: dim ? 0.38 : 1, scale: dim ? 0.9 : 1 }}
+                          animate={nudged ? { x: [0, -12, 12, -7, 0], y: 0, opacity: 1, scale: 1 } : { x: 0, y: 0, opacity: dim ? 0.38 : !open ? 0.5 : 1, scale: dim ? 0.9 : 1 }}
                           whileTap={{ scale: 0.94 }}
                           transition={
                             from && !nudged
@@ -840,6 +848,7 @@ export function SequenceGame({ gameId, onDone, onExit }: GameProps) {
           }
           onGrab={demoLive && stage !== 'demo' ? () => void grabDemo() : undefined}
         />
+        <WaitShield on={!open} z={40} />
         <HandView hand={carry.hand} />
         {/* 給自動測試看現在是哪一段（畫面上看不到） */}
         <span hidden data-stage={stage} data-story={st?.id} data-order={st ? st.icons.join(',') : undefined} />
