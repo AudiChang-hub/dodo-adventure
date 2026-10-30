@@ -28,6 +28,8 @@ export const PACE = {
   NEXT_NEW: 1000,
   /** 已經學過的複習題答對到下一題：維持輕快（300–500，統一成 400） */
   NEXT_REVIEW: 400,
+  /** 大班段問完 How did you know? 之後多停一下，讓孩子說給大人聽（G-3，FRAME-10） */
+  HOW_PAUSE: 2500,
 } as const
 
 /** 答對後到下一題：這一題剛教過（教學卡、示範、一起練）就多停一下 */

@@ -4,7 +4,7 @@ import { Shell, type GameProps } from '../Shell'
 import { Hand } from '../Demo'
 import { WaitShield, firstFinger } from '../NotYet'
 import { Sparkles } from '../../ui/Sparkles'
-import { game as gameDef, station as stationDef, ROUND_ITEMS, PHONICS_MAKERS, type PhonicsItem, type PhonicsOption, type WordCard } from '../../content/games'
+import { game as gameDef, station as stationDef, PHONICS_MAKERS, type PhonicsItem, type PhonicsOption, type WordCard } from '../../content/games'
 import { TeachCard } from '../Teach'
 import { level, reportLevel, markPlayed, plays } from '../../lib/adaptive'
 import { planPhonics, roundState } from '../pick'
@@ -197,7 +197,7 @@ export function PhonicsGame({ gameId, onDone, onExit }: GameProps) {
   // ── 自己答 ─────────────────────────────────────────────────
   const quiz = async (it: PhonicsItem, afterGuide: boolean) => {
     const my = ++stepRef.current
-    const isLast = idxRef.current === ROUND_ITEMS - 1
+    const isLast = idxRef.current === round.current.items - 1
     idle.stop()
     phaseRef.current = 'quiz'
     itemRef.current = it
@@ -262,7 +262,7 @@ export function PhonicsGame({ gameId, onDone, onExit }: GameProps) {
     await wait(ms)
     if (!live.current) return
     const n = idxRef.current + 1
-    if (n >= ROUND_ITEMS) return onDone({ items: ROUND_ITEMS, firstTry: firstTries.current })
+    if (n >= round.current.items) return onDone({ items: round.current.items, firstTry: firstTries.current })
     present(n)
   }
 
@@ -395,7 +395,7 @@ export function PhonicsGame({ gameId, onDone, onExit }: GameProps) {
 
   const guide = phase === 'guided'
   return (
-    <Shell station={def.station} mood={mood} progress={{ total: ROUND_ITEMS, done: idx }} onExit={onExit} onHost={onHost}>
+    <Shell station={def.station} mood={mood} progress={{ total: round.current.items, done: idx }} onExit={onExit} onHost={onHost}>
       {/* 學習循環的卡片在原地淡入、題目在後面淡掉；換題時新題目蓋在舊的上面淡入（ui/Scenes.tsx） */}
       <CardStage
         card={

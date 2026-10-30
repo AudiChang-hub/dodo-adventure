@@ -10,6 +10,9 @@ import { station as stationDef } from '../content/games'
 import { coplayHint } from '../content/coplay'
 import { useRoute } from '../lib/nav'
 import { holdBedtime } from '../lib/session'
+import { useGrowth } from '../lib/growth'
+import { bandOf } from './frame'
+import { FRAMES } from '../content/growth'
 import type { StationId } from '../lib/db'
 import './coplay.css'
 
@@ -111,6 +114,9 @@ interface Props {
   demo?: boolean
 }
 
+/** 小班段的觸控尺寸（準則 TOUCH-1 的 px，跟 styles/global.css 的 --touch-* 一樣）；其他年段照外框的公分數等比例換算 */
+const TOUCH_PX = { min: 90, primary: 112, gap: 28 }
+
 /** 每個遊戲共用的舞台：上方返回鍵（點一下回上一層）與進度、左下角是主持的恐龍（點它會再說一次題目） */
 export function Shell({ station, mood, progress, onExit, onHost, children, hideHost, hint = true, hintText, demo }: Props) {
   const st = stationDef(station)
@@ -120,8 +126,22 @@ export function Shell({ station, mood, progress, onExit, onHost, children, hideH
   useEffect(() => holdBedtime(), [])
   // 從站點進來的遊戲回站點；今日冒險裡的遊戲回冒險的路線圖（保留今天走到哪）
   const toStation = useRoute().name === 'play'
+  // 年段的操作外框（成長系統 G-3）：觸控尺寸寫成 CSS 變數給共用元件用；data-band 給三歲模擬測試和截圖看是哪個年段的外框
+  const growth = useGrowth()
+  const f = growth.frame
+  const s = FRAMES.small
+  const touch = {
+    '--touch-min': `${Math.round(TOUCH_PX.min * (f.touchCm / s.touchCm))}px`,
+    '--touch-primary': `${Math.round(TOUCH_PX.primary * (f.primaryCm / s.primaryCm))}px`,
+    '--touch-gap': `${Math.round(TOUCH_PX.gap * (f.gapCm / s.gapCm))}px`,
+  }
   return (
-    <div className="stage" data-demo={demo ? '1' : undefined} style={{ '--stage': th?.tint ?? st.tint, '--deep': th?.deep ?? st.deep } as CSSProperties}>
+    <div
+      className="stage"
+      data-demo={demo ? '1' : undefined}
+      data-band={bandOf(growth, 'maxOptions')}
+      style={{ '--stage': th?.tint ?? st.tint, '--deep': th?.deep ?? st.deep, ...touch } as CSSProperties}
+    >
       {th ? <ThemeScenery def={th} /> : <Scenery station={station} />}
       <div className="stage-top">
         <BackButton label={toStation ? `回${st.name}` : '回路線圖'} onTap={onExit}>

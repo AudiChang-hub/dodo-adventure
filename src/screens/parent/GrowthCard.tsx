@@ -1,6 +1,8 @@
 // 家長區「設定與同步」的生日與年段（成長系統 G-1 的最簡單版本；完整的「成長」分頁是 G-6）
+// G-3：列出現在的操作外框（遊戲已經照它玩），以及「拿起來放進去」在每個年段怎麼操作的試玩
 import { useState } from 'react'
-import { BAND_ZH, BANDS, type Band } from '../../content/growth'
+import { BAND_ZH, BANDS, frameLines, type Band } from '../../content/growth'
+import { PlaceDemo } from '../../games/place/PlaceDemo'
 import { today } from '../../lib/db'
 import { ageLabel, getGrowthState, getProfile, setBirth, setOverride, useGrowth, type Override } from '../../lib/growth'
 import { requestSync } from '../../lib/sync'
@@ -107,9 +109,21 @@ export function GrowthCard({ onChanged }: { onChanged: () => void }) {
           </select>
         </div>
         <div className="hint">
-          年段只決定「怎麼操作、看多少、玩多久」：按鈕多大、一畫面幾個選項、一句話多長、一回合幾題、故事多長。學什麼還是照{CHILD_ZH}自己的程度，沒有上限。跟著年齡時，過了換段的生日月會花 4 週慢慢放寬；家長改的會立刻換。這一版先記下年段，下一版才會套用到遊戲畫面。
+          年段只決定「怎麼操作、看多少、玩多久」：按鈕多大、一畫面幾個選項、一句話多長、一回合幾題、故事多長。學什麼還是照{CHILD_ZH}自己的程度，沒有上限。跟著年齡時，過了換段的生日月會花 4 週慢慢放寬；家長改的會立刻換。
         </div>
       </div>
+      <div className="field">
+        <div>現在的操作外框</div>
+        <ul className="growth-frame">
+          {frameLines(g.frame).map((t) => (
+            <li key={t}>{t}</li>
+          ))}
+        </ul>
+      </div>
+      <details className="growth-demo">
+        <summary>試玩：拿起來放進去（給大孩子的拖放題，每個年段都能用點的完成）</summary>
+        <PlaceDemo />
+      </details>
       {error && <p style={{ color: '#8a3f2a', margin: '8px 0 0' }}>{error}</p>}
     </div>
   )

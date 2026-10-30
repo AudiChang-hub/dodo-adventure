@@ -1,6 +1,6 @@
 import { db, getKV, setKV, today, uid, type Session, type StationId } from './db'
 import { currentRoute, go, isChildPlay } from './nav'
-import { getSettings } from './settings'
+import { bandSetting } from './settings'
 
 let session: Session | null = null
 let usedToday = 0
@@ -44,7 +44,8 @@ function tick() {
   usedToday++
   session.activeSec++
   sinceBreak++
-  const every = getSettings().eyeBreakEvery
+  // 護眼休息、每日上限：家長沒改過就跟著年段（FRAME-6、7；lib/settings.ts 的 bandSetting）
+  const every = bandSetting('eyeBreakEvery')
   if (every > 0 && !breakDue && sinceBreak >= every * 60) {
     breakDue = true
     breakSubs.forEach((f) => f())
@@ -59,7 +60,7 @@ function tick() {
 
 /** 超過每日上限幾秒；還沒到（或不限制）是 -1 */
 function overtime(): number {
-  const limit = getSettings().dailyMinutes
+  const limit = bandSetting('dailyMinutes')
   if (limit <= 0) return -1
   const over = usedToday - (limit + extraMinutes) * 60
   return over >= 0 ? over : -1
