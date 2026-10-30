@@ -31,6 +31,13 @@
   --radius-lg: 36px;
   --radius-md: 24px;
   --tap: clamp(120px, 17vmin, 180px);
+  /*
+   * 年段操作外框的觸控尺寸（準則 TOUCH-1、FRAME-1；平板上 1 cm ≈ 45 CSS px）：可點目標 ≥ 2 cm、主要選項 ≥ 2.5 cm、間距 ≥ 0.6 cm。
+   * 三個年段都一樣（不縮小）；遊戲畫面由 Shell 依年段外框再寫一次（games/Shell.tsx），共用元件只讀這幾個變數。
+   */
+  --touch-min: 90px;
+  --touch-primary: 112px;
+  --touch-gap: 28px;
   --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
   --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
 }

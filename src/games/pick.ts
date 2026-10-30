@@ -8,12 +8,17 @@ import { dotsPool, type DotsPic } from '../content/dots'
 import { isNew, isProbing, level, mastered, pickPreferred, teachable, withTargetFilter } from '../lib/adaptive'
 import { noteTaught } from '../lib/words'
 import { wordId } from '../content/letters'
+import { capOptions, frameNow, maxTeachOf, optionCapOf, roundItemsOf } from './frame'
 
-/** 一局最多教幾個新內容，其餘都是複習（PRD §5.8） */
+/** 一局最多教幾個新內容，其餘都是複習（PRD §5.8）。中班段起照年段外框（games/frame.ts，FRAME-8 是 1 個） */
 export const MAX_TEACH = 2
 
 /** 一局裡跨題目記著的東西：教了幾個、剛出過什麼、是不是第一次玩這個遊戲 */
 export interface RoundState {
+  /** 這一局幾題（ROUND_ITEMS 夾在年段外框裡，FRAME-5）：開局時決定，玩到一半換年段也不變 */
+  items: number
+  /** 這一局最多教幾個新的（FRAME-8） */
+  maxTeach: number
   taught: number
   /** 示範（Watch me!）用了幾次 */
   demos: number
@@ -24,7 +29,10 @@ export interface RoundState {
   firstPlay: boolean
 }
 
-export const roundState = (firstPlay: boolean): RoundState => ({ taught: 0, demos: 0, recent: [], lastSkill: null, firstPlay })
+export const roundState = (firstPlay: boolean): RoundState => {
+  const g = frameNow()
+  return { items: roundItemsOf(g, ROUND_ITEMS), maxTeach: maxTeachOf(g, MAX_TEACH), taught: 0, demos: 0, recent: [], lastSkill: null, firstPlay }
+}
 
 // ── 選擇題引擎 ───────────────────────────────────────────────
 export interface ChoicePlan {
@@ -39,7 +47,7 @@ export interface ChoicePlan {
 }
 
 export function planChoice(def: GameDef, st: RoundState, i: number): ChoicePlan {
-  const isLast = i === ROUND_ITEMS - 1
+  const isLast = i === st.items - 1
   const lvBase = level(def.id)
   let lv = lvBase
   const make = () => def.make!(lv, st.recent)
@@ -49,12 +57,13 @@ export function planChoice(def: GameDef, st: RoundState, i: number): ChoicePlan 
     for (let k = 0; k < 10 && !ok(it.skill); k++) it = withTargetFilter(ok, make)
     return it
   }
-  const done = (it: ChoiceItem, probe: boolean): ChoicePlan => {
-    st.recent = [it.itemId, ...st.recent].slice(0, 3)
-    st.lastSkill = it.skill
+  const done = (picked: ChoiceItem, probe: boolean): ChoicePlan => {
     // 新內容一律先教（這局教滿、額度用完時也一樣：真的找不到複習題，寧可多教一個，也不考沒教過的）。
     // 技能學過、但答案的字家長勾了不認得，或教學卡上要多教一個干擾選項的字（needTeach）：也先教
-    const fresh = !probe && !!it.teach && (isNew(it.skill) || !!it.needTeach)
+    const fresh = !probe && !!picked.teach && (isNew(picked.skill) || !!picked.needTeach)
+    const it = fitOptions(picked, fresh)
+    st.recent = [it.itemId, ...st.recent].slice(0, 3)
+    st.lastSkill = it.skill
     // 教學卡上的字從這一題起算「教過」（lib/words.ts）：之後才能當干擾選項、唸名字
     if (fresh) noteTaught(it.teachWords ?? [])
     const walk = !fresh && !probe && st.firstPlay && i === 0
@@ -75,7 +84,7 @@ export function planChoice(def: GameDef, st: RoundState, i: number): ChoicePlan 
   if (isLast && lvBase < def.maxLevel) lv = lvBase + 1
   // 開局先出已熟的：讓孩子先答對、建立信心（功文式「從低一點開始」）
   let it = i === 0 ? makeWhere(mastered) : make()
-  const ok = teachable(def.id, st.taught, MAX_TEACH)
+  const ok = teachable(def.id, st.taught, st.maxTeach)
   if (!ok(it.skill)) {
     // 這局已經教滿了、負擔過重暫停教新內容，或這條主線本週的新概念額度用完：其餘出複習題，不考沒教過的
     it = makeWhere(ok)
@@ -88,15 +97,24 @@ export function planChoice(def: GameDef, st: RoundState, i: number): ChoicePlan 
   return done(it, false)
 }
 
+/**
+ * 選項數夾在年段外框裡（LOAD-1、FRAME-2）：中班段起新內容第一次出現 2 個、其他最多 4 個。
+ * 小班段不動（選項數由遊戲的等級決定，跟現在一樣）。
+ */
+function fitOptions(it: ChoiceItem, fresh: boolean): ChoiceItem {
+  const options = capOptions(it.options, it.answer, optionCapOf(frameNow(), fresh))
+  return options === it.options ? it : { ...it, options }
+}
+
 // ── 自然發音 ─────────────────────────────────────────────────
 export function planPhonics(def: GameDef, make: (lv: number, recent: string[]) => PhonicsItem, st: RoundState, i: number) {
-  const isLast = i === ROUND_ITEMS - 1
+  const isLast = i === st.items - 1
   const lvBase = level(def.id)
   const lv = isLast && lvBase < def.maxLevel ? lvBase + 1 : lvBase
   const gen = () => make(lv, st.recent)
   let it = gen()
   // 這局已經教滿、負擔過重，或語言這條線本週的新概念額度用完：出學過的音
-  const ok = teachable(def.id, st.taught, MAX_TEACH)
+  const ok = teachable(def.id, st.taught, st.maxTeach)
   for (let k = 0; k < 10 && !ok(it.skill); k++) it = withTargetFilter(ok, gen)
   // 同時開放的音只有三、四個：只避開上一題的音，不然出題順序會變成固定輪流
   st.recent = [it.itemId]
@@ -116,7 +134,7 @@ export function planSheet(def: GameDef, make: SheetMaker, mode: 'tap' | 'lasso',
   const gen = () => make(lv, st.recent)
   let it: SheetItem = gen()
   // 這局已經教滿、負擔過重，或這條主線本週的新概念額度用完：出學過的
-  const ok = teachable(def.id, st.taught, MAX_TEACH)
+  const ok = teachable(def.id, st.taught, st.maxTeach)
   for (let k = 0; k < 10 && !ok(it.skill); k++) it = withTargetFilter(ok, gen)
   st.recent = [it.itemId, ...st.recent].slice(0, 3)
   // 圈選：概念在「找出全部」學過就不用再看教學卡，只要學怎麼圈
@@ -136,7 +154,7 @@ export function planDrive(def: GameDef, st: RoundState, i: number) {
   const make = () => pickDriveSkill(lv, st.recent)
   // 開局先出已熟的；這局已經教滿（或負擔過重、思考這條線本週的新概念額度用完）就只出學過的。沒有符合的，pickTarget 會照常挑
   let key = i === 0 ? withTargetFilter(mastered, make) : make()
-  const ok = teachable(def.id, st.taught, MAX_TEACH)
+  const ok = teachable(def.id, st.taught, st.maxTeach)
   if (!ok(key)) key = withTargetFilter(ok, make)
   st.recent = [key, ...st.recent].slice(0, 2)
   const fresh = isNew(key)
@@ -151,7 +169,7 @@ export function planSequence(def: GameDef, st: RoundState & { stories: Story[] }
   const make = () => pickStory(lv, st.stories)
   // 開局先出已熟的故事；這局已經教滿（或負擔過重、本週新概念額度用完）就只出學過的
   let s = i === 0 ? withTargetFilter(mastered, make) : make()
-  const ok = teachable(def.id, st.taught, MAX_TEACH)
+  const ok = teachable(def.id, st.taught, st.maxTeach)
   if (!ok(seqSkill(s))) s = withTargetFilter(ok, make)
   st.stories = [s, ...st.stories].slice(0, 2)
   const fresh = isNew(seqSkill(s))
@@ -172,7 +190,7 @@ export const COUNT_RANGE: Record<number, [number, number]> = { 1: [1, 3], 2: [2,
 export function planCount(game: string, lv: number, st: RoundState, i: number) {
   const [a, b] = COUNT_RANGE[lv]
   const all = Array.from({ length: b - a + 1 }, (_, k) => a + k)
-  const ok = teachable(game, st.taught, MAX_TEACH)
+  const ok = teachable(game, st.taught, st.maxTeach)
   const fit = all.filter((n) => ok(`count:${n}`))
   const pool = fit.length ? fit : all
   const n = pool[Math.floor(Math.random() * pool.length)]
@@ -189,7 +207,7 @@ export function planCount(game: string, lv: number, st: RoundState, i: number) {
  */
 export function planOrder(game: string, lv: number, unlocked: number, st: RoundState, i: number) {
   let n = Math.min([3, 4, 5, 6][lv - 1] + (lv === 4 ? Math.floor(Math.random() * 3) : 0), Math.max(5, unlocked), 10)
-  const ok = teachable(game, st.taught, MAX_TEACH)
+  const ok = teachable(game, st.taught, st.maxTeach)
   if (!ok(`order:${n}`)) {
     const known = Array.from({ length: n - 2 }, (_, k) => n - k).find((m) => !isNew(`order:${m}`))
     if (known) n = known
@@ -212,7 +230,7 @@ export function planDots(game: string, lv: number, unlocked: number, st: RoundSt
   const key = (p: DotsPic) => `dots:${p.id}`
   const make = () => pickPreferred(pool.filter((p) => prefer.includes(p.id)), pool, key, pool.filter((p) => st.recent.includes(p.id)))
   let pic = make()
-  const ok = teachable(game, st.taught, MAX_TEACH)
+  const ok = teachable(game, st.taught, st.maxTeach)
   if (!ok(key(pic))) pic = withTargetFilter(ok, make)
   st.recent = [pic.id, ...st.recent].slice(0, 2)
   const fresh = isNew(key(pic))

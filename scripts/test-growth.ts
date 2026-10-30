@@ -4,6 +4,7 @@
 import assert from 'node:assert/strict'
 import { BANDS, FRAMES, RAMP_WEEK, type Band } from '../src/content/growth'
 import { bandForMonths, blendFrame, monthsOld, rampWeek, reconcile, statusOf, targetBand, validBirth, type GrowthState, type Profile } from '../src/lib/growth'
+import { asksHowOf, bandOf, capOptions, hintDelayOf, idleTimesOf, maxTeachOf, optionCapOf, retryLineOf, roundItemsOf, wrongStepOf } from '../src/games/frame'
 
 const P = (birth: string): Profile => ({ birth, setAt: 0 })
 const EMPTY: GrowthState = { locks: {} }
@@ -38,22 +39,42 @@ console.log('ok 2 年段邊界')
   console.log('ok 3 沒設生日＝小班段，什麼都不寫')
 }
 
-// 4. 小班段的外框就是 App 現在的樣子（T-49 的數字）
+// 4. 外框表照設計 v0.3.1 §1.2（準則第十四章 FRAME-1～11）
 {
-  const f = FRAMES.small
-  assert.equal(f.maxOptions, 4)
-  assert.equal(f.drag, 'tap')
-  assert.equal(f.maxWords, 6)
-  assert.deepEqual(f.roundItems, [3, 5])
-  assert.equal(f.dailyMinutes, 20)
-  assert.equal(f.hintDelayMs, 4000)
-  assert.equal(f.newPerRound, 2)
-  assert.deepEqual(f.weeklyConcepts, [2, 2])
-  // 年段往上，外框只會變寬，不會變窄（觸控大小例外：大班段要放比較多個字母卡）
+  const { small: s, middle: m, big: b } = FRAMES
+  // FRAME-1、2：觸控大小不縮小，三段都最多 4 個選項、新內容先 2 個
+  for (const f of [s, m, b]) {
+    assert.deepEqual([f.touchCm, f.primaryCm, f.gapCm], [2, 2.5, 0.6])
+    assert.deepEqual([f.maxOptions, f.newOptions], [4, 2])
+    // FRAME-8：一回合最多 1 個新概念
+    assert.equal(f.newPerRound, 1)
+  }
+  assert.deepEqual([s.drag, m.drag, b.drag], ['tap', 'short', 'long'])
+  // FRAME-4
+  assert.deepEqual([s.maxWords, m.maxWords, b.maxWords], [6, 8, 10])
+  assert.deepEqual([s.steps, m.steps, b.steps], [[1, 2], [2, 2], [2, 3]])
+  // FRAME-5
+  assert.deepEqual([s.roundItems, m.roundItems, b.roundItems], [[3, 5], [4, 6], [5, 8]])
+  assert.deepEqual([s.roundMinutes, m.roundMinutes, b.roundMinutes], [3, 5, 6])
+  // FRAME-6、7
+  assert.deepEqual([s.dailyMinutes, m.dailyMinutes, b.dailyMinutes], [20, 25, 30])
+  assert.deepEqual([s.eyeBreakEvery, m.eyeBreakEvery, b.eyeBreakEvery], [[10, 10], [10, 10], [10, 15]])
+  // FRAME-8、9、10
+  assert.deepEqual([s.weeklyConcepts, m.weeklyConcepts, b.weeklyConcepts], [[2, 2], [2, 3], [3, 3]])
+  assert.deepEqual([s.idleSec, m.idleSec, b.idleSec], [[8, 15, 30], [10, 20, 40], [12, 25, 45]])
+  assert.deepEqual([s.hintDelayMs, m.hintDelayMs, b.hintDelayMs], [4000, 5000, 6000])
+  assert.deepEqual([s.afterWrong, m.afterWrong, b.afterWrong], ['retry', 'contrast', 'findStep'])
+  // FRAME-11
+  assert.deepEqual([s.story.segment, m.story.segment, b.story.segment], [[1, 3], [3, 5], [5, 8]])
+  assert.deepEqual([s.story.sentences, m.story.sentences, b.story.sentences], [[8, 10], [12, 15], [20, 30]])
+  assert.deepEqual([s.story.words, m.story.words, b.story.words], [45, 100, 200])
+  assert.deepEqual([s.storyChoices, m.storyChoices, b.storyChoices], [0, 1, 2])
+  // 年段往上，外框只會變寬，不會變窄
   for (let i = 1; i < BANDS.length; i++) {
     const a = FRAMES[BANDS[i - 1]]
-    const b = FRAMES[BANDS[i]]
-    assert.ok(b.maxOptions >= a.maxOptions && b.maxWords >= a.maxWords && b.dailyMinutes >= a.dailyMinutes && b.hintDelayMs >= a.hintDelayMs)
+    const c = FRAMES[BANDS[i]]
+    assert.ok(c.touchCm >= a.touchCm && c.maxOptions >= a.maxOptions && c.maxWords >= a.maxWords && c.dailyMinutes >= a.dailyMinutes && c.hintDelayMs >= a.hintDelayMs)
+    assert.ok(c.idleSec.every((x, k) => x >= a.idleSec[k]) && c.roundItems[1] >= a.roundItems[1])
   }
   // 每一項都排在放寬的某一週
   for (const k of Object.keys(FRAMES.small)) assert.ok(k in RAMP_WEEK, `${k} 沒有排在放寬的哪一週`)
@@ -82,20 +103,23 @@ console.log('ok 2 年段邊界')
   assert.equal(w1.band, 'middle')
   assert.deepEqual(w1.ramp, { from: 'small', to: 'middle', start: day, week: 1 })
   assert.equal(w1.frame.dailyMinutes, 25)
-  assert.deepEqual(w1.frame.roundItems, [5, 7])
+  assert.deepEqual(w1.frame.roundItems, [4, 6])
+  assert.deepEqual(w1.frame.idleSec, [10, 20, 40])
   assert.equal(w1.frame.maxWords, 6)
   assert.equal(w1.frame.drag, 'tap')
   assert.equal(w1.frame.maxOptions, 4)
   // 第 2 週句長，第 3 週操作，第 4 週選項與觸控
   const w2 = statusOf(p, r.growth, plus(day, 7)).frame
-  assert.equal(w2.maxWords, 9)
+  assert.equal(w2.maxWords, 8)
   assert.equal(w2.drag, 'tap')
   const w3 = statusOf(p, r.growth, plus(day, 14)).frame
   assert.equal(w3.drag, 'short')
   assert.equal(w3.maxOptions, 4)
   const w4 = statusOf(p, r.growth, plus(day, 21)).frame
-  assert.equal(w4.maxOptions, 5)
-  assert.equal(w4.primaryCm, 2.2)
+  // 中班段的選項上限、觸控大小跟小班段一樣（v0.3.1 不縮小、不加選項），第 4 週換過去也不變
+  assert.equal(w4.maxOptions, 4)
+  assert.equal(w4.primaryCm, 2.5)
+  assert.equal(w4.newOptions, 2)
 
   // 4 週後：換段完成
   const done = reconcile(p, r.growth, plus(day, 28))
@@ -176,6 +200,68 @@ console.log('ok 6 每週的混合外框')
   const locked: GrowthState = { locks: { 'num:count': 2 } }
   assert.deepEqual(reconcile(P('2026-01'), locked, '2030-03-15').growth.locks, { 'num:count': 2 })
   console.log('ok 9 家長覆寫')
+}
+
+// 10. 遊戲怎麼讀外框（G-3，src/games/frame.ts）：小班段（和沒設生日）跟現在完全一樣，中班段、大班段照外框
+{
+  const day = '2030-03-15'
+  const small = statusOf(null, EMPTY, day)
+  const fixed = (band: Band) => statusOf(null, reconcile(null, { locks: {}, override: { band, setAt: 0 } }, day).growth, day)
+  const middle = fixed('middle')
+  const big = fixed('big')
+  assert.equal(middle.frame, FRAMES.middle)
+  assert.equal(bandOf(big, 'drag'), 'big')
+
+  // 小班段：一回合 6 題、最多教 2 個、選項數不動、閒置 15／15／40 秒、延遲提示照 adaptive、錯 2 次就標出答案
+  assert.equal(roundItemsOf(small, 6), 6)
+  assert.equal(roundItemsOf(small, 3), 3)
+  assert.equal(maxTeachOf(small, 2), 2)
+  assert.equal(optionCapOf(small, true), null)
+  assert.deepEqual(idleTimesOf(small), { repeat: 15_000, hint: 15_000, again: 40_000 })
+  assert.equal(hintDelayOf(small, 4000), 4000)
+  assert.equal(hintDelayOf(small, 7000), 7000)
+  assert.deepEqual([1, 2, 3].map((n) => wrongStepOf(small, n)), ['retry', 'reveal', 'reveal'])
+  assert.equal(retryLineOf(small), 'retry')
+  assert.equal(asksHowOf(small), false)
+
+  // 中班段：題數夾在 4–6、一回合最多 1 個新的、新內容 2 個選項、閒置 20／20／40、延遲 +1 秒、多一層「哪裡不一樣？」
+  assert.deepEqual([3, 4, 6, 9].map((n) => roundItemsOf(middle, n)), [4, 4, 6, 6])
+  assert.equal(maxTeachOf(middle, 2), 1)
+  assert.deepEqual([optionCapOf(middle, true), optionCapOf(middle, false)], [2, 4])
+  assert.deepEqual(idleTimesOf(middle), { repeat: 20_000, hint: 20_000, again: 40_000 })
+  assert.equal(hintDelayOf(middle, 4000), 5000)
+  assert.deepEqual([1, 2, 3].map((n) => wrongStepOf(middle, n)), ['retry', 'contrast', 'reveal'])
+  assert.equal(retryLineOf(middle), 'think')
+  assert.equal(asksHowOf(middle), false)
+
+  // 大班段：題數夾在 5–8、閒置 25／20／45、延遲 +2 秒（不超過上限 10 秒）、換個方法、答對後問 How did you know?
+  assert.deepEqual([3, 6, 8].map((n) => roundItemsOf(big, n)), [5, 6, 8])
+  assert.deepEqual(idleTimesOf(big), { repeat: 25_000, hint: 20_000, again: 45_000 })
+  assert.equal(hintDelayOf(big, 4000), 6000)
+  assert.equal(hintDelayOf(big, 9500), 10_000)
+  assert.equal(retryLineOf(big), 'another')
+  assert.equal(asksHowOf(big), true)
+
+  // 放寬中：每一項照它那一週是哪一段（第 1 週題數、閒置換了；第 3 週才換新內容的數量；第 4 週才換選項）
+  const p = P('2026-01')
+  const ramp = reconcile(p, EMPTY, day).growth
+  const w1 = statusOf(p, ramp, day)
+  assert.equal(roundItemsOf(w1, 3), 4)
+  assert.deepEqual(idleTimesOf(w1), idleTimesOf(middle))
+  assert.equal(maxTeachOf(w1, 2), 2)
+  assert.equal(optionCapOf(w1, true), null)
+  const w3 = statusOf(p, ramp, plus(day, 14))
+  assert.equal(maxTeachOf(w3, 2), 1)
+  assert.equal(optionCapOf(w3, true), null)
+  assert.equal(optionCapOf(statusOf(p, ramp, plus(day, 21)), true), 2)
+
+  // 只留幾個選項時答案一定在，其他照原本的順序；不用刪的回傳同一個陣列
+  const opts = ['a', 'b', 'c', 'd'].map((id) => ({ id }))
+  assert.deepEqual(capOptions(opts, 'd', 2).map((o) => o.id), ['a', 'd'])
+  assert.deepEqual(capOptions(opts, 'a', 3).map((o) => o.id), ['a', 'b', 'c'])
+  assert.equal(capOptions(opts, 'a', 4), opts)
+  assert.equal(capOptions(opts, 'a', null), opts)
+  console.log('ok 10 遊戲讀外框：小班段照舊、中班段大班段照外框、放寬中逐項換')
 }
 
 console.log('ALL PASS')

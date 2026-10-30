@@ -1,4 +1,6 @@
-import { THEME_DAYS, themeEnds, updateSettings, useSettings, weekTheme, type Settings } from '../../lib/settings'
+import { THEME_DAYS, bandSetting, followsBand, themeEnds, updateSettings, useSettings, weekTheme, type Settings } from '../../lib/settings'
+import { useGrowth } from '../../lib/growth'
+import { BAND_ZH } from '../../content/growth'
 import { today } from '../../lib/db'
 import { useSync, signIn, signOut, syncNow, syncConfigured } from '../../lib/sync'
 import { setVolume } from '../../lib/audio'
@@ -114,6 +116,10 @@ function themeHint(s: Settings): string {
 export function SettingsPanel({ onChanged }: { onChanged: () => void }) {
   const s = useSettings()
   const sync = useSync()
+  // 每日上限、護眼休息：家長沒改過就跟著年段（FRAME-6、7），年段換了要重新畫
+  const growth = useGrowth()
+  const daily = bandSetting('dailyMinutes', s)
+  const eyeBreak = bandSetting('eyeBreakEvery', s)
   const set = (p: Partial<Settings>) => {
     void updateSettings(p)
     onChanged()
@@ -130,8 +136,8 @@ export function SettingsPanel({ onChanged }: { onChanged: () => void }) {
 
       <div className="card">
         <h3>使用時間與內容</h3>
-        <Field label="每日時間上限" hint="時間到了豆豆會說晚安，畫面進入休息模式。">
-          <select value={s.dailyMinutes} onChange={(e) => set({ dailyMinutes: Number(e.target.value) })}>
+        <Field label="每日時間上限" hint={`時間到了豆豆會說晚安，畫面進入休息模式。${!followsBand('dailyMinutes', s) ? '' : `沒改過時跟著年段（${BAND_ZH[growth.band]}預設 ${growth.frame.dailyMinutes} 分鐘）。`}`}>
+          <select value={daily} onChange={(e) => set({ dailyMinutes: Number(e.target.value) })}>
             {[10, 15, 20, 25, 30, 45, 60, 0].map((m) => (
               <option key={m} value={m}>
                 {m ? `${m} 分鐘` : '不限制'}
@@ -206,8 +212,8 @@ export function SettingsPanel({ onChanged }: { onChanged: () => void }) {
 
       <div className="card">
         <h3>護眼</h3>
-        <Field label="看遠方休息" hint="連續玩一段時間後，豆豆會請孩子看遠方 20 秒；只會在兩個遊戲之間出現。">
-          <select value={s.eyeBreakEvery} onChange={(e) => set({ eyeBreakEvery: Number(e.target.value) })}>
+        <Field label="看遠方休息" hint={`連續玩一段時間後，豆豆會請孩子看遠方 20 秒；只會在兩個遊戲之間出現。${followsBand('eyeBreakEvery', s) ? `沒改過時跟著年段（${BAND_ZH[growth.band]}預設每 ${growth.frame.eyeBreakEvery[1]} 分鐘）。` : ''}`}>
+          <select value={eyeBreak} onChange={(e) => set({ eyeBreakEvery: Number(e.target.value) })}>
             {[5, 10, 15, 0].map((m) => (
               <option key={m} value={m}>
                 {m ? `每 ${m} 分鐘` : '關閉'}
@@ -225,7 +231,7 @@ export function SettingsPanel({ onChanged }: { onChanged: () => void }) {
           <li>平板側邊的 NXTPAPER 鍵或設定中開啟「NXTPAPER 護眼模式」，配合 App 的紙感配色效果最好。</li>
           <li>亮度跟室內光線差不多就好，不要比周圍亮；避免在暗處或強光直射下使用。</li>
           <li>平板放在桌上、距離眼睛 30 公分以上，坐姿端正。</li>
-          <li>國健署建議 2–5 歲每天螢幕時間不超過 1 小時；目前每日上限設為 {s.dailyMinutes || '不限'} 分鐘。</li>
+          <li>國健署建議 2–5 歲每天螢幕時間不超過 1 小時；目前每日上限設為 {daily || '不限'} 分鐘。</li>
         </ol>
       </div>
 

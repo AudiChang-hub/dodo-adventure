@@ -236,6 +236,23 @@
   font-size: 13px;
   grid-column: 2;
 }
+.parent .growth-frame {
+  margin: 0;
+  padding-left: 1.2em;
+  color: var(--ink);
+  font-size: 14px;
+  line-height: 1.7;
+}
+.parent .growth-demo {
+  padding: 12px 0 4px;
+}
+.parent .growth-demo summary {
+  cursor: pointer;
+  font-size: 15px;
+  min-height: 40px;
+  display: flex;
+  align-items: center;
+}
 .parent .growth-birth {
   display: flex;
   flex-wrap: wrap;

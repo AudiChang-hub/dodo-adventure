@@ -6,7 +6,7 @@ import { Hand } from './Demo'
 import { WaitShield, firstFinger } from './NotYet'
 import { CueArt, VisualView } from '../ui/Visual'
 import { Sparkles } from '../ui/Sparkles'
-import { game as gameDef, station as stationDef, ROUND_ITEMS, type ChoiceItem, type TeachSpec } from '../content/games'
+import { game as gameDef, station as stationDef, type ChoiceItem, type TeachSpec } from '../content/games'
 import { level, reportLevel, markPlayed, plays, mastered, skill, hintDelayMs, noteHintWait } from '../lib/adaptive'
 import { planChoice, roundState } from './pick'
 import { logAttempt, logTeach } from '../lib/record'
@@ -20,6 +20,7 @@ import { preload, say, sfx, stopSpeech } from '../lib/audio'
 import { pick, shuffle } from '../lib/random'
 import { challengeKey, praiseKey, retryKey, wait } from './lines'
 import { useIdle } from './idle'
+import { asksHowOf, frameNow, hintDelay, retryLineOf, wrongLinesOf, wrongStepOf } from './frame'
 import { PACE, nextPause } from './pace'
 import type { Mood } from '../art/Dino'
 import { CardStage, Swap } from '../ui/Scenes'
@@ -133,6 +134,8 @@ function ChoiceRound({ gameId, onDone, onExit }: GameProps) {
   const decoyRef = useRef<string | null>(null)
   const protegeRound = useRef(Math.random() < PROTEGE_CHANCE)
   const protegeUsed = useRef(false)
+  /** 大班段的 How did you know?：這一局問過了沒（一局最多一次） */
+  const howAsked = useRef(false)
   /** 延遲提示：這題有沒有延遲提示、光是什麼時候亮的 */
   const delayRef = useRef<{ ms: number; glowAt: number | null } | null>(null)
   const resolver = useRef<((ms: number) => void) | null>(null)
@@ -221,7 +224,7 @@ function ChoiceRound({ gameId, onDone, onExit }: GameProps) {
   const quiz = async (it: ChoiceItem, o: QuizOpts = {}) => {
     const my = ++stepRef.current
     const i = idxRef.current
-    const isLast = i === ROUND_ITEMS - 1
+    const isLast = i === round.current.items - 1
     idle.stop()
     phaseRef.current = 'quiz'
     itemRef.current = it
@@ -230,7 +233,8 @@ function ChoiceRound({ gameId, onDone, onExit }: GameProps) {
     probeRef.current = !!o.probe
     decoyRef.current = o.decoy ?? null
     // 延遲提示只給學習中（0–2 格）的題目；已熟的、探測題、教豆豆都不給
-    delayRef.current = !o.probe && !o.decoy && skill(it.skill).box <= 2 ? { ms: hintDelayMs(), glowAt: null } : null
+    // 起點跟著年段（FRAME-9：小班段 4 秒、中班段 5 秒、大班段 6 秒），之後照孩子等不等光往上加（adaptive）
+    delayRef.current = !o.probe && !o.decoy && skill(it.skill).box <= 2 ? { ms: hintDelay(hintDelayMs()), glowAt: null } : null
     setPhase('quiz')
     setItem(it)
     setMarks(o.decoy ? { [o.decoy]: 'tease' } : {})
@@ -278,7 +282,7 @@ function ChoiceRound({ gameId, onDone, onExit }: GameProps) {
   const present = async (i: number) => {
     idxRef.current = i
     setIdx(i)
-    const isLast = i === ROUND_ITEMS - 1
+    const isLast = i === round.current.items - 1
     // 這題出什麼、要不要先教、是不是探測題（pick.ts，自動檢查 scripts/sim-teach.ts 用同一份）
     const { it, lv, probe: probed, fresh, walk: walkThrough } = planChoice(def, round.current, i)
     itemLevel.current = lv
@@ -303,6 +307,7 @@ function ChoiceRound({ gameId, onDone, onExit }: GameProps) {
       ...(it.teach?.lines ?? []),
       `teach.here.${host}`,
       `teach.turn.${host}`,
+      ...wrongLinesOf(frameNow(), host),
       ...(decoy ? [`tease.try.${host}`, teaseKey(it.skill), `tease.thanks.${host}`, `tease.oops.${host}`] : []),
     ])
 
@@ -320,11 +325,11 @@ function ChoiceRound({ gameId, onDone, onExit }: GameProps) {
   }
 
   /** 答對（或重教完）到下一題：剛教的新內容多停一下，複習題維持輕快 */
-  const next = async (ms = nextPause(taughtItem.current)) => {
+  const next = async (ms: number = nextPause(taughtItem.current)) => {
     await wait(ms)
     if (!live.current) return
     const n = idxRef.current + 1
-    if (n >= ROUND_ITEMS) return onDone({ items: ROUND_ITEMS, firstTry: firstTries.current })
+    if (n >= round.current.items) return onDone({ items: round.current.items, firstTry: firstTries.current })
     present(n)
   }
 
@@ -456,12 +461,24 @@ function ChoiceRound({ gameId, onDone, onExit }: GameProps) {
       sfx.gentle()
       setMarks((m) => ({ ...m, [optId]: 'wrong' }))
       const wrongs = taps.current.filter((t) => t.pick !== it.answer).length
-      if (wrongs >= 2 && it.teach) return reteach(it)
-      if (wrongs >= 2) {
+      // 答錯的支架跟著年段（FB-2、FRAME-10，games/frame.ts）：小班段錯 1 次再試、錯 2 次標出答案（跟以前一樣）；
+      // 中班段起中間多一層「哪裡不一樣？」，第一層的「再試一次」換成「再想想」「換個方法試試」
+      const g = frameNow()
+      const step = wrongStepOf(g, wrongs)
+      if (step === 'reveal' && it.teach) return reteach(it)
+      if (step === 'reveal') {
         hintUsed.current = true
         setMarks((m) => ({ ...m, [optId]: 'wrong', [it.answer]: 'hint' }))
         await say(`hint.${host}`, ...it.correction)
-      } else await say(retryKey(host))
+      } else if (step === 'contrast') {
+        // 答案淡淡亮起（跟延遲提示同一種光），孩子自己比；看了光就不算第一次答對
+        hintUsed.current = true
+        setMarks((m) => (m[it.answer] ? m : { ...m, [it.answer]: 'soft' }))
+        await say(`contrast.${host}`)
+      } else {
+        const line = retryLineOf(g)
+        await say(line === 'retry' ? retryKey(host) : `${line}.${host}`)
+      }
       // 「再試一次」說完才重新計時，不算在閒置提醒裡
       idle.poke()
       return
@@ -500,8 +517,14 @@ function ChoiceRound({ gameId, onDone, onExit }: GameProps) {
     const change = reportLevel(def.id, firstTry, def.maxLevel, { probe: probeRef.current, skill: it.skill })
     const lines = [praiseKey(host, english), ...(it.after && Math.random() < 0.6 ? it.after : [])]
     if (change === 'up') lines.push('levelup')
+    // 大班段：還在學的題目第一次就答對，問 How did you know?（FRAME-10，一局最多一次），多停一下讓孩子跟爸爸說
+    const how = asksHowOf(frameNow()) && firstTry && !!d && !howAsked.current
+    if (how) {
+      howAsked.current = true
+      lines.push(`how.${host}`)
+    }
     await say(...lines)
-    next()
+    next(how ? nextPause(taughtItem.current) + PACE.HOW_PAUSE : undefined)
   }
 
   // 孩子主動點恐龍、點題目圖：是孩子要聽的，不是閒置提醒；也算有操作
@@ -518,7 +541,7 @@ function ChoiceRound({ gameId, onDone, onExit }: GameProps) {
   const wide = item?.options.some((o) => o.v.t === 'group')
   const fit = Math.max(0, ...(item?.options ?? []).map((o) => (o.v.t === 'group' ? o.v.count : 0)))
   return (
-    <Shell station={def.station} mood={mood} progress={{ total: ROUND_ITEMS, done: idx }} onExit={onExit} onHost={onHost} hintText={hintText}>
+    <Shell station={def.station} mood={mood} progress={{ total: round.current.items, done: idx }} onExit={onExit} onHost={onHost} hintText={hintText}>
       {/* 教學卡在原地淡入、題目在後面淡掉；換題時新題目蓋在舊的上面淡入（ui/Scenes.tsx） */}
       <CardStage card={card && <TeachCard key={`teach-${card.n}`} spec={card.spec} short={card.short} camera onDone={release} />}>
         {item && (
