@@ -2,8 +2,8 @@
 // 小班段一版，中班段是「長大版」（句子變長、多了鴿子和綠葉子）；播放時照孩子的年段挑（content/story 的 classicFor）。
 // 宗教經典另外的規則（§5.1）：當故事講，不傳教義。完全不說為什麼下雨，只說下了好久的雨、大家在船上很安全；
 // 沒有神、沒有禱告、沒有「要相信」；挪亞不畫出來（畫面只有方舟、槌子、動物），孩子端也不說這是聖經的故事。
-// 跟劇本不一樣的地方：加重的字在句中的「Two **elephants**. Two **giraffes**. Hello!」拆成三句（`|` 只能加重句尾）；
-// 拆開之後第 2 段變成 4 句，超過一段 3 句的上限，所以「動物們兩隻兩隻來了」移到第 1 站的最後，接在造好船之後。
+// 跟劇本不一樣的地方：加重的字在句中的「Two **elephants**. Two **giraffes**. Hello!」拆成兩句（`|` 只能加重句尾），
+// 「Hello!」刪掉：小班段一章最多 10 句（故事世界 §3.3），留下兩隻兩隻（數數、配對）的重點。
 import type { Chapter, ChapterLook, Classic } from '../types'
 import { CLOSE_BOOK, OPEN_BOOK } from './fixed'
 
@@ -20,7 +20,7 @@ const LOOK: ChapterLook = {
   finale: ['rainbow', 'giraffe'],
 }
 
-/** 小班段（§7.2 的表）：12 句，重點是兩隻兩隻（數數、配對）、大家互相照顧、彩虹 */
+/** 小班段（§7.2 的表）：10 句，重點是兩隻兩隻（數數、配對）、大家互相照顧、彩虹 */
 const SMALL: Chapter = {
   id: 'classic-b01',
   kind: 'classic',
@@ -36,15 +36,13 @@ const SMALL: Chapter = {
       generic: [
         { who: 'momo', en: 'Noah builds a big, big | boat.', pic: '@ark+hammer' },
         { who: 'momo', en: 'Knock, knock! Bang, bang!', pic: 'hammer+wood' },
-        // 劇本第 2 段的第一句：第 2 段拆成三句之後放不下，移到這裡（造好船，動物們就來了）
-        { who: 'momo', en: 'The animals come, two by two.', pic: '@two-zebra' },
       ],
     },
     {
       generic: [
+        { who: 'momo', en: 'The animals come, two by two.', pic: '@two-zebra' },
         { who: 'momo', en: 'Two | elephants.', pic: '@two-elephant' },
         { who: 'momo', en: 'Two | giraffes.', pic: '@two-giraffe' },
-        { who: 'momo', en: 'Hello!', pic: '@two-giraffe' },
       ],
     },
     {
@@ -65,7 +63,11 @@ const SMALL: Chapter = {
   end: CLOSE_BOOK,
 }
 
-/** 中班段的長大版（§7.2 附表）：句子變長；多了「方舟」這個字、數一數有幾對、鴿子帶回綠葉子。一樣不提原因 */
+/**
+ * 中班段的長大版（§7.2 附表）：句子變長；多了「方舟」這個字、數一數有幾對、鴿子帶回綠葉子。一樣不提原因。
+ * 生字只留 ark、pairs、dove 三個（中班段一章最多 3 個，check-story）：附表的 zebras、feeds、each other、leaf、plants
+ * 換成學過的字（monkeys、gives … apples、share and help、something green、trees），意思不變
+ */
 const MIDDLE: Chapter = {
   ...SMALL,
   id: 'classic-b01-m',
@@ -80,22 +82,22 @@ const MIDDLE: Chapter = {
     {
       generic: [
         { who: 'momo', en: 'Then the animals come, two by two.', pic: '@two-lion' },
-        { who: 'momo', en: 'Two lions, two zebras, two turtles…', pic: '@pairs' },
+        { who: 'momo', en: 'Two lions, two monkeys, two turtles…', pic: '@pairs' },
         { who: 'momo', en: 'Can you count the pairs?', pic: '@pairs' },
       ],
     },
     { generic: [{ who: 'momo', en: 'Then it rains and rains for many days.', pic: 'cloud-with-rain+@ark' }] },
     {
       generic: [
-        { who: 'momo', en: 'Noah feeds the animals every day.', pic: '@ark-full+green-apple' },
-        { who: 'momo', en: 'The animals help each other, too.', pic: 'giraffe+bird' },
+        { who: 'momo', en: 'Noah gives the animals apples every day.', pic: '@ark-full+green-apple' },
+        { who: 'momo', en: 'The animals share and help, too.', pic: 'giraffe+bird' },
       ],
     },
     {
       generic: [
         { who: 'momo', en: 'One day, a dove flies out.', pic: 'dove' },
-        { who: 'momo', en: 'It comes back with a green leaf!', pic: 'dove+leaf-fluttering-in-wind' },
-        { who: 'momo', en: 'Look! Plants are growing again.', pic: 'seedling' },
+        { who: 'momo', en: 'It comes back with something green!', pic: 'dove+leaf-fluttering-in-wind' },
+        { who: 'momo', en: 'Look! Trees are growing again.', pic: 'deciduous-tree+seedling' },
       ],
     },
   ],

@@ -10,7 +10,7 @@
 // 有任何問題（不含只提醒的）就以 1 結束。
 import { readFileSync, readdirSync, existsSync } from 'node:fs'
 import { join, basename } from 'node:path'
-import { ARCS, CLASSICS, WEEKLY, draftChapters, draftId, normalizeDraft, weeklyOf, type StoryDraft } from '../src/content/story'
+import { ARCS, CLASSICS, WEEKLY, classicVersions, draftChapters, draftId, normalizeDraft, weeklyOf, type StoryDraft } from '../src/content/story'
 import { CATEGORY_ZH, checkChapter, checkDraft, loadLearner, privateWordsFromEnv, type Category, type CheckOpts, type Problem } from './story/rules'
 
 export const LEARNER_CACHE = 'scripts/.cache/learner.json'
@@ -49,6 +49,10 @@ export function formatProblems(ps: Problem[]): string {
 
 export const blocking = (ps: Problem[]) => ps.filter((p) => !p.warn)
 
+const BAND_ZH = { small: '小班段', middle: '中班段', big: '大班段' } as const
+/** 手寫的故事時間裡的角色名字（不算生字、不當成人名擋下） */
+const CLASSIC_CAST: Record<string, string[]> = { A01: ['Rabbit', 'Turtle'], B01: ['Noah'] }
+
 function args() {
   const a = process.argv.slice(2)
   const opt = (k: string) => {
@@ -78,11 +82,14 @@ function main() {
       console.log(`${ps.length ? '✗' : '✓'} 手寫 ${arc.id}〈${arc.zh}〉${arc.chapters.length} 章${ps.length ? `：${ps.length} 個問題\n${formatProblems(ps)}` : ''}`)
       if (ps.length) bad++
     }
-    for (const c of CLASSICS.filter((x) => !weeklyOf(x.chapter.id))) {
-      const ps = blocking(checkChapter(c.chapter, { ...opts, draft: false }, { cast: ['Rabbit', 'Turtle'].filter((n) => c.id === 'A01' && n) }))
-      console.log(`${ps.length ? '✗' : '✓'} 手寫 故事時間 ${c.id}〈${c.zh}〉${ps.length ? `：${ps.length} 個問題\n${formatProblems(ps)}` : ''}`)
-      if (ps.length) bad++
-    }
+    // 每個年段的版本都要檢查（grown 裡的長大版照它自己的年段：中班段一句 8 個字、一段 3 句…）
+    for (const c of CLASSICS.filter((x) => !weeklyOf(x.chapter.id)))
+      for (const ch of classicVersions(c)) {
+        const ps = blocking(checkChapter(ch, { ...opts, draft: false }, { cast: CLASSIC_CAST[c.id] ?? [] }))
+        const ver = ch === c.chapter ? '' : `（${BAND_ZH[ch.band]}長大版）`
+        console.log(`${ps.length ? '✗' : '✓'} 手寫 故事時間 ${c.id}〈${c.zh}〉${ver}${ps.length ? `：${ps.length} 個問題\n${formatProblems(ps)}` : ''}`)
+        if (ps.length) bad++
+      }
     for (const d of WEEKLY) {
       const ps = blocking(problemsOf(d, opts))
       console.log(`${ps.length ? '✗' : '✓'} 審稿佇列 ${draftId(d)}（${draftChapters(d).length} 章）${ps.length ? `：${ps.length} 個問題\n${formatProblems(ps)}` : ''}`)

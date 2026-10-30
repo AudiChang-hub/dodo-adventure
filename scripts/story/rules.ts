@@ -11,7 +11,7 @@ import { allLines, plainText } from '../../src/content/lines'
 import { LEXICON } from '../../src/content/lexicon'
 import { THEMES } from '../../src/content/themes'
 import { EMOJI } from '../../src/art/emoji.generated'
-import { STORY_ART } from '../../src/content/story/art'
+import { STORY_ART, TWO, artParts } from '../../src/content/story/art'
 import { allChapters, doorStop, draftChapters, weeklyOf, type Beat, type Chapter, type StopBeats, type StoryDraft } from '../../src/content/story'
 import { OPEN_BOOK, CLOSE_BOOK } from '../../src/content/story/classics/fixed'
 import { BASIC_WORDS } from './basic-words'
@@ -322,7 +322,10 @@ export function checkChapter(ch: Chapter, opts: CheckOpts, extra: { cast?: strin
         if (seenPics.has(p)) continue
         seenPics.add(p)
         if (p.startsWith('@')) {
-          if (!(p in STORY_ART)) add('format', `${quote(b)} 圖 ${p} 不存在（自己畫的圖只有 ${Object.keys(STORY_ART).join('、')}）`, where)
+          // 自己畫的圖（content/story/art.ts，畫在 ui/StoryPic.tsx）：@two-<Fluent Emoji> 是兩隻一樣的動物，那隻動物也要有
+          const parts = artParts(p)
+          if (!parts) add('format', `${quote(b)} 圖 ${p} 不存在（自己畫的圖只有 ${Object.keys(STORY_ART).join('、')}、${TWO}<動物>）`, where)
+          else if (p.startsWith(TWO) && !EMOJI[parts[0]]) add('format', `${quote(b)} 圖 ${p} 的 ${parts[0]} 不存在（${TWO}後面接 Fluent Emoji 的名字，例如 ${TWO}elephant）`, where)
         } else if (!EMOJI[p]) {
           if (inIconify(p)) add('format', `${quote(b)} 圖 ${p} 還沒打包（npm run emoji；story-weekly 會自動打包）`, where, true)
           else add('format', `${quote(b)} 圖 ${p} 不存在（Fluent Emoji 的名字，例如 rabbit、red-apple）`, where)

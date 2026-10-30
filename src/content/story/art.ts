@@ -10,7 +10,7 @@ export const STORY_ART = {
   '@ark': '方舟',
   /** 方舟，長頸鹿和大象從窗戶探出頭（大家在船裡暖暖的） */
   '@ark-full': '方舟（動物探頭）',
-  /** 一對一對的動物：兩隻獅子、兩隻斑馬、兩隻烏龜（數一數有幾對） */
+  /** 一對一對的動物：兩隻獅子、兩隻猴子、兩隻烏龜（數一數有幾對） */
   '@pairs': '一對一對的動物',
 } as const
 
@@ -23,7 +23,7 @@ export const TWO = '@two-'
 const USES: Partial<Record<StoryArt, string[]>> = {
   '@egg-nest': ['basket', 'teddy-bear'],
   '@ark-full': ['giraffe', 'elephant'],
-  '@pairs': ['lion', 'zebra', 'turtle'],
+  '@pairs': ['lion', 'monkey', 'turtle'],
 }
 
 /** 這張自己畫的圖用到哪些 Fluent Emoji；不是故事的圖回傳 null */

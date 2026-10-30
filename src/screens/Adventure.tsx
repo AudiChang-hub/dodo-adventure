@@ -43,9 +43,16 @@ const HOUSE_ADD_MS = 2600
 
 /** 一進冒險在哪一段：走完了 → 孵蛋／回顧；長篇、故事時間剛開始 → 魔法屋的開場；其他 → 路線圖 */
 function firstPhase(p: Plan | null): Phase {
-  if (p && planDone(p)) return p.hatched ? 'finish' : 'hatch'
+  if (p && planDone(p)) return donePhase(p)
   const s = p && scriptForPlan(p)
   return s && opensAtHome(s.chapter) && p!.items.every((i) => !i.done) ? 'open' : 'route'
+}
+
+/** 站都走完了再進來：孵過蛋就回顧；故事（長篇、故事時間）的終點還沒念完就從終點接著講，不然去孵蛋 */
+function donePhase(p: Plan): Phase {
+  if (p.hatched) return 'finish'
+  const s = scriptForPlan(p)
+  return s && s.chapter.kind !== 'evergreen' && !p.told ? 'finale' : 'hatch'
 }
 
 /**
@@ -115,7 +122,7 @@ export function Adventure() {
         if (!cur) setPhase(firstPhase(p))
         return p
       })
-      if (planDone(p)) setPhase(p.hatched ? 'finish' : 'hatch')
+      if (planDone(p)) setPhase(donePhase(p))
       void friendFor(p.date).then((f) => live.current && setFriendToday(f))
     })
     void houseItems().then((h) => live.current && setHouse(h))
@@ -269,6 +276,8 @@ export function Adventure() {
       if (cancelled) return
       sfx.done()
       if (!(await sayAll(script.finale, () => cancelled || !live.current))) return
+      // 終點念完了：之後離開再進來就不用重講（不 setPlan，免得今天的 script 重算、這一段重來）
+      if (plan && planDone(plan)) void savePlan({ ...plan, told: true })
       await hold(script.finale.length ? 700 : 1200)
       if (cancelled || !live.current) return
       if (script.end.length) return setPhase('close')
@@ -392,8 +401,10 @@ export function Adventure() {
   const up = () => {
     if (item && phase === 'play') noteActivity(item.game, item.station, false)
     if (upIsHome) {
-      // 故事的結尾（回到魔法屋）念到一半離開：故事已經講到最後，這一章算講完
-      if (plan && script && planDone(plan)) void finishChapter(plan, script)
+      // 故事的結尾（回到魔法屋）念到一半離開：故事已經講到最後，這一章算講完。
+      // 還沒念到終點（最後一站蛋裂開時、終點念到一半）就不算：再進來從終點接著講（donePhase）
+      const early = (phase === 'egg' || phase === 'finale') && script?.chapter.kind !== 'evergreen'
+      if (plan && script && planDone(plan) && !early) void finishChapter(plan, script)
       // 淡出回首頁的這一下，冒險不再往下走（不然淡出中的畫面會從路線圖換成旁白卡，閃一下）
       live.current = false
       epoch.current++

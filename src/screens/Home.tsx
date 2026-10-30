@@ -46,7 +46,8 @@ export function Home() {
     })
   }, [])
 
-  const done = plan ? planDone(plan) : false
+  // 站都走完、蛋還沒孵（例如最後一站蛋裂開時按了返回）還不算完成：「出發」回冒險，把故事的終點講完、孵蛋
+  const done = plan ? planDone(plan) && !!plan.hatched : false
   // 主題式冒險：首頁的小路線也是故事的圖（公車站牌、公車…），不是站點圖示
   const th = themeDef(plan?.theme)
   const mapOpen = settings.freePlay === 'always' || done

@@ -72,7 +72,7 @@ async function seedStory(page: Page, s: Seed) {
 const progress = (page: Page) =>
   page.evaluate(
     () =>
-      new Promise<{ row: { ref: string; done: boolean; kind: string; faith?: string } | null; story: { next: number; house: string[]; classicsDone: string[] } | null }>((res) => {
+      new Promise<{ row: { ref: string; done: boolean; kind: string; faith?: string } | null; story: { next: number; house: string[]; classicsDone: string[] } | null; plan: { items: { done: boolean }[]; told?: boolean } | null }>((res) => {
         const d = new Date()
         const date = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
         const rq = indexedDB.open('dodo-adventure')
@@ -81,9 +81,10 @@ const progress = (page: Page) =>
           const tx = db.transaction(['kv', 'chapters'])
           const a = tx.objectStore('chapters').get(date)
           const b = tx.objectStore('kv').get('story')
+          const pl = tx.objectStore('kv').get(`plan:${date}`)
           tx.oncomplete = () => {
             db.close()
-            res({ row: a.result ?? null, story: b.result?.value ?? null })
+            res({ row: a.result ?? null, story: b.result?.value ?? null, plan: pl.result?.value ?? null })
           }
         }
       }),
@@ -249,6 +250,16 @@ test.describe('故事', () => {
         c.outcome('出發 → 書房的開場', live === 'open', `到 ${live}`)
         const t0 = await page.evaluate(() => performance.now())
         const seen = await playUntil(k, c, hatched, 9 * 60_000)
+        // 亂點按到返回、回到首頁：孩子會再按一次進來。站都走完了就要從故事的終點接著講（不是直接孵蛋）
+        for (let i = 0; i < 2 && (await snap(page)).live === 'home'; i++) {
+          const allDone = (await progress(page)).plan?.items.every((x) => x.done)
+          const back = await start(k)
+          if (allDone) {
+            c.outcome('站都走完、終點還沒講就回首頁 → 再進來從終點接著講', back === 'finale', `到 ${back}`)
+            if (back !== 'finale') await c.once('classic-resume', '困惑', '最後一站之後回首頁，再進來沒有把故事講完', `到 ${back}`)
+          }
+          seen.push(...(await playUntil(k, c, hatched, 4 * 60_000)))
+        }
         const end = (await snap(page)).live
         c.outcome('故事時間玩到孵蛋', hatched(end, seen), `經過 ${seen.join('、')}，停在 ${end}`)
         if (!hatched(end, seen)) await c.once('classic-stuck', '卡死', '故事時間沒有走到孵蛋', `經過 ${seen.join('、')}，停在 ${end}`)

@@ -30,6 +30,11 @@ export interface Plan {
   chapter?: string
   items: PlanItem[]
   hatched: string | null
+  /**
+   * 故事的終點念完了（G-8）。站都走完、還沒念到終點就離開（例如最後一站蛋裂開時按返回），
+   * 再進來要從終點接著講完，不然沒排到的段落和故事時間的闔上書都聽不到
+   */
+  told?: boolean
 }
 
 /** 最近幾天存下來的冒險主題（新的在前；沒玩、沒排的日子沒有） */

@@ -1,7 +1,7 @@
 import { memo, useId, type ReactElement } from 'react'
 import { Emoji } from '../art/Emoji'
 import type { Pic } from '../content/story'
-import { TWO } from '../content/story/art'
+import { TWO, artParts } from '../content/story/art'
 
 // 故事的畫面（content/story 的 Pic）：Fluent Emoji，或 @ 開頭的故事自己的圖；用 + 疊兩張（第二張小小的靠在右下角）。
 // 畫風跟 art/Egg.tsx 一樣：紙色、淡墨線、低彩度；靜止不動（畫面靜止時不留循環動畫，MOTION-2）。
@@ -136,7 +136,7 @@ function Two({ name }: { name: string }) {
 function Pairs() {
   return (
     <div style={{ display: 'grid', gridTemplateRows: 'repeat(3, 1fr)', width: '100%', aspectRatio: '1', alignItems: 'center' }}>
-      {['lion', 'zebra', 'turtle'].map((n) => (
+      {artParts('@pairs')!.map((n) => (
         <div key={n} style={{ display: 'flex', justifyContent: 'center' }}>
           <div style={{ width: '34%' }}>
             <Emoji name={n} />
