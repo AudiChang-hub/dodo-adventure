@@ -22,6 +22,13 @@ import './coplay.css'
  */
 export const PlayingGame = createContext<string | null>(null)
 
+/**
+ * 一局結束的慶祝（ui/Celebrate.tsx：每局回顧、里程碑、挑貼紙）正蓋在遊戲上面：PlayGame 告訴 Shell。
+ * 慶祝的紙色遮罩蓋住整個畫面，但返回鍵要留在最上層、點一下就離開（準則 NAV-1、NAV-7），
+ * 上方那一排的其他東西（進度點、陪玩小字）跟著遊戲一起藏到遮罩後面。
+ */
+export const Cheering = createContext(false)
+
 function usePlayingGame(): string | null {
   const fromAdventure = useContext(PlayingGame)
   const r = useRoute()
@@ -135,9 +142,10 @@ export function Shell({ station, mood, progress, onExit, onHost, children, hideH
     '--touch-primary': `${Math.round(TOUCH_PX.primary * (f.primaryCm / s.primaryCm))}px`,
     '--touch-gap': `${Math.round(TOUCH_PX.gap * (f.gapCm / s.gapCm))}px`,
   }
+  const cheering = useContext(Cheering)
   return (
     <div
-      className="stage"
+      className={`stage${cheering ? ' cheering' : ''}`}
       data-demo={demo ? '1' : undefined}
       data-band={bandOf(growth, 'maxOptions')}
       style={{ '--stage': th?.tint ?? st.tint, '--deep': th?.deep ?? st.deep, ...touch } as CSSProperties}

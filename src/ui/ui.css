@@ -29,6 +29,18 @@
   padding: 18px 26px 0;
   height: 96px;
 }
+/*
+ * 一局結束的慶祝蓋著遊戲（ui/Celebrate.tsx 的 .cheer-scrim，z-index 40）：返回鍵留在遮罩上面，點一下就離開（NAV-1、NAV-7）；
+ * 上方一排的其他東西（進度點、陪玩小字）跟著遊戲藏在遮罩後面。Shell 從 PlayGame 的 Cheering 知道慶祝中。
+ */
+.stage.cheering .stage-top {
+  z-index: 41;
+  /* 抬上來的只有返回鍵：這一排其他地方的點擊穿過去，落到慶祝上（照舊是跳過） */
+  pointer-events: none;
+}
+.stage.cheering .stage-top > :not(.back-btn) {
+  visibility: hidden;
+}
 .stage-main {
   position: relative;
   z-index: 2;

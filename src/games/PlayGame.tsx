@@ -1,10 +1,11 @@
 import { useRef, useState } from 'react'
 import { game } from '../content/games'
-import type { GameProps, GameResult } from './Shell'
+import { Cheering, type GameProps, type GameResult } from './Shell'
 import { Celebrate } from '../ui/Celebrate'
 import { beginRound, endRound, type RoundSummary } from '../lib/achievements'
 import { useThemeScope } from '../lib/theme-play'
 import { useBack } from '../lib/nav'
+import { stopSpeech } from '../lib/audio'
 import { ChoiceGame } from './ChoiceGame'
 import { PhonicsGame } from './phonics/PhonicsGame'
 import { CountGame } from './CountGame'
@@ -72,17 +73,22 @@ export function PlayGame(props: GameProps) {
   /**
    * 返回（返回鍵、Android 的返回手勢）：玩到一半就回上一層，已經答的題目都記下了（logAttempt 每題當下就寫）。
    * 慶祝中返回當作看完慶祝：這一局照樣算完成，不會因為返回少一站。已經交回去了就交給外層（冒險）處理。
+   * 慶祝蓋著遊戲時，返回鍵還是在遮罩上面（Shell 讀 Cheering），點一下就離開，不是只跳過這一段慶祝。
    */
   const exit = () => {
     if (handed.current) return false
-    if (cheer) return finish(cheer.r)
+    if (cheer) {
+      // 慶祝的那一句不要跟著到下一個畫面
+      stopSpeech()
+      return finish(cheer.r)
+    }
     props.onExit()
   }
   useBack(exit)
   return (
-    <>
+    <Cheering.Provider value={!!cheer}>
       <C key={g.id} {...props} gameId={g.id} onDone={onDone} onExit={exit} />
       {cheer && <Celebrate summary={cheer.s} onDone={() => finish(cheer.r)} />}
-    </>
+    </Cheering.Provider>
   )
 }
