@@ -3,7 +3,8 @@ import { GAMES } from '../content/games'
 import { FRIENDS } from '../content/park'
 import { trackOf, type TrackId } from '../content/tracks'
 import { pickTheme, theme, THEME_GAP_DAYS, type ThemeId } from '../content/themes'
-import { conceptIntrosNow, isDue, lastPlayed, pauseNew, plays, skill } from './adaptive'
+import { conceptIntrosNow, isDue, lastPlayed, pauseNew, plays, rungOpen, skill } from './adaptive'
+import { entryRung } from '../content/ladder'
 import { fluencyReady, isFluency } from './fluency'
 import { getSettings, weekTheme } from './settings'
 import { pick } from './random'
@@ -78,7 +79,9 @@ async function readPlan(): Promise<Plan> {
   for (const a of attempts) byGame.set(a.game, (byGame.get(a.game) ?? new Set()).add(a.skill))
   const dueIn = (g: string) => [...(byGame.get(g) ?? [])].filter(isDue).length
   // 功文式小練習要有足夠已熟的數字題才排進來，不然就不是「做得到、越做越快」的練習
-  const games = GAMES.filter((g) => g.kind !== 'free' && trackOf(g.id) && (!isFluency(g.id) || fluencyReady()))
+  // 還沒玩過、而且起點那一階還沒開的遊戲先不排（成長系統 §1.4：前置條件擋，不看年齡），例如連點成圖要等 1–5 穩固
+  const ready = (id: string) => plays(id) > 0 || !entryRung(id) || rungOpen(entryRung(id)!)
+  const games = GAMES.filter((g) => g.kind !== 'free' && trackOf(g.id) && (!isFluency(g.id) || fluencyReady()) && ready(g.id))
   const n = Math.max(2, Math.min(5, getSettings().activitiesPerDay))
   const slots = planDay({ date, n, needs, games, lastPlayed, plays, dueIn, overloaded: pauseNew() })
   const plan: Plan = { date, theme: await themeFor(date), items: slots.map((x) => ({ game: x.game, station: x.station, track: x.track, done: false })), hatched: null }

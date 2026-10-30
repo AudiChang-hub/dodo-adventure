@@ -1,5 +1,5 @@
 import { phaseOf, today, type Attempt, type StationId } from './db'
-import { isProtege, isProbe, isScored, loadCheck } from './engine'
+import { LOAD_DAYS, LOAD_LOW, isProtege, isProbe, isScored, loadCheck, median, speedCat, type DayRate } from './engine'
 import { fnv1a } from './hash'
 import { TRACKS, conceptOf, levelConcept, trackConcepts, trackOf, type TrackId } from '../content/tracks'
 
@@ -351,6 +351,91 @@ export function radarScores(attempts: readonly Attempt[], date: string): RadarAx
     const score = s.skills || s.known ? Math.round(100 * (RADAR_W.mastery * s.mastery + RADAR_W.coverage * coverage + RADAR_W.accuracy * (accuracy ?? 0))) : 0
     return { track: s.track, score, mastery: s.mastery, coverage, accuracy, quiz14: s.quiz14 }
   })
+}
+
+// ── 依支線的負擔控制與加速（成長系統 §1.4，G-2）───────────────
+/** 作答屬於哪條支線（content/ladder.ts 的 strandOfSkill；從外面傳進來，這個檔案不必引用階梯的內容） */
+export type StrandOf = (a: Pick<Attempt, 'game' | 'skill'>) => string | null
+
+/** 每條支線每天「自己答」第一次答對的比例（只算那條支線當天至少答了 minItems 題的日子），由舊到新 */
+export function strandRates(attempts: readonly Attempt[], strandOf: StrandOf, minItems: number): Map<string, (DayRate & { ms: number[] })[]> {
+  const m = new Map<string, Map<string, DayRate & { ms: number[] }>>()
+  for (const a of attempts) {
+    if (!isScored(a)) continue
+    const s = strandOf(a)
+    if (!s) continue
+    const days = m.get(s) ?? new Map()
+    const r = days.get(a.date) ?? { date: a.date, n: 0, ok: 0, ms: [] }
+    r.n++
+    if (a.firstTryCorrect) {
+      r.ok++
+      if (!a.hintUsed && a.responseMs > 0 && speedCat(a.game, a.skill)) r.ms.push(a.responseMs)
+    }
+    days.set(a.date, r)
+    m.set(s, days)
+  }
+  const out = new Map<string, (DayRate & { ms: number[] })[]>()
+  for (const [s, days] of m) out.set(s, [...days.values()].filter((d) => d.n >= minItems).sort((a, b) => (a.date < b.date ? -1 : 1)))
+  return out
+}
+
+export interface StrandLoad {
+  /** 一整天都很差（例如生病）：全部暫停、每個遊戲降一級（和原本的負擔控制一樣） */
+  global: boolean
+  /** 只有這幾條支線答錯集中：只暫停它們、只降它們的遊戲 */
+  strands: string[]
+  /** 原本的判斷（連續 3 個有玩的日子，整天的第一次答對率都低於 6 成） */
+  days: DayRate[]
+}
+
+/**
+ * 依支線的負擔控制，只看今天以前的完整日子：
+ * - 原本的條件成立（連續 3 天整天都低於 6 成）時，看那 3 天的錯集中在哪：每條有玩到的支線都低於 6 成，就是整天都很差 → 全部暫停；
+ *   不然只暫停低於 6 成的那幾條支線。
+ * - 原本的條件沒有成立，但某條支線自己最近 3 個有玩到它的日子都低於 6 成：只暫停那一條。
+ */
+export function strandLoad(attempts: readonly Attempt[], todayDate: string, strandOf: StrandOf, minItems: number): StrandLoad {
+  const before = attempts.filter((a) => a.date < todayDate)
+  const whole = loadCheck(before, todayDate)
+  if (whole.overloaded) {
+    const dates = new Set(whole.days.map((d) => d.date))
+    const rates = strandRates(
+      before.filter((a) => dates.has(a.date)),
+      strandOf,
+      1,
+    )
+    const played = [...rates].map(([s, ds]) => ({ s, n: ds.reduce((x, d) => x + d.n, 0), ok: ds.reduce((x, d) => x + d.ok, 0) })).filter((x) => x.n >= minItems)
+    const bad = played.filter((x) => x.ok / x.n < LOAD_LOW).map((x) => x.s)
+    if (!played.length || bad.length === played.length) return { global: true, strands: [], days: whole.days }
+    return { global: false, strands: bad, days: whole.days }
+  }
+  const strands: string[] = []
+  for (const [s, ds] of strandRates(before, strandOf, minItems)) {
+    const last = ds.slice(-LOAD_DAYS)
+    if (last.length === LOAD_DAYS && last.every((d) => d.ok / d.n < LOAD_LOW)) strands.push(s)
+  }
+  return { global: false, strands, days: whole.days }
+}
+
+/**
+ * 太順的支線（§1.4 往上第 4 點）：最近 days 個有玩到它的日子，第一次答對率都 ≥ rate，而且速度變快
+ * （這幾天第一次就答對的反應時間中位數，比再之前同樣天數的中位數快）。
+ * 畫畫類沒有速度（畫多久不是快慢），只看答對率。
+ */
+export function fastStrands(attempts: readonly Attempt[], todayDate: string, strandOf: StrandOf, opts: { days: number; rate: number; minItems: number }): string[] {
+  const out: string[] = []
+  for (const [s, ds] of strandRates(
+    attempts.filter((a) => a.date < todayDate),
+    strandOf,
+    opts.minItems,
+  )) {
+    const last = ds.slice(-opts.days)
+    if (last.length < opts.days || !last.every((d) => d.ok / d.n >= opts.rate)) continue
+    const now = last.flatMap((d) => d.ms)
+    const was = ds.slice(-2 * opts.days, -opts.days).flatMap((d) => d.ms)
+    if (!now.length || (was.length && median(now) < median(was))) out.push(s)
+  }
+  return out
 }
 
 // ── 負擔控制的歷程 ───────────────────────────────────────────

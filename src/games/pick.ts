@@ -174,7 +174,9 @@ export function planCount(game: string, lv: number, st: RoundState, i: number) {
   const all = Array.from({ length: b - a + 1 }, (_, k) => a + k)
   const ok = teachable(game, st.taught, MAX_TEACH)
   const fit = all.filter((n) => ok(`count:${n}`))
-  const pool = fit.length ? fit : all
+  // 範圍裡沒有能出的：先往下找學過、能出的數量（不硬教第二個新概念 FRAME-8、或還沒開放的數字；G-2）
+  const lower = fit.length ? [] : Array.from({ length: b }, (_, k) => k + 1).filter((n) => ok(`count:${n}`))
+  const pool = fit.length ? fit : lower.length ? lower : all
   const n = pool[Math.floor(Math.random() * pool.length)]
   const fresh = isNew(`count:${n}`)
   const show = fresh || (st.firstPlay && i === 0 && st.demos === 0)

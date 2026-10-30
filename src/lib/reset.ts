@@ -16,6 +16,7 @@ import { GROWTH_KV, PROFILE_KV } from './growth'
  *   words:unknown（家長在「單字清單」勾的「他不認得」）、
  *   profile（生日年月）、growth（家長的年段覆寫、支線鎖定，和照生日算的年段、跨段放寬；都跟學習紀錄無關）
  * - 清掉（成長系統 v3）：story（故事進度）；growthLog、chapters 兩張表整張清掉
+ * - 清掉（成長系統 G-2）：ladder（每條支線在第幾階、回補）、engine:transfer（遷移：哪些遊戲第一次就答對過）
  * - 清掉（新增）：words:taught（哪些字在教學卡上教過，lib/words.ts）
  * - 清掉：engine:concepts（每週新概念額度）、engine:loadDrop（負擔控制降級日）、achieve（里程碑／貼紙／貼紙本看過）、
  *   plan:{日期}（今日冒險進度、主題輪替紀錄）、coplay:{日期}（舊版爸爸回合次數，2026-10-29 拿掉了，舊資料可能還有）、usage:{日期}（今天已玩時間）、

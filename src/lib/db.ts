@@ -63,6 +63,11 @@ export interface Skill {
   lastReview?: { day: number; ts: number; result: 'ok' | 'slow' | 'no' }
   /** 答對但明顯偏慢、所以沒有升格的次數 */
   slow?: number
+  /**
+   * 第一次穩固（已熟、通過 2 次到期複習）的時間（成長系統 §1.4，G-2）。已熟之後偶爾答錯一題，rev 會從頭算，
+   * 但「隔 1 天、再隔 2 天都還記得」已經證明過了，所以穩固記在這裡；掉出已熟才拿掉。舊資料沒有，照 rev 判斷
+   */
+  firmAt?: number
 }
 
 /** 程度校準（第一次玩的 2–3 題探測）的一題 */

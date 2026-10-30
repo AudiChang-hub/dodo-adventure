@@ -19,9 +19,26 @@ import {
   speedCat,
   type LoadState,
 } from './engine'
-import { budgetOf, conceptIntros, noteIntro, type Budget, type Intro, type Intros } from './tracks'
+import { budgetOf, conceptIntros, fastStrands, noteIntro, shiftDate, strandLoad, type Budget, type Intro, type Intros } from './tracks'
 import { conceptOf, levelConcepts, trackOf, type TrackId } from '../content/tracks'
 import { weekTheme } from './settings'
+import { addLadderLog, contentWeeks, emptyLadder, getFrame, getGrowthState, isFirm, LADDER_V, stepLadder, type LadderState, type LadderView, type StepOpts } from './growth'
+import {
+  BREAK_DAYS,
+  CONTENT_WARN_WEEKS,
+  FAST_BONUS,
+  FAST_DAYS,
+  FAST_RATE,
+  RUNGS,
+  STRAND_MIN_ITEMS,
+  entryRung,
+  levelRung,
+  rung as rungDef,
+  strandOfSkill,
+  unitOfSkill,
+  unitsOf,
+  type StrandId,
+} from '../content/ladder'
 
 // 技能熟練度與遊戲難度都很小，開機時整份載入記憶體，題目產生器就能同步取用
 const skills = new Map<string, Skill>()
@@ -54,9 +71,20 @@ export async function loadAdaptive() {
   const h = replayHintDelay(recent)
   hintDelay = h.ms
   hintRecent = h.recent
-  load = loadCheck(recent, today())
+  const t = today()
+  const sl = strandLoad(recent, t, attemptStrand, STRAND_MIN_ITEMS)
+  load = { ...loadCheck(recent, t), overloaded: sl.global }
+  strandPause = new Set(sl.strands as StrandId[])
+  fast = new Set(fastStrands(recent, t, attemptStrand, { days: FAST_DAYS, rate: FAST_RATE, minItems: STRAND_MIN_ITEMS }) as StrandId[])
+  const before = [...playDates].filter((d) => d < t).sort()
+  if (before.length && before[before.length - 1] < shiftDate(t, -BREAK_DAYS)) returnDay = t
   await applyLoadDrop()
-  await loadIntros()
+  // 每週新概念額度、遷移、階梯：規則改版或第一次升級時，才讀一次全部的作答紀錄
+  let all: Attempt[] | null = null
+  const allAttempts = async () => (all ??= await db.attempts.toArray())
+  await loadIntros(allAttempts)
+  await loadTransfer(allAttempts)
+  await loadLadder(allAttempts)
 }
 
 export function skill(key: string): Skill {
@@ -68,12 +96,12 @@ export function skill(key: string): Skill {
 export const dayIndex = () => dayIndexOf(playDates, today())
 const notePlayDay = () => playDates.add(today())
 
-export const isDue = (key: string) => isDueAt(skill(key), dayIndex())
+export const isDue = (key: string) => dueFor(key, dayIndex())
 
 /** 今天到期、該複習的已熟技能（越久沒確認的越前面） */
 export function dueSkills(): Skill[] {
   const day = dayIndex()
-  return [...skills.values()].filter((s) => isDueAt(s, day)).sort((a, b) => overdueBy(b, day) - overdueBy(a, day))
+  return [...skills.values()].filter((s) => dueFor(s.key, day)).sort((a, b) => overdueBy(b, day) - overdueBy(a, day))
 }
 
 // ── 又對又快 ─────────────────────────────────────────────────
@@ -148,9 +176,13 @@ export function recordSkill(key: string, firstTry: boolean, info?: SkillInput) {
     delete s.rev
     delete s.due
   }
+  // 穩固（成長系統 §1.4）：第一次通過 2 次到期複習時記下來；掉出已熟才拿掉
+  if (s.box < MASTERED_BOX) delete s.firmAt
+  else if (!s.firmAt && isFirm(s)) s.firmAt = s.lastTs
   skills.set(key, s)
   skillsVer++
   void db.skills.put(s)
+  doneReteach(key)
 }
 
 export const mastered = (key: string) => skill(key).box >= MASTERED_BOX
@@ -217,6 +249,8 @@ export function reportLevel(game: string, firstTry: boolean, maxLevel: number, o
 /** 每個遊戲開始時呼叫：記一次遊玩；還沒校準過的遊戲在這裡開始探測（負擔過重的期間先不探測） */
 export function markPlayed(game: string) {
   notePlayDay()
+  roundNew = new Set()
+  refreshLadder()
   let l: GameLevel = { ...(levels.get(game) ?? blankLevel(game)) }
   if (!load.overloaded) l = beginProbe(l) ?? l
   l.plays++
@@ -226,6 +260,11 @@ export function markPlayed(game: string) {
 
 export const lastPlayed = (game: string) => levels.get(game)?.lastTs ?? 0
 
+/** 直接設定遊戲的級數，不經過升級規則（模擬「改版前就已經升到這一級」的舊資料用：scripts/sim-teach.ts --old-glyph） */
+export function restoreLevel(game: string, lv: number) {
+  putLevel({ ...(levels.get(game) ?? blankLevel(game)), level: lv })
+}
+
 /** 這個遊戲玩過幾次（markPlayed 之前讀，0 代表第一次玩，一定要示範） */
 export const plays = (game: string) => levels.get(game)?.plays ?? 0
 
@@ -234,7 +273,7 @@ export const plays = (game: string) => levels.get(game)?.plays ?? 0
  * 教學卡、一起練都不算（seen 只在自己答時加一）；教完之後的那一題自己答做完，才算學過。
  * 探測題只出學過的內容（games/pick.ts），所以不會有「探測猜對就算學過」的情況。
  */
-export const isNew = (key: string) => skill(key).seen === 0
+export const isNew = (key: string) => skill(key).seen === 0 || needsReteach(key)
 
 /**
  * 示範規則（運筆、數數這類沒有教學卡的遊戲）：
@@ -242,20 +281,33 @@ export const isNew = (key: string) => skill(key).seen === 0
  */
 export const needsDemo = (firstPlay: boolean, key: string) => firstPlay || isNew(key)
 
-// ── 負擔控制（PRD §5.10）────────────────────────────────────
+// ── 負擔控制（PRD §5.10；成長系統 §1.4 改成依支線）──────────────
 export const loadState = () => load
-/** 負擔過重：暫停教新內容 */
-export const pauseNew = () => load.overloaded
+/** 整天都很差、或長時間沒玩回來的第一天：全部暫停教新內容 */
+export const pauseNew = () => load.overloaded || returnDay === today()
+
+/** 遊戲現在這一級屬於哪條支線 */
+const gameStrand = (l: GameLevel): StrandId | null => {
+  const r = levelRung(l.key, l.level) ?? entryRung(l.key)
+  return r ? rungDef(r)!.strand : null
+}
 
 /**
- * 連續 3 個有玩的日子第一次答對率都低於 6 成：每個遊戲降一級。
- * 一天只做一次（重新整理不會重複降）；同時暫停教新內容，直到有一天回到 6 成以上。
+ * 連續 3 個有玩的日子第一次答對率都低於 6 成：
+ * - 錯的散在每一條支線（整天都很差，例如生病）：每個遊戲降一級；
+ * - 錯的集中在某幾條支線：只降那幾條支線的遊戲。
+ * 某條支線自己最近 3 個有玩到它的日子都低於 6 成，也只降那一條。
+ * 一天只做一次（重新整理不會重複降）；同時暫停教新內容（全部、或那幾條），直到有一天回到 6 成以上。
  */
 async function applyLoadDrop() {
-  if (!load.overloaded) return
+  if (!load.overloaded && !strandPause.size) return
   const t = today()
   if ((await getKV<string>('engine:loadDrop', '')) === t) return
-  for (const l of levels.values()) if (l.level > 1) putLevel({ ...l, level: l.level - 1, up: 0, down: 0 })
+  for (const l of levels.values()) {
+    if (l.level <= 1) continue
+    const s = gameStrand(l)
+    if (load.overloaded || (s && strandPause.has(s))) putLevel({ ...l, level: l.level - 1, up: 0, down: 0 })
+  }
   await setKV('engine:loadDrop', t)
 }
 
@@ -269,20 +321,27 @@ const INTRO_KEY = 'engine:concepts'
 const CONCEPT_VERSION = 1
 let intros: Intros = new Map()
 
-async function loadIntros() {
+async function loadIntros(all: () => Promise<Attempt[]>) {
   const saved = await getKV<{ v: number; rows: [string, Intro][] } | null>(INTRO_KEY, null)
   if (saved?.v === CONCEPT_VERSION) intros = new Map(saved.rows)
   else {
-    intros = conceptIntros(await db.attempts.toArray())
+    intros = conceptIntros(await all())
     saveIntros()
   }
 }
 
 const saveIntros = () => void setKV(INTRO_KEY, { v: CONCEPT_VERSION, rows: [...intros] })
 
-/** 每一筆作答（含教學卡）都呼叫：第一次出現的概念記下日期，之後的額度就算得到 */
-export function noteAttempt(a: Pick<Attempt, 'game' | 'skill' | 'phase' | 'firstTryCorrect' | 'level'>) {
-  if (noteIntro(intros, { ...a, date: today() }).length) saveIntros()
+type NoteInput = Pick<Attempt, 'game' | 'skill' | 'phase' | 'firstTryCorrect' | 'level'> & Partial<Pick<Attempt, 'hintUsed' | 'metrics'>>
+
+/** 每一筆作答（含教學卡）都呼叫：第一次出現的概念記下日期，之後的額度就算得到；自己答第一次就答對的，記下是哪個遊戲（遷移） */
+export function noteAttempt(a: NoteInput) {
+  const added = noteIntro(intros, { ...a, date: today() })
+  if (added.length) {
+    saveIntros()
+    for (const c of added) if (intros.get(c)?.taught) roundNew.add(c)
+  }
+  noteTransfer(a)
 }
 
 export const conceptIntrosNow = () => intros
@@ -290,18 +349,208 @@ export const budget = (t: TrackId): Budget => budgetOf(t, intros, today())
 
 /**
  * 這個新內容現在能不能教：
- * - 負擔過重：全部暫停；
+ * - 負擔過重（整天都很差）、長時間沒玩回來的第一天：全部暫停；
+ * - 這個內容所在的階還沒開放（前置條件還沒到，D1、LOAD-4）：不教；
+ * - 這條支線負擔過重、或回補中：暫停這一條；
  * - 概念已經教過（例如動物主題裡的新動物、在別的遊戲學過的數字 3）：可以，只是同一個概念的新內容；
+ * - 這一回合已經教了一個新概念：不再教第二個（FRAME-8：三個年段一回合都最多 1 個新概念）；
  * - 家長設定的本週主題：可以，那是學校正在教的，App 是幫忙複習；
- * - 其他新概念：看這條主線最近 7 天的額度（一般 2 個，剛開始玩的頭 7 天 5 個）。
+ * - 其他新概念：看這條主線最近 7 天的額度（一般 2 個，剛開始玩的頭 7 天 5 個）；太順的支線多 1 個。
  */
 export function canIntroduce(game: string, key: string): boolean {
-  if (load.overloaded) return false
+  if (pauseNew()) return false
+  // 回補中掉出已熟、要重教一次的：不是新概念，照教
+  if (needsReteach(key)) return true
+  const u = unitOfSkill(key)
+  if (u && !rungOpen(u.rung)) return false
+  const s = u ? rungDef(u.rung)!.strand : null
+  if (s && strandPaused(s)) return false
   const c = conceptOf(game, key)
   if (!c || intros.has(c)) return true
+  if (roundNew.size >= newPerRound()) return false
   if (c === `theme:${weekTheme()}`) return true
   const t = trackOf(game)
-  return !t || budget(t).left > 0
+  if (!t) return true
+  const b = budget(t)
+  return b.left > 0 || (!!s && fast.has(s) && b.used.length < b.limit + FAST_BONUS)
+}
+
+// ── 一回合的新概念（FRAME-8）──────────────────────────────────
+/** 這一回合（markPlayed 到下一次 markPlayed）教了哪些新概念 */
+let roundNew = new Set<string>()
+/** 一回合最多幾個新概念：照年段的外框（三段都是 1） */
+const newPerRound = () => Math.max(1, getFrame().newPerRound)
+export const roundNewConcepts = () => [...roundNew]
+
+// ── 遷移：同一個技能點在哪些遊戲第一次就答對過 ─────────────────
+const TRANSFER_KEY = 'engine:transfer'
+const TRANSFER_VERSION = 1
+let okGames = new Map<string, Set<string>>()
+
+async function loadTransfer(all: () => Promise<Attempt[]>) {
+  const saved = await getKV<{ v: number; rows: [string, string[]][] } | null>(TRANSFER_KEY, null)
+  if (saved?.v === TRANSFER_VERSION) okGames = new Map(saved.rows.map(([k, g]) => [k, new Set(g)]))
+  else {
+    okGames = new Map()
+    for (const a of await all()) noteTransfer(a, false)
+    saveTransfer()
+  }
+}
+
+const saveTransfer = () => void setKV(TRANSFER_KEY, { v: TRANSFER_VERSION, rows: [...okGames].map(([k, g]) => [k, [...g]]) })
+
+function noteTransfer(a: NoteInput, save = true) {
+  if (!a.firstTryCorrect || a.hintUsed || (a.phase ?? 'quiz') !== 'quiz' || a.metrics?.probe || a.metrics?.protege) return
+  const set = okGames.get(a.skill) ?? new Set<string>()
+  if (set.has(a.game)) return
+  okGames.set(a.skill, set.add(a.game))
+  if (save) saveTransfer()
+}
+
+// ── 支線與階梯（成長系統 §1.3、§1.4、§5.4）──────────────────────
+const LADDER_KEY = 'ladder'
+// 開機讀進來之前是空的（不在模組頂層呼叫 growth.ts：它和這個檔案在引用循環裡）
+let ladder: LadderState = { v: 0, rungs: {} }
+let view: LadderView | null = null
+let viewAt = -1
+/** 這次開機算過階梯了沒（模擬裡沒有開機，第一次用到時才算） */
+let stepped = false
+
+/** 作答屬於哪條支線 */
+const attemptStrand = (a: Pick<Attempt, 'skill'>) => strandOfSkill(a.skill)
+/** 依支線的負擔控制：答錯集中在這幾條支線（整天都很差時是 load.overloaded） */
+let strandPause = new Set<StrandId>()
+/** 太順的支線：每週新概念額度 +1 */
+let fast = new Set<StrandId>()
+/** 超過 14 天沒玩回來的那一天：這一天不教新內容 */
+let returnDay = ''
+
+const facts = () => ({ skills, okGames })
+
+/**
+ * 依現在的熟練度往前走一步（開機、每一回合開始時）：該開的階開、完成的記下來、掉了的開始回補，寫進時間軸。
+ * migrate：舊資料第一次開（kv 裡還沒有階梯），用現有的作答紀錄算出每條支線在第幾階，時間軸標成「補記」。
+ */
+function stepNow(migrate?: StepOpts['migrate']) {
+  const r = stepLadder(ladder, facts(), today(), { locks: getGrowthState().locks, migrate })
+  const changed = JSON.stringify(r.state) !== JSON.stringify(ladder)
+  ladder = r.state
+  view = r.view
+  viewAt = skillsVer
+  stepped = true
+  if (changed) void setKV(LADDER_KEY, ladder)
+  if (r.log.length) void addLadderLog(r.log).catch(() => {})
+}
+
+export const refreshLadder = () => stepNow()
+
+async function loadLadder(all: () => Promise<Attempt[]>) {
+  const saved = await getKV<LadderState | null>(LADDER_KEY, null)
+  if (saved?.v === LADDER_V) {
+    ladder = saved
+    stepNow()
+    return
+  }
+  // 舊資料升級：每一階第一次、最後一次作答的日期（補記用）
+  const first = new Map<string, string>()
+  const last = new Map<string, string>()
+  for (const a of await all()) {
+    const u = unitOfSkill(a.skill)
+    if (!u) continue
+    if (!first.has(u.rung) || a.date < first.get(u.rung)!) first.set(u.rung, a.date)
+    if (!last.has(u.rung) || a.date > last.get(u.rung)!) last.set(u.rung, a.date)
+  }
+  // G-33 的暫時門檻已經開過描字母的，描字母那一階算開放（開了不收回）
+  const glyphOpen = await getKV('glyph:lettersOpen', false)
+  ladder = emptyLadder()
+  stepNow({ first: (r) => first.get(r), last: (r) => last.get(r), open: glyphOpen ? ['H7'] : [] })
+}
+
+/** 現在的階梯（熟練度變了就重新整理，不寫時間軸；寫時間軸只在回合開始的 refreshLadder） */
+export function ladderNow(): LadderView {
+  if (!view || viewAt !== skillsVer) {
+    view = stepLadder(ladder, facts(), today(), { locks: getGrowthState().locks }).view
+    viewAt = skillsVer
+  }
+  return view
+}
+
+/** 這一階開了沒（記下來的才算：一回合中間不會突然開） */
+export function rungOpen(id: string): boolean {
+  if (!stepped) stepNow()
+  return !!ladder.rungs[id]?.open
+}
+
+/** 這條支線暫停教新內容：負擔過重、回補中 */
+export const strandPaused = (s: StrandId) => strandPause.has(s) || RUNGS.some((r) => r.strand === s && reopenOf(r.id))
+
+const reopenOf = (id: string) => {
+  const ro = ladder.rungs[id]?.reopen
+  return ro && today() < ro.until ? ro : undefined
+}
+
+/** 回補中、掉出已熟的技能點：重跑一次短教學卡（isNew 當作新的），自己答過一次就拿掉 */
+function needsReteach(key: string): boolean {
+  const u = unitOfSkill(key)
+  return !!u && !!reopenOf(u.rung)?.reteach.includes(key)
+}
+
+function doneReteach(key: string) {
+  const u = unitOfSkill(key)
+  const ro = u && reopenOf(u.rung)
+  if (!ro || !ro.reteach.includes(key)) return
+  ro.reteach = ro.reteach.filter((k) => k !== key)
+  void setKV(LADDER_KEY, ladder)
+}
+
+/** 回補中的階：到期複習加倍（間隔減半） */
+function dueFor(key: string, day: number): boolean {
+  const s = skill(key)
+  if (isDueAt(s, day)) return true
+  if (s.box < MASTERED_BOX || s.due == null) return false
+  const u = unitOfSkill(key)
+  if (!u || !reopenOf(u.rung)) return false
+  return s.due - Math.floor(REVIEW_DAYS[s.rev ?? 0] / 2) <= day
+}
+
+/** 依支線的狀態（家長區、除錯用） */
+export const strandLoadNow = () => ({ global: load.overloaded, strands: [...strandPause], fast: [...fast], returning: returnDay === today() })
+
+/** 一個概念屬於哪條支線（內容庫存用）：單位的 id 就是概念；描數字字母的 lv: 概念看那一級屬於哪一階 */
+function conceptStrand(c: string): StrandId | null {
+  const lv = /^lv:(.+):(\d+)$/.exec(c)
+  if (lv) {
+    const r = levelRung(lv[1], Number(lv[2]))
+    if (r) return rungDef(r)!.strand
+  }
+  for (const r of RUNGS) if (unitsOf(r.id).some((u) => u.id === c)) return r.strand
+  return null
+}
+
+export interface Stock {
+  strand: StrandId
+  /** 還沒出現過的新內容 */
+  left: number
+  /** 照最近 4 週的速度，大約還能撐幾週（算不出來是 null） */
+  weeks: number | null
+  /** 快用完了，要提醒家長（§1.1） */
+  soon: boolean
+}
+
+/** 內容庫存：每條支線的現有內容大約還能撐幾週（§1.1、§4.1） */
+export function contentStock(): Stock[] {
+  const v = ladderNow()
+  const by = new Map<StrandId, string[]>()
+  for (const [c, x] of intros) {
+    const s = conceptStrand(c)
+    if (s) by.set(s, [...(by.get(s) ?? []), x.date])
+  }
+  return v.strands
+    .filter((s) => s.left > 0 || s.out)
+    .map((s) => {
+      const weeks = contentWeeks(s.left, by.get(s.id) ?? [], today())
+      return { strand: s.id, left: s.left, weeks, soon: s.out || (weeks !== null && weeks <= CONTENT_WARN_WEEKS) }
+    })
 }
 
 /**
@@ -310,12 +559,19 @@ export function canIntroduce(game: string, key: string): boolean {
  */
 export const teachable = (game: string, taught: number, max: number) => (key: string) => !isNew(key) || (taught < max && canIntroduce(game, key))
 
-/** 升到 next 級會不會全是沒教過的新概念、而這條線本週已經不能再教新的 */
+/**
+ * 先不升級的情況：
+ * - 下一級屬於還沒開放的階（例如上下還沒穩固，開車先不升到有左右的 2 級；LOAD-4）；
+ * - 下一級全是沒教過的新概念，而這條線本週已經不能再教新的，或這一回合已經教過一個新概念（FRAME-8）。
+ */
 function holdLevelUp(game: string, next: number): boolean {
+  const r = levelRung(game, next)
+  if (r && !rungOpen(r)) return true
   const cs = levelConcepts(game, next)
   if (!cs || cs.some((c) => intros.has(c))) return false
   const t = trackOf(game)
-  return load.overloaded || (!!t && budget(t).left <= 0)
+  const s = r ? rungDef(r)!.strand : null
+  return pauseNew() || (!!s && strandPaused(s)) || roundNew.size >= newPerRound() || (!!t && budget(t).left <= 0)
 }
 
 // ── 延遲提示（benchmark 手法 3）──────────────────────────────
@@ -365,7 +621,7 @@ export function pickTarget<T>(items: readonly T[], keyOf: (t: T) => string, avoi
     if (loose.length) pool = loose
   }
   const day = dayIndex()
-  const due = pool.filter((t) => isDueAt(skill(keyOf(t)), day))
+  const due = pool.filter((t) => dueFor(keyOf(t), day))
   if (due.length) return weightedPick(due, (t) => 1 + overdueBy(skill(keyOf(t)), day))
   const now = Date.now()
   return weightedPick(pool, (t) => {
@@ -395,7 +651,7 @@ export function pickPreferred<T>(prefer: readonly T[], items: readonly T[], keyO
     return pickTarget(items, keyOf, avoid)
   }
   const day = dayIndex()
-  const due = (t: T) => isDueAt(skill(keyOf(t)), day)
+  const due = (t: T) => dueFor(keyOf(t), day)
   const dueOut = items.some((t) => !fav.includes(t) && (!ok || ok(keyOf(t))) && due(t))
   if (dueOut && !fav.some(due) && Math.random() < REVIEW_OVER_THEME) return pickTarget(items, keyOf, avoid)
   return pickTarget(fav, keyOf)
@@ -413,8 +669,8 @@ export function unlockedLetters(): string[] {
   return out
 }
 
-/** 穩固：已熟，而且通過兩次隔天的到期複習（成長系統 §1.4）。同一局連對三題的「已熟」還不算 */
-const firm = (key: string) => mastered(key) && (skill(key).rev ?? 0) >= 2
+/** 穩固（成長系統 §1.4，lib/growth.ts 的 isFirm） */
+const firm = (key: string) => isFirm(skill(key))
 
 /**
  * 數字從 1–5 開始，熟了才延伸到 10、再到 20（成長系統 N2 → N3，看能力不看年紀）。
