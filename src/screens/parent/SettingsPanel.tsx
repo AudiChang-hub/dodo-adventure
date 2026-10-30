@@ -120,6 +120,7 @@ export function SettingsPanel({ onChanged }: { onChanged: () => void }) {
   const growth = useGrowth()
   const daily = bandSetting('dailyMinutes', s)
   const eyeBreak = bandSetting('eyeBreakEvery', s)
+  const stations = bandSetting('activitiesPerDay', s)
   const set = (p: Partial<Settings>) => {
     void updateSettings(p)
     onChanged()
@@ -145,8 +146,8 @@ export function SettingsPanel({ onChanged }: { onChanged: () => void }) {
             ))}
           </select>
         </Field>
-        <Field label="今日冒險的站數" hint="每站約 3–5 分鐘。">
-          <select value={s.activitiesPerDay} onChange={(e) => set({ activitiesPerDay: Number(e.target.value) })}>
+        <Field label="今日冒險的站數" hint={`每站約 3–5 分鐘。${followsBand('activitiesPerDay', s) ? `沒改過時跟著年段（${BAND_ZH[growth.band]}預設 ${growth.frame.stationsPerDay[1]} 站）。` : ''}`}>
+          <select value={stations} onChange={(e) => set({ activitiesPerDay: Number(e.target.value) })}>
             {[3, 4, 5].map((n) => (
               <option key={n} value={n}>
                 {n} 站

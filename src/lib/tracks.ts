@@ -75,8 +75,11 @@ export interface Budget {
   starter: boolean
 }
 
-/** 這條主線最近 7 天（含今天）還能教幾個新概念 */
-export function budgetOf(track: TrackId, intros: Intros, date: string): Budget {
+/**
+ * 這條主線最近 7 天（含今天）還能教幾個新概念。
+ * perWeek：年段外框的每週額度（content/growth.ts 的 weeklyConcepts 上限：小班 2、中班 3、大班 3）；沒給是 NEW_PER_WEEK。
+ */
+export function budgetOf(track: TrackId, intros: Intros, date: string, perWeek = NEW_PER_WEEK): Budget {
   const from = shiftDate(date, -6)
   let first: string | null = null
   const used: string[] = []
@@ -86,7 +89,7 @@ export function budgetOf(track: TrackId, intros: Intros, date: string): Budget {
     if (x.taught && x.date >= from) used.push(c)
   }
   const starter = !first || first > shiftDate(date, -STARTER_DAYS)
-  const limit = starter ? STARTER_NEW : NEW_PER_WEEK
+  const limit = starter ? Math.max(STARTER_NEW, perWeek) : perWeek
   return { track, limit, used, left: Math.max(0, limit - used.length), starter }
 }
 
@@ -200,6 +203,8 @@ export function trackNeeds(input: {
   boxOf: (key: string) => number
   intros?: Intros
   isDue?: (key: string) => boolean
+  /** 每條線每週的新概念額度（年段外框，見 budgetOf） */
+  perWeek?: number
 }): TrackNeed[] {
   const intros = input.intros ?? conceptIntros(input.attempts.filter((a) => a.date <= input.date))
   const stats = trackStats(input.attempts, input.date, input.boxOf, { intros, isDue: input.isDue })
@@ -217,7 +222,7 @@ export function trackNeeds(input: {
       const need = parts.mastery + parts.share + parts.gap + parts.review
       const top = (Object.entries(parts) as [keyof typeof parts, number][]).sort((a, b) => b[1] - a[1])[0]
       const reason: NeedReason = s.missed === Infinity ? 'never' : s.missed >= 2 ? 'gap' : top[1] < 0.08 ? 'even' : top[0]
-      return { ...s, share, need, mustPlay: s.missed >= 1, reason, budget: budgetOf(s.track, intros, input.date) }
+      return { ...s, share, need, mustPlay: s.missed >= 1, reason, budget: budgetOf(s.track, intros, input.date, input.perWeek) }
     })
     .sort((a, b) => b.need - a.need || order.indexOf(a.track) - order.indexOf(b.track))
 }
@@ -244,7 +249,7 @@ const seeded = (s: string) => parseInt(fnv1a(s), 36)
  * 依 trackNeeds 排出今天的 n 個遊戲（同一天結果固定，冒險是照日期存的）：
  * 1. 今天一定要排的線先排（越需要的越先）；
  * 2. 其餘的格子給「需要程度 × 0.5^已排格數」最高的線：明顯落後的線會拿到第二格；
- * 3. 每格挑這條線裡最久沒玩的兩個遊戲之一（有到期複習的遊戲當作早一天玩過，比較容易排到）；
+ * 3. 每格挑這條線裡最久沒玩的兩個遊戲之一（有到期複習的遊戲當作早一天玩過、練得到卡住的階的遊戲當作早兩天玩過，比較容易排到）；
  *    負擔過重、或這條線本週新概念額度用完時，先不排從沒玩過的遊戲（第一次玩一定要教新的）；
  * 4. 同一條線不相鄰，最需要的放前面（剛開始最有精神）。
  */
@@ -258,6 +263,8 @@ export function planDay(input: {
   plays: (game: string) => number
   /** 這個遊戲裡有幾個到期複習的技能 */
   dueIn?: (game: string) => number
+  /** 這個遊戲練得到卡住的階（開了 3 週還沒完成，lib/adaptive.ts 的 stalledGame） */
+  focus?: (game: string) => boolean
   overloaded?: boolean
 }): PlanSlot[] {
   const { date, needs, games } = input
@@ -286,7 +293,7 @@ export function planDay(input: {
     let cand = of(t).filter((g) => !chosen.has(g.id))
     const noNew = input.overloaded || !needs.find((x) => x.track === t)?.budget.left
     if (noNew && cand.some((g) => input.plays(g.id) > 0)) cand = cand.filter((g) => input.plays(g.id) > 0)
-    const age = (g: PlanGame) => input.lastPlayed(g.id) - ((input.dueIn?.(g.id) ?? 0) > 0 ? 86_400_000 : 0)
+    const age = (g: PlanGame) => input.lastPlayed(g.id) - ((input.dueIn?.(g.id) ?? 0) > 0 ? 86_400_000 : 0) - (input.focus?.(g.id) ? 2 * 86_400_000 : 0)
     const top = [...cand].sort((a, b) => age(a) - age(b) || (a.id < b.id ? -1 : 1)).slice(0, 2)
     if (!top.length) continue
     const g = top[seeded(`${date}|${t}|${k}`) % top.length]
@@ -379,6 +386,9 @@ export function strandRates(attempts: readonly Attempt[], strandOf: StrandOf, mi
   return out
 }
 
+/** 一條支線自己的暫停一次最多幾天（從第 3 個低於 6 成的日子的隔天算） */
+export const STRAND_PAUSE_DAYS = 7
+
 export interface StrandLoad {
   /** 一整天都很差（例如生病）：全部暫停、每個遊戲降一級（和原本的負擔控制一樣） */
   global: boolean
@@ -393,6 +403,8 @@ export interface StrandLoad {
  * - 原本的條件成立（連續 3 天整天都低於 6 成）時，看那 3 天的錯集中在哪：每條有玩到的支線都低於 6 成，就是整天都很差 → 全部暫停；
  *   不然只暫停低於 6 成的那幾條支線。
  * - 原本的條件沒有成立，但某條支線自己最近 3 個有玩到它的日子都低於 6 成：只暫停那一條。
+ *   一次暫停最多 STRAND_PAUSE_DAYS 天就自動解除，之後要再有 3 個新的低於 6 成的日子才會再暫停：降級之後遊戲可能不再出這條支線的題目
+ *  （開車降到上下左右的級數就沒有程式題），等不到「好的日子」，不能一直停著（G-5 成長模擬：程式支線連續暫停 30 幾天）。
  */
 export function strandLoad(attempts: readonly Attempt[], todayDate: string, strandOf: StrandOf, minItems: number): StrandLoad {
   const before = attempts.filter((a) => a.date < todayDate)
@@ -411,8 +423,13 @@ export function strandLoad(attempts: readonly Attempt[], todayDate: string, stra
   }
   const strands: string[] = []
   for (const [s, ds] of strandRates(before, strandOf, minItems)) {
-    const last = ds.slice(-LOAD_DAYS)
-    if (last.length === LOAD_DAYS && last.every((d) => d.ok / d.n < LOAD_LOW)) strands.push(s)
+    // 一段一段往前推：連續 3 個低於 6 成的日子 → 隔天起暫停 STRAND_PAUSE_DAYS 天；解除之後要再有 3 個新的低於 6 成的日子才會再暫停
+    let until = ''
+    for (let i = LOAD_DAYS - 1; i < ds.length; i++) {
+      const w = ds.slice(i - LOAD_DAYS + 1, i + 1)
+      if (w[0].date > until && w.every((d) => d.ok / d.n < LOAD_LOW)) until = shiftDate(ds[i].date, STRAND_PAUSE_DAYS)
+    }
+    if (until && todayDate <= until) strands.push(s)
   }
   return { global: false, strands, days: whole.days }
 }

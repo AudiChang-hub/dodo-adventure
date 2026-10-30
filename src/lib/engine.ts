@@ -91,11 +91,11 @@ export const SPEED_MIN = 5
 export const SLOW_FACTOR = 1.25
 
 /**
- * 畫畫類的時間是畫多久，不是反應快慢，不採計。
+ * 畫畫類的時間是畫多久，不是反應快慢，不採計（描數字字母的零件 part 也是：G-33 把前兩級改成描零件，技能點換了名字）。
  * 程式車庫的箭頭卡（arrow、route）和排順序（seq）也一樣：時間裡有車子開的動畫、每放一張圖的旁白，
  * 而且多步驟的題目本來就該慢慢想，不拿速度判斷熟練
  */
-const NO_SPEED = new Set(['trace', 'dots', 'glyph', 'coloring', 'free', 'arrow', 'route', 'seq'])
+const NO_SPEED = new Set(['trace', 'dots', 'glyph', 'part', 'coloring', 'free', 'arrow', 'route', 'seq'])
 
 /** 「他自己該類題目」：同一個遊戲裡同一種技能（例如 m-find 的 num） */
 export function speedCat(game: string, skill: string): string | null {

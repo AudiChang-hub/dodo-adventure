@@ -195,7 +195,8 @@ export function planCount(game: string, lv: number, st: RoundState, i: number) {
   const ok = teachable(game, st.taught, st.maxTeach)
   const fit = all.filter((n) => ok(`count:${n}`))
   // 範圍裡沒有能出的：先往下找學過、能出的數量（不硬教第二個新概念 FRAME-8、或還沒開放的數字；G-2）
-  const lower = fit.length ? [] : Array.from({ length: b }, (_, k) => k + 1).filter((n) => ok(`count:${n}`))
+  // 往下也沒有（例如剛教了 4、答錯降回 1–3）：往上找學過的
+  const lower = fit.length ? [] : Array.from({ length: 10 }, (_, k) => k + 1).filter((n) => (n <= b ? ok(`count:${n}`) : !isNew(`count:${n}`)))
   const pool = fit.length ? fit : lower.length ? lower : all
   const n = pool[Math.floor(Math.random() * pool.length)]
   const fresh = isNew(`count:${n}`)
