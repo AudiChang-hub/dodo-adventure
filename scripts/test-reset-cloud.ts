@@ -39,14 +39,14 @@ function makeFs(seed: Record<string, number>, failAt = -1) {
 
 const under = (docs: Set<string>, prefix: string) => [...docs].filter((k) => k.startsWith(prefix)).length
 
-const SEED = { 'users/me/attempts': 1234, 'users/me/sessions': 3, 'users/me/drawings': 10, 'users/other/attempts': 7, 'users/other/meta': 1 }
+const SEED = { 'users/me/attempts': 1234, 'users/me/sessions': 3, 'users/me/growthLog': 5, 'users/me/chapters': 2, 'users/me/drawings': 10, 'users/other/attempts': 7, 'users/other/meta': 1 }
 
 async function main() {
   {
     const m = makeFs(SEED)
     const r = await wipeCloudLearning(m.fs, {}, 'me', { keepDrawings: false })
-    assert.deepEqual(r.deleted, { attempts: 1234, sessions: 3, drawings: 10, meta: 1 })
-    assert.deepEqual(m.batches, [500, 500, 234, 3, 10, 1])
+    assert.deepEqual(r.deleted, { attempts: 1234, sessions: 3, growthLog: 5, chapters: 2, drawings: 10, meta: 1 })
+    assert.deepEqual(m.batches, [500, 500, 234, 3, 5, 2, 10, 1])
     assert.equal(under(m.docs, 'users/me/'), 0)
     assert.equal(under(m.docs, 'users/other/'), 8, '別的帳號不能動')
     console.log('ok 1 全部清（含畫作）', r)
@@ -56,7 +56,7 @@ async function main() {
     const r = await wipeCloudLearning(m.fs, {}, 'me', { keepDrawings: true })
     assert.equal(r.deleted.drawings, undefined)
     assert.equal(under(m.docs, 'users/me/drawings/'), 10)
-    assert.equal(under(m.docs, 'users/me/attempts/') + under(m.docs, 'users/me/sessions/') + under(m.docs, 'users/me/meta/'), 0)
+    assert.equal(under(m.docs, 'users/me/attempts/') + under(m.docs, 'users/me/sessions/') + under(m.docs, 'users/me/growthLog/') + under(m.docs, 'users/me/chapters/') + under(m.docs, 'users/me/meta/'), 0)
     console.log('ok 2 保留畫作', r)
   }
   {
@@ -86,7 +86,7 @@ async function main() {
   {
     const m = makeFs({})
     const r = await wipeCloudLearning(m.fs, {}, 'me', { keepDrawings: false })
-    assert.deepEqual(r.deleted, { attempts: 0, sessions: 0, drawings: 0, meta: 1 })
+    assert.deepEqual(r.deleted, { attempts: 0, sessions: 0, growthLog: 0, chapters: 0, drawings: 0, meta: 1 })
     console.log('ok 6 沒有資料的帳號')
   }
   {

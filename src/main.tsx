@@ -5,6 +5,7 @@ import { loadSettings } from './lib/settings'
 import { loadAdaptive } from './lib/adaptive'
 import { loadWords, loadZhAudio } from './lib/words'
 import { loadAchievements } from './lib/achievements'
+import { loadGrowth } from './lib/growth'
 import { startSession } from './lib/session'
 import { installGuards } from './lib/lock'
 import { installFirstGesture } from './lib/boot'
@@ -27,7 +28,8 @@ installFirstGesture()
 
 // 成就（貼紙本）要在熟練度載入之後：第一次會把已經熟的技能補成貼紙
 // 失敗時交給 index.html 顯示給家長看的說明；卡住不動時那邊也會逾時處理，不會一片白
-Promise.all([loadSettings(), loadAdaptive().then(loadAchievements), loadWords(), loadZhAudio()])
+// 成長系統的年段（loadGrowth）讀不到時自己退回小班段，不會擋開機
+Promise.all([loadSettings(), loadAdaptive().then(loadAchievements), loadWords(), loadZhAudio(), loadGrowth()])
   .then(async () => {
     await startSession()
     // 同步失敗會寫進同步狀態給家長區顯示，這裡不必再往外丟

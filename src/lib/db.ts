@@ -1,4 +1,5 @@
 import Dexie, { type Table } from 'dexie'
+import type { Band } from '../content/growth'
 
 export type StationId = 'english' | 'math' | 'mandarin' | 'draw' | 'park' | 'code'
 
@@ -100,6 +101,39 @@ export interface Friend {
   ts: number
 }
 
+/**
+ * 成長時間軸的一筆（成長系統 §5.1）：換年段、完成一階、家長的調整……家長區「成長」分頁由新到舊列出。
+ * 孩子端看不到；退回、回補的原因只寫在這裡（§1.4）。不放生日的值。
+ */
+export interface GrowthLogEntry {
+  id: string
+  ts: number
+  date: string
+  /** profile：家長設定或清除生日（不記生日本身） */
+  kind: 'band' | 'rung' | 'reopen' | 'override' | 'lock' | 'story' | 'voice' | 'profile'
+  track?: string
+  strand?: string
+  rung?: number
+  data?: Record<string, unknown>
+  synced: 0 | 1
+}
+
+/** 故事的一章（成長系統 §3、§5.1）；G-8 的故事播放器才開始寫入 */
+export interface Chapter {
+  id: string
+  date: string
+  part: number
+  arc: string
+  chapter: number
+  kind: 'epic' | 'classic' | 'evergreen'
+  faith?: string
+  band: Band
+  picks: { words: string[]; friends: string[]; stickers: string[]; drawings: string[] }
+  choices: Record<string, string>
+  done: boolean
+  synced: 0 | 1
+}
+
 export interface KV {
   key: string
   value: unknown
@@ -113,6 +147,8 @@ class AppDB extends Dexie {
   drawings!: Table<Drawing, string>
   friends!: Table<Friend, string>
   kv!: Table<KV, string>
+  growthLog!: Table<GrowthLogEntry, string>
+  chapters!: Table<Chapter, string>
 
   constructor() {
     super('dodo-adventure')
@@ -136,6 +172,12 @@ class AppDB extends Dexie {
             if (!a.phase) a.phase = 'quiz'
           }),
       )
+    // v3：成長系統（docs/成長系統設計.md §5.1）。只新增表、不動舊資料；
+    // kv 另外多了 profile（生日年月）、growth（年段覆寫、跨段放寬），沒有就是預設，不必在這裡補
+    this.version(3).stores({
+      growthLog: 'id, ts, kind, synced',
+      chapters: 'id, date, arc, synced',
+    })
   }
 }
 
