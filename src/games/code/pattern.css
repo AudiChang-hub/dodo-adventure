@@ -76,16 +76,13 @@
   height: 100%;
 }
 
-/* 空位：虛線的空車廂，一直輕輕呼吸（1 → 1.08，每 1.2 秒）；閒置 5 秒、答錯時更明顯 */
+/* 空位：虛線的空車廂＋靜態的暖黃光；閒置 5 秒、答錯時光更大，並輕輕放大兩下就停（不一直呼吸） */
 .pt-slot {
   transform-origin: 50% 50%;
   border-radius: 18%;
 }
-.pt-slot.pulse-1 {
-  animation: pt-breathe 1.2s ease-in-out infinite;
-}
 .pt-slot.pulse-2 {
-  animation: pt-breathe-strong 0.9s ease-in-out infinite;
+  animation: cue-nudge 0.9s ease-in-out 2;
 }
 .pt-slot.pulse-2::before,
 .pt-slot.pulse-1::before {
@@ -100,16 +97,6 @@
 .pt-slot.pulse-2::before {
   opacity: 1;
   inset: -22% -20% -14%;
-}
-@keyframes pt-breathe {
-  50% {
-    transform: scale(1.08);
-  }
-}
-@keyframes pt-breathe-strong {
-  50% {
-    transform: scale(1.15);
-  }
 }
 
 /* 火車頭的白煙：每一團從煙囪冒出來、往後上方飄、慢慢變淡（每一團只淡出一次） */
@@ -187,19 +174,13 @@
 .pt-opt.is-wrong {
   filter: saturate(0.3);
 }
-/* 一起練：對的那一節發光 */
+/* 一起練：對的那一節底下一圈靜態的光 */
 .pt-opt.is-guide::before {
   content: '';
   position: absolute;
   inset: -18% -16% -12%;
   border-radius: 28%;
   background: radial-gradient(closest-side, rgba(241, 210, 124, 0.85), rgba(241, 210, 124, 0));
-  animation: pt-glow 1.5s ease-in-out infinite;
+  animation: hint-in 0.8s var(--ease-out) both;
   pointer-events: none;
-}
-@keyframes pt-glow {
-  50% {
-    transform: scale(1.08);
-    opacity: 0.75;
-  }
 }

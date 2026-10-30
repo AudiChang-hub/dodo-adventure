@@ -11,7 +11,7 @@ import type { TeachSpec, Visual } from '../content/games'
 import { wait } from './lines'
 import { useIdle } from './idle'
 import { PACE } from './pace'
-import { FADE } from '../ui/motion'
+import { DUR, EASE, FADE } from '../ui/motion'
 import './teach.css'
 
 interface Props {
@@ -24,7 +24,12 @@ interface Props {
   camera?: boolean
 }
 
-const spring = { type: 'spring', stiffness: 260, damping: 20, opacity: FADE } as const
+/**
+ * 教學卡的動態只用淡入、輕輕滑上來（ui/motion.ts 的節奏）：不彈簧、不旋轉、念每一句時不縮放。
+ * 「現在講的是哪一個」靠靜態的粗外框（.teach-item.on）和手來指（幼兒設計準則 MOTION-1／2，對照表 V-19）。
+ */
+const LIFT = 14
+const enterTx = { duration: DUR.fadeIn, ease: EASE.out }
 
 /** 同一題裡最大的一組數量：讓並排的兩組圖示一樣大 */
 const fitOf = (vs: Visual[]) => Math.max(0, ...vs.map((v) => (v.t === 'group' ? v.count : 0)))
@@ -43,7 +48,8 @@ export function TeachCard({ spec, short, onDone, camera }: Props) {
   const [step, setStep] = useState(-1)
   const [ready, setReady] = useState(false)
   const [tapped, setTapped] = useState(false)
-  const [pop, setPop] = useState(0)
+  // 點一下的小回饋：n 每點一次加一，at 是當時被點到（亮著）的那一個；換句子時不會讓別的那一個也跳一下
+  const [pop, setPop] = useState({ n: 0, at: 0 })
   const live = useRef(true)
   const readyAt = useRef(0)
   const idle = useIdle()
@@ -82,7 +88,7 @@ export function TeachCard({ spec, short, onDone, camera }: Props) {
   const tap = async () => {
     // 還在念（或「點我」剛出現）：只給一點點回饋，不打斷；念的時候一直在點的孩子，不會一出現就被帶過去
     if (!ready || performance.now() - readyAt.current < PACE.TEACH_TAP_ARM) {
-      setPop((p) => p + 1)
+      setPop((p) => ({ n: p.n + 1, at: duo ? focus : 0 }))
       return
     }
     if (busy.current) return
@@ -92,7 +98,7 @@ export function TeachCard({ spec, short, onDone, camera }: Props) {
     setTapped(true)
     // 再聽一次的是第一句：並排的內容也指回第一句講的那一個
     setStep(0)
-    setPop((p) => p + 1)
+    setPop((p) => ({ n: p.n + 1, at: duo ? cueAt : 0 }))
     sfx.pop()
     await say(lines[0])
     // 再聽一次之後，卡片和例子再停留一下才收起來
@@ -111,15 +117,15 @@ export function TeachCard({ spec, short, onDone, camera }: Props) {
         className={`teach-card${duo ? ' duo' : ''}${ready && !tapped ? ' ready' : ''}${nudge && !tapped ? ' nudge' : ''}${spec.side ? ' has-side' : ''}`}
         role="button"
         aria-label="再聽一次"
-        initial={camera ? false : { scale: 0.6, rotate: -4, y: 40 }}
-        animate={{ scale: 1, rotate: 0, y: 0 }}
-        exit={camera ? undefined : { scale: 0.86, y: 24, transition: { duration: 0.22 } }}
-        transition={spring}
+        initial={camera ? false : { y: LIFT }}
+        animate={{ y: 0 }}
+        exit={camera ? undefined : { y: LIFT / 2, transition: { duration: 0.22, ease: EASE.inOut } }}
+        transition={enterTx}
         whileTap={{ scale: 0.97 }}
         onPointerDown={tap}
       >
         {!short && (
-          <motion.div className="teach-new" initial={{ scale: 0, rotate: -40 }} animate={{ scale: 1, rotate: -12 }} transition={{ ...spring, delay: 0.25 }} aria-hidden="true">
+          <motion.div className="teach-new" initial={{ opacity: 0, rotate: -12 }} animate={{ opacity: 1, rotate: -12 }} transition={{ ...FADE, delay: 0.25 }} aria-hidden="true">
             <Emoji name="glowing-star" />
           </motion.div>
         )}
@@ -131,16 +137,16 @@ export function TeachCard({ spec, short, onDone, camera }: Props) {
               <motion.div
                 key={i}
                 className={`teach-item${duo && on && step >= 0 ? ' on' : ''}`}
-                animate={duo ? { opacity: step < 0 || on ? 1 : 0.42, scale: on && step >= 0 ? 1.03 : 0.96, y: on && step >= 0 ? -6 : 0 } : { opacity: 1 }}
-                transition={spring}
+                animate={duo ? { opacity: step < 0 || on ? 1 : 0.42 } : { opacity: 1 }}
+                transition={FADE}
               >
-                <motion.div key={on ? pop : 0} className="teach-vis" animate={on && pop ? { scale: [1, tapped ? 1.16 : 1.05, 1] } : {}} transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1] }}>
+                <motion.div key={pop.at === i ? pop.n : 0} className="teach-vis" animate={pop.at === i && pop.n ? { scale: [1, 1.05, 1] } : {}} transition={{ duration: 0.45, ease: EASE.out }}>
                   <VisualView v={v} fit={fit} />
                 </motion.div>
                 {duo && on && step >= 0 && !ready && <Hand x={50} y={88} size="22cqmin" />}
                 {/* 題目徽章（比多少、比大小）：念第一句時貼到第一句講的那一邊，之後一直留著——作答時題目上方的就是這一張 */}
                 {spec.cue && i === cueAt && step >= 0 && (
-                  <motion.div className="teach-cue" initial={{ scale: 0.3, rotate: -30, opacity: 0 }} animate={{ scale: 1, rotate: -6, opacity: 1 }} transition={{ type: 'spring', stiffness: 300, damping: 16, opacity: FADE }}>
+                  <motion.div className="teach-cue" initial={{ y: LIFT, rotate: -6, opacity: 0 }} animate={{ y: 0, rotate: -6, opacity: 1 }} transition={FADE}>
                     <i className="tape" aria-hidden="true" />
                     <div className="teach-vis">
                       <VisualView v={spec.cue} />
@@ -156,8 +162,8 @@ export function TeachCard({ spec, short, onDone, camera }: Props) {
           <motion.div
             className="teach-side"
             initial={false}
-            animate={showSide ? { scale: 1, rotate: 7, opacity: 1 } : { scale: 0.3, rotate: 30, opacity: 0 }}
-            transition={{ type: 'spring', stiffness: 300, damping: 16 }}
+            animate={showSide ? { y: 0, rotate: 7, opacity: 1 } : { y: LIFT, rotate: 7, opacity: 0 }}
+            transition={FADE}
           >
             <i className="tape" aria-hidden="true" />
             <div className="teach-vis">

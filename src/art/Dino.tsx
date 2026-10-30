@@ -65,7 +65,7 @@ export function DodoArt({ mood }: { mood: Mood }) {
       <path d="M80 150 C52 152 24 140 6 116 C30 128 54 130 82 126 Z" fill={p.body} {...s} />
       <ellipse cx={92} cy={190} rx={20} ry={15} fill={p.deep} />
       <ellipse cx={138} cy={192} rx={19} ry={14} fill={p.body} {...s} />
-      <g className="dino-breathe">
+      <g>
         <ellipse cx={114} cy={148} rx={56} ry={46} fill={p.body} {...s} />
         <ellipse cx={132} cy={158} rx={29} ry={31} fill={p.belly} />
       </g>
@@ -100,7 +100,7 @@ export function BoboArt({ mood }: { mood: Mood }) {
       <ellipse cx={158} cy={192} rx={15} ry={13} fill={p.deep} />
       <ellipse cx={108} cy={192} rx={16} ry={14} fill={p.body} {...s} />
       <ellipse cx={184} cy={190} rx={16} ry={14} fill={p.body} {...s} />
-      <g className="dino-breathe">
+      <g>
         <ellipse cx={126} cy={150} rx={72} ry={44} fill={p.body} {...s} />
         <ellipse cx={138} cy={166} rx={40} ry={19} fill={p.belly} />
       </g>
@@ -130,7 +130,7 @@ export function MomoArt({ mood }: { mood: Mood }) {
       <ellipse cx={140} cy={224} rx={14} ry={12} fill={p.deep} />
       <ellipse cx={100} cy={224} rx={15} ry={13} fill={p.body} {...s} />
       <ellipse cx={162} cy={222} rx={15} ry={13} fill={p.body} {...s} />
-      <g className="dino-breathe">
+      <g>
         <ellipse cx={114} cy={188} rx={62} ry={38} fill={p.body} {...s} />
         <ellipse cx={124} cy={202} rx={36} ry={16} fill={p.belly} />
         <circle cx={90} cy={176} r={8} fill={p.accent} />
@@ -140,7 +140,8 @@ export function MomoArt({ mood }: { mood: Mood }) {
       <motion.g
         style={{ originX: '146px', originY: '170px' }}
         animate={{ rotate: mood === 'peek' ? [0, -4, 0] : mood === 'cheer' ? [0, 5, -3, 0] : 0 }}
-        transition={{ duration: mood === 'peek' ? 3 : 0.8, repeat: mood === 'peek' ? Infinity : 0, ease: 'easeInOut' }}
+        // 探頭：歪一下頭就停（不一直晃）
+        transition={{ duration: mood === 'peek' ? 3 : 0.8, ease: 'easeInOut' }}
       >
         <path d={neck} fill="none" stroke={p.deep} strokeWidth={41} strokeLinecap="round" />
         <path d={neck} fill="none" stroke={p.body} strokeWidth={34} strokeLinecap="round" />
@@ -180,7 +181,7 @@ interface DinoProps {
   className?: string
 }
 
-/** 單獨一隻恐龍，會呼吸、眨眼、說話時嘴巴會動 */
+/** 單獨一隻恐龍：出現時眨一次眼、說話時嘴巴會動；開心時跳兩下就停（不一直動） */
 export function Dino({ who, mood = 'idle', size = 220, flip, onTap, style, className }: DinoProps) {
   const box = DINO_BOX[who]
   return (
@@ -193,7 +194,7 @@ export function Dino({ who, mood = 'idle', size = 220, flip, onTap, style, class
         mood === 'cheer'
           ? { y: [0, -34, 0, -16, 0], transition: { duration: 0.9, ease: 'easeOut' } }
           : mood === 'happy'
-            ? { y: [0, -10, 0], transition: { duration: 1.4, repeat: Infinity, ease: 'easeInOut' } }
+            ? { y: [0, -10, 0], transition: { duration: 1.4, repeat: 1, ease: 'easeInOut' } }
             : { y: 0 }
       }
       onPointerDown={onTap}

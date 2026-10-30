@@ -55,7 +55,7 @@ export function NextCard({ stars, goal, feature, gain = [], play = false, ready 
   return (
     <div className={`ncard is-${layout}${full ? ' is-full' : ''}`} style={style}>
       {full && <span className="ncard-halo" aria-hidden="true" />}
-      <motion.span className="ncard-ghost" animate={full ? { rotate: [0, -6, 5, -3, 0], scale: [1, 1.06, 1] } : {}} transition={full ? { duration: 1.1, repeat: Infinity, repeatDelay: 1.4 } : {}}>
+      <motion.span className="ncard-ghost" animate={full ? { rotate: [0, -6, 5, -3, 0], scale: [1, 1.06, 1] } : {}} transition={full ? { duration: 1.1, repeat: 1, repeatDelay: 1.4 } : {}}>
         {/* 一直是蓋著的：集滿了也先不翻開，到挑選畫面才翻開（驚喜留到那一刻） */}
         <ArtSticker art={feature.art} seed={feature.seed} ghost />
         {full && <span className="ncard-spark" aria-hidden="true"><Emoji name="sparkles" /></span>}

@@ -83,7 +83,8 @@
   top: -10px;
   width: 42%;
   transform-origin: 70% 90%;
-  animation: recap-wave 2.6s ease-in-out infinite;
+  /* 揮兩下手就停（給大人看的提示，不一直揮） */
+  animation: recap-wave 2.6s ease-in-out 0.6s 2;
 }
 @keyframes recap-wave {
   0%,

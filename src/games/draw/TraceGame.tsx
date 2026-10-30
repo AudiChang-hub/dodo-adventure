@@ -282,9 +282,9 @@ export function TraceGame({ gameId, onDone, onExit }: GameProps) {
               <Ride who="dodo" width={150} moving={prog > 0 && !done} mood={done ? 'cheer' : 'happy'} />
             </g>
           </g>
-          {/* 起點：輪到孩子才亮（示範、說明中不亮，準則 PHASE-3） */}
+          {/* 起點：輪到孩子才亮（示範、說明中不亮，準則 PHASE-3）；只輕輕變大再變回來、透明度不變（MOTION-3） */}
           {prog === 0 && !hold && !done && (
-            <motion.circle cx={s[0]?.x ?? 130} cy={s[0]?.y ?? 320} r={30} fill="none" stroke="#6FAE86" strokeWidth={8} animate={{ r: [26, 40, 26], opacity: [1, 0.4, 1] }} transition={{ duration: 1.4, repeat: Infinity }} />
+            <motion.circle cx={s[0]?.x ?? 130} cy={s[0]?.y ?? 320} r={30} fill="none" stroke="#6FAE86" strokeWidth={8} animate={{ r: [28, 38, 28] }} transition={{ duration: 1.2, repeat: Infinity, repeatDelay: 0.8, ease: 'easeInOut' }} />
           )}
           {/* 不是從車子出發：車子那裡亮一圈（只動一次） */}
           {startRing > 0 && !done && !hold && (

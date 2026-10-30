@@ -75,7 +75,6 @@
   height: 60px;
   border-radius: 40px;
   background: rgba(251, 248, 242, 0.85);
-  animation: cloud-drift linear infinite;
 }
 .cloud::before,
 .cloud::after {
@@ -95,14 +94,6 @@
   height: 100%;
   right: 14%;
   bottom: 40%;
-}
-@keyframes cloud-drift {
-  from {
-    transform: translateX(-30vw);
-  }
-  to {
-    transform: translateX(130vw);
-  }
 }
 
 .today-path {
@@ -329,18 +320,11 @@
   border-radius: 50%;
   background: radial-gradient(closest-side, color-mix(in srgb, var(--deep) 20%, transparent), transparent);
   z-index: -1;
-  animation: story-breathe 4.2s ease-in-out infinite;
 }
 .story-card-pic {
   display: block;
   width: 62%;
   filter: drop-shadow(0 8px 6px rgba(46, 42, 37, 0.1));
-}
-@keyframes story-breathe {
-  50% {
-    transform: scale(1.06);
-    opacity: 0.7;
-  }
 }
 
 .story-finale {
@@ -396,9 +380,4 @@
   width: 36%;
   left: 56%;
   top: 16%;
-}
-@media (prefers-reduced-motion: reduce) {
-  .story-card-halo {
-    animation: none;
-  }
 }

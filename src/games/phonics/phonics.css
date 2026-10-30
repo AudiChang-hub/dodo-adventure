@@ -125,7 +125,8 @@
   border-radius: 62px;
   border: 6px solid var(--hint);
   pointer-events: none;
-  animation: teach-ready 1.6s ease-in-out infinite;
+  /* 「點我」：靜態的粗外框，出現時淡入一次（同 teach.css） */
+  animation: hint-in 0.6s var(--ease-out) both;
 }
 .ph-card.nudge {
   animation: teach-nudge-in 2.4s var(--ease-out) both;

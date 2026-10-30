@@ -66,8 +66,10 @@ function StationRouteMap({ plan }: { plan: Plan }) {
         return (
           <g key={i} transform={`translate(${s.p.x} ${s.p.y})`}>
             <motion.g initial={{ scale: 0, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ type: 'spring', stiffness: 260, damping: 15, delay: 0.45 + i * 0.16 }}>
-              {/* 現在要去的那一站：一圈靜止的外框（不脈動，V-17） */}
-              {now && <circle r={68} fill="none" stroke={s.st.deep} strokeWidth={5} opacity={0.55} />}
+              {now && (
+                // 現在這一站：靜態的一圈外框（不呼吸、不改透明度）
+                <circle r={68} fill="none" stroke={s.st.deep} strokeWidth={5} opacity={0.7} />
+              )}
               <circle r={56} fill={s.st.tint} stroke={s.done ? s.st.deep : '#FBF8F2'} strokeWidth={7} />
               <g transform="translate(-34 -34)" opacity={s.done ? 0.55 : 1}>
                 <Emoji name={s.st.icon} size={68} />
@@ -185,7 +187,7 @@ function ThemeRouteMap({ plan, th }: { plan: Plan; th: ThemeDef }) {
         return (
           <g key={i} transform={`translate(${s.p.x} ${s.p.y})`}>
             <motion.g initial={{ scale: 0, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ type: 'spring', stiffness: 260, damping: 15, delay: 0.45 + i * 0.16 }}>
-              {now && <circle r={68} fill="none" stroke={th.deep} strokeWidth={5} opacity={0.5} />}
+              {now && <circle r={68} fill="none" stroke={th.deep} strokeWidth={5} opacity={0.6} />}
               <circle r={56} fill="#FBF8F2" stroke={s.done ? th.deep : th.tint} strokeWidth={7} />
               <g transform="translate(-36 -36)" opacity={s.done ? 0.5 : 1}>
                 <Emoji name={s.icon} size={72} />

@@ -462,7 +462,7 @@ export function FillCountGame({ gameId, onDone, onExit }: GameProps) {
                   <circle r={CELL_R} fill="#fff" stroke="rgba(46,42,37,0.55)" strokeWidth={6} />
                   <AnimatePresence>
                     {on && (
-                      <motion.g key="f" initial={{ scale: 0.2, opacity: 0 }} animate={extra ? { scale: 1, opacity: 1, rotate: [0, -10, 10, -6, 6, 0] } : { scale: 1, opacity: 1 }} exit={{ scale: 0.2, opacity: 0 }} transition={extra ? { duration: 0.6, repeat: Infinity, repeatDelay: 0.5 } : { type: 'spring', stiffness: 420, damping: 18 }}>
+                      <motion.g key="f" initial={{ scale: 0.2, opacity: 0 }} animate={extra ? { scale: 1, opacity: 1, rotate: [0, -10, 10, -6, 6, 0] } : { scale: 1, opacity: 1 }} exit={{ scale: 0.2, opacity: 0 }} transition={extra ? { duration: 0.6, repeat: 1, repeatDelay: 0.5 } : { type: 'spring', stiffness: 420, damping: 18 }}>
                         <circle r={CELL_R - 7} fill={deep} />
                         <circle r={CELL_R - 7} fill="url(#crayon-hatch)" />
                       </motion.g>

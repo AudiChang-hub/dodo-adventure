@@ -27,15 +27,17 @@ export function Bedtime() {
         <path d="M0 640 Q600 590 1200 640 V800 H0 Z" fill="#2F374D" />
         <rect x={360} y={560} width={480} height={90} rx={30} fill="#A3C4E4" opacity={0.55} />
       </svg>
-      <motion.div style={{ position: 'absolute', left: '50%', bottom: '18vh', width: '34vmin', marginLeft: '-17vmin' }} animate={{ y: [0, 4, 0] }} transition={{ duration: 3.6, repeat: Infinity }}>
+      {/* 睡覺的畫面整個靜止：恐龍不起伏，z 飄上去一次就停在那裡（不一直淡入淡出） */}
+      <div style={{ position: 'absolute', left: '50%', bottom: '18vh', width: '34vmin', marginLeft: '-17vmin' }}>
         <Dino who="dodo" mood="sleep" size="100%" />
-      </motion.div>
+      </div>
       {[0, 1, 2].map((i) => (
         <motion.span
           key={i}
           style={{ position: 'absolute', left: '58%', top: '34%', fontFamily: 'Fredoka', fontSize: 40 + i * 10, color: '#F3EEE4' }}
-          animate={{ y: [-0, -120], x: [0, 40], opacity: [0, 1, 0] }}
-          transition={{ duration: 3, repeat: Infinity, delay: i, ease: 'easeOut' }}
+          initial={{ y: 0, x: 0, opacity: 0 }}
+          animate={{ y: -40 - i * 40, x: 14 + i * 13, opacity: 1 - i * 0.25 }}
+          transition={{ duration: 2.4, delay: 0.6 + i * 0.7, ease: 'easeOut' }}
           aria-hidden="true"
         >
           z

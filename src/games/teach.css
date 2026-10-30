@@ -50,7 +50,8 @@
   border-radius: 62px;
   border: 6px solid var(--hint);
   pointer-events: none;
-  animation: teach-ready 1.6s ease-in-out infinite;
+  /* 「點我」：靜態的粗外框（加上 Teach.tsx 的手），只在出現時淡入一次；不再整圈透明度 1↔0.45 呼吸 */
+  animation: hint-in 0.6s var(--ease-out) both;
 }
 /* 閒置第二段提示：卡片慢慢亮起來（不說話） */
 .teach-card.nudge {
@@ -64,13 +65,6 @@
       0 0 60px 18px rgba(241, 210, 124, 0.55);
   }
 }
-@keyframes teach-ready {
-  50% {
-    transform: scale(1.025);
-    opacity: 0.45;
-  }
-}
-
 .teach-stage {
   position: absolute;
   inset: 8%;
@@ -181,7 +175,7 @@
   border: 5px solid var(--hint);
 }
 
-/* ── 閒置第二段提示：要點的東西慢慢發光（不說話）──────────────── */
+/* ── 閒置第二段提示：要點的東西慢慢亮起來（不說話），亮了就停在那裡，不呼吸 ── */
 .nudge-glow {
   position: absolute;
   inset: -22%;
@@ -189,53 +183,26 @@
   background: radial-gradient(closest-side, rgba(241, 210, 124, 0.85), rgba(241, 210, 124, 0.35) 62%, rgba(241, 210, 124, 0));
   pointer-events: none;
   z-index: -1;
-  animation:
-    hint-in 1.6s var(--ease-out) both,
-    nudge-breathe 2.4s ease-in-out 1.6s infinite;
+  animation: hint-in 1.6s var(--ease-out) both;
 }
-/* 運筆、描字的路徑提示：整條路慢慢亮起來 */
+/* 運筆、描字的路徑提示：整條路慢慢亮起來，之後靜止 */
 .nudge-path {
   opacity: 0.6;
-  animation:
-    nudge-path-in 1.6s var(--ease-out) both,
-    nudge-path 2.4s ease-in-out 1.6s infinite;
+  animation: nudge-path-in 1.6s var(--ease-out) both;
 }
 @keyframes nudge-path-in {
   from {
     opacity: 0;
   }
 }
-@keyframes nudge-path {
-  50% {
-    opacity: 0.3;
-  }
-}
-@keyframes nudge-breathe {
-  50% {
-    transform: scale(1.08);
-    opacity: 0.7;
-  }
-}
 
-/* ── 一起練：正確答案發光、其他變淡 ─────────────────────────── */
+/* ── 一起練：正確答案一圈靜態的暖黃光、其他變淡（會動的只有旁邊那隻點的手） ── */
 .tile.guide {
   background: #fff8e2;
-  animation: guide-glow 1.5s ease-in-out infinite;
-}
-@keyframes guide-glow {
-  0%,
-  100% {
-    box-shadow:
-      0 8px 0 #e6cf8e,
-      0 0 0 6px var(--hint) inset,
-      0 0 0 0 rgba(241, 210, 124, 0);
-  }
-  50% {
-    box-shadow:
-      0 8px 0 #e6cf8e,
-      0 0 0 6px var(--hint) inset,
-      0 0 0 20px rgba(241, 210, 124, 0.42);
-  }
+  box-shadow:
+    0 8px 0 #e6cf8e,
+    0 0 0 6px var(--hint) inset,
+    0 0 0 14px rgba(241, 210, 124, 0.42);
 }
 .tile.dim {
   filter: saturate(0.45);

@@ -20,7 +20,6 @@ interface Props {
   onDone: (ms: number) => void
 }
 
-const spring = { type: 'spring', stiffness: 260, damping: 20, opacity: FADE } as const
 
 /**
  * 學習單題型的教學卡（PRD §5.8 我示範）。
@@ -33,7 +32,8 @@ export function SheetTeach({ items, lines: all, short, onDone }: Props) {
   const [step, setStep] = useState(-1)
   const [ready, setReady] = useState(false)
   const [tapped, setTapped] = useState(false)
-  const [pop, setPop] = useState(0)
+  // 點一下的小回饋：at 是當時亮著的那一個（換句子時不會讓別的那一個也跳一下）
+  const [pop, setPop] = useState({ n: 0, at: 0 })
   const [nudge, setNudge] = useState(false)
   const live = useRef(true)
   const busy = useRef(false)
@@ -69,14 +69,14 @@ export function SheetTeach({ items, lines: all, short, onDone }: Props) {
 
   const tap = async () => {
     // 還在念（或「點我」剛出現）：只給一點點回饋，不會一出現就被帶過去
-    if (!ready || performance.now() - readyAt.current < PACE.TEACH_TAP_ARM) return setPop((p) => p + 1)
+    if (!ready || performance.now() - readyAt.current < PACE.TEACH_TAP_ARM) return setPop((p) => ({ n: p.n + 1, at: duo ? Math.max(0, step) : 0 }))
     if (busy.current) return
     busy.current = true
     idle.stop()
     const ms = Math.round(performance.now() - readyAt.current)
     setTapped(true)
     setStep(0)
-    setPop((p) => p + 1)
+    setPop((p) => ({ n: p.n + 1, at: 0 }))
     sfx.pop()
     await say(lines[0])
     // 再聽一次之後，卡片和例子再停留一下才收起來
@@ -96,7 +96,7 @@ export function SheetTeach({ items, lines: all, short, onDone }: Props) {
         onPointerDown={tap}
       >
         {!short && (
-          <motion.div className="teach-new" initial={{ scale: 0, rotate: -40 }} animate={{ scale: 1, rotate: -12 }} transition={{ ...spring, delay: 0.25 }} aria-hidden="true">
+          <motion.div className="teach-new" initial={{ opacity: 0, rotate: -12 }} animate={{ opacity: 1, rotate: -12 }} transition={{ ...FADE, delay: 0.25 }} aria-hidden="true">
             <Emoji name="glowing-star" />
           </motion.div>
         )}
@@ -107,10 +107,11 @@ export function SheetTeach({ items, lines: all, short, onDone }: Props) {
               <motion.div
                 key={i}
                 className={`teach-item${duo && on && step >= 0 ? ' on' : ''}`}
-                animate={duo ? { opacity: step < 0 || on ? 1 : 0.42, scale: on && step >= 0 ? 1.03 : 0.96, y: on && step >= 0 ? -6 : 0 } : { opacity: 1 }}
-                transition={spring}
+                // 念到哪一個靠靜態的粗外框（.teach-item.on）和手來指，不縮放、不上下移（同 Teach.tsx）
+                animate={duo ? { opacity: step < 0 || on ? 1 : 0.42 } : { opacity: 1 }}
+                transition={FADE}
               >
-                <motion.div key={on ? pop : 0} className="teach-vis sheet-teach-vis" animate={on && pop ? { scale: [1, tapped ? 1.14 : 1.05, 1] } : {}} transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1] }}>
+                <motion.div key={pop.at === i ? pop.n : 0} className="teach-vis sheet-teach-vis" animate={pop.at === i && pop.n ? { scale: [1, 1.05, 1] } : {}} transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1] }}>
                   {node}
                 </motion.div>
                 {duo && on && step >= 0 && !ready && <Hand x={50} y={88} size="22cqmin" />}
