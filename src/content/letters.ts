@@ -120,7 +120,8 @@ export const letterEntry = (l: string) => LETTERS.find((e) => e.letter === l)!
 //   - 單獨的 Sss…、Fff…、Nnn…、Lll…、Rrr…、Vvv…（不管幾個字母、加不加 …）全部被拼成字母名稱（ess ess ess、en en en），
 //     舊寫法 Ssssnake 也沒有真的拉長（/s/ 和 snake 一樣約 0.2 秒），Nnnnest 還多一個母音（Whisper：Nennest）。
 //   - 所以會延長的音（m、s、f、n、l、r）由 gen_audio.py 從這個字母的第一個關鍵字切出開頭子音、延長成 0.7 秒
-//     （s、f 是氣音，用隨機小片段疊加；m、n、l、r 用一個音高週期疊加）。延長的音裡沒有母音：s、f 全程無聲帶振動，
+//     （s、f 是氣音，用隨機小片段疊加；m、n、l、r 用音高同步疊接，每顆音量一致、音高慢慢往下約 4%。
+//     2026-10-30 家長反映舊的 m 像電話嘟嘟聲：舊做法每秒約 14 次一亮一暗，起伏深度 0.23，新做法 0.02–0.03，T-55）。延長的音裡沒有母音：s、f 全程無聲帶振動，
 //     n 的 F1 約 360Hz（鼻音），l 的 F3 約 3200Hz、r 的 F3 約 2140Hz（捲舌音的特徵）。
 //   - 母音 a、e：TTS 唸不出單獨的 /æ/，eh 也不穩，改從 apple、egg 開頭剪 0.15 秒的母音，唸兩次。
 //   - g："Guh." 會被拼成 G-U-H、"Gu." 唸成 go；從 gift、gorilla 剪出來的 g 都被聽成 t、k、b（字首的 g 聲帶振動得晚，

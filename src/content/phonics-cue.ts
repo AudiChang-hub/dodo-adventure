@@ -8,7 +8,7 @@
 import { anchorOf, upper, type SoundUnit } from './letters'
 
 /** 拉長音的長度、段與段之間、重複之間的停頓（毫秒）；改了數字或做法就把 version 加一，音檔會重新產生 */
-export const CUE = { holdMs: 700, gapMs: 400, repeatGapMs: 250, version: 4 }
+export const CUE = { holdMs: 700, gapMs: 400, repeatGapMs: 250, version: 5 }
 
 export interface CueSpec {
   unit: SoundUnit

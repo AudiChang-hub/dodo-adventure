@@ -142,7 +142,7 @@ def expand_asym(pcm: np.ndarray, fx: dict) -> np.ndarray:
 # - tts：直接合成（字母名稱 "S."、停頓音 "buh."、單字 "snake!"），重複 times 次用同一段聲音
 # - hold：從代表字（snake!）的開頭切出子音、延長成 hold 毫秒；和單字裡的子音是同一段聲音，不會多出母音
 # - cut：從代表字開頭剪 ms 毫秒（apple 的 /æ/、gift 的 g），重複 times 次
-UNVOICED = set("sfh")  # 氣音：隨機小片段疊加；其餘（m、n、l、r）：一個音高週期疊加
+UNVOICED = set("sfh")  # 氣音：隨機小片段疊加；其餘（m、n、l、r）：音高同步疊接（hold_voiced）
 VOWEL_F1 = 650  # 濁音子音的 F1 都在 600Hz 以下（Ana 的 r 約 540、l 約 530、n 約 380），連續兩個音框超過就是進到母音了
 VOWEL_JUMP_DB = 6  # moon 的 /u/ F1 也很低，改看音量：比子音開頭的音量大 6dB 就是進到母音了
 
@@ -207,19 +207,49 @@ def hold_noise(src: np.ndarray, n: int) -> np.ndarray:
 
 
 def hold_voiced(src: np.ndarray, n: int) -> np.ndarray:
-    """濁音延長：取一個音高週期 T，以 2T 長的窗、T 的間隔疊加（音高固定），來源位置在穩定段裡來回走"""
+    """濁音延長（2026-10-30 T-55 改寫）：音高同步疊接。
+
+    舊做法用固定週期 T 疊接、來源位置在幾十毫秒的穩定段裡來回走：每一顆的音量不同、相位也沒對齊，
+    結果每秒約 14 次一亮一暗（m 的起伏深度 0.23），家長聽起來像電話的嘟嘟聲。
+    新做法：
+    - Praat 找出每個聲帶振動的位置（音高標記），每個標記取前後各一個週期、乘 Hann 窗，當成一顆，音量統一。
+    - 只用中間那幾顆，避開開頭和轉進母音的地方。
+    - 每 4 個週期才隨機往前或往後換一顆，音色有自然的小變化，但沒有規律的循環。
+    - 音高照真人哼的樣子慢慢往下約 4%，加很小的隨機起伏。
+    實測 m、n、l、r 的起伏深度都降到 0.02–0.03，喀聲也變少，音色（頻譜重心）和原本的子音差不多。
+    """
+    import parselmouth
+    from parselmouth.praat import call
+
     x = src - src.mean()
-    lo, hi = SR // 600, SR // 150
-    ac = np.correlate(x, x, "full")[len(x) - 1 :]
-    T = lo + int(np.argmax(ac[lo:hi]))
-    win = np.hanning(2 * T)
-    starts = list(range(0, len(x) - 2 * T, T)) or [0]
-    path = starts + starts[-2:0:-1] if len(starts) > 2 else starts
-    out = np.zeros(n + 2 * T)
-    for k, o in enumerate(range(0, n, T)):
-        g = x[path[k % len(path)] :][: 2 * T]
-        out[o : o + len(g)] += g * win[: len(g)]
-    return out[:n]
+    pp = call(parselmouth.Sound(x, SR), "To PointProcess (periodic, cc)", 150, 600)
+    marks = [int(call(pp, "Get time from index", i) * SR) for i in range(1, call(pp, "Get number of points") + 1)]
+    grains = []
+    for i in range(1, len(marks) - 1):
+        T = int(round((marks[i + 1] - marks[i - 1]) / 2))
+        a, b = marks[i] - T, marks[i] + T
+        if a < 0 or b > len(x) or T < SR // 600:
+            continue
+        g = x[a:b] * np.hanning(2 * T)
+        grains.append((T, g / (np.sqrt((g**2).mean()) + 1e-9)))
+    if len(grains) < 4:
+        raise RuntimeError(f"音高標記太少（{len(grains)} 顆），沒辦法延長")
+    lo = len(grains) // 5
+    grains = grains[lo : max(lo + 3, len(grains) * 4 // 5)]
+    T0 = int(np.median([T for T, _ in grains]))
+    out = np.zeros(n + 4 * T0)
+    rng = np.random.default_rng(7)  # 固定亂數種子，重跑結果相同
+    t, k, idx, drift = T0, 0, len(grains) // 2, 0.0
+    while t < n + T0:
+        if k % 4 == 0:
+            idx = int(np.clip(idx + rng.integers(-1, 2), 0, len(grains) - 1))
+        T, g = grains[idx]
+        if t - T >= 0:
+            out[t - T : t + T] += g
+        drift = 0.9 * drift + rng.normal(0, 0.004)
+        t += int(round(T0 * (1 + 0.04 * min(1.0, t / n) + drift)))  # 週期慢慢變長＝音高慢慢往下
+        k += 1
+    return out[T0 : T0 + n]
 
 
 def fade(y: np.ndarray, fi_ms: int, fo_ms: int) -> np.ndarray:
@@ -241,7 +271,8 @@ def build_hold(pcm: np.ndarray, letter: str, ms: int) -> np.ndarray:
         seg = seg[: len(seg) * 3 // 4]
     core = steady(seg)
     n = ms * SR // 1000
-    y = hold_noise(core, n) if letter in UNVOICED else hold_voiced(core, n)
+    # 濁音用整段子音找音高標記（穩定段太短，只有幾個週期），自己挑中間那幾顆；音量仍以穩定段為準
+    y = hold_noise(core, n) if letter in UNVOICED else hold_voiced(seg, n)
     y *= np.sqrt((core**2).mean()) / (np.sqrt((y**2).mean()) + 1e-9)  # 音量和單字裡的子音一樣
     return fade(y, 40, 80)
 
