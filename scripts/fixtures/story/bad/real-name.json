@@ -1,0 +1,95 @@
+{
+ "expect": [
+  "private"
+ ],
+ "why": "真名（假名字 Kevin 代替）、{Name} 寫錯、生日日期",
+ "type": "classic",
+ "rev": 1,
+ "week": "2026-11-02",
+ "by": "human",
+ "classic": {
+  "id": "A03",
+  "source": "伊索寓言",
+  "zh": "測試",
+  "band": "small",
+  "faith": null,
+  "chapter": {
+   "id": "classic-a03",
+   "look": {
+    "title": "Wind and Sun",
+    "zh": "北風與太陽（故事時間）",
+    "host": "momo",
+    "icon": "open-book",
+    "scene": "park",
+    "tint": "#EFE6D3",
+    "deep": "#A8875A",
+    "ground": "#DCCFB2",
+    "stops": [
+     "sun",
+     "cloud",
+     "sun",
+     "sun",
+     "sun"
+    ],
+    "finale": [
+     "sun"
+    ]
+   },
+   "stops": [
+    {
+     "generic": [
+      {
+       "who": "momo",
+       "en": "Kevin rides the big bus.",
+       "pic": "bus",
+       "zh": "Kevin 坐大公車。"
+      }
+     ]
+    },
+    {
+     "generic": [
+      {
+       "who": "momo",
+       "en": "Hello, {Name}! Here is the wind.",
+       "pic": "cloud",
+       "zh": "哈囉！這是風。"
+      }
+     ]
+    },
+    {
+     "generic": [
+      {
+       "who": "momo",
+       "en": "Happy birthday! June 5, 2023.",
+       "pic": "birthday-cake",
+       "zh": "生日快樂！"
+      }
+     ]
+    },
+    {
+     "generic": [
+      {
+       "who": "momo",
+       "en": "The wind is a friend.",
+       "pic": "cloud",
+       "zh": "風也是朋友。"
+      }
+     ]
+    },
+    {
+     "generic": [
+      {
+       "who": "momo",
+       "en": "Wind and sun smile.",
+       "pic": "sun+cloud",
+       "zh": "風和太陽都笑了。"
+      }
+     ]
+    }
+   ]
+  }
+ },
+ "fakePrivate": [
+  "Kevin"
+ ]
+}

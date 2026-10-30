@@ -37,6 +37,8 @@ export interface Beat {
   pic?: Pic
   /** 這句台詞的 key（通用章節沿用現有主題的 key，音檔才會一樣）；沒寫就由章節的 id 和位置組出來 */
   key?: string
+  /** 家長看的中文意思（審稿頁的中英對照）；只給家長看，App 裡不念、不顯示（故事裡不出現中文） */
+  zh?: string
 }
 
 /**

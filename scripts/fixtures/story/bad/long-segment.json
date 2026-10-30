@@ -1,0 +1,235 @@
+{
+ "expect": [
+  "long"
+ ],
+ "why": "開場一段 5 句，超過小班段一段 3 句",
+ "type": "arc",
+ "rev": 1,
+ "week": "2026-11-02",
+ "by": "human",
+ "arc": {
+  "id": "p1-a99",
+  "part": 1,
+  "no": 99,
+  "title": "Test Arc",
+  "zh": "測試",
+  "icon": "@rainbow-egg",
+  "band": "small",
+  "houseAdds": "egg-nest",
+  "chapters": [
+   {
+    "id": "p1-a99-c1",
+    "door": "bus",
+    "intro": [
+     {
+      "who": "dodo",
+      "en": "Look! A big egg!",
+      "pic": "@rainbow-egg",
+      "zh": "看！好大的蛋！"
+     },
+     {
+      "who": "egg",
+      "en": "Gurgle, gurgle!",
+      "pic": "@rainbow-egg",
+      "zh": "咕嚕咕嚕！"
+     },
+     {
+      "who": "bobo",
+      "en": "The egg is round.",
+      "pic": "@rainbow-egg",
+      "zh": "蛋圓圓的。"
+     },
+     {
+      "who": "momo",
+      "en": "The egg is soft.",
+      "pic": "@rainbow-egg",
+      "zh": "蛋軟軟的。"
+     },
+     {
+      "who": "all",
+      "en": "Knock, knock! Open, magic door!",
+      "pic": "door",
+      "zh": "叩叩！魔法門，打開！"
+     }
+    ],
+    "stops": [
+     null,
+     {
+      "generic": [
+       {
+        "who": "momo",
+        "en": "The egg rides the bus.",
+        "pic": "bus+@rainbow-egg",
+        "zh": "蛋坐公車。"
+       }
+      ]
+     }
+    ],
+    "end": [
+     {
+      "who": "momo",
+      "en": "Good night, little egg.",
+      "pic": "@rainbow-egg+zzz",
+      "zh": "晚安，小蛋。"
+     }
+    ]
+   },
+   {
+    "id": "p1-a99-c2",
+    "door": "bus",
+    "intro": [
+     {
+      "who": "momo",
+      "en": "Good morning, little | egg!",
+      "pic": "@rainbow-egg",
+      "zh": "早安，小蛋！"
+     },
+     {
+      "who": "all",
+      "en": "Knock, knock! Open, magic door!",
+      "pic": "door",
+      "zh": "叩叩！魔法門，打開！"
+     }
+    ],
+    "stops": [
+     null,
+     {
+      "generic": [
+       {
+        "who": "momo",
+        "en": "The egg rides the bus.",
+        "pic": "bus+@rainbow-egg",
+        "zh": "蛋坐公車。"
+       }
+      ]
+     }
+    ],
+    "end": [
+     {
+      "who": "momo",
+      "en": "Good night, little egg.",
+      "pic": "@rainbow-egg+zzz",
+      "zh": "晚安，小蛋。"
+     }
+    ]
+   },
+   {
+    "id": "p1-a99-c3",
+    "door": "bus",
+    "intro": [
+     {
+      "who": "momo",
+      "en": "Good morning, little | egg!",
+      "pic": "@rainbow-egg",
+      "zh": "早安，小蛋！"
+     },
+     {
+      "who": "all",
+      "en": "Knock, knock! Open, magic door!",
+      "pic": "door",
+      "zh": "叩叩！魔法門，打開！"
+     }
+    ],
+    "stops": [
+     null,
+     {
+      "generic": [
+       {
+        "who": "momo",
+        "en": "The egg rides the bus.",
+        "pic": "bus+@rainbow-egg",
+        "zh": "蛋坐公車。"
+       }
+      ]
+     }
+    ],
+    "end": [
+     {
+      "who": "momo",
+      "en": "Good night, little egg.",
+      "pic": "@rainbow-egg+zzz",
+      "zh": "晚安，小蛋。"
+     }
+    ]
+   },
+   {
+    "id": "p1-a99-c4",
+    "door": "bus",
+    "intro": [
+     {
+      "who": "momo",
+      "en": "Good morning, little | egg!",
+      "pic": "@rainbow-egg",
+      "zh": "早安，小蛋！"
+     },
+     {
+      "who": "all",
+      "en": "Knock, knock! Open, magic door!",
+      "pic": "door",
+      "zh": "叩叩！魔法門，打開！"
+     }
+    ],
+    "stops": [
+     null,
+     {
+      "generic": [
+       {
+        "who": "momo",
+        "en": "The egg rides the bus.",
+        "pic": "bus+@rainbow-egg",
+        "zh": "蛋坐公車。"
+       }
+      ]
+     }
+    ],
+    "end": [
+     {
+      "who": "momo",
+      "en": "Good night, little egg.",
+      "pic": "@rainbow-egg+zzz",
+      "zh": "晚安，小蛋。"
+     }
+    ]
+   },
+   {
+    "id": "p1-a99-c5",
+    "door": "bus",
+    "intro": [
+     {
+      "who": "momo",
+      "en": "Good morning, little | egg!",
+      "pic": "@rainbow-egg",
+      "zh": "早安，小蛋！"
+     },
+     {
+      "who": "all",
+      "en": "Knock, knock! Open, magic door!",
+      "pic": "door",
+      "zh": "叩叩！魔法門，打開！"
+     }
+    ],
+    "stops": [
+     null,
+     {
+      "generic": [
+       {
+        "who": "momo",
+        "en": "The egg rides the bus.",
+        "pic": "bus+@rainbow-egg",
+        "zh": "蛋坐公車。"
+       }
+      ]
+     }
+    ],
+    "end": [
+     {
+      "who": "momo",
+      "en": "Good night, little egg.",
+      "pic": "@rainbow-egg+zzz",
+      "zh": "晚安，小蛋。"
+     }
+    ]
+   }
+  ]
+ }
+}

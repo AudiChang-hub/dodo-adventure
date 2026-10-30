@@ -1,0 +1,18 @@
+{
+  "kind": "learner",
+  "v": 1,
+  "date": "2026-10-30",
+  "band": "small",
+  "words": ["dog", "cat", "chicken", "duck", "bird", "fish", "car", "bus", "train", "bike", "truck", "apple", "banana", "grapes", "strawberry", "watermelon", "carrot", "cookie", "cake", "umbrella", "soap", "bed", "teddy-bear", "toothbrush", "t-shirt", "shoe", "gift", "moon", "milk", "sun", "socks", "ball", "balloon", "foot", "flower", "nose", "rice", "egg", "leg", "hand", "house", "star", "cow", "sheep", "pig", "frog", "rabbit", "elephant", "lion", "giraffe", "monkey", "turtle", "boat", "airplane", "fire-truck", "dinosaur", "rainbow", "bear", "owl", "mouse", "tractor", "bathtub"],
+  "recent": ["rainbow", "frog", "owl"],
+  "unknown": ["octopus"],
+  "concepts": ["color:red", "color:blue", "color:yellow", "color:green", "shape:circle", "shape:square", "shape:triangle", "count:5", "size:big", "size:small"],
+  "strands": [
+    { "id": "vocab", "name": "詞彙", "track": "lang", "done": ["L1"], "current": ["L2"] },
+    { "id": "count", "name": "數數與數字", "track": "num", "done": ["N1"], "current": ["N2"] },
+    { "id": "seq", "name": "順序與因果", "track": "think", "done": [], "current": ["T1"] },
+    { "id": "pen", "name": "運筆", "track": "hand", "done": ["H1"], "current": ["H2"] }
+  ],
+  "friends": ["fox", "turtle"],
+  "story": { "part": 1, "arc": "p1-a01", "next": 3, "classicsDone": ["A01"] }
+}

@@ -1,0 +1,466 @@
+/* 家長區「故事審稿」：手機直式（390 寬）一句一列；平板置中、最寬 860px。紙感配色沿用家長區 */
+.parent nav .nav-count {
+  display: inline-grid;
+  place-items: center;
+  min-width: 22px;
+  height: 22px;
+  margin-left: 8px;
+  padding: 0 6px;
+  border-radius: 11px;
+  background: var(--coral);
+  color: #fff;
+  font: 600 12px/1 'Fredoka', sans-serif;
+  vertical-align: 1px;
+}
+
+.review {
+  max-width: 860px;
+  margin: 0 auto;
+}
+.review-head {
+  margin-bottom: 22px;
+}
+.review-head .sub {
+  margin-bottom: 14px;
+  max-width: 34em;
+  line-height: 1.6;
+}
+.review-counts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.review-sync {
+  margin: 12px 0 0;
+  font-size: 13px;
+  color: var(--ink-faint);
+  line-height: 1.5;
+}
+
+/* 狀態小標籤 */
+.review .chip {
+  display: inline-flex;
+  align-items: center;
+  height: 26px;
+  padding: 0 11px;
+  border-radius: 13px;
+  font-size: 13px;
+  font-weight: 500;
+  white-space: nowrap;
+  background: var(--paper-deep);
+  color: var(--ink-soft);
+}
+.review .chip:empty {
+  display: none;
+}
+.review .chip.is-pending {
+  background: #f8e9b8;
+  color: #7a5b12;
+}
+.review .chip.is-ok {
+  background: #d9ecdf;
+  color: #2f6b47;
+}
+.review .chip.is-no {
+  background: #f6d9d0;
+  color: #9a4330;
+}
+
+.review-empty p {
+  margin: 0 0 6px;
+}
+
+/* ── 一份劇本 ── */
+.parent .review-draft {
+  padding: 0;
+  overflow: hidden;
+}
+.review-draft-head {
+  padding: 20px 22px 16px;
+  border-bottom: 1px solid var(--paper-edge);
+}
+.review-kicker {
+  margin: 0 0 6px;
+  font-size: 12px;
+  letter-spacing: 0.04em;
+  color: var(--ink-faint);
+}
+.review-draft h3 {
+  font-family: 'Huninn', sans-serif;
+  font-weight: 400;
+  font-size: 22px;
+  margin: 0 0 4px;
+  line-height: 1.3;
+}
+.review-draft h3 [lang='en'] {
+  font-family: 'Fredoka', sans-serif;
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--ink-soft);
+  white-space: nowrap;
+}
+.review-meta {
+  margin: 0;
+  font-size: 13px;
+  color: var(--ink-faint);
+}
+.review-faith {
+  margin: 14px 0 0;
+  padding: 12px 14px;
+  border-radius: 14px;
+  background: #ece6f6;
+  border-left: 4px solid var(--lilac);
+  font-size: 14px;
+  line-height: 1.6;
+  color: #4b3f68;
+}
+.review-faith strong {
+  color: #3b2f5a;
+}
+.review-draft.is-faith {
+  box-shadow:
+    0 0 0 2px #d9cfee,
+    0 1px 0 var(--paper-edge);
+}
+.review-notes {
+  margin-top: 12px;
+  font-size: 14px;
+  color: var(--ink-soft);
+}
+.review-notes summary {
+  cursor: pointer;
+  padding: 6px 0;
+  font-weight: 500;
+  color: var(--ink);
+}
+.review-notes ul {
+  margin: 4px 0 0;
+  padding-left: 20px;
+  line-height: 1.6;
+}
+.review-all {
+  margin-top: 14px;
+  min-height: 48px;
+  padding: 0 20px;
+  border-radius: 14px;
+  background: var(--good);
+  color: #fff;
+  font-size: 15px;
+  font-weight: 500;
+}
+
+/* ── 一章 ── */
+.review-ch {
+  padding: 4px 22px 18px;
+  border-bottom: 1px solid var(--paper-edge);
+}
+.review-ch:last-child {
+  border-bottom: 0;
+}
+.review-ch.is-ok {
+  background: linear-gradient(90deg, #f1f7f2, transparent 60%);
+}
+.review-ch.is-no {
+  background: linear-gradient(90deg, #fbefeb, transparent 60%);
+}
+.review-ch-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding-top: 12px;
+}
+.review-ch-toggle {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+  min-height: 48px;
+  text-align: left;
+  padding: 0;
+}
+.review-ch-toggle::before {
+  content: '';
+  width: 8px;
+  height: 8px;
+  border-right: 2px solid var(--ink-faint);
+  border-bottom: 2px solid var(--ink-faint);
+  transform: rotate(-45deg);
+  transition: transform 0.2s var(--ease-out);
+  margin-right: 2px;
+}
+.review-ch-toggle[aria-expanded='true']::before {
+  transform: rotate(45deg) translate(-2px, -2px);
+}
+.review-ch-name {
+  font-size: 17px;
+  font-weight: 500;
+}
+.review-ch-door {
+  font-size: 13px;
+  color: var(--ink-soft);
+}
+.review-play-all {
+  flex: none;
+  min-height: 44px;
+  padding: 0 16px;
+  border-radius: 22px;
+  background: var(--momo);
+  color: #23476b;
+  font-size: 14px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+.review-play-all.is-on {
+  background: #23476b;
+  color: #fff;
+}
+.review-stale,
+.review-reason {
+  margin: 8px 0 0;
+  padding: 10px 12px;
+  border-radius: 12px;
+  font-size: 14px;
+  line-height: 1.5;
+}
+.review-stale {
+  background: #fbf1cf;
+  color: #6c5212;
+}
+.review-reason {
+  background: #f8e3dc;
+  color: #8a3b2a;
+}
+
+/* 句子 */
+.review-lines {
+  margin-top: 6px;
+}
+.review-seg-label {
+  margin: 14px 0 6px;
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  color: var(--ink-faint);
+}
+.review-seg ol {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+}
+.review-line {
+  display: grid;
+  grid-template-columns: 48px 1fr 48px;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 8px 8px 10px;
+  border-radius: 16px;
+  background: #fff;
+  box-shadow: 0 1px 0 var(--paper-edge);
+  transition:
+    background 0.2s,
+    box-shadow 0.2s;
+}
+.review-line.is-door {
+  background: transparent;
+  box-shadow: inset 0 0 0 1px var(--paper-edge);
+}
+.review-line.is-door .review-en {
+  color: var(--ink-soft);
+}
+.review-line.is-track {
+  margin-left: 22px;
+  grid-template-columns: 40px 1fr 44px;
+  background: #faf7f1;
+}
+.review-line.is-playing {
+  background: #eaf2fa;
+  box-shadow: inset 0 0 0 2px var(--momo);
+}
+.review-pic {
+  width: 48px;
+  height: 48px;
+  display: grid;
+  place-items: center;
+}
+.review-line.is-track .review-pic {
+  width: 40px;
+  height: 40px;
+}
+.review-pic .story-pic {
+  width: 100%;
+}
+.review-text {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+.review-who {
+  font-size: 12px;
+  color: var(--ink-faint);
+}
+.review-who em {
+  font-style: normal;
+  margin-left: 6px;
+  padding: 1px 7px;
+  border-radius: 8px;
+  background: var(--paper-deep);
+  color: var(--ink-soft);
+}
+.review-en {
+  font-family: 'Fredoka', sans-serif;
+  font-weight: 500;
+  font-size: 17px;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+.review-en strong {
+  font-weight: 600;
+  color: #a0532f;
+}
+.review-zh {
+  font-size: 14px;
+  line-height: 1.45;
+  color: var(--ink-soft);
+}
+.review-play {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: var(--paper);
+  color: var(--ink);
+  font-size: 16px;
+  display: grid;
+  place-items: center;
+  box-shadow: inset 0 0 0 1px var(--paper-edge);
+}
+.review-line.is-track .review-play {
+  width: 44px;
+  height: 44px;
+}
+.review-line.is-playing .review-play {
+  background: #23476b;
+  color: #fff;
+  box-shadow: none;
+}
+
+/* 通過、退回 */
+.review-actions {
+  margin-top: 14px;
+}
+.review-btns {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.review-btns button {
+  flex: 1 1 140px;
+  min-height: 52px;
+  border-radius: 16px;
+  font-size: 16px;
+  font-weight: 500;
+  background: var(--paper);
+  box-shadow: inset 0 0 0 1px var(--paper-edge);
+}
+.review-btns button.is-ok {
+  background: var(--good);
+  color: #fff;
+  box-shadow: none;
+}
+.review-btns button.is-ok[aria-pressed='true'] {
+  background: #d9ecdf;
+  color: #2f6b47;
+}
+.review-btns button.is-no {
+  color: #9a4330;
+}
+.review-btns button.is-no[aria-pressed='true'] {
+  background: #f6d9d0;
+  box-shadow: none;
+}
+.review-reject {
+  display: grid;
+  gap: 8px;
+}
+.review-reject label {
+  font-size: 14px;
+  font-weight: 500;
+}
+.review-reject input {
+  min-height: 52px;
+  padding: 0 14px;
+  border-radius: 14px;
+  border: 1px solid var(--paper-edge);
+  background: #fff;
+  font: inherit;
+  font-size: 16px;
+}
+.review-reject input:focus {
+  outline: 2px solid var(--momo);
+  outline-offset: 1px;
+}
+.review-reject button.is-no {
+  background: var(--coral);
+  color: #fff;
+  box-shadow: none;
+}
+.review-reject button:disabled {
+  opacity: 0.45;
+}
+
+/* 給每週流程的工具 */
+.review-tool-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.review-tool-row button {
+  min-height: 48px;
+  padding: 0 18px;
+  border-radius: 14px;
+  background: var(--paper);
+  box-shadow: inset 0 0 0 1px var(--paper-edge);
+  font-size: 15px;
+}
+.review-note {
+  margin: 12px 0 0;
+  line-height: 1.6;
+}
+
+@media (max-width: 760px) {
+  .review-draft-head {
+    padding: 18px 16px 14px;
+  }
+  .review-ch {
+    padding: 4px 12px 16px;
+  }
+  .review-line {
+    grid-template-columns: 40px 1fr 44px;
+    gap: 10px;
+    padding: 8px 6px 8px 8px;
+  }
+  .review-pic {
+    width: 40px;
+    height: 40px;
+  }
+  .review-play {
+    width: 44px;
+    height: 44px;
+  }
+  .review-line.is-track {
+    margin-left: 12px;
+  }
+  .review-en {
+    font-size: 16px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .review-ch-toggle::before,
+  .review-line {
+    transition: none;
+  }
+}

@@ -1,0 +1,152 @@
+{
+ "expect": [
+  "long"
+ ],
+ "why": "一章 15 句，超過小班段約 10 句",
+ "type": "classic",
+ "rev": 1,
+ "week": "2026-11-02",
+ "by": "human",
+ "classic": {
+  "id": "A03",
+  "source": "伊索寓言",
+  "zh": "測試",
+  "band": "small",
+  "faith": null,
+  "chapter": {
+   "id": "classic-a03",
+   "look": {
+    "title": "Wind and Sun",
+    "zh": "北風與太陽（故事時間）",
+    "host": "momo",
+    "icon": "open-book",
+    "scene": "park",
+    "tint": "#EFE6D3",
+    "deep": "#A8875A",
+    "ground": "#DCCFB2",
+    "stops": [
+     "sun",
+     "cloud",
+     "sun",
+     "sun",
+     "sun"
+    ],
+    "finale": [
+     "sun"
+    ]
+   },
+   "stops": [
+    {
+     "generic": [
+      {
+       "who": "momo",
+       "en": "Here is the | sun.",
+       "pic": "sun",
+       "zh": "這是太陽。"
+      },
+      {
+       "who": "momo",
+       "en": "The sun is big.",
+       "pic": "sun",
+       "zh": "太陽好大。"
+      },
+      {
+       "who": "momo",
+       "en": "The sun is warm.",
+       "pic": "sun",
+       "zh": "太陽暖暖的。"
+      }
+     ]
+    },
+    {
+     "generic": [
+      {
+       "who": "momo",
+       "en": "Here is the | sun.",
+       "pic": "sun",
+       "zh": "這是太陽。"
+      },
+      {
+       "who": "momo",
+       "en": "The sun is big.",
+       "pic": "sun",
+       "zh": "太陽好大。"
+      },
+      {
+       "who": "momo",
+       "en": "The sun is warm.",
+       "pic": "sun",
+       "zh": "太陽暖暖的。"
+      }
+     ]
+    },
+    {
+     "generic": [
+      {
+       "who": "momo",
+       "en": "Here is the | sun.",
+       "pic": "sun",
+       "zh": "這是太陽。"
+      },
+      {
+       "who": "momo",
+       "en": "The sun is big.",
+       "pic": "sun",
+       "zh": "太陽好大。"
+      },
+      {
+       "who": "momo",
+       "en": "The sun is warm.",
+       "pic": "sun",
+       "zh": "太陽暖暖的。"
+      }
+     ]
+    },
+    {
+     "generic": [
+      {
+       "who": "momo",
+       "en": "Here is the | sun.",
+       "pic": "sun",
+       "zh": "這是太陽。"
+      },
+      {
+       "who": "momo",
+       "en": "The sun is big.",
+       "pic": "sun",
+       "zh": "太陽好大。"
+      },
+      {
+       "who": "momo",
+       "en": "The sun is warm.",
+       "pic": "sun",
+       "zh": "太陽暖暖的。"
+      }
+     ]
+    },
+    {
+     "generic": [
+      {
+       "who": "momo",
+       "en": "Here is the | sun.",
+       "pic": "sun",
+       "zh": "這是太陽。"
+      },
+      {
+       "who": "momo",
+       "en": "The sun is big.",
+       "pic": "sun",
+       "zh": "太陽好大。"
+      },
+      {
+       "who": "momo",
+       "en": "The sun is warm.",
+       "pic": "sun",
+       "zh": "太陽暖暖的。"
+      }
+     ]
+    }
+   ]
+  }
+ }
+}

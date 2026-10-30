@@ -17,7 +17,8 @@
 （每段第一個字固定標在約 105ms，實際約 200ms 才有聲音）。這種字的開始時間改成實際出聲的位置（往後最多移到該字的中點）；
 連續說出的字本來就準，不動。
 
-用法：python scripts/gen_audio.py [--lines 清單.json] [--out 輸出資料夾]
+用法：python scripts/gen_audio.py [--lines 清單.json] [--out 輸出資料夾] [--only 前綴 ...]
+--only：只產生 key 是這些前綴開頭的台詞（例如每週故事流程的 story.p1-a02-），其他的音檔不動、不刪（scripts/story-weekly.ts 用）。
 依賴：pip install -r scripts/requirements.txt
 """
 import argparse
@@ -389,6 +390,7 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--lines", default="scripts/.cache/lines.json")
     ap.add_argument("--out", default="public/audio")
+    ap.add_argument("--only", nargs="*", default=None, help="只產生 key 以這些前綴開頭的台詞；不刪其他音檔")
     args = ap.parse_args()
 
     import edge_tts
@@ -396,7 +398,8 @@ def main():
     out = pathlib.Path(args.out)
     out.mkdir(parents=True, exist_ok=True)
     timings_path = out / "timings.json"
-    rows = json.loads(pathlib.Path(args.lines).read_text(encoding="utf-8"))
+    all_rows = json.loads(pathlib.Path(args.lines).read_text(encoding="utf-8"))
+    rows = [r for r in all_rows if not args.only or any(r["key"].startswith(p) for p in args.only)]
     try:
         timings: dict[str, list] = json.loads(timings_path.read_text(encoding="utf-8"))
     except (OSError, ValueError):
@@ -470,14 +473,15 @@ def main():
     made = loop.run_until_complete(run_all())
     pool.shutdown()
 
-    wanted = {r["file"] for r in rows}
-    stale = [p for p in out.glob("*.mp3") if p.stem not in wanted]
+    # 只做一部分（--only）時不清舊檔：清單外的音檔不是這次的事
+    wanted = {r["file"] for r in all_rows}
+    stale = [] if args.only else [p for p in out.glob("*.mp3") if p.stem not in wanted]
     for p in stale:
         try:
             p.unlink()
         except OSError:  # 開發伺服器正在讀取時刪不掉，下次再清
             pass
-    for k in [k for k in timings if k not in wanted]:
+    for k in [k for k in timings if k not in wanted and not args.only]:
         del timings[k]
     ordered = {k: timings[k] for k in sorted(timings)}
     tmp = timings_path.with_suffix(".tmp")

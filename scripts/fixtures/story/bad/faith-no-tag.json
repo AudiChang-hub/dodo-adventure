@@ -1,0 +1,92 @@
+{
+ "expect": [
+  "faith"
+ ],
+ "why": "聖經故事沒加 faith 標籤：審稿頁不會標「宗教經典，請特別看」",
+ "type": "classic",
+ "rev": 1,
+ "week": "2026-11-02",
+ "by": "human",
+ "classic": {
+  "id": "B02",
+  "source": "新約《路加福音》",
+  "zh": "測試",
+  "band": "small",
+  "faith": null,
+  "chapter": {
+   "id": "classic-b02",
+   "look": {
+    "title": "Wind and Sun",
+    "zh": "北風與太陽（故事時間）",
+    "host": "momo",
+    "icon": "open-book",
+    "scene": "park",
+    "tint": "#EFE6D3",
+    "deep": "#A8875A",
+    "ground": "#DCCFB2",
+    "stops": [
+     "sun",
+     "cloud",
+     "sun",
+     "sun",
+     "sun"
+    ],
+    "finale": [
+     "sun"
+    ]
+   },
+   "stops": [
+    {
+     "generic": [
+      {
+       "who": "momo",
+       "en": "Here are ten | sheep.",
+       "pic": "ewe",
+       "zh": "這裡有十隻羊。"
+      }
+     ]
+    },
+    {
+     "generic": [
+      {
+       "who": "momo",
+       "en": "Here is the wind. Whoosh!",
+       "pic": "cloud",
+       "zh": "這是風。呼呼！"
+      }
+     ]
+    },
+    {
+     "generic": [
+      {
+       "who": "momo",
+       "en": "The sun shines. Warm, warm.",
+       "pic": "sun",
+       "zh": "太陽照著。暖暖的。"
+      }
+     ]
+    },
+    {
+     "generic": [
+      {
+       "who": "momo",
+       "en": "The wind is a friend.",
+       "pic": "cloud",
+       "zh": "風也是朋友。"
+      }
+     ]
+    },
+    {
+     "generic": [
+      {
+       "who": "momo",
+       "en": "Wind and sun smile.",
+       "pic": "sun+cloud",
+       "zh": "風和太陽都笑了。"
+      }
+     ]
+    }
+   ]
+  }
+ }
+}

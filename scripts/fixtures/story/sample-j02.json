@@ -1,0 +1,67 @@
+{
+  "type": "classic",
+  "rev": 1,
+  "week": "2026-11-02",
+  "by": "sample",
+  "cast": ["Rabbit", "Monkey"],
+  "notes": [
+    "範例劇本（G-9 驗收用，代替 AI 寫的）：故事時間 J02〈兔子與月亮〉，佛教本生經（Sasa Jataka）。",
+    "原典兔子跳進火裡把自己當食物，這一段拿掉；改成兔子把自己最好的食物分給又餓又累的老爺爺（故事世界 §5.3）。",
+    "原典的老人是天神的化身，這裡只說是一位老爺爺；不說原因、不提神。老爺爺畫成一般的古代人。",
+    "兔子用豆豆的聲音、老爺爺用波波的聲音，旁白是莫莫（§5.1）。"
+  ],
+  "classic": {
+    "id": "J02",
+    "source": "佛教本生經（Sasa Jataka），查情節用 Cowell 主編英譯（1895–1907）",
+    "zh": "兔子與月亮",
+    "band": "small",
+    "faith": "jataka",
+    "chapter": {
+      "id": "classic-j02",
+      "look": {
+        "title": "Rabbit and the Moon",
+        "zh": "兔子與月亮（故事時間）",
+        "host": "momo",
+        "icon": "open-book",
+        "scene": "night",
+        "tint": "#E4E3EF",
+        "deep": "#6E6A9A",
+        "ground": "#CFCDE0",
+        "stops": ["rabbit", "old-man", "banana", "carrot", "full-moon"],
+        "finale": ["rabbit", "full-moon"]
+      },
+      "stops": [
+        {
+          "generic": [
+            { "who": "momo", "en": "Here is a little | rabbit.", "pic": "rabbit", "zh": "這是一隻小兔子。" },
+            { "who": "momo", "en": "Rabbit has many friends.", "pic": "rabbit+monkey", "zh": "兔子有很多朋友。" }
+          ]
+        },
+        {
+          "generic": [
+            { "who": "momo", "en": "One day, an old man comes.", "pic": "old-man", "zh": "有一天，來了一位老爺爺。" },
+            { "who": "bobo", "en": "I am hungry and tired.", "pic": "old-man", "zh": "我又餓又累。（老爺爺說）" }
+          ]
+        },
+        {
+          "generic": [
+            { "who": "momo", "en": "Monkey brings a | banana.", "pic": "monkey+banana", "zh": "猴子帶來一根香蕉。" },
+            { "who": "momo", "en": "Rabbit has only grass.", "pic": "rabbit+herb", "zh": "兔子只有青草。" }
+          ]
+        },
+        {
+          "generic": [
+            { "who": "dodo", "en": "Here! My best | carrot!", "pic": "carrot", "zh": "給你！我最好的紅蘿蔔！（兔子說）" },
+            { "who": "momo", "en": "Rabbit shares. Big smile!", "pic": "rabbit+old-man", "zh": "兔子分給老爺爺，笑得好開心！" }
+          ]
+        },
+        {
+          "generic": [
+            { "who": "bobo", "en": "Thank you, kind Rabbit!", "pic": "old-man+rabbit", "zh": "謝謝你，好心的兔子！" },
+            { "who": "momo", "en": "He draws Rabbit on the | moon.", "pic": "full-moon+rabbit", "zh": "他把兔子畫在月亮上。" }
+          ]
+        }
+      ]
+    }
+  }
+}

@@ -215,7 +215,7 @@ export function MagicHouseArt({ focus, door, items, fresh, celebrate, friends = 
       {/* 多出來的東西：只會變多 */}
       {items.map((id) => {
         const it = houseItem(id)
-        const p = ITEM_AT[id]
+        const p = ITEM_AT[id] ?? it?.at
         if (!it || !p) return null
         return (
           <div key={id} className={`house-item${id === fresh ? ' is-fresh' : ''}`} style={{ ...at(p.x, p.y, p.w), opacity: dim(it.room) }} aria-hidden="true">

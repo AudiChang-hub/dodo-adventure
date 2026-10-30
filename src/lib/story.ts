@@ -11,6 +11,7 @@ import { getSettings } from './settings'
 import { getGrowth } from './growth'
 import { fnv1a } from './hash'
 import { warmAudio } from './audio-cache'
+import { playable } from './review'
 import { clipName } from './clip'
 import { line, segments, hasLine } from '../content/lines'
 import { ARCS, CLASSICS, arcOf, arcsOfPart, chapterLines, chapterOf, evergreenOf, houseItem, scriptOf, type Arc, type Chapter, type Pic, type Script } from '../content/story'
@@ -69,7 +70,10 @@ function epicAt(st: StoryState): { arc: Arc; chapter: Chapter } | null {
     i++
     next = 0
   }
-  return arcs[i] ? { arc: arcs[i], chapter: arcs[i].chapters[next] } : null
+  if (!arcs[i]) return null
+  // 下一章還沒通過審稿（或被退回）：先講通用章節，等家長通過再接著講
+  const chapter = arcs[i].chapters[next]
+  return playable(chapter) ? { arc: arcs[i], chapter } : null
 }
 
 /**
@@ -80,7 +84,8 @@ export async function chapterForNewPlan(date: string): Promise<Chapter | null> {
   if (!storyOn()) return null
   const st = await storyState()
   if (weekday(date) >= CLASSIC_FROM_WEEKDAY || weekday(date) === 0) {
-    const c = CLASSICS.find((x) => !st.classicsDone.includes(x.id))
+    // 審稿佇列裡的故事時間要家長通過才講（lib/review.ts）
+    const c = CLASSICS.find((x) => !st.classicsDone.includes(x.id) && playable(x.chapter))
     if (c && !(await classicThisWeek(date))) return c.chapter
   }
   return epicAt(st)?.chapter ?? null
@@ -88,7 +93,9 @@ export async function chapterForNewPlan(date: string): Promise<Chapter | null> {
 
 /** 今天這一章：plan 記著的章；沒有（故事沒開、舊的存檔）就是今天這扇門的通用章節 */
 export function chapterOfPlan(plan: Plan): Chapter | null {
-  return chapterOf(plan.chapter) ?? (plan.theme ? evergreenOf(plan.theme) : null)
+  // 排好之後家長才退回的章節（例如今天早上排的，中午在手機上退回）：今天改講門的通用章節
+  const ch = chapterOf(plan.chapter)
+  return (ch && playable(ch) ? ch : null) ?? (plan.theme ? evergreenOf(plan.theme) : null)
 }
 
 /** 今天上場的朋友（孵出來的朋友裡依日期固定挑一位；沒有朋友是 null，朋友的句子換成通用句） */
@@ -237,7 +244,7 @@ export function warmStory(s: Script) {
     const i = arc.chapters.findIndex((c) => c.id === ch.id)
     const arcs = arcsOfPart(arc.part)
     const nx = arcs[arcs.findIndex((a) => a.id === arc.id) + 1]
-    for (const c of [...arc.chapters.slice(i + 1), ...(nx?.chapters ?? [])]) for (const [k] of chapterLines(c)) keys.add(k)
+    for (const c of [...arc.chapters.slice(i + 1), ...(nx?.chapters ?? [])].filter(playable)) for (const [k] of chapterLines(c)) keys.add(k)
   }
   void warmAudio(filesOf([...keys]))
 }

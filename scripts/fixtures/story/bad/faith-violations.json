@@ -1,0 +1,95 @@
+{
+ "expect": [
+  "faith"
+ ],
+ "why": "禱告、神的指令、要相信、懲罰、宗教符號的圖",
+ "type": "classic",
+ "rev": 1,
+ "week": "2026-11-02",
+ "by": "human",
+ "classic": {
+  "id": "B03",
+  "source": "希伯來聖經《約拿書》",
+  "zh": "測試",
+  "band": "small",
+  "faith": "bible",
+  "chapter": {
+   "id": "classic-b03",
+   "look": {
+    "title": "Wind and Sun",
+    "zh": "北風與太陽（故事時間）",
+    "host": "momo",
+    "icon": "open-book",
+    "scene": "park",
+    "tint": "#EFE6D3",
+    "deep": "#A8875A",
+    "ground": "#DCCFB2",
+    "stops": [
+     "sun",
+     "cloud",
+     "sun",
+     "sun",
+     "sun"
+    ],
+    "finale": [
+     "sun"
+    ]
+   },
+   "stops": [
+    {
+     "generic": [
+      {
+       "who": "momo",
+       "en": "God tells Jonah to go.",
+       "pic": "sailboat",
+       "zh": "神叫約拿去。"
+      }
+     ]
+    },
+    {
+     "generic": [
+      {
+       "who": "momo",
+       "en": "Jonah prays in the boat.",
+       "pic": "folded-hands",
+       "zh": "約拿在船上禱告。"
+      }
+     ]
+    },
+    {
+     "generic": [
+      {
+       "who": "momo",
+       "en": "You must believe. Amen!",
+       "pic": "sailboat",
+       "zh": "你要相信。阿們！"
+      }
+     ]
+    },
+    {
+     "generic": [
+      {
+       "who": "momo",
+       "en": "The bad city gets punished.",
+       "pic": "sailboat",
+       "zh": "壞城市被懲罰了。"
+      }
+     ]
+    },
+    {
+     "generic": [
+      {
+       "who": "momo",
+       "en": "Wind and sun smile.",
+       "pic": "sun+cloud",
+       "zh": "風和太陽都笑了。"
+      }
+     ]
+    }
+   ]
+  }
+ },
+ "cast": [
+  "Jonah"
+ ]
+}
