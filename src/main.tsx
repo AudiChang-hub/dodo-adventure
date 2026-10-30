@@ -11,6 +11,7 @@ import { installFirstGesture } from './lib/boot'
 import { initSync } from './lib/sync'
 import { installPromptCapture } from './lib/install'
 import { initUpdates } from './lib/update'
+import { initAudioCache } from './lib/audio-cache'
 import { BootSignal, ErrorBoundary } from './ui/ErrorBoundary'
 import './styles/global.css'
 import './ui/ui.css'
@@ -18,6 +19,8 @@ import './screens/screens.css'
 
 installPromptCapture()
 initUpdates()
+// 開發模式沒有 audio/files.json，也沒有 Service Worker
+if (!import.meta.env.DEV) initAudioCache()
 if (import.meta.env.DEV) import('./lib/nav').then((m) => Object.assign(window, { __go: m.go }))
 installGuards()
 installFirstGesture()

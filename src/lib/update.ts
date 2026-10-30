@@ -16,7 +16,10 @@ const APPLY_TIMEOUT = 10 * 1000
 /** 這些畫面重新載入不會打斷題目；載入後回到同一個畫面 */
 const SAFE: Route['name'][] = ['home', 'map', 'collection', 'parent']
 
-export type UpdateStatus = 'idle' | 'checking' | 'latest' | 'ready' | 'applying' | 'offline' | 'error' | 'unsupported'
+/** 等 Service Worker 回應最多這麼久：舊版的大型 precache 還在下載時，register() 會一直排隊不回來（T-54） */
+const SW_WAIT = 4000
+
+export type UpdateStatus = 'idle' | 'checking' | 'downloading' | 'latest' | 'ready' | 'applying' | 'offline' | 'error' | 'stuck' | 'unsupported'
 
 let status: UpdateStatus = 'serviceWorker' in navigator ? 'idle' : 'unsupported'
 let lastCheck = 0
@@ -58,21 +61,82 @@ function tryApply() {
   }, APPLY_TIMEOUT)
 }
 
+const within = <T,>(p: Promise<T>, ms: number): Promise<T | 'timeout'> =>
+  Promise.race([p, new Promise<'timeout'>((r) => window.setTimeout(() => r('timeout'), ms))])
+
+/** registerSW 的 onRegisteredSW 可能一直沒回來（register() 排在舊的安裝後面），改直接問瀏覽器 */
+async function registration(): Promise<ServiceWorkerRegistration | undefined> {
+  if (reg) return reg
+  const r = await within(navigator.serviceWorker.getRegistration(), SW_WAIT).catch(() => undefined)
+  if (r && r !== 'timeout') reg = r
+  return reg
+}
+
+/** 正在下載的新版：裝好了（waiting）就等孩子不在遊戲裡再換；失敗就標示出來 */
+function watchInstalling(sw: ServiceWorker) {
+  setStatus('downloading')
+  window.__dodoBoot?.log('正在下載新版')
+  sw.addEventListener('statechange', () => {
+    if (sw.state === 'installed' && reg?.waiting) {
+      setStatus('ready')
+      tryApply()
+    } else if (sw.state === 'redundant' && status === 'downloading') {
+      window.__dodoBoot?.log('新版下載失敗')
+      setStatus('error')
+    }
+  })
+}
+
 export async function checkForUpdate() {
-  if (!reg) return
+  if (!('serviceWorker' in navigator)) return
   if (!navigator.onLine) return setStatus(status === 'ready' ? 'ready' : 'offline')
   if (status === 'ready' || status === 'applying') return tryApply()
   lastCheck = Date.now()
   setStatus('checking')
+  const r = await registration()
+  if (!r) {
+    // 連註冊資料都拿不到：Service Worker 卡住了，請家長用「強制更新」
+    window.__dodoBoot?.log('檢查更新：Service Worker 沒有回應')
+    return setStatus('stuck')
+  }
+  if (r.waiting) {
+    setStatus('ready')
+    return tryApply()
+  }
   try {
-    await reg.update()
+    const res = await within(r.update(), 15_000)
     // 有新版時 workbox 會在安裝完成後呼叫 onNeedRefresh，那邊會把狀態改成 ready
-    const sw = reg.installing
-    if (sw) sw.addEventListener('statechange', () => sw.state === 'redundant' && status === 'checking' && setStatus('error'))
-    else if (!reg.waiting) setStatus('latest')
-  } catch {
+    if (r.waiting) {
+      setStatus('ready')
+      tryApply()
+    } else if (r.installing) watchInstalling(r.installing)
+    else if (res === 'timeout') setStatus('stuck')
+    else setStatus('latest')
+  } catch (e) {
+    window.__dodoBoot?.log(`檢查更新失敗：${String(e)}`)
     setStatus('error')
   }
+}
+
+/**
+ * 強制更新（家長區）：解除 Service Worker、刪掉程式的快取後重新載入，直接從網路拿最新版。
+ * 學習紀錄（IndexedDB）、家長設定（localStorage）、已經下載的語音（dodo-audio）都不動。
+ */
+export async function forceUpdate() {
+  setStatus('applying')
+  window.__dodoBoot?.log('家長按了強制更新')
+  try {
+    sessionStorage.setItem(RESUME_KEY, currentRoute().name)
+  } catch {
+    /* 存不了就回首頁 */
+  }
+  const jobs: Promise<unknown>[] = []
+  if ('serviceWorker' in navigator)
+    jobs.push(navigator.serviceWorker.getRegistrations().then((rs) => Promise.all(rs.map((r) => r.unregister()))))
+  if ('caches' in window) jobs.push(caches.keys().then((ks) => Promise.all(ks.filter((k) => k !== 'dodo-audio').map((k) => caches.delete(k)))))
+  // Service Worker 卡住時 unregister 可能一直不回來：最多等 5 秒
+  await within(Promise.all(jobs), 5000).catch(() => undefined)
+  location.reload()
 }
 
 export function initUpdates() {
@@ -85,6 +149,9 @@ export function initUpdates() {
     },
     onRegisteredSW(_url, r) {
       reg = r
+      // 打開 App 時新版已經在下載（或已經下載好在等）：家長區看得到進度
+      if (r?.waiting) setStatus('ready')
+      else if (r?.installing) watchInstalling(r.installing)
     },
     onRegisterError() {
       setStatus('error')

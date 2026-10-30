@@ -2,6 +2,14 @@ import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import { VitePWA } from 'vite-plugin-pwa'
 import { execSync } from 'node:child_process'
+import { readdirSync } from 'node:fs'
+
+/** public/audio 底下所有 mp3（相對於 audio/），App 在背景照這份清單把語音補進快取（lib/audio-cache.ts） */
+function audioFiles(dir = 'public/audio', prefix = ''): string[] {
+  return readdirSync(dir, { withFileTypes: true }).flatMap((e) =>
+    e.isDirectory() ? audioFiles(`${dir}/${e.name}`, `${prefix}${e.name}/`) : e.name.endsWith('.mp3') ? [prefix + e.name] : [],
+  )
+}
 
 // 家長區顯示的版本：git 短 hash（有未提交改動加 *）＋建置時間
 function gitVersion() {
@@ -29,18 +37,33 @@ export default defineConfig({
       name: 'boot-version',
       transformIndexHtml: (html) => html.replace('__APP_VERSION__', APP_VERSION),
     },
+    {
+      name: 'audio-files',
+      apply: 'build',
+      generateBundle() {
+        this.emitFile({ type: 'asset', fileName: 'audio/files.json', source: JSON.stringify(audioFiles()) })
+      },
+    },
     VitePWA({
       // 不要 autoUpdate：它會在新版啟用時立刻重新載入，可能打斷遊戲；改由 src/lib/update.ts 挑時機
       registerType: 'prompt',
       includeAssets: ['icon.svg'],
       workbox: {
-        // 語音（約 2000 個 mp3、28MB）刻意留在 precache：孩子可能在沒網路時玩，沒聲音的遊戲對 3 歲小孩等於壞掉。
-        // 不會造成白畫面：新版要等全部下載完（installed → waiting）才會通知 update.ts，下載中舊版照常服務；
-        // 下載失敗只是這次不更新。沒變的檔案靠 revision 比對直接沿用，平常更新只下載有改的檔案。
-        // 中文三明治（BreezyVoice）的音檔在 audio/zh/，已經產生好的字列在 audio/zh/index.json，一樣離線可用
-        globPatterns: ['**/*.{js,css,html,svg,png,woff2,mp3}', 'audio/timings.json', 'audio/zh/index.json'],
+        // 語音（約 2100 個 mp3、31MB）不放 precache：precache 要全部下載成功新版才裝得起來，
+        // 紙感平板的 Wi-Fi 常常有一兩個檔案失敗，結果新版一直裝不起來、平板停在舊版好幾天（T-54）。
+        // 新版只帶程式（約 2MB，幾秒裝好）；語音改成下面的 runtime 快取：播過就存，
+        // App 也會在背景照 audio/files.json 慢慢補齊（lib/audio-cache.ts），所以沒網路時一樣有聲音。
+        // 音檔檔名包含內容與後製版本（lib/clip.ts），內容改了檔名就會變，CacheFirst 不會拿到舊的聲音
+        globPatterns: ['**/*.{js,css,html,svg,png,woff2}', 'audio/timings.json', 'audio/zh/index.json', 'audio/files.json'],
         maximumFileSizeToCacheInBytes: 8 * 1024 * 1024,
         navigateFallback: 'index.html',
+        runtimeCaching: [
+          {
+            urlPattern: /\/audio\/.+\.mp3$/,
+            handler: 'CacheFirst',
+            options: { cacheName: 'dodo-audio', cacheableResponse: { statuses: [200] } },
+          },
+        ],
       },
       manifest: {
         name: '豆豆冒險',

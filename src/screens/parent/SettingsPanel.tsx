@@ -3,7 +3,9 @@ import { today } from '../../lib/db'
 import { useSync, signIn, signOut, syncNow, syncConfigured } from '../../lib/sync'
 import { setVolume } from '../../lib/audio'
 import { useInstall, promptInstall } from '../../lib/install'
-import { useUpdateStatus, checkForUpdate, APP_VERSION, BUILD_TIME, type UpdateStatus } from '../../lib/update'
+import { useEffect, useState } from 'react'
+import { useUpdateStatus, checkForUpdate, forceUpdate, APP_VERSION, BUILD_TIME, type UpdateStatus } from '../../lib/update'
+import { useAudioCache } from '../../lib/audio-cache'
 import { minutesUsedToday } from '../../lib/session'
 import { THEME_LABEL } from '../../content/vocab'
 import { CHILD_EN, CHILD_ZH } from '../../lib/env'
@@ -22,12 +24,40 @@ function Field({ label, hint, children }: { label: string; hint?: string; childr
 const UPDATE_LABEL: Record<UpdateStatus, string> = {
   idle: '',
   checking: '檢查中…',
+  downloading: '正在下載新版…（下載完，孩子不在遊戲中時會自動換）',
   latest: '已經是最新版',
   ready: '新版已下載，孩子回到首頁、地圖或收藏時會自動套用',
   applying: '正在套用新版，畫面會重新載入…',
   offline: '目前沒有網路，連上網路後會自動檢查',
-  error: '檢查失敗，稍後會再自動檢查',
+  error: '檢查失敗，稍後會再自動檢查；一直不行可以按「強制更新」',
+  stuck: '更新程式沒有回應，請按「強制更新」',
   unsupported: '這個瀏覽器不支援離線更新',
+}
+
+/** 強制更新：點一下變成「再按一次確認」，4 秒內再按才執行 */
+function ForceUpdate() {
+  const [armed, setArmed] = useState(false)
+  useEffect(() => {
+    if (!armed) return
+    const t = window.setTimeout(() => setArmed(false), 4000)
+    return () => clearTimeout(t)
+  }, [armed])
+  return (
+    <button className="btn" style={{ marginLeft: 8 }} onClick={() => (armed ? void forceUpdate() : setArmed(true))}>
+      {armed ? '再按一次確認' : '強制更新'}
+    </button>
+  )
+}
+
+function AudioCacheLine() {
+  const a = useAudioCache()
+  if (!a.total) return null
+  const done = a.cached >= a.total
+  return (
+    <p className="sub" style={{ marginBottom: 0 }}>
+      離線語音：已存 {a.cached}／{a.total} 個{done ? '，沒有網路也能玩' : a.running ? '，正在背景下載…' : '，連上 Wi-Fi 時會自動補齊'}
+    </p>
+  )
 }
 
 function InstallStep() {
@@ -60,7 +90,12 @@ function VersionCard() {
       <button className="btn" disabled={st === 'checking' || st === 'applying' || st === 'unsupported'} onClick={() => void checkForUpdate()}>
         {st === 'ready' ? '立即更新' : '檢查更新'}
       </button>
+      {st !== 'unsupported' && st !== 'applying' && <ForceUpdate />}
       {UPDATE_LABEL[st] && <span className="update-status">{UPDATE_LABEL[st]}</span>}
+      <p className="sub" style={{ marginBottom: 0 }}>
+        「強制更新」會直接從網路重新載入最新版，學習紀錄、設定和已下載的語音都會保留。
+      </p>
+      <AudioCacheLine />
     </div>
   )
 }
