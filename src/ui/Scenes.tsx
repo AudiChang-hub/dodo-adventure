@@ -1,7 +1,8 @@
-import { createContext, useCallback, useContext, useEffect, useRef, useState, type CSSProperties, type ReactNode, type Ref, type RefObject } from 'react'
+import { createContext, useCallback, useContext, useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode, type Ref, type RefObject } from 'react'
 import { AnimatePresence, motion, useIsPresent, useReducedMotion } from 'motion/react'
 import { ARM_MS, PAGE_ARM_MAX_MS, PAGE_ARM_MS, PAGE_ARM_QUIET_MS, PAGE_REVEAL_MS, PAGE_SETTLED_MS, background, foreground, page, swap, type PageCustom } from './motion'
 import { noteEntering } from '../lib/nav'
+import { shownFor, type Shown } from '../lib/shown'
 import './scenes.css'
 
 /** 新畫面蓋好、舊的卸載之後再多等一下才往回：中間至少有一幀只剩新畫面（完全不透明），往回淡出是另一段 */
@@ -42,11 +43,95 @@ export interface SceneMove {
   back: boolean
 }
 
-// 孩子最後一次按下去的時間、位置：新畫面要等同一處的連點停下來才收點擊
-let lastDown = { t: -Infinity, x: 0, y: 0 }
-if (typeof window !== 'undefined') window.addEventListener('pointerdown', (e) => (lastDown = { t: performance.now(), x: e.clientX, y: e.clientY }), { capture: true })
+// ── 新畫面剛換上來：哪幾下點擊不算數 ─────────────────────────────
+//
+// 在地圖連點站牌，站點畫面出現後，後面幾下不能點進同一個位置的遊戲卡（B07、T-67）。
+// 以前是從換畫面那一刻起算的計時器，到了就開始收點擊。平板忙的時候（換畫面後主執行緒卡住一兩秒）兩頭都錯：
+// - 計時器先跑，排隊還沒處理的連點之後才送進來，被當成新的一下；
+// - 卡住的期間新畫面根本還沒畫出來，計時器卻已經走完，畫面一出現馬上按下去的也算數。
+// 現在每一下按下去都用它自己的時間（e.timeStamp：手指碰到螢幕的時間，不是主執行緒有空處理它的時間），
+// 跟新畫面「孩子真的看得到」的時間比（lib/shown.ts：一格一格算，卡住的那一段不算；卡住時轉場的淡入也停在半透明）。
+// - 新畫面順順地出現了 PAGE_ARM_MS 之前按下去的不算（轉場還沒走完）；換畫面之前就按著的手指放開也不算。
+// - 換畫面的那一下如果是孩子點的，同一處的連點一直不算，直到那裡停了 PAGE_ARM_QUIET_MS 再按（最多 PAGE_ARM_MAX_MS）。
+// - 點別的地方、返回鍵（孩子一進來就想回去）照常。
+// 不算的那一下：按下、放開、click 都在最外層攔掉，畫面裡的東西完全收不到（按鈕也不會縮一下）。
+
+interface Down {
+  /** 手指碰到螢幕的時間（e.timeStamp） */
+  t: number
+  x: number
+  y: number
+  /** 處理到它的時間：換畫面時用來找「是哪一下點的」 */
+  seen: number
+  blocked: boolean
+}
+
+/** 剛換上來、還在挑點擊的畫面（每一疊 Scenes 一個） */
+interface Gate {
+  el: HTMLElement | null
+  /** 新畫面畫出來的第一格；順順地出現了 PAGE_ARM_MS 的那一格（at）之後按下去的才算 */
+  shown: Shown
+  /** 換畫面的那一下（自己往下走的換畫面沒有） */
+  origin: Down | null
+  /** 同一處連點最後一下的時間 */
+  last: number
+}
+
+const gates = new Set<Gate>()
+/** 每一根手指按下去時的判斷（pointerId → 那一下） */
+const downs = new Map<number, Down>()
+let lastDown: Down | null = null
 /** 離換畫面的那一下多近算「還在同一處連點」 */
 const SAME_SPOT_PX = 140
+
+/** 這一下按在 gate 的畫面裡，要不要攔掉 */
+function blocks(g: Gate, d: Down) {
+  if (d.t < g.shown.at) return true
+  const o = g.origin
+  if (!o || Math.hypot(d.x - o.x, d.y - o.y) > SAME_SPOT_PX) return false
+  // 還在換畫面的那一處連點：隔不到 PAGE_ARM_QUIET_MS 又按下去
+  if (d.t - g.last < PAGE_ARM_QUIET_MS && d.t < g.shown.first + PAGE_ARM_MAX_MS) return true
+  // 停下來了，這一下是新的；之後同一處的點擊都照常
+  g.origin = null
+  return false
+}
+
+/** 這個元素在哪幾個還在挑點擊的畫面裡（冒險裡的一段也在 App 的冒險畫面裡）；返回鍵不算 */
+function gatesOf(target: EventTarget | null) {
+  if (!(target instanceof Element) || target.closest('[data-back]')) return []
+  return [...gates].filter((g) => g.el?.contains(target))
+}
+
+if (typeof window !== 'undefined') {
+  const stop = (e: Event) => {
+    e.stopPropagation()
+    if (e.cancelable) e.preventDefault()
+  }
+  window.addEventListener(
+    'pointerdown',
+    (e) => {
+      const d: Down = { t: e.timeStamp, x: e.clientX, y: e.clientY, seen: performance.now(), blocked: false }
+      for (const g of gatesOf(e.target)) if (blocks(g, d)) d.blocked = true
+      // 換畫面那一處的連點：落在哪裡都算（例如落在返回鍵上），記下最後一下的時間
+      for (const o of gates) if (o.origin && Math.hypot(d.x - o.origin.x, d.y - o.origin.y) <= SAME_SPOT_PX && d.t > o.last) o.last = d.t
+      downs.set(e.pointerId, d)
+      if (downs.size > 32) downs.delete(downs.keys().next().value!)
+      lastDown = d
+      if (d.blocked) stop(e)
+    },
+    { capture: true },
+  )
+  // 放開、click：按下去那一下不算的就不算；換畫面之前就按著的手指，在新畫面放開也不算
+  const follow = (e: Event) => {
+    // 鍵盤（Enter／空白鍵）、程式自己按的 click 不是手指，不管
+    if (!e.isTrusted || (e.type === 'click' && (e as MouseEvent).detail === 0)) return
+    const gs = gatesOf(e.target)
+    if (!gs.length) return
+    const d = downs.get((e as PointerEvent).pointerId) ?? lastDown
+    if (!d || d.blocked || gs.some((g) => d.t < g.shown.first)) stop(e)
+  }
+  for (const type of ['pointerup', 'click']) window.addEventListener(type, follow, { capture: true })
+}
 
 const INITIAL: Record<Role, string | false> = { still: false, enter: 'initial', behind: false, leave: false, under: 'under' }
 const ANIMATE: Record<Role, string> = { still: 'shown', enter: 'enter', behind: 'behind', leave: 'leave', under: 'shown' }
@@ -64,7 +149,9 @@ export function Scenes({ id, move, children, className = 'scene' }: { id: string
   const seq = useRef(1)
   const [shown, setShown] = useState(id)
   const [layers, setLayers] = useState<Layer[]>(() => [{ id, role: 'still', z: 1, quiet: false }])
-  const [armed, setArmed] = useState(id)
+  /** 這一次換畫面是哪一下點的（App 一打開的第一個畫面不是換畫面，是 null） */
+  const entered = useRef<{ origin: Down | null } | null>(null)
+  const liveEl = useRef<HTMLElement | null>(null)
 
   // id 換了：在這次 render 裡就把新的一層排好（React 的「render 中依前一個狀態調整」寫法）
   if (shown !== id) {
@@ -86,6 +173,9 @@ export function Scenes({ id, move, children, className = 'scene' }: { id: string
     })
     // 新畫面淡入中：這時候按返回，等它蓋好了才往回（lib/nav.ts 的 afterEntering）
     if (!m.back) noteEntering(PAGE_SETTLED_MS + ENTER_MARGIN_MS)
+    // 換畫面的那一下：剛處理過的那一下按下去（click 之後馬上就換畫面；自己往下走的換畫面沒有）
+    const now = performance.now()
+    entered.current = { origin: lastDown && now - lastDown.seen < 1000 ? lastDown : null }
   }
   snaps.current.set(id, children)
 
@@ -108,26 +198,19 @@ export function Scenes({ id, move, children, className = 'scene' }: { id: string
   const clear = className.split(' ').includes('is-clear')
   const reduced = !!useReducedMotion()
 
-  // 新畫面出現後先不收點擊，等孩子的連點停下來才收：在地圖連點站牌，後面幾下不會點到站點同一個位置的遊戲卡（B07）。
-  // 最少 PAGE_ARM_MS（轉場差不多走完）；還在換畫面的那一處連點（三歲的連點常常隔 0.5 秒以上），
-  // 就等到那裡停下來 PAGE_ARM_QUIET_MS，最多等 PAGE_ARM_MAX_MS。點別的地方不延長
-  useEffect(() => {
-    if (armed === id) return
-    const t0 = performance.now()
-    // 換畫面的那一下（剛點的才算；自己往下走的換畫面沒有）
-    const origin = t0 - lastDown.t < 1000 ? { ...lastDown } : null
-    let t = 0
-    const check = () => {
-      // 換畫面之後又在同一處按下去的（換畫面的那一下本身不算）
-      const same = origin && lastDown.t > origin.t && Math.hypot(lastDown.x - origin.x, lastDown.y - origin.y) <= SAME_SPOT_PX
-      const at = Math.min(Math.max(t0 + PAGE_ARM_MS, same ? lastDown.t + PAGE_ARM_QUIET_MS : 0), t0 + PAGE_ARM_MAX_MS)
-      const left = at - performance.now()
-      if (left <= 0) setArmed(id)
-      else t = window.setTimeout(check, left)
+  // 新畫面剛換上來的這一段，哪幾下點擊不算數（見最上面的 Gate）：用每一下自己的時間判斷，不靠計時器
+  useLayoutEffect(() => {
+    const e = entered.current
+    if (!e) return
+    const g: Gate = { el: liveEl.current, shown: shownFor(PAGE_ARM_MS), origin: e.origin, last: e.origin?.t ?? -Infinity }
+    gates.add(g)
+    const t = window.setTimeout(() => gates.delete(g), PAGE_ARM_MAX_MS + 2000)
+    return () => {
+      g.shown.cancel()
+      clearTimeout(t)
+      gates.delete(g)
     }
-    check()
-    return () => clearTimeout(t)
-  }, [id, armed])
+  }, [id])
 
   return (
     <>
@@ -141,7 +224,8 @@ export function Scenes({ id, move, children, className = 'scene' }: { id: string
               className={className}
               data-scene={l.id}
               data-role={l.role}
-              style={{ zIndex: rank + 1, pointerEvents: live && armed === id ? undefined : 'none' }}
+              ref={live ? (n: HTMLDivElement | null) => void (liveEl.current = n) : undefined}
+              style={{ zIndex: rank + 1, pointerEvents: live ? undefined : 'none' }}
               inert={!live}
               custom={{ clear, reduced } satisfies PageCustom}
               variants={page}
