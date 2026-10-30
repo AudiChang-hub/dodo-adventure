@@ -737,7 +737,7 @@ export const GAMES: GameDef[] = [
   { id: 'd-dots', station: 'draw', kind: 'dots', title: '連點成圖', icon: 'star', intro: 'd.dots.intro', maxLevel: 4 },
   { id: 'd-color', station: 'draw', kind: 'coloring', title: '蠟筆著色', icon: 'crayon', intro: 'd.color.intro', maxLevel: 1 },
   { id: 'd-free', station: 'draw', kind: 'free', title: '自由畫畫', icon: 'framed-picture', intro: 'd.intro.free', maxLevel: 1 },
-  { id: 'd-glyph', station: 'draw', kind: 'glyph', title: '描數字字母', icon: 'pencil', intro: 'd.intro.glyph', maxLevel: 4 },
+  { id: 'd-glyph', station: 'draw', kind: 'glyph', title: '描數字字母', icon: 'pencil', intro: 'd.intro.glyph', maxLevel: 6 },
 
   { id: 'p-color', station: 'park', kind: 'choice', title: '找顏色', icon: 'balloon', intro: 'p.intro.color', maxLevel: 4, make: pColor },
   { id: 'p-shape', station: 'park', kind: 'choice', title: '找形狀', icon: 'glowing-star', intro: 'p.intro.shape', maxLevel: 4, make: pShape },

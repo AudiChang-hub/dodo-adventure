@@ -7,7 +7,10 @@
 // 斷言：每一題「自己答」出題時，那個技能已經學過（seen > 0），或這一題本身剛走過教學卡／示範。
 // 圈圈看的 lasso:x 在「找出全部」學過 all:x 就算學過（同一個概念，只是換成用筆圈）。
 // 連點成圖也在檢查範圍：每張圖第一次出現一定先完整示範；圖上的數字不能超過已經解鎖的數字（adaptive.unlockedNumbers）。
-// 不在檢查範圍：畫畫小屋的描線、著色、自由畫、描字，路徑本身就畫在紙上，沒有「答案目標」；換爸爸問是爸爸在問。
+// 描數字字母（G-33、V-24）也在檢查範圍：每個新的零件、字第一次描之前一定先示範；
+// 暫時門檻（glyphs.ts 的 lettersOpen：運筆小路 4 級、連點成圖 2 級、最近 5 次都第一次就完成）到之前，一題字母都不能出。
+// 運筆小路跟著一起玩（門檻要看它的級數），新的路也要先示範。
+// 不在檢查範圍：著色、自由畫，沒有「答案目標」；換爸爸問是爸爸在問。
 //
 // 單字也不教不考（2026-10-28 單字盤點）：除了答案的技能，也檢查題目上的「字」（lib/words.ts）——
 // - 選擇題（動物村的聽詞找圖、聽聲音、動動腦）：每個選項的字（含干擾選項、動動腦的答案圖）都教過；
@@ -15,14 +18,15 @@
 // - 找出全部、做什麼用：點錯時唸名字的字都教過；沒教過的圖可以出現，但不唸名字（另外統計張數）；
 // - 家長勾「他不認得」：第 15 天起模擬家長勾了幾個字，之後它們不能當干擾選項、例子、不能唸名字；當答案時一定先重新教過。
 // - 一張圖一個名字：動物村、字母森林、學習單、貼紙、孵蛋朋友、找規律裡同一張圖的英文名字要一樣。
-// 執行：npx tsx scripts/sim-teach.ts [亂數種子] [--first=遊戲 id]（有違規時 exit 1）
+// 執行：npx tsx scripts/sim-teach.ts [亂數種子] [--first=遊戲 id] [--old-glyph]（有違規時 exit 1）
 //   --first：第 1 天空資料庫第一個玩的遊戲（例如 --first=ph-start：什麼字都還沒教過時，字母森林怎麼出干擾圖）
+//   --old-glyph：舊資料——改版前已經描過字母（描數字字母升到 4 級、1 I L T 學過），門檻還沒到：下次要出零件
 import { GAMES, PHONICS_MAKERS, ROUND_ITEMS, game as gameOf, type GameDef } from '../src/content/games'
 import { SHEET_MAKERS } from '../src/content/games-worksheet'
 import { THEMES } from '../src/content/themes'
 import { enterTheme, themeNow } from '../src/lib/theme-play'
 import { dotsNumbers } from '../src/content/dots'
-import { gameLevel, level, markPlayed, noteAttempt, plays, recordSkill, reportLevel, skill, unlockedNumbers } from '../src/lib/adaptive'
+import { gameLevel, level, markPlayed, needsDemo, noteAttempt, plays, recordSkill, reportLevel, skill, unlockedNumbers } from '../src/lib/adaptive'
 import { fluencyKey, fluencyTargets } from '../src/lib/fluency'
 import { numberPicker, numberRange } from '../src/games/sheet/NumberFlow'
 import { planChoice, planCount, planDots, planDrive, planOrder, planPhonics, planSequence, planSheet, roundState } from '../src/games/pick'
@@ -38,6 +42,7 @@ import { STICKER_ART } from '../src/content/sticker-art'
 import { FRIEND_INFO } from '../src/content/friends'
 import { keyOfVocab } from '../src/content/lexicon'
 import { isUnknown, needsTeach, setUnknownNow, usable } from '../src/lib/words'
+import { GATE_RECENT, glyphLevel, glyphLevelCap, glyphSkill, isPart, lettersOpen, planGlyph, type GateFacts } from '../src/games/draw/glyphs'
 
 // 學習引擎會順手寫 IndexedDB，Node 裡沒有：忽略那些錯誤（記憶體裡的狀態照常更新）
 process.on('unhandledRejection', () => {})
@@ -61,6 +66,7 @@ const tick = (ms = 4000) => (clock += ms)
 const ARGS = process.argv.slice(2)
 let seed = Number(ARGS.find((a) => /^\d+$/.test(a)) ?? 20261028)
 const FIRST = ARGS.find((a) => a.startsWith('--first='))?.slice(8)
+const OLD_GLYPH = ARGS.includes('--old-glyph')
 const rnd = () => ((seed = (seed * 1664525 + 1013904223) >>> 0) / 2 ** 32)
 Math.random = rnd
 
@@ -224,7 +230,7 @@ function teach(g: GameDef, k: string) {
 }
 
 /** 自己答一題：先檢查，再依孩子的程度隨機答對答錯，更新熟練度與難度 */
-function quiz(g: GameDef, k: string, taughtNow: boolean, why: string, opts?: { probe: boolean }): boolean {
+function quiz(g: GameDef, k: string, taughtNow: boolean, why: string, opts?: { probe: boolean }, maxLevel = g.maxLevel): boolean {
   quizzes++
   if (opts?.probe) probes++
   const ok0 = learned(k) || taughtNow
@@ -235,8 +241,9 @@ function quiz(g: GameDef, k: string, taughtNow: boolean, why: string, opts?: { p
   trace?.push(`  ${opts?.probe ? '探測題' : taughtNow ? '自己答（剛教）' : '自己答'} ${k} 第 ${level(g.id)} 級 ${ok ? '答對' : '答錯'}${ok0 ? '' : '  ← 沒教過就考'}`)
   const metrics = opts?.probe ? { probe: 1 } : undefined
   recordSkill(k, ok, { game: g.id, responseMs: 1800, hintUsed: !ok, metrics })
+  recentOk.set(g.id, [ok, ...(recentOk.get(g.id) ?? [])].slice(0, GATE_RECENT))
   noteAttempt({ game: g.id, skill: k, phase: 'quiz', firstTryCorrect: ok, level: level(g.id) })
-  reportLevel(g.id, ok, g.maxLevel, opts ? { probe: opts.probe, skill: k } : undefined)
+  reportLevel(g.id, ok, maxLevel, opts ? { probe: opts.probe, skill: k } : undefined)
   tick()
   return ok
 }
@@ -371,6 +378,65 @@ function playDots(g: GameDef) {
   }
 }
 
+/** 運筆小路（TraceGame）：同一局三條路——目前難度、目前難度、再難一點點；新的路先示範 */
+function playTrace(g: GameDef) {
+  const firstPlay = plays(g.id) === 0
+  let demos = 0
+  markPlayed(g.id)
+  for (let i = 0; i < 3; i++) {
+    const idx = Math.min(6, level(g.id) - 1 + (i === 2 ? 1 : 0))
+    const k = `trace:${idx + 1}`
+    const show = demos < 2 && needsDemo(firstPlay && i === 0, k)
+    if (show) {
+      demos++
+      teach(g, k)
+    }
+    quiz(g, k, show, '運筆小路（沒示範）')
+  }
+}
+
+// ── 描數字字母（G-33）：門檻、零件、字 ─────────────────────────
+/** 每個遊戲最近幾次自己做是不是第一次就完成（新的在前），App 是從作答紀錄讀 */
+const recentOk = new Map<string, boolean[]>()
+const gateNow = (): GateFacts => ({
+  level: { 'd-trace': level('d-trace'), 'd-dots': level('d-dots') },
+  recent: { 'd-trace': recentOk.get('d-trace') ?? [], 'd-dots': recentOk.get('d-dots') ?? [] },
+})
+const G = { parts: 0, letters: 0, openDay: 0, firstLetterDay: 0, firstRound: '', demos: 0, oldFirst: '' }
+function playGlyph(g: GameDef) {
+  // 和 GlyphGame 一樣：開局讀一次門檻（到過一次就一直開著），門檻沒到最多停在零件的級數
+  const open = !!G.openDay || lettersOpen(gateNow())
+  if (open && !G.openDay) G.openDay = day
+  const st = { firstPlay: plays(g.id) === 0, demos: 0, recent: [] as string[] }
+  const firstEver = st.firstPlay
+  const oldFirst = OLD_GLYPH && !G.oldFirst
+  markPlayed(g.id)
+  const got: string[] = []
+  for (let i = 0; i < 3; i++) {
+    const lv = glyphLevel(level(g.id), open, g.maxLevel)
+    const { g: x, isNew } = planGlyph(g.id, lv, st, i)
+    st.recent = [x, ...st.recent].slice(0, 3)
+    got.push(x)
+    const k = glyphSkill(x)
+    if (isPart(x)) G.parts++
+    else {
+      G.letters++
+      if (!G.firstLetterDay) G.firstLetterDay = day
+      if (!open) violations.push({ day, game: g.id, skill: k, why: '門檻還沒到就描字母' })
+    }
+    if (isNew) {
+      st.demos++
+      G.demos++
+      teach(g, k)
+    }
+    // GlyphGame 的 reportLevel 用門檻的上限：門檻沒到不會升到字母的級數
+    quiz(g, k, isNew, '描字（沒示範）', undefined, glyphLevelCap(open, g.maxLevel))
+  }
+  if (firstEver) G.firstRound = got.join(' ')
+  if (oldFirst) G.oldFirst = `${got.join(' ')}（存的級數 ${level(g.id)}，門檻${open ? '已到' : '還沒到'}）`
+  if (firstEver && got.some((x) => !isPart(x))) violations.push({ day, game: g.id, skill: got.join(' '), why: '第一次玩就描字母' })
+}
+
 function playFluency(g: GameDef) {
   const ts = fluencyTargets()
   // 還沒有學過的數字題：數字快答改出找數字（ChoiceGame 的 fallbackGame）
@@ -407,6 +473,10 @@ function play(id: string) {
       return playDrive(g)
     case 'dots':
       return playDots(g)
+    case 'trace':
+      return playTrace(g)
+    case 'glyph':
+      return playGlyph(g)
     case 'sequence':
       return playSequence(g)
     case 'pattern':
@@ -415,7 +485,7 @@ function play(id: string) {
 }
 
 // ── 40 天：每天一段主題冒險（4 站）＋ 4 個自由探索 ───────────────────
-const CHECKED = GAMES.filter((g) => !['trace', 'coloring', 'free', 'glyph'].includes(g.kind)).map((g) => g.id)
+const CHECKED = GAMES.filter((g) => !['coloring', 'free'].includes(g.kind)).map((g) => g.id)
 const DAYS = 40
 const pickN = (pool: string[], n: number) => {
   const a = [...pool]
@@ -429,6 +499,12 @@ const pickN = (pool: string[], n: number) => {
 /** 第 15 天家長在單字清單勾的字（動物村、字母森林的關鍵字、找出全部的例子都有） */
 const FLAG_DAY = 15
 const FLAGGED = ['dog', 'sun', 'cat', 'apple', 'ball']
+
+// 舊資料：改版前已經描過字母（以前的 1 級 1 I L T），描數字字母的級數升到 4（改版前的最高級）
+if (OLD_GLYPH) {
+  for (const x of '1ILT') recordSkill(`glyph:${x}`, true, { game: 'd-glyph', responseMs: 2000, hintUsed: false })
+  for (let n = 0; n < 9; n++) reportLevel('d-glyph', true, 4)
+}
 
 for (day = 1; day <= DAYS; day++) {
   clock = RealDate.parse('2026-11-02T09:00:00') + (day - 1) * 86_400_000
@@ -486,6 +562,12 @@ console.log(`字母森林唸到的字 ${W.spoken} 次，畫面上沒有那張圖
 for (const x of offscreen.slice(0, 8)) console.log(`  例：${x}`)
 console.log(`一張圖一個名字：${names.size} 張圖，名字不一致 ${clash.length} 張${clash.length ? '：' + clash.map(([icon, m]) => `${icon}（${[...m].map(([n, w]) => `${w} ${n}`).join('／')}）`).join('、') : ''}`)
 if (clash.length) process.exitCode = 1
+console.log(
+  `描數字字母：零件 ${G.parts} 題、字 ${G.letters} 題、示範 ${G.demos} 次；第一次玩 ${G.firstRound || '（沒玩到）'}；` +
+    `門檻第 ${G.openDay || '—'} 天到（運筆小路 ${level('d-trace')} 級、連點成圖 ${level('d-dots')} 級），第一題字母第 ${G.firstLetterDay || '—'} 天；` +
+    `門檻沒到就描字母 ${bad(/門檻還沒到就描字母|第一次玩就描字母/)} 題` +
+    (OLD_GLYPH ? `；舊資料下次玩：${G.oldFirst}` : ''),
+)
 // 程度校準還在：探測題照樣出（只是都考學過的），各遊戲最後停在哪一級
 const placed = CHECKED.map((id) => gameLevel(gameOf(id).id)?.placed)
   .map((p, k) => (p && !p.skipped ? `${CHECKED[k]} ${p.from}→${p.to}` : ''))

@@ -1,3 +1,7 @@
+import { db, getKV, setKV } from '../../lib/db'
+import { level, needsDemo, pickPreferred, teachable, withTargetFilter } from '../../lib/adaptive'
+import { themeNow } from '../../lib/theme-play'
+
 // 描數字、描字母的筆順：座標系 100 × 140，每一筆是一條 SVG 路徑，依序描
 export const GLYPHS: Record<string, string[]> = {
   '1': ['M50 20 L50 120'],
@@ -54,3 +58,121 @@ export const lookAlike = (g: string): string | undefined => LOOK_ALIKE[g]
  * 4. 有斜線的最後：A K V X Y Z N M W 4 7 2 R Q（約 5 歲才畫得好斜線）
  */
 export const GLYPH_LEVELS = ['1ILTH0OC', 'EFUDPBJ', 'SG35689', 'AKVXYZNMW472RQ']
+
+// ── 字的零件（V-24、成長系統設計 §2.4）────────────────────────
+// 3 歲的目標是「看了示範之後畫出圓、直線」（DRAW-4），照筆順寫字母是 4～5 歲的事：
+// 描數字字母的前兩級只描字的零件，字母、數字往後移到 3–6 級（GLYPH_LEVELS 的內容不變）。
+// 座標系和字一樣 100 × 140；筆順照書寫習慣：由上往下、由左往右，圓從上面往左繞（和 O 一樣）
+export const PARTS: Record<string, string[]> = {
+  down: ['M50 25 L50 115'],
+  across: ['M15 70 L85 70'],
+  circle: GLYPHS.O,
+  cross: ['M50 30 L50 110', 'M15 70 L85 70'],
+  // 斜線像溜滑梯，兩個方向
+  slide: ['M76 25 L24 115'],
+  slide2: ['M24 25 L76 115'],
+  // 半圓：開口朝右的月亮（⊂，像 C）、開口朝上的杯子（∪，像 U）
+  moon: ['M78 32 C8 32 8 108 78 108'],
+  cup: ['M20 35 C20 128 80 128 80 35'],
+  // 轉角：L 和反過來的 ⅃
+  corner: ['M30 25 L30 110 L78 110'],
+  corner2: ['M70 25 L70 110 L22 110'],
+}
+
+/** 第 1 級：直線（直、橫）、圓、十字；第 2 級：斜線、半圓、轉角 */
+export const PART_LEVELS = [['down', 'across', 'circle', 'cross'], ['slide', 'slide2', 'moon', 'cup', 'corner', 'corner2']]
+
+/** 家長區用的中文名稱 */
+export const PART_ZH: Record<string, string> = {
+  down: '直線',
+  across: '橫線',
+  circle: '圓',
+  cross: '十字',
+  slide: '斜線 /',
+  slide2: '斜線 \\',
+  moon: '半圓 ⊂',
+  cup: '半圓 ∪',
+  corner: '轉角 L',
+  corner2: '轉角 ⅃',
+}
+
+export const isPart = (g: string) => g in PARTS
+export const strokesOf = (g: string) => PARTS[g] ?? GLYPHS[g]
+/** 熟練度的技能代碼：零件是 part:x，字是 glyph:x */
+export const glyphSkill = (g: string) => (isPart(g) ? `part:${g}` : `glyph:${g}`)
+
+/** 這一級出哪些：1–2 級是零件（2 級含 1 級的複習），3 級以後是字（一路累積，和原本的 1–4 級一樣） */
+export function glyphPool(lv: number): string[] {
+  if (lv <= PART_LEVELS.length) return PART_LEVELS.slice(0, lv).flat()
+  return [...GLYPH_LEVELS.slice(0, lv - PART_LEVELS.length).join('')]
+}
+
+// ── 什麼時候開放描字母：暫時門檻（G-33）──────────────────────
+// G-2（成長引擎）上線後，lettersOpen 整個換成正式的「階完成判斷」（運筆 H1、H2 完成＋零件 H6b 練熟）；
+// 呼叫端（GlyphGame、scripts/sim-teach.ts）只看 lettersOpen 的結果，不用跟著改。
+
+/** 運筆小路到 4 級（彎路）、連點成圖到 2 級，兩個遊戲最近 5 次都是第一次就完成 */
+export const LETTER_GATE = { 'd-trace': 4, 'd-dots': 2 } as const
+export const GATE_RECENT = 5
+
+export interface GateFacts {
+  /** 現在的級數 */
+  level: Record<keyof typeof LETTER_GATE, number>
+  /** 最近幾次「自己做」是不是第一次就完成，新的在前 */
+  recent: Record<keyof typeof LETTER_GATE, boolean[]>
+}
+
+export function lettersOpen(f: GateFacts): boolean {
+  return (Object.keys(LETTER_GATE) as (keyof typeof LETTER_GATE)[]).every(
+    (g) => f.level[g] >= LETTER_GATE[g] && f.recent[g].length >= GATE_RECENT && f.recent[g].slice(0, GATE_RECENT).every(Boolean),
+  )
+}
+
+/** 從作答紀錄讀門檻要的資料（App 用；模擬自己記） */
+export async function gateFactsNow(): Promise<GateFacts> {
+  const recent = async (game: string) =>
+    (await db.attempts.where('game').equals(game).toArray())
+      .filter((a) => a.phase === 'quiz' || a.phase == null)
+      .sort((a, b) => b.ts - a.ts)
+      .slice(0, GATE_RECENT)
+      .map((a) => a.firstTryCorrect)
+  return {
+    level: { 'd-trace': level('d-trace'), 'd-dots': level('d-dots') },
+    recent: { 'd-trace': await recent('d-trace'), 'd-dots': await recent('d-dots') },
+  }
+}
+
+const OPEN_KEY = 'glyph:lettersOpen'
+
+/** 開局讀一次：門檻到過一次就一直開著，之後運筆偶爾沒有第一次就完成，字母也不會又縮回零件 */
+export async function lettersOpenNow(): Promise<boolean> {
+  if (await getKV(OPEN_KEY, false)) return true
+  const open = lettersOpen(await gateFactsNow())
+  if (open) void setKV(OPEN_KEY, true)
+  return open
+}
+
+/**
+ * 實際出題的級數：門檻還沒到，最多停在零件的最高級。
+ * 舊資料已經升到字母的級數（或以前描過字母）也一樣，下次就出零件；這不是退步，不播降級的語音（家長區寫明原因）。
+ */
+export const glyphLevelCap = (open: boolean, maxLevel: number) => (open ? maxLevel : PART_LEVELS.length)
+export const glyphLevel = (stored: number, open: boolean, maxLevel: number) => Math.min(stored, glyphLevelCap(open, maxLevel))
+
+/** 一局最多示範兩個新的（字或零件） */
+export const GLYPH_MAX_DEMO = 2
+
+/**
+ * 挑這一回合描什麼（GlyphGame 和 scripts/sim-teach.ts 共用）：
+ * 先教再考：這一局已經示範滿兩個新的，就只出學過的；新的一定先示範（手先描一次）再換孩子描。
+ * recent：這一局描過的（新的在前）。剛描完的不連著出；描過 0 就不出 O（反過來也一樣，V-23）。
+ */
+export function planGlyph(game: string, lv: number, st: { firstPlay: boolean; demos: number; recent: string[] }, i: number) {
+  // 剛描完的不連著再描一次（一局示範滿兩個、只剩學過的可以出時也一樣）
+  const pool = glyphPool(lv).filter((x) => x !== st.recent[0] && !st.recent.some((r) => lookAlike(r) === x))
+  // 主題式冒險先描主題的字（公車旅行的 B、C、O），這一級還沒有就照常挑
+  const g = withTargetFilter(teachable(game, st.demos, GLYPH_MAX_DEMO), () =>
+    pickPreferred(pool.filter((x) => themeNow()?.glyphs.includes(x)), pool, glyphSkill, st.recent),
+  )
+  return { g, isNew: needsDemo(st.firstPlay && i === 0, glyphSkill(g)) }
+}

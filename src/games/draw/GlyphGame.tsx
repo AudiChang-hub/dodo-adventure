@@ -3,13 +3,12 @@ import { motion } from 'motion/react'
 import { Shell, type GameProps } from '../Shell'
 import { Ink, type InkHandle } from './Ink'
 import { PathTracker, samplePath } from './track'
-import { GLYPHS, GLYPH_LEVELS, lookAlike } from './glyphs'
+import { glyphLevel, glyphLevelCap, glyphSkill, isPart, lettersOpenNow, planGlyph, strokesOf } from './glyphs'
 import { HandArt, PenArt, easeInOut, tween } from '../Demo'
 import { Sparkles } from '../../ui/Sparkles'
 import './glyph.css'
 import { game as gameDef } from '../../content/games'
-import { level, markPlayed, needsDemo, plays, reportLevel, pickPreferred, skill } from '../../lib/adaptive'
-import { themeNow } from '../../lib/theme-play'
+import { level, markPlayed, plays, reportLevel, skill } from '../../lib/adaptive'
 import { glyphToolHint } from '../../content/coplay'
 import { logAttempt, logTeach } from '../../lib/record'
 import { say, sfx, stopSpeech } from '../../lib/audio'
@@ -19,15 +18,13 @@ import { Swap } from '../../ui/Scenes'
 
 const ROUNDS = 3
 const LANE = 20
-/** 一局最多示範兩個新的字 */
-const MAX_DEMO = 2
 
 /** 同一個字用手指描好幾次之後，才建議換筆（benchmark 手法 5） */
 const FINGER_GOOD = 2
 
 type Tool = 'finger' | 'pen'
 /** 這個字現在建議用什麼描：新的字先用手指，熟了才換筆。只是建議，兩種都能畫 */
-const toolFor = (g: string): Tool => (skill(`glyph:${g}`).firstTry < FINGER_GOOD ? 'finger' : 'pen')
+const toolFor = (g: string): Tool => (skill(glyphSkill(g)).firstTry < FINGER_GOOD ? 'finger' : 'pen')
 const toolLine = (t: Tool) => (t === 'finger' ? 'ink.finger' : 'ink.pen')
 
 /** 角落的大圖示：一直留到這個字描完，告訴孩子（和爸爸）現在建議用手指還是筆 */
@@ -43,7 +40,7 @@ function ToolBadge({ tool, pulse }: { tool: Tool; pulse: number }) {
 }
 
 const isDigit = (g: string) => /\d/.test(g)
-const nameLine = (g: string) => (isDigit(g) ? `d.glyph.num.${g}` : `en.thisis.${g}`)
+const nameLine = (g: string) => (isPart(g) ? `d.part.${g}` : isDigit(g) ? `d.glyph.num.${g}` : `en.thisis.${g}`)
 
 /** 每一筆的起點與起始方向（畫箭頭用） */
 function strokeStart(d: string) {
@@ -55,6 +52,7 @@ function strokeStart(d: string) {
 
 /**
  * 描數字、描字母：粗跑道＋綠色起點＋箭頭，一筆一筆描。
+ * 前兩級只描字的零件（直線、圓、十字；斜線、半圓、轉角），運筆小路和連點成圖穩了才開放描字母（V-24，glyphs.ts 的 lettersOpen）。
  * 新的字（或第一次玩）先「Watch me!」：照筆順描一次，再「Your turn!」。
  * 新的字建議用手指、熟了才建議換筆；每次換都有大圖示、語音與示範。兩種工具都能完成，不會卡關。
  */
@@ -78,6 +76,8 @@ export function GlyphGame({ gameId, onDone, onExit }: GameProps) {
   const first = useRef(0)
   const recent = useRef<string[]>([])
   const demos = useRef(0)
+  /** 這一局能不能描字母（開局讀一次暫時門檻） */
+  const open = useRef(false)
   const firstPlay = useRef(plays(def.id) === 0)
   const idle = useIdle()
   /** 示範、說明中：孩子畫不出線（準則 PHASE-2；家長回報「還在說明時他就已經可以畫」） */
@@ -97,7 +97,7 @@ export function GlyphGame({ gameId, onDone, onExit }: GameProps) {
   const begin = (g: string, k: number) => {
     strokeRef.current = k
     setStroke(k)
-    tracker.current = new PathTracker(GLYPHS[g][k], 2, LANE * 0.85)
+    tracker.current = new PathTracker(strokesOf(g)[k], 2, LANE * 0.85)
     setProg(0)
   }
 
@@ -107,7 +107,7 @@ export function GlyphGame({ gameId, onDone, onExit }: GameProps) {
     if (isNew) demos.current++
     setDemo(true)
     await say('teach.watch.dodo')
-    for (let k = 0; k < GLYPHS[g].length; k++) {
+    for (let k = 0; k < strokesOf(g).length; k++) {
       if (!live.current) return
       begin(g, k)
       const total = tracker.current!.samples.length - 1
@@ -124,7 +124,7 @@ export function GlyphGame({ gameId, onDone, onExit }: GameProps) {
     setDone(false)
     setDemo(false)
     begin(g, 0)
-    if (isNew) void logTeach({ station: 'draw', game: def.id, itemId: g, skill: `glyph:${g}`, level: lv.current, ms: Math.round(performance.now() - s) })
+    if (isNew) void logTeach({ station: 'draw', game: def.id, itemId: g, skill: glyphSkill(g), level: lv.current, ms: Math.round(performance.now() - s) })
     // 指令（從綠點開始、往這邊走）放在示範之後，說完「Your turn!」才開放（準則 PHASE-3）
     await say(def.intro, 'teach.turn.dodo')
   }
@@ -144,11 +144,10 @@ export function GlyphGame({ gameId, onDone, onExit }: GameProps) {
   }
 
   const start = async (i: number) => {
-    lv.current = level(def.id)
-    // 這一回合描過 0 就不出 O（反過來也一樣）：兩個長得像，同一回合一起出會分不清（V-23）
-    const pool = [...GLYPH_LEVELS.slice(0, lv.current).join('')].filter((x) => !recent.current.some((r) => lookAlike(r) === x))
-    // 主題式冒險先描主題的字（公車旅行的 B、C、O），這一級還沒有就照常挑
-    const g = pickPreferred(pool.filter((x) => themeNow()?.glyphs.includes(x)), pool, (x) => `glyph:${x}`, recent.current)
+    // 門檻還沒到：最多停在零件的級數（舊資料升到字母的也一樣，不播降級語音）
+    lv.current = glyphLevel(level(def.id), open.current, def.maxLevel)
+    // 新的（字或零件）一定先示範；這一局示範滿兩個就只出學過的（先教再考）
+    const { g, isNew } = planGlyph(def.id, lv.current, { firstPlay: firstPlay.current, demos: demos.current, recent: recent.current }, i)
     recent.current = [g, ...recent.current].slice(0, 3)
     glyphRef.current = g
     setGlyph(g)
@@ -163,7 +162,6 @@ export function GlyphGame({ gameId, onDone, onExit }: GameProps) {
     setTool(t)
     setPulse(0)
     // 要示範的話，示範完才讓孩子下筆；不示範就跟以前一樣，邊聽邊可以開始描
-    const isNew = demos.current < MAX_DEMO && needsDemo(firstPlay.current && i === 0, `glyph:${g}`)
     const show = isNew || switched
     busy.current = show
     setHold(show)
@@ -190,7 +188,9 @@ export function GlyphGame({ gameId, onDone, onExit }: GameProps) {
   useEffect(() => {
     live.current = true
     // 延到下一輪才開始：StrictMode 開發模式會先掛載、卸載再掛載一次，避免兩條流程同時跑
-    const boot = window.setTimeout(() => {
+    const boot = window.setTimeout(async () => {
+      open.current = await lettersOpenNow()
+      if (!live.current) return
       markPlayed(def.id)
       start(0)
     }, 0)
@@ -208,7 +208,7 @@ export function GlyphGame({ gameId, onDone, onExit }: GameProps) {
     devs.current.push(tracker.current!.metrics())
     sfx.correct()
     const k = strokeRef.current + 1
-    if (k < GLYPHS[g].length) {
+    if (k < strokesOf(g).length) {
       begin(g, k)
       return void say('d.glyph.next')
     }
@@ -223,7 +223,7 @@ export function GlyphGame({ gameId, onDone, onExit }: GameProps) {
       station: 'draw',
       game: def.id,
       itemId: g,
-      skill: `glyph:${g}`,
+      skill: glyphSkill(g),
       phase: 'quiz',
       level: lv.current,
       options: [],
@@ -233,11 +233,12 @@ export function GlyphGame({ gameId, onDone, onExit }: GameProps) {
       attempts: 1,
       responseMs: Math.round(performance.now() - t0.current),
       hintUsed: false,
-      metrics: { strokes: GLYPHS[g].length, offRatio: Math.round(off * 100) / 100, meanDev: Math.round((devs.current.reduce((a, d) => a + d.meanDev, 0) / devs.current.length) * 10) / 10 },
+      metrics: { strokes: strokesOf(g).length, offRatio: Math.round(off * 100) / 100, meanDev: Math.round((devs.current.reduce((a, d) => a + d.meanDev, 0) / devs.current.length) * 10) / 10 },
     })
-    reportLevel(def.id, good, def.maxLevel)
+    // 門檻還沒到就不會升到字母的級數（升降級本來就沒有語音）
+    reportLevel(def.id, good, glyphLevelCap(open.current, def.maxLevel))
     sfx.done()
-    await say('d.glyph.done', nameLine(g), praiseKey('dodo'))
+    await say(isPart(g) ? 'd.part.done' : 'd.glyph.done', nameLine(g), praiseKey('dodo'))
     await wait(400)
     if (!live.current) return
     if (r + 1 >= ROUNDS) return onDone({ items: ROUNDS, firstTry: first.current })
@@ -275,7 +276,7 @@ export function GlyphGame({ gameId, onDone, onExit }: GameProps) {
     }
   }
 
-  const strokes = GLYPHS[glyph]
+  const strokes = strokesOf(glyph)
   const st = strokeStart(strokes[stroke])
   const samples = tracker.current?.samples ?? []
   const total = Math.max(1, samples.length - 1)
