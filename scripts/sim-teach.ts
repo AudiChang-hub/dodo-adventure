@@ -24,9 +24,10 @@ import { enterTheme, themeNow } from '../src/lib/theme-play'
 import { dotsNumbers } from '../src/content/dots'
 import { gameLevel, level, markPlayed, noteAttempt, plays, recordSkill, reportLevel, skill, unlockedNumbers } from '../src/lib/adaptive'
 import { fluencyKey, fluencyTargets } from '../src/lib/fluency'
-import { NUMBER_RANGE, numberPicker } from '../src/games/sheet/NumberFlow'
+import { numberPicker, numberRange } from '../src/games/sheet/NumberFlow'
 import { planChoice, planCount, planDots, planDrive, planOrder, planPhonics, planSequence, planSheet, roundState } from '../src/games/pick'
-import { patternRounds, seqSkill, storiesFor, ALL_STORIES, PATTERN_TOKS } from '../src/content/code'
+import { driveSkills, patternRounds, seqSkill, storiesFor, ALL_STORIES, PATTERN_TOKS } from '../src/content/code'
+import { hasGameHint } from '../src/content/coplay'
 import type { ChoiceItem, PhonicsItem } from '../src/content/games'
 import type { SheetItem } from '../src/content/games-worksheet'
 import { PHONICS, PHONICS_WORDS, soundUnit, wordId } from '../src/content/letters'
@@ -293,7 +294,7 @@ function playNumber(g: GameDef, prefix: 'fill' | 'give' | 'flash', rounds: numbe
   const picker = numberPicker(prefix, g.id)
   markPlayed(g.id)
   for (let i = 0; i < rounds; i++) {
-    const [a, b] = NUMBER_RANGE[prefix][level(g.id)]
+    const [a, b] = numberRange(prefix, level(g.id))
     const { n, fresh } = picker.pick(a, b)
     if (fresh) teach(g, `${prefix}:${n}`)
     quiz(g, `${prefix}:${n}`, fresh, '數量')
@@ -499,6 +500,14 @@ for (const s of ALL_STORIES) if (s.lines.length !== s.icons.length) violations.p
 console.log(
   `排順序：${seqSeen.size} 個故事出現過、示範 ${seqDemos} 次，第一次出現沒先示範 ${bad(/新故事第一次出現沒有先示範/)} 個；各級故事 ${[1, 2, 3, 4].map((l) => `${l} 級 ${storiesFor(l).map((s) => s.id).join('/')}`).join('；')}`,
 )
+// 內容對齊 3–4 歲（T-49 LOAD-2、LOAD-4、PARENT-1；T-51 D）：
+// 開車第 1 級不出左右、一眼看幾個 1–2 級 ≤ 3、每個遊戲都有自己的陪玩句子
+const lrAtOne = driveSkills(1).filter((k) => /left|right/.test(k))
+if (lrAtOne.length) violations.push({ day: 0, game: 'c-drive', skill: lrAtOne.join(','), why: '第 1 級考左右' })
+for (const lv of [1, 2]) if (numberRange('flash', lv)[1] > 3) violations.push({ day: 0, game: 'm-flash', skill: `lv${lv}`, why: '一眼看幾個超過 3' })
+const noHint = GAMES.filter((g) => !hasGameHint(g.id)).map((g) => g.id)
+for (const id of noHint) violations.push({ day: 0, game: id, skill: '-', why: '沒有自己的陪玩句子' })
+console.log(`內容對齊 3–4 歲：開車第 1 級 ${driveSkills(1).join('/')}；一眼看幾個 1–2 級上限 ${numberRange('flash', 1)[1]}／${numberRange('flash', 2)[1]}；沒有自己陪玩句子的遊戲 ${noHint.length} 個`)
 for (const [k, n] of [...by].sort((a, b) => b[1] - a[1])) console.log(`  ${String(n).padStart(4)}  ${k}`)
 for (const v of violations.slice(0, 12)) console.log(`  例：第 ${v.day} 天 ${v.game} ${v.skill}（${v.why}）`)
 if (violations.length) process.exit(1)

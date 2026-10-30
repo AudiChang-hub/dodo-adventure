@@ -7,12 +7,12 @@ import { game as gameDef, type Visual } from '../content/games'
 import { COUNT_ICONS } from '../content/park'
 import { themed } from '../lib/theme-play'
 import { QUICK_CHEERS } from '../content/lines-engine'
-import { markPlayed } from '../lib/adaptive'
+import { markPlayed, unlockedNumbers } from '../lib/adaptive'
 import { fluencyKey, fluencyTargets, type FluencyTarget } from '../lib/fluency'
 import { logAttempt } from '../lib/record'
 import { preload, say, sfx, stopSpeech } from '../lib/audio'
 import { pick, sample, shuffle } from '../lib/random'
-import { retryKey, wait } from './lines'
+import { challengeKey, retryKey, wait } from './lines'
 import { useIdle } from './idle'
 import type { Mood } from '../art/Dino'
 import { Swap } from '../ui/Scenes'
@@ -32,7 +32,10 @@ interface Q {
 }
 
 function makeQ(t: FluencyTarget): Q {
-  const near = [t.n - 2, t.n - 1, t.n + 1, t.n + 2].filter((x) => x >= 1 && x <= (t.kind === 'count' ? 10 : 20))
+  // 干擾選項不超過孩子已經開放的數字（V-26）：還在 1–10 的孩子不會看到 11、12；
+  // 11–20 照能力開放（adaptive.unlockedNumbers），數量題最多到 10
+  const top = Math.min(t.kind === 'count' ? 10 : 20, Math.max(unlockedNumbers(), t.n))
+  const near = [t.n - 2, t.n - 1, t.n + 1, t.n + 2].filter((x) => x >= 1 && x <= top)
   const options = shuffle([t.n, ...sample(near, 2)])
   return t.kind === 'count'
     ? { t, stimulus: { t: 'group', icon: pick(themed(COUNT_ICONS, (th) => th.count)), count: t.n }, prompt: 'm.howmany', options }
@@ -95,8 +98,8 @@ export function FluencyGame({ gameId, onDone, onExit }: GameProps) {
     shownAt.current = performance.now()
     const it = round[i]
     if (round[i + 1]) preload([round[i + 1].prompt])
-    // 一題接一題：唸題目時就可以點，不必等唸完
-    await say(it.prompt)
+    // 一題接一題：唸題目時就可以點，不必等唸完。最後一題先說 Last one!（V-33）
+    await say(...(i === ITEMS - 1 ? [challengeKey('bobo')] : []), it.prompt)
     if (!live.current || idxRef.current !== i || locked.current) return
     idle.start({
       repeat: () => void say(it.prompt),

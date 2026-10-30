@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, type CSSProperties } from 'react'
 import { createPortal } from 'react-dom'
 import { motion } from 'motion/react'
 import { onCheer } from '../lib/achievements'
@@ -27,6 +27,12 @@ interface Flight {
   from: { x: number; y: number }
   to: { x: number; y: number }
 }
+
+/**
+ * 最後一題（V-33、TIME-2）：最後一格放大成 2.2 倍、換成暖黃色，裡面淡淡一顆星——「再一顆就好了」。
+ * 不循環、不閃，只在換到最後一題時長大一次（ui.css 的 transform 過場）。主持的恐龍說的 Last one! 在各遊戲裡。
+ */
+const LAST: CSSProperties = { position: 'relative', transform: 'scale(2.2)', background: '#F6DE9A', boxShadow: '0 0 0 2px rgba(196, 150, 60, 0.55)' }
 
 /**
  * 每個遊戲上方的進度列：一題一格。
@@ -77,11 +83,23 @@ export function ProgressStars({ total, done }: { total: number; done: number }) 
   }, [done, total])
 
   return (
-    <div className="progress" aria-label={`第 ${Math.min(done + 1, total)} 題，共 ${total} 題`}>
+    <div className="progress" aria-label={total > 1 && done === total - 1 ? `最後一題，共 ${total} 題` : `第 ${Math.min(done + 1, total)} 題，共 ${total} 題`}>
       {Array.from({ length: total }, (_, i) => {
         const star = landed.includes(i)
+        const last = total > 1 && i === total - 1 && done === total - 1 && !star
         return (
-          <i key={i} ref={(el) => void (dots.current[i] = el)} className={star ? 'star' : i < done ? 'on' : i === done ? 'now' : undefined}>
+          <i
+            key={i}
+            ref={(el) => void (dots.current[i] = el)}
+            className={star ? 'star' : i < done ? 'on' : i === done ? 'now' : undefined}
+            style={last ? LAST : undefined}
+            data-last={last ? '1' : undefined}
+          >
+            {last && (
+              <span className="progress-star" style={{ inset: 1, opacity: 0.45 }} aria-hidden="true">
+                <StarShape />
+              </span>
+            )}
             {star && (
               <motion.span
                 key={pulse?.i === i ? pulse.n : 0}

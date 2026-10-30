@@ -413,11 +413,19 @@ export function unlockedLetters(): string[] {
   return out
 }
 
-/** 數字從 1–5 開始，熟了才延伸到 10、再到 20 */
+/** 穩固：已熟，而且通過兩次隔天的到期複習（成長系統 §1.4）。同一局連對三題的「已熟」還不算 */
+const firm = (key: string) => mastered(key) && (skill(key).rev ?? 0) >= 2
+
+/**
+ * 數字從 1–5 開始，熟了才延伸到 10、再到 20（成長系統 N2 → N3，看能力不看年紀）。
+ * 1–10 是 3–4 歲的數字範圍（T-49 LOAD-2）；11–20 要等 6–10 有八成「穩固」才開，
+ * 不會因為一局裡連對幾題就冒出 11 以上。已經開過 11–20（學過其中一個）的不收回。
+ */
 export function unlockedNumbers(): number {
   const range = (a: number, b: number) => Array.from({ length: b - a + 1 }, (_, i) => `num:${a + i}`)
   if (ratio(range(1, 5)) < 0.8) return 5
-  if (ratio(range(6, 10)) < 0.8) return 10
+  const opened = range(11, 20).some((k) => skill(k).seen > 0)
+  if (!opened && range(6, 10).filter(firm).length / 5 < 0.8) return 10
   return 20
 }
 

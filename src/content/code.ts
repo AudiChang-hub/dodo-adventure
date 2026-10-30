@@ -53,13 +53,23 @@ export interface DrivePuzzle {
   target: string
   /** 一組正確的卡：教學卡、一起練照這組發光（轉彎最少的那一條） */
   solution: Dir[]
-  /** 卡盒裡有哪些箭頭：第 1 級只有一排路，所以只有左右 */
+  /** 卡盒裡有哪些箭頭：第 1 級只有一直排的路，所以只有上下 */
   palette: Dir[]
 }
 
-/** 每一級出哪幾種題目：1 級一排路只有左右、2 級上下左右、3 級兩張卡、4 級三張卡（可能有樹擋路） */
+/**
+ * 第 1 級的方向：上、下（T-49 LOAD-4、成長系統 T10：先教上下，左右等上下穩了才開，看的是能力不是年齡）。
+ * 之後加「前後」這類題型也加在這一層，左右一樣排在後面。
+ */
+export const FIRST_DIRS: Dir[] = ['up', 'down']
+
+/**
+ * 每一級出哪幾種題目：1 級一直排的路只有上下、2 級才加上左右（1 級連對才升得上來，成長系統 T12）、
+ * 3 級兩張卡、4 級三張卡（可能有樹擋路）。
+ * 題目一律是「開到 ○○」，沒有「聽 left 選卡」：left、right 只是放卡、開車時念的標籤。
+ */
 export function driveSkills(level: number): string[] {
-  if (level <= 1) return ['arrow:left', 'arrow:right']
+  if (level <= 1) return FIRST_DIRS.map((d) => `arrow:${d}`)
   if (level === 2) return DIRS.map((d) => `arrow:${d}`)
   if (level === 3) return ['route:2']
   return ['route:3']
@@ -148,12 +158,12 @@ export function drivePuzzle(level: number, skill: string, avoidTarget: string[] 
   const [kind, v] = skill.split(':')
   if (kind === 'arrow') {
     const dir = v as Dir
-    // 1 級：一排三格、車子在中間，左右都開得動，才是真的在選方向
-    const one = level <= 1 && (dir === 'left' || dir === 'right')
-    const cols = 3
-    const rows = one ? 1 : 3
-    const start = { x: 1, y: one ? 0 : 1 }
-    const base = { skill, cols, rows, start, goal: stepOf(start, dir), blocks: [], target, palette: one ? (['left', 'right'] as Dir[]) : DIRS }
+    // 1 級：一直排三格、車子在中間，上下都開得動，才是真的在選方向
+    const one = level <= 1 && FIRST_DIRS.includes(dir)
+    const cols = one ? 1 : 3
+    const rows = 3
+    const start = { x: one ? 0 : 1, y: 1 }
+    const base = { skill, cols, rows, start, goal: stepOf(start, dir), blocks: [], target, palette: one ? FIRST_DIRS : DIRS }
     return { ...base, itemId: `${dir}@${cols}x${rows}`, solution: [dir] }
   }
   // 路線題：隨機起點，目的地剛好在 n 步外；4 級常常放一棵樹擋在其中一條最短路線上，

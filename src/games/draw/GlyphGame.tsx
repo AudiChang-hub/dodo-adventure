@@ -3,7 +3,7 @@ import { motion } from 'motion/react'
 import { Shell, type GameProps } from '../Shell'
 import { Ink, type InkHandle } from './Ink'
 import { PathTracker, samplePath } from './track'
-import { GLYPHS, GLYPH_LEVELS } from './glyphs'
+import { GLYPHS, GLYPH_LEVELS, lookAlike } from './glyphs'
 import { HandArt, PenArt, easeInOut, tween } from '../Demo'
 import { Sparkles } from '../../ui/Sparkles'
 import './glyph.css'
@@ -145,7 +145,8 @@ export function GlyphGame({ gameId, onDone, onExit }: GameProps) {
 
   const start = async (i: number) => {
     lv.current = level(def.id)
-    const pool = [...GLYPH_LEVELS.slice(0, lv.current).join('')]
+    // 這一回合描過 0 就不出 O（反過來也一樣）：兩個長得像，同一回合一起出會分不清（V-23）
+    const pool = [...GLYPH_LEVELS.slice(0, lv.current).join('')].filter((x) => !recent.current.some((r) => lookAlike(r) === x))
     // 主題式冒險先描主題的字（公車旅行的 B、C、O），這一級還沒有就照常挑
     const g = pickPreferred(pool.filter((x) => themeNow()?.glyphs.includes(x)), pool, (x) => `glyph:${x}`, recent.current)
     recent.current = [g, ...recent.current].slice(0, 3)
