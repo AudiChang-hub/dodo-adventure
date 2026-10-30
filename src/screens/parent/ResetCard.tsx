@@ -186,7 +186,7 @@ export function ResetCard() {
                 會保留
               </h5>
               <ul>
-                <li>家長設定：每日時間、站數、本週主題、音量、護眼</li>
+                <li>家長設定：每日時間、站數、本週主題、音量、護眼、生日與年段</li>
                 {syncConfigured && <li>{signedIn ? `雲端登入（${sync.user?.email}）` : '雲端登入狀態'}</li>}
                 <li>App 安裝與版本更新</li>
                 {keepDrawings && <li>畫畫作品 {n(counts?.drawings, '張')}</li>}

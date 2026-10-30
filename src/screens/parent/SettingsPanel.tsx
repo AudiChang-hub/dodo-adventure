@@ -10,6 +10,7 @@ import { minutesUsedToday } from '../../lib/session'
 import { THEME_LABEL } from '../../content/vocab'
 import { CHILD_EN, CHILD_ZH } from '../../lib/env'
 import { ResetCard } from './ResetCard'
+import { GrowthCard } from './GrowthCard'
 
 function Field({ label, hint, children }: { label: string; hint?: string; children: React.ReactNode }) {
   return (
@@ -124,6 +125,8 @@ export function SettingsPanel({ onChanged }: { onChanged: () => void }) {
       <p className="sub">
         孩子的稱呼：{CHILD_ZH}／{CHILD_EN}（語音已預先產生，要改名需要重新產生音檔）。今天已玩 {minutesUsedToday()} 分鐘。
       </p>
+
+      <GrowthCard onChanged={onChanged} />
 
       <div className="card">
         <h3>使用時間與內容</h3>

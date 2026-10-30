@@ -6,7 +6,9 @@
  * - users/{uid}/attempts/{id}   作答紀錄
  * - users/{uid}/sessions/{id}   每次遊玩
  * - users/{uid}/drawings/{id}   畫畫作品（家長勾選保留時不刪）
- * - users/{uid}/meta/state      熟練度、難度、朋友、成就，和家長設定的備份；下次同步會用重置後的資料重新寫一份
+ * - users/{uid}/growthLog/{id}  成長時間軸（成長系統 v3）
+ * - users/{uid}/chapters/{id}   故事章節（成長系統 v3）
+ * - users/{uid}/meta/state      熟練度、難度、朋友、成就，和家長設定（含生日年月）的備份；下次同步會用重置後的資料重新寫一份
  */
 
 /** 用到的 firebase/firestore 函式（形狀和官方的一樣，參數放寬成 unknown） */
@@ -37,7 +39,7 @@ function timeout<T>(p: Promise<T>, ms: number): Promise<T> {
   ])
 }
 
-export const cloudCollections = (keepDrawings: boolean) => ['attempts', 'sessions', ...(keepDrawings ? [] : ['drawings'])]
+export const cloudCollections = (keepDrawings: boolean) => ['attempts', 'sessions', 'growthLog', 'chapters', ...(keepDrawings ? [] : ['drawings'])]
 
 export interface WipeResult {
   /** 每個集合刪了幾筆 */
