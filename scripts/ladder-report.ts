@@ -192,7 +192,7 @@ const KIDS: Kid[] = [
   },
 ]
 
-const ym = (months: number) => `${Math.floor(months / 12)}:${months % 12}`
+const ym = (months?: number) => (months == null ? '照能力' : `${Math.floor(months / 12)}:${months % 12}`)
 const pct = (a: number, b: number) => (b ? `${Math.round((a / b) * 100)}%` : '—')
 
 function strandRows(v: LadderView) {

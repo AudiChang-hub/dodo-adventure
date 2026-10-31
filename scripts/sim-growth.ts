@@ -1022,6 +1022,8 @@ async function pool<T, R>(items: T[], n: number, f: (x: T) => Promise<R>): Promi
 
 const pct = (x: number) => `${Math.round(x * 100)}%`
 const age = (m: number | null | undefined) => (m == null ? '—' : `${Math.floor(m / 12)} 歲 ${Math.floor(m % 12)} 個月`)
+/** 參考年齡；沒有的是「照能力開，不設年齡」的階（N13、T14） */
+const refAge = (m?: number) => (m == null ? '照能力' : ageShort(m))
 const ageShort = (m: number | null | undefined) => (m == null ? '—' : `${Math.floor(m / 12)}:${String(Math.floor(m % 12)).padStart(2, '0')}`)
 const kidName = (id: string) => KIDS.find((k) => k.id === id)!.name
 const smallName = (s: 'legacy' | 'new') => (s === 'legacy' ? '小班段現行（6 題、教 2 個）' : '小班段準則（3–5 題、教 1 個）')
@@ -1145,7 +1147,7 @@ function writeReport(rs: KidResult[], cross: Violation[], main: 'legacy' | 'new'
   p(`|---|---|---|${cols.map(() => '---').join('|')}|`)
   for (const r of RUNGS) {
     if (!unitsOf(r.id).length || r.with || r.free) continue
-    p(`| ${r.id} | ${r.what} | ${ageShort(r.age)} | ${cols.map((c) => medAge(runs(c).map((x) => x.rungs[r.id]?.doneMonths))).join(' | ')} |`)
+    p(`| ${r.id} | ${r.what} | ${refAge(r.age)} | ${cols.map((c) => medAge(runs(c).map((x) => x.rungs[r.id]?.doneMonths))).join(' | ')} |`)
   }
   p()
   p('## 內容大約幾歲用完（中位數）')
@@ -1184,7 +1186,7 @@ function writeReport(rs: KidResult[], cross: Violation[], main: 'legacy' | 'new'
       const wait = r.prereq.filter((q) => !unitsOf(q).length)
       return wait.length ? `等 ${wait.join('、')}` : '6 歲前沒開'
     })
-    p(`| ${r.id} | ${r.what} | ${ageShort(r.age)} | ${WORK[r.id] ?? '—'} | ${cells.join(' | ')} |`)
+    p(`| ${r.id} | ${r.what} | ${refAge(r.age)} | ${WORK[r.id] ?? '—'} | ${cells.join(' | ')} |`)
   }
   p()
   p('## 每個月各支線在第幾階（各孩子第 1 個種子的那一次）')

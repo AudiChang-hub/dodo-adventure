@@ -101,8 +101,11 @@ export interface RungDef {
   /** 和 §2 表上的編號一樣（L1、N3、H6b…） */
   id: string
   strand: StrandId
-  /** 參考年齡（月）：只給家長看「比一般早／還在練」，不是門檻（D1） */
-  age: number
+  /**
+   * 參考年齡（月）：只給家長看「比一般早／還在練」，不是門檻（D1）。
+   * 沒寫的是家長決定「照能力開，不設年齡」的階（N13、T14，2026-10-31）：連參考年齡都不給，免得被當成下限
+   */
+  age?: number
   what: string
   /** 前置條件：這些階完成（或觸發卡關保險）才開放。不看年齡 */
   prereq: readonly string[]
@@ -163,7 +166,7 @@ export const RUNGS: readonly RungDef[] = [
   { id: 'N11', strand: 'pattern', age: m(4), what: 'AABB、ABC；規律補洞、找錯', prereq: ['N10'], games: ['c-pattern'] },
   // 形狀與空間
   { id: 'N12', strand: 'shape', age: m(3), what: '平面形狀、立體（積木、球）', prereq: [], games: ['p-shape', 'p-solid'] },
-  { id: 'N13', strand: 'shape', age: m(5, 3), what: '圖形組合、對稱', prereq: ['N12'], games: [] },
+  { id: 'N13', strand: 'shape', what: '圖形組合、對稱', prereq: ['N12'], games: [] },
   // 合成與運算
   { id: 'N14', strand: 'compose', age: m(4, 6), what: '5 以內合成分解', prereq: ['N1'], games: [] },
   { id: 'N15', strand: 'compose', age: m(5), what: '十格框：一眼看出 6–10', prereq: ['N14'], games: [] },
@@ -183,7 +186,7 @@ export const RUNGS: readonly RungDef[] = [
   // 空間方向
   { id: 'T10', strand: 'space', age: m(3), what: '上下（前後、裡外還沒做）', prereq: [], games: ['c-drive'] },
   { id: 'T12', strand: 'space', age: m(4), what: '左右', prereq: ['T10'], games: ['c-drive'] },
-  { id: 'T14', strand: 'space', age: m(5, 3), what: '心像：轉一轉、鏡子', prereq: ['T10'], games: [] },
+  { id: 'T14', strand: 'space', what: '心像：轉一轉、鏡子', prereq: ['T10'], games: [] },
   // 推理
   { id: 'T15', strand: 'reason', age: m(4, 6), what: '找不同', prereq: [], games: [] },
   { id: 'T16', strand: 'reason', age: m(5), what: '兩條線索的排除法', prereq: ['T8'], games: [] },
