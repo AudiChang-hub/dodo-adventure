@@ -86,7 +86,11 @@ for (const r of runs)
     const n = Number(/共 (\d+) 次/.exec(f.detail)?.[1] ?? 1)
     g.count += n
     g.hits.push(`${f.where}（${f.viewport}）`)
-    g.tries.push({ where: `${f.where}（${f.viewport}）`, ...repro(r, f) })
+    // 同一項測試裡同一種問題（例如畫布內、畫布外各一筆）只留最常重現的那一筆
+    const t = { where: `${f.where}（${f.viewport}）`, ...repro(r, f) }
+    const same = g.tries.findIndex((x) => x.where === t.where)
+    if (same < 0) g.tries.push(t)
+    else if (t.n / t.of > g.tries[same].n / g.tries[same].of) g.tries[same] = t
   }
 // 每一組：最常重現的那一處決定標示（3/3 重現、2/3 偶發、1/3 偶發；沒重跑的寫「沒有重跑」）
 for (const g of groups.values()) {

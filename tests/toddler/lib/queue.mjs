@@ -145,12 +145,14 @@ export async function cpuBusy(ms = 1500) {
 }
 
 /**
- * 預設 workers：一個瀏覽器（Chromium 渲染＋語音計時）大約吃 1.5～2 核，留一半給 vite preview、作業系統和別的工作階段。
- * 單獨跑（拿到鎖）：可用的核數 ÷ 2，最多 8；沒有排隊（--no-lock）時不知道別人在跑什麼，最多 4。
+ * 預設 workers：一個瀏覽器（Chromium 渲染＋語音計時）大約吃 2 核。
+ * 單獨跑（拿到鎖）：可用的核數 ÷ 2，最多 6；沒有排隊（--no-lock）時不知道別人在跑什麼，最多 4。
  * 可用的核數 = 總核數 × (1 − 現在的 CPU 使用率)，所以別的工作階段在打包、跑模擬時會自動少開。
+ * 上限 6 不是 8（T-72 實測，16 核）：8 個時 CPU 到 93～100%，第一輪有問題的項目從 3 項變 6 項（多的 3 項都是 1/3 偶發的墨跡）；
+ * 4 個時 CPU 平均 29%。見 docs/開發效率/。
  */
 export function autoWorkers({ cpus, busy, locked }) {
   const free = cpus * (1 - busy)
-  const cap = locked ? 8 : 4
+  const cap = locked ? 6 : 4
   return Math.max(2, Math.min(cap, Math.floor(free / 2)))
 }

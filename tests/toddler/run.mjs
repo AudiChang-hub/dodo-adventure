@@ -14,7 +14,7 @@
 //   --no-build        不重新打包（沿用 dist/）
 //   --changed [REF]   只跑受影響的遊戲和畫面（跟 REF 比，預設 main；改到共用檔就跑完整版）
 //   --no-rerun        有問題的項目不自動重跑（預設同一個 seed 再跑 2 次，報告標「3/3 重現」或「1/3 偶發」）
-//   --workers N       同時跑幾個瀏覽器（預設依 CPU 數和現在多忙自動決定，單獨跑最多 8 個）
+//   --workers N       同時跑幾個瀏覽器（預設依 CPU 數和現在多忙自動決定，單獨跑最多 6 個）
 //   --no-lock         不排隊（預設同一台機器同時只跑一個三歲測試，其他的排隊；鎖在 %TEMP%\dodo-toddler）
 //   --report PATH     跑完把報告寫到 PATH（截圖放在旁邊的「三歲模擬測試截圖」資料夾）
 //   --out-dir DIR     結果放這裡（預設 test-results/toddler，每次跑會先清空）
