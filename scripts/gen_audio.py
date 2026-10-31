@@ -410,7 +410,15 @@ def check(args):
         print("MISSING", r["key"], r["text"])
     for r in untimed[:50]:
         print("UNTIMED", r["key"], r["text"])
-    if missing or untimed:
+    # 中文課文的語音不是這支產生的（scripts/gen_zh_breezy.py，BreezyVoice），缺檔檢查一起做：有清單才檢查
+    from gen_zh_breezy import check_lessons
+
+    zh = check_lessons(out=out / "zh-lesson")
+    if zh is not None:
+        print(f"zh-lesson check: total {zh[0]}, problems {len(zh[1])}（scripts/gen_zh_breezy.py）")
+        for key, text, why in zh[1][:50]:
+            print("ZH-LESSON", key, text, why)
+    if missing or untimed or (zh and zh[1]):
         sys.exit(1)
 
 
