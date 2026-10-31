@@ -192,7 +192,7 @@ test.describe('畫面', () => {
       // PARENT-2：孩子點右上角 10 下不會開閘門
       k.behavior = '孩子點右上角'
       for (let i = 0; i < 10; i++) {
-        await k.tap({ x: vp.width - 30, y: 30 }, '右上角')
+        await k.tap({ x: vp.width - 30, y: 30, nav: true }, '右上角')
         await k.wait(100)
       }
       await k.wait(500)
@@ -201,7 +201,7 @@ test.describe('畫面', () => {
       if (early) await k.tap({ x: 20, y: vp.height - 20 }, '關閘門')
       // 孩子按住右上角 3 秒
       k.behavior = '孩子按住右上角'
-      await k.hold({ x: vp.width - 30, y: 30 }, 3300, '右上角')
+      await k.hold({ x: vp.width - 30, y: 30, nav: true }, 3300, '右上角')
       const gate = await page.waitForSelector('.gate', { timeout: 3000 }).catch(() => null)
       c.outcome('右上角按住 3 秒', !!gate, gate ? '出現家長確認' : '沒出現')
       if (gate) {
@@ -223,7 +223,7 @@ test.describe('畫面', () => {
       }
       // 大人：答對進家長區
       k.behavior = '家長進出'
-      await k.hold({ x: vp.width - 30, y: 30 }, 3300, '右上角')
+      await k.hold({ x: vp.width - 30, y: 30, nav: true }, 3300, '右上角')
       await page.waitForSelector('.gate', { timeout: 3000 })
       const q = await page.$eval('.gate .q', (e) => e.textContent ?? '')
       const m = q.match(/(\d+)\s*\+\s*(\d+)/)
@@ -243,7 +243,7 @@ test.describe('畫面', () => {
       await c.screenOk('家長區返回')
       // 再進去，按「回到孩子模式」
       await settle(page)
-      await k.hold({ x: vp.width - 30, y: 30 }, 3300, '右上角')
+      await k.hold({ x: vp.width - 30, y: 30, nav: true }, 3300, '右上角')
       await page.waitForSelector('.gate', { timeout: 3000 })
       const q2 = await page.$eval('.gate .q', (e) => e.textContent ?? '')
       const m2 = q2.match(/(\d+)\s*\+\s*(\d+)/)!

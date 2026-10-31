@@ -386,12 +386,49 @@ def post(mp3: bytes, words: list, fx):
         return mp3, words, f"encode: {e}"
 
 
+def check(args):
+    """不產生、不刪、不寫：清單裡每一段有沒有音檔（大於 0 位元組）、timings.json 有沒有它的時間軸"""
+    out = pathlib.Path(args.out)
+    text = sys.stdin.read() if args.lines == "-" else pathlib.Path(args.lines).read_text(encoding="utf-8")
+    all_rows = json.loads(text)
+    rows = [r for r in all_rows if not args.only or any(r["key"].startswith(p) for p in args.only)]
+    try:
+        timings = json.loads((out / "timings.json").read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        timings = {}
+
+    def has_audio(file: str) -> bool:
+        p = out / f"{file}.mp3"
+        return p.exists() and p.stat().st_size > 0
+
+    wanted = {r["file"] for r in all_rows}
+    stale = [p for p in out.glob("*.mp3") if p.stem not in wanted] if out.exists() else []
+    missing = [r for r in rows if not has_audio(r["file"])]
+    untimed = [r for r in rows if r["file"] not in timings]
+    print(f"check: total {len(rows)}, missing {len(missing)}, untimed {len(untimed)}, stale {len(stale)}（只檢查，沒有寫檔）")
+    for r in missing[:50]:
+        print("MISSING", r["key"], r["text"])
+    for r in untimed[:50]:
+        print("UNTIMED", r["key"], r["text"])
+    if missing or untimed:
+        sys.exit(1)
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--lines", default="scripts/.cache/lines.json")
     ap.add_argument("--out", default="public/audio")
     ap.add_argument("--only", nargs="*", default=None, help="只產生 key 以這些前綴開頭的台詞；不刪其他音檔")
+    ap.add_argument(
+        "--check",
+        action="store_true",
+        help="只檢查、不寫任何檔（npm run verify 用）：印出缺幾個音檔、幾個沒有時間軸，有缺就以 1 結束；--lines - 從 stdin 讀清單",
+    )
     args = ap.parse_args()
+
+    if args.check:
+        check(args)
+        return
 
     import edge_tts
 

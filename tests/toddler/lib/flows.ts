@@ -210,8 +210,10 @@ export async function enterGame(k: Toddler, c: Checker, g: GameDef, opts: { spam
 
 /** 按返回鍵：新版（[data-back]）點一下，舊版按住 */
 export async function pressBack(k: Toddler, h: Pt & { label: string; tap?: boolean }, label = h.label) {
-  if (h.tap) await k.tap(h, label)
-  else await k.hold(h, h.label.includes('回地圖') ? 900 : 1500, label)
+  // 故意按的：不經過 navGuard（亂點才避開導覽）
+  const p = { x: h.x, y: h.y, nav: true }
+  if (h.tap) await k.tap(p, label)
+  else await k.hold(p, h.label.includes('回地圖') ? 900 : 1500, label)
 }
 
 /** 按返回鍵（舊版：按住回首頁）；回傳有沒有回到上一層或首頁 */
@@ -231,6 +233,27 @@ export async function holdHome(k: Toddler, c: Checker, ctx: string, opts: { seco
   else await c.screenOk(`${ctx} 回首頁後`)
   c.outcome(ctx, ok, ok ? `${((Date.now() - t) / 1000).toFixed(1)} 秒回到 ${live}` : `停在 ${live}`)
   return ok
+}
+
+/**
+ * 玩到一半想回去（T-72）：點返回鍵 → 要回到站點、作答紀錄不少 → 像孩子一樣再點遊戲卡進來。
+ * 以前靠亂點剛好按到返回（看機器快慢，有時有、有時沒有）；現在用 seed 決定什麼時候，一定會發生。
+ */
+export async function midBack(k: Toddler, c: Checker, g: GameDef) {
+  const page = k.page
+  const prev = k.behavior
+  k.behavior = '亂玩中途返回'
+  const before = (await attempts(page)).length
+  const ok = await holdHome(k, c, '亂玩中途返回')
+  const live = (await snap(page)).live
+  if (ok && live !== `st-${g.station}`) await c.once('mid-back-where', '無法返回', `玩到一半點返回到了 ${live}`, `遊戲裡點返回應回到站點 st-${g.station}`)
+  k.behavior = '返回後再進遊戲'
+  const again = await enterGame(k, c, g)
+  const after = (await attempts(page)).length
+  if (after < before) await c.once('mid-back-loss', '誤記作答', `玩到一半返回、再進來，作答紀錄少了 ${before - after} 筆`, `${before} → ${after}`)
+  c.outcome('返回後再進遊戲', again && after >= before && live === `st-${g.station}`, `返回到 ${live}；${again ? '再進到遊戲' : '沒進去'}；作答紀錄 ${before}→${after}`)
+  k.behavior = prev
+  return again
 }
 
 // ── 孩子的動作 ────────────────────────────────────────────

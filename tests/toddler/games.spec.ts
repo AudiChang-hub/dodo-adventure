@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test'
 import { boot, homeButton, settle, snap, targets } from './lib/app'
-import { Toddler, hashSeed } from './lib/toddler'
-import { Checker, alive, attemptsSince, audit, pressBack, background, checkDoubleRecords, enterGame, grabDuringTeach, holdHome, idle, reload, toMap, toddlerStep, waitLive, wrongMany } from './lib/flows'
+import { Toddler, hashSeed, rng } from './lib/toddler'
+import { Checker, alive, attemptsSince, audit, pressBack, background, checkDoubleRecords, enterGame, grabDuringTeach, holdHome, idle, midBack, reload, toMap, toddlerStep, waitLive, wrongMany } from './lib/flows'
 import { DRAWING, STATIONS, selected } from './catalog'
 
 const BASE_SEED = Number(process.env.TODDLER_SEED || 20261029)
@@ -39,6 +39,9 @@ for (const g of selected()) {
       // 3. 亂玩：亂點、連點、拖到一半放手、手掌、亂畫
       k.behavior = '亂玩'
       const steps = lite ? 14 : 30
+      // 亂玩到一半想回去（T-72）：亂點不會剛好按到返回了，改成用 seed 決定第幾步、一定會發生；回去之後像孩子一樣再點遊戲卡進來
+      const backAt = 2 + rng(hashSeed(seed, 'mid-back')).int(steps - 4)
+      let backDone = false
       let cheerSeen = false
       for (let i = 0; i < steps; i++) {
         const s = await snap(page)
@@ -55,6 +58,12 @@ for (const g of selected()) {
           k.behavior = '慶祝中按首頁'
           await holdHome(k, c, '慶祝中按首頁')
           if (!(await enterGame(k, c, g))) break
+          k.behavior = '亂玩'
+          continue
+        }
+        if (i >= backAt && !backDone) {
+          backDone = true
+          if (!(await midBack(k, c, g))) break
           k.behavior = '亂玩'
           continue
         }
