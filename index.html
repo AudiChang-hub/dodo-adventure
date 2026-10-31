@@ -1,0 +1,316 @@
+<!doctype html>
+<html lang="zh-Hant-TW">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+    <meta name="theme-color" content="#F3EEE4" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <link rel="icon" href="icon.svg" type="image/svg+xml" />
+    <title>豆豆冒險</title>
+    <!--
+      啟動畫面與啟動失敗畫面：只用這裡的 HTML/CSS/inline script，不依賴 JS bundle。
+      bundle 載不到、啟動時出錯、或卡住太久，都不會留下一片白，而是給家長看的說明與按鈕。
+    -->
+    <style>html,body{background:#f3eee4;height:100%;margin:0}#boot{z-index:1000;color:#2e2a25;-webkit-font-smoothing:antialiased;-webkit-tap-highlight-color:transparent;background:radial-gradient(120% 90% at 50% 38%,#f8f4ec 0%,#f3eee4 55%,#ebe4d6 100%);place-items:center;font-family:Huninn,Noto Sans TC,PingFang TC,Microsoft JhengHei,sans-serif;transition:opacity .4s cubic-bezier(.4,0,1,1) .15s,transform .4s cubic-bezier(.4,0,1,1) .15s;display:grid;position:fixed;inset:0}#boot.boot-out{opacity:0;pointer-events:none;transform:scale(1.03)}.boot-splash{opacity:0;flex-direction:column;align-items:center;gap:2.2vmin;animation:.6s cubic-bezier(.22,1,.36,1) .18s forwards boot-in;display:flex}.boot-dino{aspect-ratio:1;width:clamp(120px,26vmin,220px);position:relative}.boot-dino svg{transform-origin:50% 90%;width:100%;height:100%;animation:2.6s cubic-bezier(.45,0,.55,1) infinite boot-bob;position:absolute;inset:0}.boot-dino:after{content:"";background:#6e604a29;border-radius:50%;height:7%;animation:2.6s cubic-bezier(.45,0,.55,1) infinite boot-shadow;position:absolute;bottom:2%;left:22%;right:22%}.boot-title{letter-spacing:.14em;text-indent:.14em;color:#3c362f;margin:0;font-size:clamp(30px,6.4vmin,54px);font-weight:400}.boot-steps{gap:1.6vmin;display:flex}.boot-steps i{aspect-ratio:1;opacity:.7;background:#8fcbaa;border-radius:50%;width:clamp(9px,1.5vmin,13px);animation:1.5s ease-in-out infinite boot-step}.boot-steps i:nth-child(2){background:#f0b088;animation-delay:.22s}.boot-steps i:nth-child(3){background:#a3c4e4;animation-delay:.44s}@keyframes boot-in{0%{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}@keyframes boot-bob{0%,to{transform:translateY(0)rotate(-1.5deg)}50%{transform:translateY(-5%)rotate(1.5deg)}}@keyframes boot-shadow{0%,to{transform:scaleX(1)}50%{transform:scaleX(.82)}}@keyframes boot-step{0%,to{transform:translateY(0)}40%{transform:translateY(-40%)}}@media (prefers-reduced-motion:reduce){#boot.boot-out{transform:none}.boot-dino svg,.boot-dino:after,.boot-steps i{animation:none}.boot-steps i{opacity:.7}}#boot.boot-failed{padding:max(20px, env(safe-area-inset-top)) 16px max(20px, env(safe-area-inset-bottom));box-sizing:border-box;place-items:start center;overflow-y:auto}.boot-card{box-sizing:border-box;background:#fbf8f2;border-radius:28px;width:min(640px,100%);margin:auto 0;padding:clamp(20px,4vmin,36px);animation:.5s cubic-bezier(.22,1,.36,1) both boot-rise;box-shadow:0 1px #ddd3c1,0 18px 40px -24px #463a2859}@keyframes boot-rise{0%{transform:translateY(12px)}}.boot-card-head{align-items:center;gap:14px;display:flex}.boot-card-head svg{flex:none;width:64px;height:64px}.boot-card h1{margin:0;font-size:clamp(21px,3.4vmin,27px);font-weight:400;line-height:1.35}.boot-card p{color:#6b645a;margin:14px 0 0;font-size:16px;line-height:1.7}.boot-card b{color:#2e2a25;background:linear-gradient(#0000 62%,#f1d27c8c 62%);font-weight:400}.boot-err-label{letter-spacing:.06em;color:#a39b8e;margin:20px 0 6px;font-size:13px}.boot-err{color:#4a443c;white-space:pre-wrap;word-break:break-word;-webkit-user-select:text;user-select:text;background:#f3eee4;border:1px solid #e9e1d2;border-radius:16px;max-height:34vh;margin:0;padding:14px 16px;font:13px/1.6 ui-monospace,Cascadia Mono,Menlo,Consolas,monospace;overflow:auto}.boot-actions{flex-wrap:wrap;gap:12px;margin-top:20px;display:flex}.boot-actions button{min-height:56px;font:inherit;cursor:pointer;touch-action:manipulation;border:0;border-radius:18px;flex:200px;padding:0 18px;font-size:17px;transition:transform .15s,background-color .2s}.boot-actions button:active{transform:scale(.97)}.boot-actions button:disabled{opacity:.55}.boot-reload{color:#fbf8f2;background:#2e2a25}.boot-clear{color:#2e2a25;background:#e9e1d2}.boot-note{color:#5fa883;min-height:1.4em;margin:12px 0 0;font-size:14px}</style>
+    <script>
+      ;(function () {
+        var VERSION = '864e8d6'
+        var BASE = '/dodo-adventure/'
+        var DEADLINE = 12000
+        var LOG_KEY = 'dodo.bootlog'
+        var RETRY_KEY = 'dodo.bootRetry'
+        var start = Date.now()
+        var mounted = false
+        var failed = false
+        var timedOut = false
+
+        function now() {
+          return new Date().toLocaleString('zh-TW', { hour12: false })
+        }
+        function readLog() {
+          try {
+            return JSON.parse(localStorage.getItem(LOG_KEY) || '[]')
+          } catch (e) {
+            return []
+          }
+        }
+        function log(msg) {
+          try {
+            var l = readLog()
+            l.push(now() + '  ' + VERSION + '  ' + msg)
+            localStorage.setItem(LOG_KEY, JSON.stringify(l.slice(-8)))
+          } catch (e) {
+            /* 存不了就算了 */
+          }
+        }
+        function text(err) {
+          if (!err) return '（沒有錯誤訊息）'
+          if (typeof err === 'string') return err
+          return (err.name ? err.name + ': ' : '') + (err.message || String(err))
+        }
+        // 程式位置放在最後面，網址前綴拿掉，拍照時重點（訊息、版本、狀態）才會在第一屏
+        function stack(err) {
+          if (!err || !err.stack) return ''
+          var st = String(err.stack).split('\n')
+          // Chrome 的 stack 第一行就是「Error: 訊息」，不要重複
+          if (st[0] === text(err)) st.shift()
+          return st
+            .slice(0, 6)
+            .join('\n')
+            .split(location.origin + BASE)
+            .join('')
+        }
+        function swState() {
+          try {
+            var sw = navigator.serviceWorker
+            if (!sw) return '不支援'
+            return sw.controller ? '有（' + sw.controller.state + '）' : '沒有'
+          } catch (e) {
+            return '讀不到'
+          }
+        }
+
+        // 只自動重試一次：兩分鐘內已經自動重新載入過，就停下來讓家長看
+        function autoRetry(reason) {
+          try {
+            var last = Number(sessionStorage.getItem(RETRY_KEY) || 0)
+            if (Date.now() - last < 120000) return false
+            sessionStorage.setItem(RETRY_KEY, String(Date.now()))
+          } catch (e) {
+            return false
+          }
+          log('自動重新載入：' + reason)
+          // 重新載入不是立刻生效，這段期間別的檢查不要再觸發失敗畫面
+          failed = true
+          location.reload()
+          return true
+        }
+
+        var DINO =
+          '<svg viewBox="77 74 400 400" aria-hidden="true"><g transform="translate(40 70) scale(1.75)" stroke="#5FA883" stroke-width="3.5" stroke-linejoin="round"><path d="M116 52 l9 -17 l11 15 Z M134 42 l9 -17 l11 15 Z M98 70 l9 -17 l11 15 Z" fill="#6DB591"/><ellipse cx="114" cy="168" rx="56" ry="40" fill="#8FCBAA"/><ellipse cx="148" cy="100" rx="66" ry="54" fill="#8FCBAA"/></g><g transform="translate(40 70) scale(1.75)"><ellipse cx="166" cy="86" rx="9" ry="11" fill="#2E2A25"/><circle cx="169" cy="82" r="3.6" fill="#fff"/><ellipse cx="184" cy="114" rx="11" ry="7" fill="#F2A9A0"/><path d="M170 122 Q186 136 204 120" fill="none" stroke="#2E2A25" stroke-width="4.5" stroke-linecap="round"/><circle cx="204" cy="88" r="2.6" fill="#5FA883"/></g></svg>'
+
+        function bootEl() {
+          var el = document.getElementById('boot')
+          if (!el) {
+            el = document.createElement('div')
+            el.id = 'boot'
+            document.body.appendChild(el)
+          }
+          return el
+        }
+
+        function show(err, kind) {
+          if (failed) return
+          failed = true
+          var detail = [
+            text(err),
+            '',
+            '種類：' + kind,
+            '版本：' + VERSION,
+            '時間：' + now(),
+            '開啟後：' + Math.round((Date.now() - start) / 1000) + ' 秒',
+            '網址：' + location.href,
+            '網路：' + (navigator.onLine ? '連線中' : '離線'),
+            'Service Worker：' + swState(),
+          ]
+          var past = readLog()
+          if (past.length) detail.push('', '最近紀錄：', past.slice(-5).join('\n'))
+          if (stack(err)) detail.push('', '程式位置：', stack(err))
+          detail.push('', '裝置：' + navigator.userAgent)
+          log(kind + '：' + text(err))
+
+          var el = bootEl()
+          el.className = 'boot-failed'
+          el.setAttribute('role', 'alert')
+          el.innerHTML =
+            '<div class="boot-card">' +
+            '<div class="boot-card-head">' + DINO + '<h1>豆豆冒險沒有順利打開</h1></div>' +
+            '<p>請先按「重新載入」。如果還是一樣，再按「清除快取後重新載入」。<br><b>孩子的學習紀錄會保留，不會被刪掉。</b></p>' +
+            '<div class="boot-err-label">錯誤訊息（可以拍照回報）</div>' +
+            '<pre class="boot-err"></pre>' +
+            '<div class="boot-actions">' +
+            '<button type="button" class="boot-reload">重新載入</button>' +
+            '<button type="button" class="boot-clear">清除快取後重新載入</button>' +
+            '</div>' +
+            '<p class="boot-note" aria-live="polite"></p>' +
+            '</div>'
+          el.querySelector('.boot-err').textContent = detail.join('\n')
+          var note = el.querySelector('.boot-note')
+          var buttons = el.querySelectorAll('button')
+          el.querySelector('.boot-reload').onclick = function () {
+            note.textContent = '重新載入中…'
+            reloadHome()
+          }
+          el.querySelector('.boot-clear').onclick = function () {
+            for (var i = 0; i < buttons.length; i++) buttons[i].disabled = true
+            note.textContent = '正在清除快取…'
+            clearCaches().then(function (msg) {
+              note.textContent = msg + '，重新載入中…'
+              log('家長清除快取：' + msg)
+              setTimeout(reloadHome, 400)
+            })
+          }
+        }
+
+        // 重新載入時回到 App 的起點：萬一網址跑到 scope 外，也能回到 App 裡
+        function reloadHome() {
+          try {
+            sessionStorage.removeItem(RETRY_KEY)
+          } catch (e) {
+            /* 沒關係 */
+          }
+          if (location.pathname.indexOf(BASE) === 0) location.reload()
+          else location.replace(BASE)
+        }
+
+        // 只清 Service Worker 與 Cache Storage；IndexedDB（學習紀錄）與 localStorage（設定）都不動
+        function clearCaches() {
+          var jobs = []
+          var sw = 0
+          var cs = 0
+          if (navigator.serviceWorker && navigator.serviceWorker.getRegistrations) {
+            jobs.push(
+              navigator.serviceWorker.getRegistrations().then(function (regs) {
+                sw = regs.length
+                return Promise.all(
+                  regs.map(function (r) {
+                    return r.unregister()
+                  }),
+                )
+              }),
+            )
+          }
+          if (window.caches && caches.keys) {
+            jobs.push(
+              caches.keys().then(function (keys) {
+                cs = keys.length
+                return Promise.all(
+                  keys.map(function (k) {
+                    return caches.delete(k)
+                  }),
+                )
+              }),
+            )
+          }
+          // Service Worker 卡住時 unregister 可能一直不回來：最多等 5 秒
+          var timeout = new Promise(function (r) {
+            setTimeout(r, 5000)
+          })
+          return Promise.race([Promise.all(jobs), timeout])
+            .catch(function () {})
+            .then(function () {
+              return '已清除 ' + sw + ' 個 Service Worker、' + cs + ' 個快取'
+            })
+        }
+
+        function fail(err, kind) {
+          if (failed || mounted) return
+          if (autoRetry(text(err).split('\n')[0])) return
+          show(err, kind || '啟動時出錯')
+        }
+
+        // 掛載前的錯誤：程式執行錯誤（ErrorEvent）或 script／stylesheet 載不到（資源的 error 不會冒泡，要用 capture）
+        window.addEventListener(
+          'error',
+          function (e) {
+            if (mounted) return
+            var t = e.target
+            if (t && t !== window && t.tagName) {
+              if (t.tagName === 'SCRIPT' || (t.tagName === 'LINK' && /stylesheet|modulepreload/.test(t.rel))) {
+                fail('無法載入檔案：' + (t.src || t.href), '程式檔載不到')
+              }
+              return
+            }
+            fail(e.error || e.message, '啟動時出錯')
+          },
+          true,
+        )
+        // 沒接住的 Promise 錯誤不一定致命（例如雲端同步連不上，App 照樣能玩），不立刻擋畫面：
+        // 記下來，真的卡住逾時時就是最可能的原因，會顯示在說明裡。啟動主流程的錯誤由 main.tsx 的 catch 直接回報。
+        var rejection = null
+        window.addEventListener('unhandledrejection', function (e) {
+          if (mounted || rejection) return
+          rejection = e.reason
+          log('啟動中未處理的錯誤：' + text(e.reason))
+        })
+
+        // 卡住：只算畫面看得到的時間，在背景時計時器會被節流，回到前景再給幾秒
+        function check() {
+          if (mounted || failed) return
+          if (document.hidden) return
+          if (Date.now() - start < DEADLINE) return setTimeout(check, DEADLINE - (Date.now() - start))
+          var waited = '等了 ' + Math.round((Date.now() - start) / 1000) + ' 秒，程式還沒有啟動完成。'
+          if (autoRetry(waited)) return
+          if (rejection) {
+            show(rejection, '啟動逾時（' + waited + '）')
+          } else show(waited, '啟動逾時')
+          timedOut = true
+        }
+        setTimeout(check, DEADLINE)
+        document.addEventListener('visibilitychange', function () {
+          if (!document.hidden && !mounted && !failed) setTimeout(check, 4000)
+        })
+
+        window.__dodoBoot = {
+          version: VERSION,
+          log: log,
+          /** React 第一次畫完時呼叫：淡出並移除啟動畫面 */
+          ok: function () {
+            if (mounted) return
+            mounted = true
+            try {
+              sessionStorage.removeItem(RETRY_KEY)
+            } catch (e) {
+              /* 沒關係 */
+            }
+            var ms = Date.now() - start
+            if (ms > 6000) log('啟動完成，但花了 ' + Math.round(ms / 1000) + ' 秒')
+            // 逾時畫面出現後才終於啟動完成：App 其實好了，收掉說明；真的出錯的畫面則留著讓家長看
+            if (failed && !timedOut) return
+            failed = false
+            var el = document.getElementById('boot')
+            if (!el) return
+            el.classList.add('boot-out')
+            setTimeout(function () {
+              if (!failed && el.parentNode) el.parentNode.removeChild(el)
+            }, 620)
+          },
+          /** 掛載前的錯誤（main.tsx 的 catch）或執行中當掉（ErrorBoundary） */
+          fail: function (err, kind) {
+            if (kind === 'runtime') {
+              failed = false
+              show(err, '執行中當掉')
+            } else fail(err, kind)
+          },
+        }
+      })()
+    </script>
+    <script type="module" crossorigin src="/dodo-adventure/assets/index-BgEf9RAX.js"></script>
+    <link rel="stylesheet" crossorigin href="/dodo-adventure/assets/index-DIGsEoM_.css">
+  <link rel="manifest" href="/dodo-adventure/manifest.webmanifest"></head>
+  <body>
+    <div id="boot" aria-label="豆豆冒險載入中">
+      <div class="boot-splash">
+        <div class="boot-dino">
+          <svg viewBox="77 74 400 400" aria-hidden="true">
+            <g transform="translate(40 70) scale(1.75)" stroke="#5FA883" stroke-width="3.5" stroke-linejoin="round">
+              <path d="M116 52 l9 -17 l11 15 Z M134 42 l9 -17 l11 15 Z M98 70 l9 -17 l11 15 Z" fill="#6DB591" />
+              <ellipse cx="114" cy="168" rx="56" ry="40" fill="#8FCBAA" />
+              <ellipse cx="148" cy="100" rx="66" ry="54" fill="#8FCBAA" />
+            </g>
+            <g transform="translate(40 70) scale(1.75)">
+              <ellipse cx="166" cy="86" rx="9" ry="11" fill="#2E2A25" />
+              <circle cx="169" cy="82" r="3.6" fill="#fff" />
+              <ellipse cx="184" cy="114" rx="11" ry="7" fill="#F2A9A0" />
+              <path d="M170 122 Q186 136 204 120" fill="none" stroke="#2E2A25" stroke-width="4.5" stroke-linecap="round" />
+              <circle cx="204" cy="88" r="2.6" fill="#5FA883" />
+            </g>
+          </svg>
+        </div>
+        <h1 class="boot-title">豆豆冒險</h1>
+        <div class="boot-steps" aria-hidden="true"><i></i><i></i><i></i></div>
+      </div>
+    </div>
+    <div id="root"></div>
+  </body>
+</html>
