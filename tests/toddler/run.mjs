@@ -88,10 +88,12 @@ function rmrf(p) {
   } else fs.unlinkSync(p)
 }
 
-// 用非同步的 spawn：等子程式時 Ctrl+C 也能放掉排隊的鎖
+// 用非同步的 spawn：等子程式時 Ctrl+C 也能放掉排隊的鎖。
+// Windows 要經過 shell（npm、npx 是 .cmd），有空格的參數（C:\Git\Side Project\…）要加引號，不然會被切斷
+const q = (a) => (process.platform === 'win32' && /[\s&()]/.test(a) ? `"${a}"` : a)
 const run = (cmd, argv, extra = {}) =>
   new Promise((res) => {
-    const p = spawn(cmd, argv, { cwd: root, env: { ...env, ...extra }, stdio: 'inherit', shell: process.platform === 'win32' })
+    const p = spawn(cmd, argv.map(q), { cwd: root, env: { ...env, ...extra }, stdio: 'inherit', shell: process.platform === 'win32' })
     p.on('exit', (code) => res(code ?? 1))
     p.on('error', () => res(1))
   })
@@ -123,9 +125,9 @@ if (build) {
 let release = () => {}
 if (lock) {
   const branch = spawnSync('git', ['branch', '--show-current'], { cwd: root }).stdout?.toString().trim()
-  const q = await phase('queue', () => acquire({ worktree: path.basename(root), branch, cmd: `test:toddler ${args.join(' ')}`.trim() }))
-  release = q.release
-  if (q.waitedMs > 5000) console.log(`[排隊] 輪到了（等了 ${(q.waitedMs / 60000).toFixed(1)} 分鐘）`)
+  const got = await phase('queue', () => acquire({ worktree: path.basename(root), branch, cmd: `test:toddler ${args.join(' ')}`.trim() }))
+  release = got.release
+  if (got.waitedMs > 5000) console.log(`[排隊] 輪到了（等了 ${(got.waitedMs / 60000).toFixed(1)} 分鐘）`)
 }
 const cpus = os.availableParallelism?.() ?? os.cpus().length
 if (!workers) {

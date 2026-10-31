@@ -26,6 +26,8 @@ const logDir = path.join(root, 'test-results', 'verify')
 const tmp = path.join(os.tmpdir(), `dodo-verify-${process.pid}`)
 
 const num = (re, s) => re.exec(s)?.[1]
+// Windows 經過 shell 跑（npx 是 .cmd）：有空格的參數要加引號
+const q = (a) => (process.platform === 'win32' && /[\s&()]/.test(a) ? `"${a}"` : a)
 const oks = (s) => (s.match(/^ok \d+/gm) ?? []).length
 /** 單元測試：每一條 ok、最後 ALL PASS */
 const unit = (s) => ({ ok: /ALL PASS/.test(s), key: `${oks(s)} 項 ok${/ALL PASS/.test(s) ? '' : `，${(s.match(/^not ok|^FAIL|✗/gm) ?? []).length} 項失敗`}` })
@@ -113,7 +115,7 @@ fs.mkdirSync(tmp, { recursive: true })
 function runOne(c) {
   return new Promise((res) => {
     const t = Date.now()
-    const p = spawn(c.cmd[0], c.cmd.slice(1), { cwd: root, env: { ...process.env, PYTHONIOENCODING: 'utf-8', FORCE_COLOR: '0' }, shell: process.platform === 'win32' })
+    const p = spawn(c.cmd[0], c.cmd.slice(1).map(q), { cwd: root, env: { ...process.env, PYTHONIOENCODING: 'utf-8', FORCE_COLOR: '0' }, shell: process.platform === 'win32' })
     let out = ''
     p.stdout.on('data', (d) => (out += d))
     p.stderr.on('data', (d) => (out += d))
@@ -155,7 +157,7 @@ if (toddlerArgs) {
   const outArg = toddlerArgs.includes('--out-dir') ? path.resolve(toddlerArgs[toddlerArgs.indexOf('--out-dir') + 1]) : out
   console.log(`\n三歲測試：npm run test:toddler -- ${toddlerArgs.join(' ')}\n`)
   const code = await new Promise((res) => {
-    const p = spawn('node', ['tests/toddler/run.mjs', ...toddlerArgs], { cwd: root, stdio: 'inherit', shell: process.platform === 'win32' })
+    const p = spawn('node', ['tests/toddler/run.mjs', ...toddlerArgs].map(q), { cwd: root, stdio: 'inherit', shell: process.platform === 'win32' })
     p.on('exit', (c) => res(c ?? 1))
   })
   let key = ''
