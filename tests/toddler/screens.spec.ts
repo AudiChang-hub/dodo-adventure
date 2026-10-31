@@ -1,10 +1,11 @@
 import { test, expect, type Page } from '@playwright/test'
 import { boot, homeButton, settle, snap, targets, voicesSince } from './lib/app'
 import { Toddler, hashSeed } from './lib/toddler'
-import { Checker, alive, audit, enterGame, holdHome, pressBack, toMap, toddlerStep, waitLive } from './lib/flows'
+import { Checker, alive, audit, doorAt, enterGame, holdHome, pressBack, toHome, toMap, toddlerStep, waitLive } from './lib/flows'
 import fs from 'node:fs'
 import path from 'node:path'
 import { GAMES, STATIONS, type StationId } from './catalog'
+import { FEATURES, hidden } from './lib/features'
 
 const BASE_SEED = Number(process.env.TODDLER_SEED || 20261029)
 const only = (process.env.TODDLER_GAMES ?? '').trim()
@@ -38,6 +39,10 @@ function finish(k: Toddler, c: Checker, name: string) {
   expect.soft(k.findings.length, `全部問題：${k.findings.map((f) => f.title).join(' | ')}`).toBe(0)
 }
 
+/** 等計時的時候亂點一下：地圖下方；學校首頁點屋簷（地面上是門下的字，會進課） */
+const idleTap = (k: Toddler) =>
+  FEATURES.map ? k.tap({ x: k.r.range(300, 900), y: k.r.range(700, 790) }, '地圖下方亂點') : k.tap({ x: k.r.range(420, 780), y: k.r.range(30, 100) }, '首頁屋簷亂點')
+
 /** 在某個畫面亂玩 n 步；被帶到別的畫面就記下來 */
 async function play(k: Toddler, c: Checker, live: string, n: number) {
   const left: string[] = []
@@ -55,8 +60,10 @@ async function play(k: Toddler, c: Checker, live: string, n: number) {
 }
 
 test.describe('畫面', () => {
+  // 學校的首頁（三大門）在 home.spec.ts；這一項是今日冒險版的首頁（出發）
   test('首頁', async ({ page }, info) => {
     test.skip(!want('home'))
+    test.skip(!FEATURES.adventure, hidden('adventure'))
     const { k, c } = await setup(page, info, '首頁', { to: 'home' })
     try {
       k.behavior = '亂點'
@@ -111,6 +118,7 @@ test.describe('畫面', () => {
 
   test('地圖與站點', async ({ page }, info) => {
     test.skip(!want('map'))
+    test.skip(!FEATURES.map, hidden('map'))
     const { k, c } = await setup(page, info, '地圖與站點')
     try {
       await audit(k, c, '地圖')
@@ -165,6 +173,7 @@ test.describe('畫面', () => {
 
   test('貼紙本', async ({ page }, info) => {
     test.skip(!want('collection'))
+    test.skip(!FEATURES.collection, hidden('collection'))
     const { k, c } = await setup(page, info, '貼紙本', { to: 'home' })
     try {
       k.behavior = '進貼紙本'
@@ -263,6 +272,8 @@ test.describe('畫面', () => {
 
   test('返回鍵在孩子畫面', async ({ page }, info) => {
     test.skip(!want('back'))
+    // 地圖、站點的返回；學校首頁的返回在 home.spec.ts
+    test.skip(!FEATURES.map, hidden('map'))
     const { k, c } = await setup(page, info, '返回鍵', { to: 'home' })
     try {
       const res: string[] = []
@@ -372,6 +383,7 @@ test.describe('畫面', () => {
 
   test('今日冒險每一段都能返回（B04、V-32）', async ({ page }, info) => {
     test.skip(!want('back') && !want('adventure-back'))
+    test.skip(!FEATURES.adventure, hidden('adventure'))
     test.setTimeout(6 * 60_000)
     const { k, c } = await setup(page, info, '冒險返回', { to: 'home' })
     /** 點現在這一層的返回鍵（冒險裡面還有一疊自己的畫面，homeButton 找的是裡面那一層） */
@@ -475,6 +487,7 @@ test.describe('畫面', () => {
 
   test('今日冒險', async ({ page }, info) => {
     test.skip(!want('adventure'))
+    test.skip(!FEATURES.adventure, hidden('adventure'))
     test.setTimeout(15 * 60_000)
     const { k, c } = await setup(page, info, '今日冒險', { to: 'home' })
     try {
@@ -535,7 +548,7 @@ test.describe('畫面', () => {
   test('護眼休息', async ({ page }, info) => {
     test.skip(!want('eyebreak'))
     test.setTimeout(6 * 60_000)
-    const { k, c } = await setup(page, info, '護眼休息', { settings: { eyeBreakEvery: 1 } })
+    const { k, c } = await setup(page, info, '護眼休息', { settings: { eyeBreakEvery: 1 }, to: FEATURES.map ? 'map' : 'home' })
     try {
       k.behavior = '等護眼休息'
       // 一分鐘活動後出現；期間在地圖亂點（不進站點）
@@ -546,7 +559,7 @@ test.describe('畫面', () => {
           shown = true
           break
         }
-        await k.tap({ x: k.r.range(300, 900), y: k.r.range(700, 790) }, '地圖下方亂點')
+        await idleTap(k)
         await k.wait(2000)
       }
       c.outcome('護眼休息出現', shown, shown ? '' : '100 秒內沒出現')
@@ -574,8 +587,9 @@ test.describe('畫面', () => {
 
   test('時間到（睡覺畫面）', async ({ page }, info) => {
     test.skip(!want('bedtime'))
+    test.skip(!FEATURES.bedtime, hidden('bedtime'))
     test.setTimeout(6 * 60_000)
-    const { k, c } = await setup(page, info, '睡覺畫面', { settings: { dailyMinutes: 1 } })
+    const { k, c } = await setup(page, info, '睡覺畫面', { settings: { dailyMinutes: 1 }, to: FEATURES.map ? 'map' : 'home' })
     try {
       k.behavior = '等時間到'
       const end = Date.now() + 100_000
@@ -583,7 +597,7 @@ test.describe('畫面', () => {
       while (Date.now() < end) {
         live = (await snap(page)).live
         if (live === 'bedtime') break
-        await k.tap({ x: k.r.range(300, 900), y: k.r.range(700, 790) }, '地圖下方亂點')
+        await idleTap(k)
         await k.wait(2000)
       }
       c.outcome('時間到出現睡覺畫面', live === 'bedtime', `畫面 ${live}`)
@@ -605,10 +619,10 @@ test.describe('畫面', () => {
   test('減少動態效果（MOTION-5）', async ({ page }, info) => {
     test.skip(!want('motion'))
     await page.emulateMedia({ reducedMotion: 'reduce' })
-    const { k, c } = await setup(page, info, '減少動態效果')
+    const { k, c } = await setup(page, info, '減少動態效果', { to: FEATURES.map ? 'map' : 'home' })
     try {
       k.behavior = '換畫面'
-      const g = GAMES.find((x) => x.id === 'm-match')!
+      const g = GAMES.find((x) => x.id === (FEATURES.map ? 'm-match' : 'd-free'))!
       await enterGame(k, c, g)
       await settle(page)
       await holdHome(k, c, '減少動態：遊戲回首頁')
@@ -640,7 +654,7 @@ test.describe('畫面', () => {
   test('來回換畫面 200 次：圖層、字幕、家長角落（NAV-7、B15）', async ({ page }, info) => {
     test.skip(!want('layers'))
     test.setTimeout(25 * 60_000)
-    const { k, c } = await setup(page, info, '來回換畫面')
+    const { k, c } = await setup(page, info, '來回換畫面', { to: FEATURES.map ? 'map' : 'home' })
     /** 量一次：最高的整頁圖層 z-index、字幕（點恐龍讓它說話）和家長角落是不是在最上面 */
     const measure = async () => {
       const host = await page.evaluate(() => {
@@ -664,12 +678,32 @@ test.describe('畫面', () => {
       })
     }
     try {
-      k.behavior = '地圖↔站點↔遊戲來回'
+      k.behavior = FEATURES.map ? '地圖↔站點↔遊戲來回' : '首頁↔每一扇門來回'
       let n = 0
       let bad = ''
       const checks: string[] = []
       const g = GAMES.find((x) => x.id === 'm-match')!
-      for (let i = 0; n < 200 && i < 120; i++) {
+      // 學校的首頁（地圖藏起來了）：首頁 → 一扇門（三堂課、故事、畫畫輪流）→ 返回首頁；在課裡點恐龍量字幕
+      const DOORS = ['english', 'chinese', 'math', 'story', 'draw']
+      for (let i = 0; !FEATURES.map && n < 200 && i < 140; i++) {
+        if (!(await toHome(k, c))) break
+        const door = DOORS[i % DOORS.length]
+        const p = await doorAt(page, door)
+        if (!p) break
+        await k.tap(p, `門 ${door}`)
+        if ((await waitLive(page, (l) => !!l && l !== 'home')) === 'home') break
+        n++
+        await settle(page)
+        if (i % 7 === 6 || n >= 199) {
+          const m = await measure()
+          checks.push(`${n} 次：z ${m.z}、字幕${m.sub === null ? '沒出現' : m.sub ? '在上' : '被蓋'}、家長角落${m.corner ? '在上' : '被蓋'}`)
+          if (!bad && (m.z > 10 || m.sub === false || m.corner === false)) bad = checks[checks.length - 1]
+        }
+        const h = await homeButton(page)
+        if (h) await pressBack(k, h)
+        if ((await waitLive(page, (l) => l === 'home')) === 'home') n++
+      }
+      for (let i = 0; FEATURES.map && n < 200 && i < 120; i++) {
         if (!(await toMap(k, c))) break
         n++
         const p = await center(page, `.map-stop[aria-label="${STATIONS.math}"]`)

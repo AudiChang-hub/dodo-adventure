@@ -3,6 +3,7 @@ import { attempts, boot, homeButton, snap } from './lib/app'
 import { Toddler, hashSeed } from './lib/toddler'
 import { Checker, enterGame, pressBack, waitLive } from './lib/flows'
 import { GAMES } from './catalog'
+import { FEATURES, hidden } from './lib/features'
 
 /**
  * 慶祝中點返回鍵（G-2 的三歲模擬測試找到的：慶祝的遮罩蓋住返回鍵，點返回只會跳過慶祝，接著又是熟練的慶祝，孩子還在遊戲裡）。
@@ -44,6 +45,7 @@ const cheerUp = (page: Page) => page.evaluate(() => !!document.querySelector('.c
 for (const id of CASES.filter(want)) {
   const g = GAMES.find((x) => x.id === id)!
   test(`慶祝中點返回鍵：${g.id} ${g.title}`, async ({ page }, info) => {
+    test.skip(!FEATURES.map, hidden('map'))
     test.setTimeout(8 * 60_000)
     const seed = hashSeed(BASE_SEED, 'cheer', g.id, info.project.name)
     const k = new Toddler(page, info, seed, info.project.name)

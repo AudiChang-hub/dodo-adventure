@@ -760,6 +760,10 @@ export const GAMES: GameDef[] = [
   { id: 'c-drive', station: 'code', kind: 'drive', title: '箭頭卡開車', icon: 'automobile', intro: 'c.intro.drive', maxLevel: 4 },
   { id: 'c-pattern', station: 'code', kind: 'pattern', title: '找規律', icon: 'puzzle-piece', intro: 'c.intro.pattern', maxLevel: 4, make: cPattern },
   { id: 'c-seq', station: 'code', kind: 'sequence', title: '排順序', icon: 'hatching-chick', intro: 'c.intro.seq', maxLevel: 4 },
+  // ── 學校的課（src/lessons/README.md）：哪一課需要新的遊戲設定，就加在自己那一段（id 用 en-／zh-／ma- 開頭），不要動別段 ──
+  // ── 英文課 ──
+  // ── 中文課 ──
+  // ── 數學課 ──
 ]
 
 export const game = (id: string) => GAMES.find((g) => g.id === (LEGACY_GAME[id] ?? id))!

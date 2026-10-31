@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from 'react'
 import { AnimatePresence, MotionConfig, motion } from 'motion/react'
-import { useRoute, go, isChildPlay, lastHow, type Route } from './lib/nav'
+import { useRoute, go, isChildPlay, lastHow, parentOf, type Route } from './lib/nav'
 import { Home } from './screens/Home'
 import { Adventure } from './screens/Adventure'
 import { MapScreen } from './screens/MapScreen'
@@ -11,6 +11,7 @@ import { StoryBook } from './screens/StoryBook'
 import { Bedtime } from './screens/Bedtime'
 import { Parent } from './screens/parent/Parent'
 import { PlayGame } from './games/PlayGame'
+import { LessonScreen } from './lessons/LessonScreen'
 import { ParentCorner, ParentGate } from './ui/ParentGate'
 import { stopSpeech } from './lib/audio'
 import { isBreakDue, onBreakChange } from './lib/session'
@@ -26,9 +27,9 @@ const isNight = () => {
 }
 
 /** 畫面的層級：往深的地方走是「往前」（新畫面蓋上來淡入），往淺的地方是「往回」（上面的畫面淡出） */
-const DEPTH: Record<Route['name'], number> = { home: 0, map: 1, collection: 1, house: 1, adventure: 1, parent: 1, bedtime: 1, station: 2, storybook: 2, play: 3 }
+const DEPTH: Record<Route['name'], number> = { home: 0, map: 1, collection: 1, house: 1, adventure: 1, parent: 1, bedtime: 1, lesson: 1, station: 2, storybook: 2, play: 3 }
 
-const keyOf = (r: Route) => (r.name === 'play' ? `play-${r.game}` : r.name === 'station' ? `st-${r.station}` : r.name)
+const keyOf = (r: Route) => (r.name === 'play' ? `play-${r.game}` : r.name === 'station' ? `st-${r.station}` : r.name === 'lesson' ? `lesson-${r.subject}` : r.name)
 
 /** 每一層畫面拿到的是它自己的路由：轉場時舊畫面還留在下面，不會讀到新路由變成新畫面 */
 function Screen({ r }: { r: Route }) {
@@ -41,8 +42,13 @@ function Screen({ r }: { r: Route }) {
       return <MapScreen />
     case 'station':
       return <StationScreen id={r.station} />
-    case 'play':
-      return <PlayGame gameId={r.game} onDone={() => go({ name: 'station', station: r.station })} onExit={() => go({ name: 'station', station: r.station }, { back: true })} />
+    case 'play': {
+      // 玩完、離開都回上一層：站點；地圖藏起來時（首頁的畫畫）回首頁
+      const up = parentOf(r)!
+      return <PlayGame gameId={r.game} onDone={() => go(up)} onExit={() => go(up, { back: true })} />
+    }
+    case 'lesson':
+      return <LessonScreen subject={r.subject} />
     case 'collection':
       return <Collection />
     case 'house':

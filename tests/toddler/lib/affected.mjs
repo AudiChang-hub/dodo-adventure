@@ -62,6 +62,9 @@ export const SCREEN_TESTS = [
   // 慶祝中點返回（m-match、z-find）、換畫面連點（每站點一項）：選了那個遊戲就會跟著跑（各 spec 的 want()）
   { token: 'cheer', spec: 'cheer', files: [], games: [] },
   { token: 'nav-spam', spec: 'nav-spam', files: [], games: [] },
+  // 學校的首頁（home.spec）：三大門會進每一堂課（各課資料夾的 index.tsx 是入口；登記表、LessonScreen 被 App、首頁 import，改了跑完整版）
+  { token: 'home-doors', spec: 'home', files: ['src/lessons/english/index.tsx', 'src/lessons/chinese/index.tsx', 'src/lessons/math/index.tsx', 'src/screens/StoryBook.tsx'], games: ['d-free'] },
+  { token: 'home-draw', spec: 'home', files: [], games: ['d-free'] },
 ]
 
 /** 測試檔本身改了：跑那個檔的全部 */
@@ -71,6 +74,7 @@ const SPEC_TOKENS = {
   'story.spec.ts': ['story'],
   'cheer.spec.ts': ['cheer'],
   'nav-spam.spec.ts': ['nav-spam'],
+  'home.spec.ts': ['home-doors', 'home-draw'],
 }
 
 // ── 讀程式 ────────────────────────────────────────────────

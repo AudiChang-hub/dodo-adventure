@@ -44,6 +44,10 @@ import { FRIEND_INFO } from '../src/content/friends'
 import { keyOfVocab } from '../src/content/lexicon'
 import { isUnknown, needsTeach, setUnknownNow, usable } from '../src/lib/words'
 import { glyphLevel, glyphLevelCap, glyphSkill, isPart, lettersOpen, planGlyph } from '../src/games/draw/glyphs'
+import { forceFeature } from '../src/lib/features'
+
+// 測的是成長系統的關卡鎖和每週額度：孩子端關掉了（src/lib/features.ts），這裡打開來測
+forceFeature('growthGates', true)
 
 // 學習引擎會順手寫 IndexedDB，Node 裡沒有：忽略那些錯誤（記憶體裡的狀態照常更新）
 process.on('unhandledRejection', () => {})

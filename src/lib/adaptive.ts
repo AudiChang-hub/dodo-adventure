@@ -22,6 +22,7 @@ import {
 import { budgetOf, conceptIntros, fastStrands, noteIntro, shiftDate, strandLoad, type Budget, type Intro, type Intros } from './tracks'
 import { conceptOf, levelConcepts, trackOf, type TrackId } from '../content/tracks'
 import { weekTheme } from './settings'
+import { on } from './features'
 import { addLadderLog, contentWeeks, daysBetween, emptyLadder, getFrame, getGrowthState, isFirm, LADDER_V, stepLadder, type LadderState, type LadderView, type StepOpts, type UnitStat } from './growth'
 import {
   BREAK_DAYS,
@@ -411,13 +412,17 @@ export function canIntroduce(game: string, key: string): boolean {
   if (pauseNew()) return false
   // 回補中掉出已熟、要重教一次的：不是新概念，照教
   if (needsReteach(key)) return true
+  // 成長系統的關卡鎖和每週額度關掉時（lib/features.ts 的 growthGates）：不看階梯、支線暫停、每週額度，由每一課自己決定教什麼；
+  // 一回合最多一個新概念（FRAME-8）照舊
+  const gates = on('growthGates')
   const u = unitOfSkill(key)
   if (u && !rungOpen(u.rung)) return false
   const s = u ? rungDef(u.rung)!.strand : null
-  if (s && strandPaused(s)) return false
+  if (gates && s && strandPaused(s)) return false
   const c = conceptOf(game, key)
   if (!c || intros.has(c)) return true
   if (roundNew.size >= newPerRound()) return false
+  if (!gates) return true
   if (c === `theme:${weekTheme()}`) return true
   const t = trackOf(game)
   if (!t) return true
@@ -525,8 +530,12 @@ export function ladderNow(): LadderView {
   return view
 }
 
-/** 這一階開了沒（記下來的才算：一回合中間不會突然開） */
+/**
+ * 這一階開了沒（記下來的才算：一回合中間不會突然開）。
+ * 成長系統的關卡鎖關掉時（lib/features.ts 的 growthGates）每一階都算開了：描字母不用等階梯，由每一課自己決定教什麼。
+ */
 export function rungOpen(id: string): boolean {
+  if (!on('growthGates')) return true
   if (!stepped) stepNow()
   return !!ladder.rungs[id]?.open
 }

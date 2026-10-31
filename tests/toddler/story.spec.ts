@@ -2,6 +2,7 @@ import { test, expect, type Page } from '@playwright/test'
 import { boot, homeButton, settle, snap, targets, voicesSince } from './lib/app'
 import { Toddler, hashSeed, rng } from './lib/toddler'
 import { Checker, audit, pressBack, toddlerStep, waitLive } from './lib/flows'
+import { FEATURES, hidden } from './lib/features'
 
 // 故事（G-8）的三歲模擬測試：魔法屋的開場、結尾，故事時間（龜兔賽跑、挪亞方舟），我的故事書，魔法屋剖面圖，飛航模式玩完一章。
 // 三歲孩子會做的事：旁白還在念就一直點（搶著點）、亂點、走到一半想回家（返回）。
@@ -179,6 +180,8 @@ async function playThrough(k: Toddler, c: Checker, stop: (live: string | null, s
 test.describe('故事', () => {
   test('故事播放器：魔法屋開場、搶著點、想返回、結尾', async ({ page }, info) => {
     test.skip(!want('story-player'))
+    // 故事是在今日冒險裡講的（魔法屋開場、結尾）
+    test.skip(!FEATURES.adventure, hidden('adventure'))
     test.setTimeout(12 * 60_000)
     const { k, c } = await setup(page, info, '故事播放器')
     try {
@@ -259,6 +262,7 @@ test.describe('故事', () => {
   for (const run of CLASSIC_RUNS)
     test(`${run.name}：站比段落少、終點補講、回書房`, async ({ page }, info) => {
       test.skip(!want(run.want))
+      test.skip(!FEATURES.adventure, hidden('adventure'))
       test.setTimeout(12 * 60_000)
       const { k, c } = await setup(page, info, run.name)
       try {
@@ -305,6 +309,7 @@ test.describe('故事', () => {
 
   test('一篇講完：魔法屋多一樣東西', async ({ page }, info) => {
     test.skip(!want('story-house'))
+    test.skip(!FEATURES.adventure || !FEATURES.house, hidden(FEATURES.adventure ? 'house' : 'adventure'))
     test.setTimeout(12 * 60_000)
     const { k, c } = await setup(page, info, '一篇講完')
     try {
@@ -349,6 +354,7 @@ test.describe('故事', () => {
     }
   })
 
+  // 魔法屋藏起來時（lib/features.ts）：首頁的「故事」直接進書架，書架返回回首頁
   test('魔法屋與我的故事書：亂點、翻頁、重聽搶著點、一層一層返回', async ({ page }, info) => {
     test.skip(!want('story-book'))
     test.setTimeout(6 * 60_000)
@@ -362,10 +368,21 @@ test.describe('故事', () => {
         { id: '2026-09-21', date: '2026-09-21', part: 1, arc: 'classic', chapter: 1, kind: 'classic', band: 'small', picks: { words: [], friends: [], stickers: [], drawings: [] }, choices: {}, done: true, synced: 1, ref: 'classic-a01', door: 'park', script: [{ k: 'story.classic.open.0', pic: 'open-book' }, { k: 'story.classic-a01.stop.0.0', pic: 'rabbit' }, { k: 'story.classic.close', pic: 'closed-book' }] },
       ]
       await seedStory(page, { chapters: rows, story: { part: 1, arc: 'p1-a01', next: 1, choices: {}, classicsDone: ['A01'], house: ['egg-nest'] }, kv: { houseSeen: 0 } })
+      let live: string | null = null
+      if (!FEATURES.house) {
+        // 首頁 → 故事（連點）→ 書架
+        k.behavior = '首頁連點故事'
+        await k.spam((await center(page, '.side-door[data-door="story"]'))!, 5, '故事')
+        live = await waitLive(page, (l) => l === 'shelf', 5000)
+        await k.wait(1200)
+        live = (await snap(page)).live
+        c.outcome('首頁 → 故事書', live === 'shelf', `到 ${live}`)
+      }
       // 首頁 → 魔法屋
+      if (FEATURES.house) {
       k.behavior = '首頁到魔法屋'
       await k.tap((await center(page, '[aria-label="魔法屋"]'))!, '魔法屋')
-      let live = await waitLive(page, (l) => l === 'house', 5000)
+      live = await waitLive(page, (l) => l === 'house', 5000)
       c.outcome('首頁 → 魔法屋', live === 'house', `到 ${live}`)
       await settle(page, 3000)
       await audit(k, c, '魔法屋')
@@ -389,6 +406,7 @@ test.describe('故事', () => {
         live = await waitLive(page, (l) => l === 'shelf', 5000)
       }
       c.outcome('魔法屋 → 故事書', live === 'shelf', `到 ${live}`)
+      }
       await settle(page, 3000)
       await audit(k, c, '故事書 書架')
       // 翻頁
@@ -422,11 +440,16 @@ test.describe('故事', () => {
         c.outcome('重聽按返回 → 書架', live === 'shelf', `到 ${live}`)
       } else c.outcome('重聽講完自己回書架', (await snap(page)).live === 'shelf', '')
       await k.wait(1300)
-      live = await tapBack(k, c, '書架', (l) => l === 'house')
-      c.outcome('書架按返回 → 魔法屋', live === 'house', `到 ${live}`)
-      await k.wait(1300)
-      live = await tapBack(k, c, '魔法屋', (l) => l === 'home')
-      c.outcome('魔法屋按返回 → 首頁', live === 'home', `到 ${live}`)
+      if (!FEATURES.house) {
+        live = await tapBack(k, c, '書架', (l) => l === 'home')
+        c.outcome('書架按返回 → 首頁', live === 'home', `到 ${live}`)
+      } else {
+        live = await tapBack(k, c, '書架', (l) => l === 'house')
+        c.outcome('書架按返回 → 魔法屋', live === 'house', `到 ${live}`)
+        await k.wait(1300)
+        live = await tapBack(k, c, '魔法屋', (l) => l === 'home')
+        c.outcome('魔法屋按返回 → 首頁', live === 'home', `到 ${live}`)
+      }
       await c.flush()
     } finally {
       finish(k, c, '魔法屋與故事書')
@@ -440,6 +463,7 @@ test.describe('故事（離線）', () => {
 
   test('飛航模式下從頭玩完示範篇的一章和故事時間', async ({ page, context }, info) => {
     test.skip(!want('story-offline'))
+    test.skip(!FEATURES.adventure, hidden('adventure'))
     test.setTimeout(25 * 60_000)
     const { k, c } = await setup(page, info, '飛航模式')
     try {
