@@ -3,6 +3,7 @@ import { attempts, boot, homeButton, settle, snap } from './lib/app'
 import { Toddler, hashSeed, type Pt } from './lib/toddler'
 import { Checker, pressBack, toMap, waitLive } from './lib/flows'
 import { GAMES, STATIONS, type StationId } from './catalog'
+import { FEATURES, hidden } from './lib/features'
 
 /**
  * 換畫面時的連點穿透（T-67）：連點的後面幾下不能落到新畫面同一個位置的東西上。
@@ -63,6 +64,8 @@ for (const st of Object.keys(STATIONS) as StationId[]) {
   if (!want(st)) continue
   const name = STATIONS[st]
   test(`換畫面連點穿透：${name}（${st}）`, async ({ page }, info) => {
+    // 地圖、站點藏起來了：首頁的門的連點穿透在 home.spec.ts
+    test.skip(!FEATURES.map, hidden('map'))
     test.setTimeout(5 * 60_000)
     const seed = hashSeed(BASE_SEED, 'nav-spam', st, info.project.name)
     const k = new Toddler(page, info, seed, info.project.name)

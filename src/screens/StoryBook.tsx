@@ -4,6 +4,8 @@ import { BackButton } from '../ui/Back'
 import { StoryPic } from '../ui/StoryPic'
 import { Scenes, Swap, type SceneMove } from '../ui/Scenes'
 import { useBack } from '../lib/nav'
+import { on } from '../lib/features'
+import { HomeIcon } from '../games/Shell'
 import { say, sfx, hushSpeech, stopSpeech } from '../lib/audio'
 import { toldChapters, type ToldChapter } from '../lib/story'
 import { arcOf, chapterLook, chapterOf, type Pic } from '../content/story'
@@ -65,7 +67,7 @@ export function StoryBook() {
     setOpen(null)
   }
 
-  // 返回鍵、Android 的返回：重聽中先回書架，書架才回魔法屋
+  // 返回鍵、Android 的返回：重聽中先回書架，書架才回魔法屋（魔法屋藏起來時回首頁）
   useBack(() => {
     if (!open) return false
     close()
@@ -134,9 +136,17 @@ export function StoryBook() {
 
 /**
  * 返回鍵：每一段（書架、重聽）都放在自己那一層裡，位置一樣（跟冒險的每一段一樣，NAV-1）。
- * 重聽 → 書架（畫成書架）；書架 → 魔法屋（畫成魔法屋，照路由回上一層）
+ * 重聽 → 書架（畫成書架）；書架 → 魔法屋（畫成魔法屋，照路由回上一層）。魔法屋藏起來的時候書架回首頁（lib/features.ts）
  */
 function BookBack({ onClose }: { onClose?: () => void }) {
+  if (!onClose && !on('house'))
+    return (
+      <div style={{ position: 'absolute', left: 26, top: 18, zIndex: 6 }}>
+        <BackButton label="回首頁">
+          <HomeIcon />
+        </BackButton>
+      </div>
+    )
   return (
     <div style={{ position: 'absolute', left: 26, top: 18, zIndex: 6 }}>
       <BackButton label={onClose ? '回書架' : '回魔法屋'} onTap={onClose}>

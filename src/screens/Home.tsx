@@ -1,109 +1,99 @@
-import { useEffect, useState } from 'react'
+import { useEffect, type CSSProperties, type ReactNode } from 'react'
 import { motion } from 'motion/react'
-import { Ride } from '../art/Ride'
 import { Dino } from '../art/Dino'
 import { Emoji } from '../art/Emoji'
-import { Scenery } from '../ui/Scenery'
-import { go } from '../lib/nav'
+import { go, type Route } from '../lib/nav'
 import { say, sfx } from '../lib/audio'
-import { db } from '../lib/db'
-import { todayPlan, planDone, type Plan } from '../lib/plan'
-import { station } from '../content/games'
-import { theme as themeDef } from '../content/themes'
-import { stopIcon } from './Route'
-import { useSettings } from '../lib/settings'
+import { on } from '../lib/features'
 import { audioReady, onUnlock } from '../lib/boot'
 import { useInstall } from '../lib/install'
-import { HomeFriends } from './HomeFriends'
-import { OutingAsk } from './OutingAsk'
 import { useIntro } from '../ui/Scenes'
+import { LESSONS, SUBJECTS, type Subject } from '../lessons'
+import type { Speaker } from '../content/lines'
+import { AdventureHome } from './HomeAdventure'
+import './school.css'
 
 let greeted = false
 
+/** 首頁：今日冒險打開時是舊的「出發」首頁；現在是學校的樣子（三個大門＋故事、畫畫） */
 export function Home() {
-  const [plan, setPlan] = useState<Plan | null>(null)
-  const [friends, setFriends] = useState(0)
-  const [leaving, setLeaving] = useState(false)
-  const settings = useSettings()
-  const install = useInstall()
-  // App 一打開的首頁才讓車子開進來、恐龍探頭；從別的畫面回來時大家已經在定位（整頁轉場只做一段）
-  const intro = useIntro()
+  return on('adventure') ? <AdventureHome /> : <SchoolHome />
+}
 
-  // 招呼說完了沒：出門任務卡的「Did you see a bus?」要等招呼說完才問（再回到首頁就不用等）
-  const [helloDone, setHelloDone] = useState(greeted)
+/** 門上的圖：孩子不識字，看圖和守門的恐龍就知道是哪一課（門下的字是給大人看的） */
+const SIGN: Record<Subject, ReactNode> = {
+  english: (
+    <span className="door-sign abc" aria-hidden="true">
+      <b>A</b>
+      <b>B</b>
+      <b>C</b>
+    </span>
+  ),
+  chinese: (
+    <span className="door-sign zh" aria-hidden="true">
+      <b>中</b>
+      <i />
+    </span>
+  ),
+  math: (
+    <span className="door-sign num" aria-hidden="true">
+      <b>1</b>
+      <b>2</b>
+      <b>3</b>
+    </span>
+  ),
+}
+
+/** 門的顏色跟守門的恐龍一樣：豆豆綠、莫莫藍、波波橘 */
+const TINT: Record<Speaker, { door: string; deep: string; glass: string }> = {
+  dodo: { door: '#8FCBAA', deep: '#5FA883', glass: '#E3F2E9' },
+  momo: { door: '#A3C4E4', deep: '#6F9CC8', glass: '#E6EFF8' },
+  bobo: { door: '#F0B088', deep: '#D38A5E', glass: '#FBE8DA' },
+}
+
+/** 首頁另外兩個小入口：故事書、自由畫畫（遊戲畫面還是畫畫小屋的那一個） */
+const SIDE: { id: 'story' | 'draw'; label: string; icon: string; to: Route }[] = [
+  { id: 'story', label: '故事', icon: 'open-book', to: { name: 'storybook' } },
+  { id: 'draw', label: '畫畫', icon: 'artist-palette', to: { name: 'play', game: 'd-free', station: 'draw' } },
+]
+
+/**
+ * 學校的首頁（2026-10-31 家長決定照學校分科）：三個大門＝英文字母（豆豆）、中文課文（莫莫）、數學數字（波波），
+ * 旁邊兩個小一點的故事、畫畫。除了家長角落沒有別的按鈕；點門任何地方一下就進去。
+ * 畫面靜止（MOTION-2）：只有剛打開 App 時大家走進來一次，之後不閃、不晃。
+ */
+function SchoolHome() {
+  const intro = useIntro()
+  const install = useInstall()
 
   useEffect(() => {
-    todayPlan().then(setPlan)
-    db.friends.count().then(setFriends)
     const hello = () => {
       greeted = true
-      void say('home.hello').then(() => setHelloDone(true))
+      void say('home.hello')
     }
     if (!greeted && audioReady()) hello()
     return onUnlock(() => {
-      if (greeted) return
-      hello()
+      if (!greeted) hello()
     })
   }, [])
 
-  // 站都走完、蛋還沒孵（例如最後一站蛋裂開時按了返回）還不算完成：「出發」回冒險，把故事的終點講完、孵蛋
-  const done = plan ? planDone(plan) && !!plan.hatched : false
-  // 主題式冒險：首頁的小路線也是故事的圖（公車站牌、公車…），不是站點圖示
-  const th = themeDef(plan?.theme)
-  const mapOpen = settings.freePlay === 'always' || done
-
-  const start = async () => {
-    sfx.pop()
+  const open = (to: Route) => {
     greeted = true
-    if (done) {
-      await say('adv.again')
-      return go({ name: 'map' })
-    }
-    setLeaving(true)
-    sfx.whoosh()
-    void say('adv.go')
-    setTimeout(() => go({ name: 'adventure' }), 1100)
+    sfx.pop()
+    go(to)
   }
 
   return (
-    <div className="screen home">
-      {/* 雲和太陽都是靜止的裝飾：等孩子點的時候，畫面上會動的只有「出發」（幼兒設計準則 MOTION-2） */}
-      {[{ top: '9%', left: '30%', w: 150 }, { top: '19%', left: '58%', w: 100 }, { top: '6%', left: '74%', w: 80 }].map((c, i) => (
-        <div key={i} className="cloud" style={{ top: c.top, left: c.left, width: c.w }} />
-      ))}
-      <div style={{ position: 'absolute', right: '6vw', top: '6vh', width: '9vmin' }}>
-        <svg viewBox="0 0 100 100" aria-hidden="true">
-          {Array.from({ length: 10 }, (_, i) => (
-            <rect key={i} x={47} y={2} width={6} height={16} rx={3} fill="#F1D27C" transform={`rotate(${i * 36} 50 50)`} />
-          ))}
-          <circle cx={50} cy={50} r={26} fill="#F6DE95" />
-        </svg>
-      </div>
-      <Scenery station="home" />
-
-      <div className="home-title" aria-hidden="true">
+    <div className="screen home school">
+      <SchoolWall />
+      <div className="home-title school-title" aria-hidden="true">
         豆豆冒險
-        <small>
-          {done ? '今天的冒險完成了' : '今天的冒險'}
-          {th ? `：${th.zh}` : ''}
-        </small>
+        <small>今天想上哪一課？</small>
       </div>
-      {plan && (
-        <div className="today-path" aria-hidden="true">
-          {plan.items.map((it, i) => (
-            <i key={i} className={it.done ? 'done' : undefined}>
-              <Emoji name={th ? stopIcon(th, i) : station(it.station).icon} />
-            </i>
-          ))}
-          <i className={done ? 'done' : undefined}>
-            <Emoji name={plan.hatched ?? 'egg'} />
-          </i>
-        </div>
-      )}
 
       {!install.standalone && !install.installed && (
         // 給大人看的小字：孩子點了也沒反應，不搶眼、不動
-        <p className="install-hint">
+        <p className="install-hint school-hint">
           <svg viewBox="0 0 16 16" aria-hidden="true">
             <path d="M8 2.5v7M5 7l3 3 3-3M3 12.5h10" fill="none" stroke="currentColor" strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round" />
           </svg>
@@ -115,73 +105,69 @@ export function Home() {
         </p>
       )}
 
-      <motion.div
-        style={{ position: 'absolute', right: '-3vw', bottom: '30vh', width: '22vmin' }}
-        initial={intro ? { x: 120 } : false}
-        animate={{ x: 0 }}
-        transition={{ delay: 0.6, type: 'spring', stiffness: 60, damping: 14 }}
-      >
-        <Dino who="momo" mood="peek" size="100%" flip onTap={() => say('home.tapmomo')} />
-      </motion.div>
-
-      {/* 今天出來玩的朋友：在車子和右下角按鈕之間的草地上慢慢走 */}
-      <HomeFriends />
-
-      {/* 出門回來：豆豆問今天有沒有看到任務卡上的東西（一天最多一次，不點也沒關係） */}
-      <OutingAsk ready={helloDone} away={leaving} />
-
-      <motion.div
-        style={{ position: 'absolute', left: '8vw', bottom: '10vh', width: '52vmin', zIndex: 2 }}
-        initial={intro ? { x: '-60vw' } : false}
-        animate={leaving ? { x: '120vw', transition: { duration: 1.1, ease: [0.6, 0, 0.8, 0.4] } } : { x: 0, transition: { type: 'spring', stiffness: 50, damping: 13 } }}
-      >
-        <Ride who="dodo" width="100%" moving={leaving} mood={leaving ? 'cheer' : 'happy'} onTap={() => say('home.tapdodo')} />
-      </motion.div>
-
-      <motion.div
-        style={{ position: 'absolute', left: '-2vw', bottom: '-2vh', width: '20vmin', zIndex: 3 }}
-        initial={intro ? { y: 100 } : false}
-        animate={{ y: 0 }}
-        transition={{ delay: 0.9, type: 'spring', stiffness: 70, damping: 12 }}
-      >
-        <Dino who="bobo" size="100%" onTap={() => say('home.tapbobo')} />
-      </motion.div>
-
-      <motion.button
-        className={`go-btn${done ? ' map' : ''}`}
-        aria-label={done ? '去地圖' : '出發'}
-        onClick={start}
-        initial={intro ? { scale: 0 } : false}
-        // 首頁唯一會動的提示：輕輕放大一下，停 6 秒再一次（原本 2.2 秒一直放大縮小）
-        animate={{ scale: [1, 1.04, 1] }}
-        transition={{ scale: { duration: 0.9, repeat: Infinity, repeatDelay: 6, ease: 'easeInOut' } }}
-      >
-        {done ? (
-          <svg viewBox="0 0 48 48" width="42%" aria-hidden="true">
-            <path d="M6 12 L18 7 L30 12 L42 7 V36 L30 41 L18 36 L6 41 Z" fill="#FBF8F2" />
-            <path d="M18 7 V36 M30 12 V41" stroke="#5FA883" strokeWidth={3} />
-          </svg>
-        ) : (
-          <svg viewBox="0 0 48 48" width="40%" aria-hidden="true">
-            <path d="M16 9 Q14 8 14 11 V37 Q14 40 16 39 L38 26 Q40 24 38 22 Z" fill="#FBF8F2" />
-          </svg>
-        )}
-        <span>{done ? '地圖' : '出發'}</span>
-      </motion.button>
-
-      <div className="home-dock">
-        <button className="round-btn" aria-label="地圖" style={{ opacity: mapOpen ? 1 : 0.5 }} onClick={() => (mapOpen ? go({ name: 'map' }) : say('map.locked'))}>
-          <Emoji name="rainbow" size={54} />
-        </button>
-        {/* 魔法屋：剖面圖（每講完一篇多一樣東西）和故事書都在裡面 */}
-        <button className="round-btn" aria-label="魔法屋" onClick={() => go({ name: 'house' })}>
-          <Emoji name="house-with-garden" size={56} />
-        </button>
-        <button className="round-btn" aria-label="我的朋友" onClick={() => go({ name: 'collection' })}>
-          <Emoji name="hatching-chick" size={56} />
-          {friends > 0 && <span className="badge-count">{friends}</span>}
-        </button>
+      <div className="school-yard">
+        <div className="doors">
+          {SUBJECTS.map((s, i) => {
+            const d = LESSONS[s]
+            const t = TINT[d.host]
+            return (
+              <motion.button
+                key={s}
+                className={`door door-${s}`}
+                data-door={s}
+                aria-label={d.title}
+                style={{ '--door': t.door, '--door-deep': t.deep, '--glass': t.glass } as CSSProperties}
+                initial={intro ? { y: 60, opacity: 0 } : false}
+                animate={{ y: 0, opacity: 1 }}
+                transition={{ type: 'spring', stiffness: 120, damping: 16, delay: 0.15 + i * 0.12 }}
+                onClick={() => open({ name: 'lesson', subject: s })}
+              >
+                <span className="door-arch">
+                  <span className="door-glass">{SIGN[s]}</span>
+                  <span className="door-knob" />
+                </span>
+                <span className="door-host">
+                  <Dino who={d.host} mood="idle" size="100%" flip={i === 2} />
+                </span>
+                <span className="door-label">{d.title}</span>
+              </motion.button>
+            )
+          })}
+        </div>
+        <div className="side-doors">
+          {SIDE.map((x, i) => (
+            <motion.button
+              key={x.id}
+              className={`side-door side-${x.id}`}
+              data-door={x.id}
+              aria-label={x.label}
+              initial={intro ? { scale: 0.6, opacity: 0 } : false}
+              animate={{ scale: 1, opacity: 1 }}
+              transition={{ type: 'spring', stiffness: 160, damping: 15, delay: 0.55 + i * 0.1 }}
+              onClick={() => open(x.to)}
+            >
+              <span className="side-window">
+                <Emoji name={x.icon} />
+              </span>
+              <span className="door-label">{x.label}</span>
+            </motion.button>
+          ))}
+        </div>
       </div>
     </div>
+  )
+}
+
+/** 學校的牆和屋簷：低對比，只是告訴大人「這是學校」，不搶門的注意力 */
+function SchoolWall() {
+  return (
+    <svg className="school-wall" viewBox="0 0 1200 800" preserveAspectRatio="xMidYMax slice" aria-hidden="true">
+      <path d="M0 140 L600 70 L1200 140 V800 H0 Z" fill="#F7F1E6" />
+      <path d="M-20 150 L600 74 L1220 150" fill="none" stroke="#E7DCC8" strokeWidth={18} strokeLinejoin="round" strokeLinecap="round" />
+      <circle cx={600} cy={128} r={22} fill="#F6DE95" stroke="#E9CF82" strokeWidth={5} />
+      <path d="M600 112 V128 L611 136" fill="none" stroke="#B99B7A" strokeWidth={4} strokeLinecap="round" />
+      <path d="M0 708 H1200 V800 H0 Z" fill="#E7DDCB" />
+      <path d="M0 708 H1200" stroke="#DCCFB8" strokeWidth={5} />
+    </svg>
   )
 }

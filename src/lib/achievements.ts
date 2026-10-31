@@ -282,6 +282,15 @@ function addStars(gained: StarWhy[]): CardGain {
   return { before, gained: shown, full, feature, left: full ? 0 : CARD_GOAL - store.card.stars }
 }
 
+/**
+ * 上完學校的一堂課（src/lessons/ 的 onDone）：直接給一張待挑的貼紙（不用集滿貼紙卡）。
+ * 貼紙卡上已經集的星星不動；挑貼紙用的是同一個 StickerPicker。
+ */
+export function grantPick() {
+  store.picks = [...store.picks, { ts: Date.now(), why: { ...noWhy(), round: 1 }, feature: featureFor(history()) }]
+  save()
+}
+
 function addMilestone(m: Milestone) {
   store.log.push(m)
   pending.push(m)

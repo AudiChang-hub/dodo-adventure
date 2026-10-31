@@ -1,6 +1,7 @@
 import { db, getKV, setKV, today, uid, type Session, type StationId } from './db'
 import { currentRoute, go, isChildPlay } from './nav'
 import { bandSetting } from './settings'
+import { on } from './features'
 
 let session: Session | null = null
 let usedToday = 0
@@ -67,6 +68,8 @@ function overtime(): number {
 }
 
 function goToBed() {
+  // 睡覺畫面關掉時（lib/features.ts 的 bedtime）只記時間，不擋
+  if (!on('bedtime')) return
   void persist()
   go({ name: 'bedtime' })
 }

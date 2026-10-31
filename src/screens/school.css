@@ -1,0 +1,235 @@
+/* ── 學校的首頁（screens/Home.tsx 的 SchoolHome）────────────────────
+   三個大門站在地面線上，門的顏色跟守門的恐龍一樣；故事、畫畫是旁邊兩扇小圓窗。
+   門的大小跟著畫面的寬和高取比較小的那個，平板橫向、手機直式都不會超出畫面。 */
+.school {
+  --door-w: min(21.5vw, 34vh);
+  --ground: 11.5vh;
+  background: linear-gradient(#e6efee 0%, #f1ede4 58%, var(--paper) 100%);
+}
+.school-wall {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+.school-title small {
+  font-size: 16px;
+}
+.school-hint {
+  top: 132px;
+}
+.school-yard {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: var(--ground);
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  gap: max(28px, 3.4vw);
+  padding: 0 4vw;
+  z-index: 2;
+}
+.doors {
+  display: flex;
+  align-items: flex-end;
+  gap: max(20px, 2.6vw);
+}
+
+/* 大門：拱形的門板＋上面的窗（科目的圖）＋站在門口的恐龍；門下的字給大人看 */
+.door {
+  position: relative;
+  width: var(--door-w);
+  padding: 0;
+  border: 0;
+  background: none;
+  -webkit-tap-highlight-color: transparent;
+}
+.door-arch {
+  position: relative;
+  display: block;
+  width: 100%;
+  aspect-ratio: 0.74;
+  border-radius: 50% 50% 14px 14px / 34% 34% 14px 14px;
+  background: var(--door);
+  box-shadow:
+    inset 0 0 0 calc(var(--door-w) * 0.035) var(--door-deep),
+    0 10px 0 var(--door-deep),
+    0 0 0 12px rgba(251, 248, 242, 0.7);
+  transition: transform 0.16s var(--ease-out), box-shadow 0.16s var(--ease-out);
+}
+.door:active .door-arch {
+  transform: translateY(7px);
+  box-shadow:
+    inset 0 0 0 calc(var(--door-w) * 0.035) var(--door-deep),
+    0 3px 0 var(--door-deep),
+    0 0 0 12px rgba(251, 248, 242, 0.7);
+}
+.door-glass {
+  position: absolute;
+  left: 50%;
+  top: 9%;
+  width: 72%;
+  aspect-ratio: 1.22;
+  transform: translateX(-50%);
+  border-radius: 50% 50% 12px 12px / 46% 46% 12px 12px;
+  background: var(--glass);
+  box-shadow: inset 0 0 0 calc(var(--door-w) * 0.022) var(--door-deep);
+  display: grid;
+  place-items: center;
+  padding-top: 6%;
+}
+.door-knob {
+  position: absolute;
+  right: 9%;
+  top: 56%;
+  width: calc(var(--door-w) * 0.07);
+  aspect-ratio: 1;
+  border-radius: 50%;
+  background: #f6de95;
+  box-shadow: 0 2px 0 rgba(46, 42, 37, 0.18);
+}
+/* 莫莫的長脖子在右邊：門把換到左邊 */
+.door-chinese .door-knob {
+  right: auto;
+  left: 9%;
+}
+.door-host {
+  position: absolute;
+  left: 50%;
+  bottom: -3%;
+  width: 74%;
+  transform: translateX(-50%);
+  pointer-events: none;
+}
+.door-sign {
+  display: flex;
+  align-items: baseline;
+  gap: 0.04em;
+  font-family: 'Fredoka', sans-serif;
+  font-weight: 600;
+  font-size: calc(var(--door-w) * 0.25);
+  line-height: 1;
+}
+.door-sign b {
+  display: inline-block;
+  font-weight: inherit;
+}
+.abc b:nth-child(1) {
+  color: #e07f68;
+  transform: rotate(-8deg);
+}
+.abc b:nth-child(2) {
+  color: #d9a93c;
+  transform: translateY(-0.08em);
+}
+.abc b:nth-child(3) {
+  color: #4f9a76;
+  transform: rotate(7deg);
+}
+.num b:nth-child(1) {
+  color: #c97a4d;
+  transform: rotate(-6deg);
+}
+.num b:nth-child(2) {
+  color: #e07f68;
+  transform: translateY(-0.08em);
+}
+.num b:nth-child(3) {
+  color: #5d8cbc;
+  transform: rotate(6deg);
+}
+/* 中文：一個字，底下一條紅線（課文裡標紅的重點字） */
+.door-sign.zh {
+  flex-direction: column;
+  align-items: center;
+  gap: 0.08em;
+  font-family: 'Huninn', sans-serif;
+  font-size: calc(var(--door-w) * 0.27);
+  color: var(--ink);
+}
+.door-sign.zh i {
+  display: block;
+  width: 1.05em;
+  height: 0.12em;
+  border-radius: 0.06em;
+  background: #e06a55;
+}
+
+.door-label {
+  position: absolute;
+  left: 50%;
+  top: calc(100% + 18px);
+  transform: translateX(-50%);
+  padding: 6px 20px;
+  border-radius: 999px;
+  background: var(--card);
+  box-shadow: 0 3px 0 var(--paper-edge);
+  font-family: 'Huninn', sans-serif;
+  font-size: clamp(17px, 2.4vh, 22px);
+  letter-spacing: 0.06em;
+  color: var(--ink-soft);
+  white-space: nowrap;
+}
+
+/* 故事、畫畫：比門小一號的圓窗，疊在門的旁邊 */
+.side-doors {
+  display: flex;
+  flex-direction: column;
+  gap: calc(max(28px, 4.4vh) + 40px);
+  padding-bottom: 6px;
+}
+.side-door {
+  position: relative;
+  padding: 0;
+  border: 0;
+  background: none;
+  -webkit-tap-highlight-color: transparent;
+}
+.side-window {
+  display: grid;
+  place-items: center;
+  width: clamp(112px, min(11vw, 17vh), 140px);
+  aspect-ratio: 1;
+  border-radius: 50%;
+  background: var(--card);
+  box-shadow:
+    0 7px 0 var(--paper-edge),
+    0 0 0 10px rgba(251, 248, 242, 0.7);
+  transition: transform 0.16s var(--ease-out), box-shadow 0.16s var(--ease-out);
+}
+.side-window svg {
+  width: 58%;
+  height: auto;
+}
+.side-door:active .side-window {
+  transform: translateY(5px);
+  box-shadow:
+    0 2px 0 var(--paper-edge),
+    0 0 0 10px rgba(251, 248, 242, 0.7);
+}
+.side-door .door-label {
+  top: calc(100% + 12px);
+  padding: 4px 16px;
+}
+
+/* 手機直式（家長遠端看）：三扇門一排、小圓窗排在下面一排，不壞版就好 */
+@media (orientation: portrait) {
+  .school {
+    --door-w: min(27vw, 24vh);
+    --ground: 9vh;
+  }
+  .school-yard {
+    flex-direction: column;
+    align-items: center;
+    gap: 64px;
+  }
+  .side-doors {
+    flex-direction: row;
+    gap: 48px;
+    padding-bottom: 36px;
+  }
+  .school-hint {
+    top: 110px;
+  }
+}

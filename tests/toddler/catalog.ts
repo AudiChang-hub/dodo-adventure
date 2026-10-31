@@ -1,5 +1,7 @@
 // 要測的遊戲（src/content/games.ts 的 GAMES）。新增遊戲時在這裡加一行；
 // screens.spec.ts 的「站點列出的遊戲都在清單上」會提醒漏掉的。
+import { reachable } from './lib/features'
+
 export const STATIONS = {
   english: '字母森林',
   math: '數字工地',
@@ -57,6 +59,8 @@ export const DRAWING = new Set(['trace', 'dots', 'coloring', 'free', 'glyph', 'l
 /** TODDLER_GAMES=m-count,d-color 只跑這幾個（也可以寫站點 id 或種類） */
 export function selected(): GameDef[] {
   const want = (process.env.TODDLER_GAMES ?? '').split(',').map((s) => s.trim()).filter(Boolean)
-  if (!want.length) return GAMES
-  return GAMES.filter((g) => want.includes(g.id) || want.includes(g.station) || want.includes(g.kind))
+  // 孩子點不到的遊戲（地圖藏起來了，lib/features.ts）不跑
+  const all = GAMES.filter(reachable)
+  if (!want.length) return all
+  return all.filter((g) => want.includes(g.id) || want.includes(g.station) || want.includes(g.kind))
 }

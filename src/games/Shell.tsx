@@ -11,6 +11,7 @@ import { coplayHint } from '../content/coplay'
 import { useRoute } from '../lib/nav'
 import { holdBedtime } from '../lib/session'
 import { useGrowth } from '../lib/growth'
+import { on } from '../lib/features'
 import { bandOf } from './frame'
 import { FRAMES } from '../content/growth'
 import type { StationId } from '../lib/db'
@@ -131,8 +132,11 @@ export function Shell({ station, mood, progress, onExit, onHost, children, hideH
   const [th] = useState(themeNow)
   // 遊戲在畫面上的時候，每日時間到了也先等它玩完（在兩個遊戲之間才去睡覺）
   useEffect(() => holdBedtime(), [])
-  // 從站點進來的遊戲回站點；今日冒險裡的遊戲回冒險的路線圖（保留今天走到哪）
-  const toStation = useRoute().name === 'play'
+  // 從站點進來的遊戲回站點；今日冒險裡的遊戲回冒險的路線圖（保留今天走到哪）；
+  // 地圖藏起來時（lib/features.ts，首頁的畫畫）和學校的一堂課（src/lessons/）回首頁
+  const r = useRoute()
+  const toHome = r.name === 'lesson' || (r.name === 'play' && !on('map'))
+  const toStation = r.name === 'play' && !toHome
   // 年段的操作外框（成長系統 G-3）：觸控尺寸寫成 CSS 變數給共用元件用；data-band 給三歲模擬測試和截圖看是哪個年段的外框
   const growth = useGrowth()
   const f = growth.frame
@@ -152,8 +156,8 @@ export function Shell({ station, mood, progress, onExit, onHost, children, hideH
     >
       {th ? <ThemeScenery def={th} /> : <Scenery station={station} />}
       <div className="stage-top">
-        <BackButton label={toStation ? `回${st.name}` : '回路線圖'} onTap={onExit}>
-          {toStation ? <StationIcon station={station} /> : <RouteIcon />}
+        <BackButton label={toHome ? '回首頁' : toStation ? `回${st.name}` : '回路線圖'} onTap={onExit}>
+          {toHome ? <HomeIcon /> : toStation ? <StationIcon station={station} /> : <RouteIcon />}
         </BackButton>
         {/* 答對時星星飛進這一格（成就感強化） */}
         {progress && <ProgressStars total={progress.total} done={progress.done} />}

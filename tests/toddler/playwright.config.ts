@@ -23,7 +23,7 @@ const sizes = [
 
 export default defineConfig({
   testDir: '.',
-  testMatch: /(games|screens|story|cheer|nav-spam)\.spec\.ts/,
+  testMatch: /(games|screens|story|cheer|nav-spam|home)\.spec\.ts/,
   outputDir: '../../test-results/toddler/pw',
   timeout: 15 * 60_000,
   fullyParallel: true,

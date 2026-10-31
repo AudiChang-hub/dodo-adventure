@@ -7,6 +7,10 @@ import { addDays, contentWeeks, isFirm, ladderCalc, stepLadder, emptyLadder, typ
 import { budgetOf, fastStrands, strandLoad } from '../src/lib/tracks'
 import { RUNGS, entryRung, levelRung, strandOfSkill, unitOfSkill, unitsOf } from '../src/content/ladder'
 import type { Attempt } from '../src/lib/db'
+import { forceFeature } from '../src/lib/features'
+
+// 測的是成長系統的關卡鎖和每週額度：孩子端關掉了（src/lib/features.ts），這裡打開來測
+forceFeature('growthGates', true)
 
 // 學習引擎會順手寫 IndexedDB，Node 裡沒有：忽略那些錯誤
 process.on('unhandledRejection', () => {})

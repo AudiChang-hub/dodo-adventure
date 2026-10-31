@@ -81,6 +81,10 @@ import { budgetOf, planDay, trackNeeds, MASTERY_DAYS } from '../src/lib/tracks'
 import { trackOf, type TrackId } from '../src/content/tracks'
 import { FAST_BONUS, RUNGS, STRANDS, STUCK_DAYS, STUCK_RATIO, entryRung, rung as rungDef, strandRungs, unitsOf, type StrandId } from '../src/content/ladder'
 import { bandSetting } from '../src/lib/settings'
+import { forceFeature } from '../src/lib/features'
+
+// 測的是成長系統的關卡鎖和每週額度：孩子端關掉了（src/lib/features.ts），這裡打開來測
+forceFeature('growthGates', true)
 
 const ARGS = process.argv.slice(2)
 const arg = (k: string) => ARGS.find((a) => a.startsWith(`--${k}=`))?.slice(k.length + 3)

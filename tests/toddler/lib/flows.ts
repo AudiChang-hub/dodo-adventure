@@ -2,6 +2,7 @@ import type { Page } from '@playwright/test'
 import { attempts, drain, homeButton, settle, snap, targets, type Target } from './app'
 import type { Pt, Severity, Toddler } from './toddler'
 import { STATIONS, type GameDef } from '../catalog'
+import { FEATURES, HOME_GAMES, upOf } from './features'
 
 /** 一段行為的結果，報告的結果表用 */
 export interface Outcome {
@@ -166,8 +167,53 @@ export async function toMap(k: Toddler, c: Checker) {
 }
 
 /** 地圖 → 站點 → 遊戲；spam=true 時站牌、遊戲卡都連點 */
+/** 回到首頁（返回鍵一層一層回去） */
+export async function toHome(k: Toddler, c: Checker) {
+  const page = k.page
+  for (let i = 0; i < 5; i++) {
+    await settle(page, 4000)
+    const s = await snap(page)
+    if (s.live === 'home') return true
+    if (s.cheer) {
+      await k.tap({ x: 600, y: 400 }, '跳過慶祝')
+      await k.wait(1500)
+      continue
+    }
+    const h = await homeButton(page)
+    if (h) await pressBack(k, h)
+    else await k.tap({ x: 600, y: 400 })
+    await waitLive(page, (l) => l === 'home', 4000)
+  }
+  const ok = (await snap(page)).live === 'home'
+  if (!ok) await c.once('tohome', '無法返回', '找不到回首頁的路', JSON.stringify(await snap(page)))
+  return ok
+}
+
+/** 首頁的一扇門（三堂課、故事、畫畫）：data-door */
+export const doorAt = (page: Page, door: string) => centerOf(page, `.door[data-door="${door}"], .side-door[data-door="${door}"]`)
+
+/** 地圖藏起來時（lib/features.ts）：從首頁那一扇門進遊戲 */
+async function enterFromHome(k: Toddler, c: Checker, g: GameDef, opts: { spam?: boolean }) {
+  const page = k.page
+  if (!(await toHome(k, c))) return false
+  const door = await doorAt(page, HOME_GAMES[g.id])
+  if (!door) {
+    await c.once('no-door', '小問題', `首頁找不到「${g.title}」的門`, '')
+    return false
+  }
+  if (opts.spam) await k.spam(door, 5 + k.r.int(5), '首頁的門')
+  else await k.tap(door, '首頁的門')
+  const live = await waitLive(page, (l) => l === `play-${g.id}`)
+  if (live !== `play-${g.id}`) {
+    await c.once('enter-door', '卡死', `點首頁的門沒有進到遊戲（停在 ${live}）`, '')
+    return false
+  }
+  return true
+}
+
 export async function enterGame(k: Toddler, c: Checker, g: GameDef, opts: { spam?: boolean } = {}) {
   const page = k.page
+  if (!FEATURES.map) return enterFromHome(k, c, g, opts)
   if (!(await toMap(k, c))) return false
   const stop = await centerOf(page, `.map-stop[aria-label="${STATIONS[g.station]}"]`)
   if (!stop) return false
@@ -246,12 +292,13 @@ export async function midBack(k: Toddler, c: Checker, g: GameDef) {
   const before = (await attempts(page)).length
   const ok = await holdHome(k, c, '亂玩中途返回')
   const live = (await snap(page)).live
-  if (ok && live !== `st-${g.station}`) await c.once('mid-back-where', '無法返回', `玩到一半點返回到了 ${live}`, `遊戲裡點返回應回到站點 st-${g.station}`)
+  const up = upOf(g)
+  if (ok && live !== up) await c.once('mid-back-where', '無法返回', `玩到一半點返回到了 ${live}`, `遊戲裡點返回應回到上一層 ${up}`)
   k.behavior = '返回後再進遊戲'
   const again = await enterGame(k, c, g)
   const after = (await attempts(page)).length
   if (after < before) await c.once('mid-back-loss', '誤記作答', `玩到一半返回、再進來，作答紀錄少了 ${before - after} 筆`, `${before} → ${after}`)
-  c.outcome('返回後再進遊戲', again && after >= before && live === `st-${g.station}`, `返回到 ${live}；${again ? '再進到遊戲' : '沒進去'}；作答紀錄 ${before}→${after}`)
+  c.outcome('返回後再進遊戲', again && after >= before && live === up, `返回到 ${live}；${again ? '再進到遊戲' : '沒進去'}；作答紀錄 ${before}→${after}`)
   k.behavior = prev
   return again
 }
