@@ -152,6 +152,7 @@ export const targets = (page: Page): Promise<Target[]> =>
   })
 
 /** 回首頁鈕（遊戲裡要按住 1.2 秒，地圖、站點、貼紙本 0.6 秒） */
+/** 回傳的點帶 nav：拿它去 tap、spam 是故意按返回，不會被 navGuard 移開 */
 export async function homeButton(page: Page): Promise<(Pt & { label: string; tap: boolean }) | null> {
   return page.evaluate(() => {
     const scenes = [...document.querySelectorAll<HTMLElement>('.scene')].filter((e) => !e.inert)
@@ -161,7 +162,7 @@ export async function homeButton(page: Page): Promise<(Pt & { label: string; tap
     const b = nb ?? root.querySelector('[aria-label*="回首頁"], [aria-label*="回地圖"]')
     if (!b) return null
     const r = b.getBoundingClientRect()
-    return { x: r.left + r.width / 2, y: r.top + r.height / 2, label: b.getAttribute('aria-label') ?? '', tap: !!nb }
+    return { x: r.left + r.width / 2, y: r.top + r.height / 2, label: b.getAttribute('aria-label') ?? '', tap: !!nb, nav: true }
   })
 }
 

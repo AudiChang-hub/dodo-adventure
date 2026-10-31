@@ -22,7 +22,27 @@ export interface Finding {
 export interface Pt {
   x: number
   y: number
+  /** 故意按導覽（返回鍵、家長角落）：不經過 navGuard。homeButton() 回傳的點、pressBack 都會帶 */
+  nav?: boolean
 }
+
+/**
+ * 亂點不能「剛好」按到導覽（T-72）：
+ * 點下去的那一刻畫面上是什麼要看機器多快，同一個 seed 有時剛好按到左上角的返回、有時不會，結果不能重現。
+ * 所以一般的亂點、連點、拖、手掌一律避開導覽；「想返回、回家」改成測試裡用 seed 決定、一定會發生的步驟（pressBack／holdHome）。
+ *
+ * 避開的方法有兩層：
+ * 1. 固定的區域（跟畫面無關，所以跟機器快慢無關）：左上角返回鍵、右上角家長角落。
+ * 2. 按下去之前再看一次那一點底下是不是導覽（冒險結尾的「回首頁」大按鈕不在角落）。
+ * 被移開的點往畫面中間挪，動作紀錄會寫「（避開導覽）」。
+ */
+export const NAV_ZONES = (vp: { width: number; height: number }) => [
+  // 返回鍵：.stage-top 左上 26,11 起 92×92（ui.css），冒險、故事書、地圖、站點同一顆；留 20px 手指半徑
+  { name: '返回鍵', x0: 0, y0: 0, x1: 140, y1: 126 },
+  // 家長角落：右上 96×96（ui.css .parent-corner）
+  { name: '家長角落', x0: vp.width - 116, y0: 0, x1: vp.width, y1: 116 },
+]
+export const NAV_SELECTOR = '[data-back], .parent-corner, .go-btn[aria-label="回首頁"]'
 
 /** 固定 seed 的亂數（mulberry32）：同一個 seed 每次做一樣的動作 */
 export function rng(seed: number) {
@@ -85,6 +105,56 @@ export class Toddler {
     this.log.push(`[${t}s] ${this.where}/${this.behavior}: ${s}`)
   }
 
+  /** 亂點被移開幾次（固定區域、按下前看到導覽），報告的導覽覆蓋用 */
+  readonly guarded = { zone: 0, live: 0 }
+
+  /** 把亂點移出導覽（見 NAV_ZONES）；p.nav 的點原樣回傳 */
+  private async navGuard<T extends Pt>(pts: T[]): Promise<T[]> {
+    if (pts.every((p) => p.nav)) return pts
+    const vp = this.page.viewportSize() ?? { width: 1200, height: 800 }
+    const zones = NAV_ZONES(vp)
+    let moved = false
+    const out = pts.map((p) => {
+      if (p.nav) return p
+      const z = zones.find((z) => p.x >= z.x0 && p.x < z.x1 && p.y >= z.y0 && p.y < z.y1)
+      if (!z) return p
+      moved = true
+      this.guarded.zone++
+      // 往下挪出區域（保留 x，邊緣亂點還是在邊緣）；y 帶一點原本的位置，不會每次都點在同一條線上
+      return { ...p, y: z.y1 + 4 + (Math.abs(Math.round(p.y)) % 24) }
+    })
+    // 按下去的那一刻那一點底下是導覽（角落以外的「回首頁」）：往畫面中間挪
+    const fixed = await this.page
+      .evaluate(
+        ({ pts, sel }) =>
+          pts.map((p) => {
+            if (p.nav) return null
+            let { x, y } = p
+            const cx = innerWidth / 2
+            const cy = innerHeight / 2
+            for (let i = 0; i < 12; i++) {
+              const el = document.elementFromPoint(Math.max(0, Math.min(innerWidth - 1, x)), Math.max(0, Math.min(innerHeight - 1, y)))
+              if (!el?.closest(sel)) return i ? { x, y } : null
+              const d = Math.hypot(cx - x, cy - y) || 1
+              x += ((cx - x) / d) * 40
+              y += ((cy - y) / d) * 40
+            }
+            return { x, y }
+          }),
+        { pts: out.map((p) => ({ x: p.x, y: p.y, nav: !!p.nav })), sel: NAV_SELECTOR },
+      )
+      .catch(() => out.map(() => null))
+    const res = out.map((p, i) => {
+      const f = fixed[i]
+      if (!f) return p
+      moved = true
+      this.guarded.live++
+      return { ...p, x: f.x, y: f.y }
+    })
+    if (moved) this.act(`（避開導覽：${pts.map((p, i) => (p.x !== res[i].x || p.y !== res[i].y ? `${Math.round(p.x)},${Math.round(p.y)}→${Math.round(res[i].x)},${Math.round(res[i].y)}` : '')).filter(Boolean).join(' ')}）`)
+    return res
+  }
+
   private async touch(type: 'touchStart' | 'touchMove' | 'touchEnd' | 'touchCancel', pts: (Pt & { id?: number })[]) {
     await this.cdp.send('Input.dispatchTouchEvent', {
       type,
@@ -93,6 +163,7 @@ export class Toddler {
   }
 
   async tap(p: Pt, label = '') {
+    ;[p] = await this.navGuard([p])
     this.act(`tap ${Math.round(p.x)},${Math.round(p.y)} ${label}`)
     await this.touch('touchStart', [p])
     await sleep(50 + this.r.int(60))
@@ -101,6 +172,7 @@ export class Toddler {
 
   /** 同一個地方連點 n 下 */
   async spam(p: Pt, n: number, label = '') {
+    ;[p] = await this.navGuard([p])
     this.act(`spam x${n} ${Math.round(p.x)},${Math.round(p.y)} ${label}`)
     for (let i = 0; i < n; i++) {
       await this.touch('touchStart', [p])
@@ -111,6 +183,7 @@ export class Toddler {
   }
 
   async hold(p: Pt, ms: number, label = '') {
+    ;[p] = await this.navGuard([p])
     this.act(`hold ${ms}ms ${Math.round(p.x)},${Math.round(p.y)} ${label}`)
     await this.touch('touchStart', [p])
     const end = Date.now() + ms
@@ -125,6 +198,7 @@ export class Toddler {
   /** 沿著路徑拖；cancel=true 時最後送 touchcancel（手指滑出螢幕、被系統手勢搶走） */
   async drag(pts: Pt[], opts: { cancel?: boolean; stepMs?: number; label?: string } = {}) {
     const { cancel = false, stepMs = 16, label = '' } = opts
+    pts = await this.navGuard(pts)
     this.act(`${cancel ? 'drag→cancel' : 'drag'} ${pts.map((p) => `${Math.round(p.x)},${Math.round(p.y)}`).join(' → ')} ${label}`)
     await this.touch('touchStart', [pts[0]])
     for (let i = 1; i < pts.length; i++) {
@@ -141,6 +215,7 @@ export class Toddler {
 
   /** 手掌壓在畫面上：兩三個手指同時按下，再一起移動、放開 */
   async palm(pts: Pt[], ms = 500) {
+    pts = await this.navGuard(pts)
     this.act(`palm ${pts.length} fingers ${pts.map((p) => `${Math.round(p.x)},${Math.round(p.y)}`).join(' ')}`)
     const ps = pts.map((p, i) => ({ ...p, id: i }))
     await this.touch('touchStart', ps.slice(0, 1))
@@ -157,8 +232,9 @@ export class Toddler {
     await this.touch('touchEnd', [])
   }
 
-  /** 兩根手指：一根按著（例如拖曳中），另一根去點別的地方 */
+  /** 兩根手指：一根按著（例如拖曳中），另一根去點別的地方（holdHome 用：第二根是故意按返回鍵，不經過 navGuard） */
   async twoFinger(first: Pt[], second: Pt, holdSecondMs = 0) {
+    first = await this.navGuard(first)
     this.act(`two-finger drag ${first.length} pts + tap ${Math.round(second.x)},${Math.round(second.y)} hold ${holdSecondMs}`)
     await this.touch('touchStart', [{ ...first[0], id: 0 }])
     for (const p of first.slice(1)) {
@@ -201,7 +277,10 @@ export class Toddler {
   save(name: string, extra: Record<string, unknown> = {}) {
     const dir = path.join(outDir(), 'findings')
     fs.mkdirSync(dir, { recursive: true })
-    fs.writeFileSync(path.join(dir, `${this.viewport}-${slug(name)}.json`), JSON.stringify({ name, seed: this.seed, viewport: this.viewport, findings: this.findings, log: this.log, ...extra }, null, 2))
+    // test：哪一個測試（run.mjs 重跑同一項、report.mjs 對照三次用）；attempt：第幾次（1 是第一輪，2、3 是自動重跑）
+    const test = { title: this.info.title, file: path.basename(this.info.file), line: this.info.line, project: this.info.project.name }
+    const attempt = Number(process.env.TODDLER_ATTEMPT || 1)
+    fs.writeFileSync(path.join(dir, `${this.viewport}-${slug(name)}.json`), JSON.stringify({ name, seed: this.seed, viewport: this.viewport, test, attempt, guarded: this.guarded, findings: this.findings, log: this.log, ...extra }, null, 2))
   }
 }
 

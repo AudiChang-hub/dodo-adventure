@@ -1,6 +1,6 @@
 import { test, expect, type Page } from '@playwright/test'
 import { boot, homeButton, settle, snap, targets, voicesSince } from './lib/app'
-import { Toddler, hashSeed } from './lib/toddler'
+import { Toddler, hashSeed, rng } from './lib/toddler'
 import { Checker, audit, pressBack, toddlerStep, waitLive } from './lib/flows'
 
 // 故事（G-8）的三歲模擬測試：魔法屋的開場、結尾，故事時間（龜兔賽跑、挪亞方舟），我的故事書，魔法屋剖面圖，飛航模式玩完一章。
@@ -267,7 +267,22 @@ test.describe('故事', () => {
         const live = await start(k)
         c.outcome('出發 → 書房的開場', live === 'open', `到 ${live}`)
         const t0 = await page.evaluate(() => performance.now())
-        const seen = await playThrough(k, c, hatched, 9 * 60_000)
+        // 玩到一半想回去（T-72）：亂點不會剛好按到返回了，改成用 seed 決定在第幾站的遊戲、玩幾秒後點返回 → 路線圖停著 → 再按出發（playUntil）
+        const mid = rng(hashSeed(k.seed, 'mid-back'))
+        const backIn = 1 + mid.int(ITEMS.length)
+        const backAfter = 1500 + mid.int(4000)
+        let plays = 0
+        const seen = await playThrough(k, c, hatched, 9 * 60_000, async (l) => {
+          if (!l.startsWith('play-') || ++plays !== backIn) return
+          await k.wait(backAfter, '玩一下')
+          if ((await snap(page)).live !== l) return
+          const prev = k.behavior
+          k.behavior = '故事中途返回'
+          const r = await tapBack(k, c, `第 ${backIn} 站的遊戲`, (x) => x === 'route')
+          c.outcome(`故事中途返回（第 ${backIn} 站遊戲 ${(backAfter / 1000).toFixed(1)} 秒）→ 路線圖`, r === 'route', `到 ${r}`)
+          k.behavior = prev
+        })
+        c.outcome('故事中途返回有做到', plays >= backIn, `進了 ${plays} 個遊戲，預定在第 ${backIn} 個返回`)
         const end = (await snap(page)).live
         c.outcome('故事時間玩到孵蛋', hatched(end, seen), `經過 ${seen.join('、')}，停在 ${end}`)
         if (!hatched(end, seen)) await c.once('classic-stuck', '卡死', '故事時間沒有走到孵蛋', `經過 ${seen.join('、')}，停在 ${end}`)

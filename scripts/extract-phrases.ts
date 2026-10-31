@@ -26,6 +26,12 @@ for (const [key, l] of allLines())
     const cue = c && { parts: cueParts(c), hold: CUE.holdMs, gap: CUE.gapMs, repeatGap: CUE.repeatGapMs }
     if (!rows.has(file)) rows.set(file, { key, file, text: s.text, speaker: l.speaker, role: s.role, ...segmentVoice(l, s), fx: segmentFx(l), ...(cue ? { cue } : {}) })
   }
+// --check（npm run verify 用）：不寫任何檔，把清單印到 stdout 交給 gen_audio.py --check --lines -，訊息改印到 stderr
+if (process.argv.includes('--check')) {
+  process.stdout.write(JSON.stringify([...rows.values()]))
+  console.error(`${allLines().length} lines, ${rows.size} clips`)
+  process.exit(0)
+}
 mkdirSync('scripts/.cache', { recursive: true })
 writeFileSync('scripts/.cache/lines.json', JSON.stringify([...rows.values()], null, 1))
 console.log(`${allLines().length} lines, ${rows.size} clips`)
