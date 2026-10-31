@@ -185,7 +185,10 @@ def zh_chars(t):
 
 # ── BreezyVoice ──────────────────────────────────────────────
 class Breezy:
-    def __init__(self, threads):
+    def __init__(self, threads, prompt=None):
+        """prompt：參考語音用 example.wav 的哪一段。預設是第一句（0～9.05 秒），中文三明治用的。
+        {"from": 秒, "to": 秒或 None（到結尾）, "text": 逐字稿, "bopomofo": 逐字稿要不要標注音, "fade": 結尾要不要淡出}"""
+        prompt = {"from": 0.0, "to": PROMPT_SEC, "text": PROMPT_TEXT, "bopomofo": True, "fade": True, **(prompt or {})}
         # WeTextProcessing 的替身：原文照用
         class Normalizer:
             def __init__(self, *a, **k):
@@ -212,22 +215,25 @@ class Breezy:
         self.g2p.num_workers = 0
         print(f"BreezyVoice 載入 {time.time() - t0:.0f} 秒", flush=True)
         speech16 = si.load_wav(str(PROMPT_WAV), 16000)
-        n = int(PROMPT_SEC * 16000)
-        speech16 = speech16[:, :n].clone()
-        fade = int(0.03 * 16000)
-        speech16[:, -fade:] *= torch.linspace(1, 0, fade)
-        ptxt = si.get_bopomofo_rare(self.cv.frontend.text_normalize_new(PROMPT_TEXT, split=False), self.g2p)
+        a = int(prompt["from"] * 16000)
+        b = int(prompt["to"] * 16000) if prompt["to"] else speech16.shape[1]
+        speech16 = speech16[:, a:b].clone()
+        if prompt["fade"]:
+            fade = int(0.03 * 16000)
+            speech16[:, -fade:] *= torch.linspace(1, 0, fade)
+        ptxt = prompt["text"]
+        if prompt["bopomofo"]:
+            ptxt = si.get_bopomofo_rare(self.cv.frontend.text_normalize_new(ptxt, split=False), self.g2p)
         mi = self.cv.frontend.frontend_zero_shot("。", ptxt, speech16)
         self.pf = {k: v for k, v in mi.items() if k not in ("text", "text_len")}
         os.chdir(cwd)
 
-    def synth(self, text, seed):
-        """回傳 (原速 wav, 0.9 倍速 wav, 注音)，都是 22.05kHz 的 torch tensor"""
-        import torch.nn.functional as F
+    def mels(self, text, seed):
+        """回傳 (每一句的梅爾頻譜, 注音)。官方做法：遇到 。？！ 就切開，一句一句合成"""
         torch, m, pf = self.torch, self.cv.model, self.pf
         text_b = self.si.get_bopomofo_rare(self.cv.frontend.text_normalize_new(text, split=False), self.g2p)
         torch.manual_seed(seed)
-        outs, slows = [], []
+        mels = []
         for piece in re.split(r'(?<=[？！。.?!])\s*', text_b):
             if not piece:
                 continue
@@ -238,14 +244,25 @@ class Breezy:
                                   prompt_speech_token_len=pf["llm_prompt_speech_token_len"].clone(),
                                   embedding=pf["llm_embedding"], beam_size=1, sampling=25,
                                   max_token_text_ratio=30, min_token_text_ratio=3)
-            mel = m.flow.inference(token=tok, token_len=torch.tensor([tok.size(1)], dtype=torch.int32),
-                                   prompt_token=pf["flow_prompt_speech_token"],
-                                   prompt_token_len=pf["flow_prompt_speech_token_len"].clone(),
-                                   prompt_feat=pf["prompt_speech_feat"], prompt_feat_len=pf["prompt_speech_feat_len"].clone(),
-                                   embedding=pf["flow_embedding"])
-            outs.append(m.hift.inference(mel=mel).cpu())
-            slows.append(m.hift.inference(mel=F.interpolate(mel, size=int(mel.shape[2] / SLOW), mode="linear")).cpu())
-        return torch.concat(outs, dim=1), torch.concat(slows, dim=1), text_b
+            mels.append(m.flow.inference(token=tok, token_len=torch.tensor([tok.size(1)], dtype=torch.int32),
+                                         prompt_token=pf["flow_prompt_speech_token"],
+                                         prompt_token_len=pf["flow_prompt_speech_token_len"].clone(),
+                                         prompt_feat=pf["prompt_speech_feat"], prompt_feat_len=pf["prompt_speech_feat_len"].clone(),
+                                         embedding=pf["flow_embedding"]))
+        return mels, text_b
+
+    def render(self, mels, speed=1.0):
+        """梅爾頻譜 → 22.05kHz 的聲音。speed < 1 是放慢：頻譜在時間軸上拉長再交給聲碼器，音高不變（CosyVoice 官方新版的 speed）"""
+        import torch.nn.functional as F
+        m = self.cv.model
+        outs = [m.hift.inference(mel=mel if speed == 1.0 else F.interpolate(mel, size=int(mel.shape[2] / speed), mode="linear")).cpu()
+                for mel in mels]
+        return self.torch.concat(outs, dim=1)
+
+    def synth(self, text, seed):
+        """回傳 (原速 wav, 0.9 倍速 wav, 注音)，都是 22.05kHz 的 torch tensor"""
+        mels, text_b = self.mels(text, seed)
+        return self.render(mels), self.render(mels, SLOW), text_b
 
 
 class Asr:

@@ -1,0 +1,139 @@
+[
+ {
+  "key": "l01.text.1",
+  "lesson": "01龜兔賽跑",
+  "kind": "text",
+  "text": "兔子跑得快快快，"
+ },
+ {
+  "key": "l01.text.2",
+  "lesson": "01龜兔賽跑",
+  "kind": "text",
+  "text": "跑到樹下睡大覺。"
+ },
+ {
+  "key": "l01.text.3",
+  "lesson": "01龜兔賽跑",
+  "kind": "text",
+  "text": "烏龜慢慢爬呀爬，"
+ },
+ {
+  "key": "l01.text.4",
+  "lesson": "01龜兔賽跑",
+  "kind": "text",
+  "text": "爬呀爬，先到了！"
+ },
+ {
+  "key": "l01.word.兔子",
+  "lesson": "01龜兔賽跑",
+  "kind": "word",
+  "text": "兔子"
+ },
+ {
+  "key": "l01.word.烏龜",
+  "lesson": "01龜兔賽跑",
+  "kind": "word",
+  "text": "烏龜"
+ },
+ {
+  "key": "l01.q.1",
+  "lesson": "01龜兔賽跑",
+  "kind": "question",
+  "text": "哪個是烏龜？"
+ },
+ {
+  "key": "l15.text.1",
+  "lesson": "15三隻小豬",
+  "kind": "text",
+  "text": "三隻小豬蓋房子，"
+ },
+ {
+  "key": "l15.text.2",
+  "lesson": "15三隻小豬",
+  "kind": "text",
+  "text": "大野狼呼呼吹。"
+ },
+ {
+  "key": "l15.text.3",
+  "lesson": "15三隻小豬",
+  "kind": "text",
+  "text": "稻草屋、木頭屋，倒了！"
+ },
+ {
+  "key": "l15.text.4",
+  "lesson": "15三隻小豬",
+  "kind": "text",
+  "text": "磚頭屋，吹不倒！"
+ },
+ {
+  "key": "l15.word.小豬",
+  "lesson": "15三隻小豬",
+  "kind": "word",
+  "text": "小豬"
+ },
+ {
+  "key": "l15.word.房子",
+  "lesson": "15三隻小豬",
+  "kind": "word",
+  "text": "房子"
+ },
+ {
+  "key": "l15.q.1",
+  "lesson": "15三隻小豬",
+  "kind": "question",
+  "text": "哪個是小豬？"
+ },
+ {
+  "key": "l07.text.1",
+  "lesson": "07挪亞方舟",
+  "kind": "text",
+  "text": "挪亞做了一艘大方舟，"
+ },
+ {
+  "key": "l07.text.2",
+  "lesson": "07挪亞方舟",
+  "kind": "text",
+  "text": "動物兩隻兩隻走進來。"
+ },
+ {
+  "key": "l07.text.3",
+  "lesson": "07挪亞方舟",
+  "kind": "text",
+  "text": "雨停了，鴿子飛出去，"
+ },
+ {
+  "key": "l07.text.4",
+  "lesson": "07挪亞方舟",
+  "kind": "text",
+  "text": "天上掛著一道彩虹。"
+ },
+ {
+  "key": "l07.word.方舟",
+  "lesson": "07挪亞方舟",
+  "kind": "word",
+  "text": "方舟"
+ },
+ {
+  "key": "l07.word.鴿子",
+  "lesson": "07挪亞方舟",
+  "kind": "word",
+  "text": "鴿子"
+ },
+ {
+  "key": "l07.word.彩虹",
+  "lesson": "07挪亞方舟",
+  "kind": "word",
+  "text": "彩虹"
+ },
+ {
+  "key": "l07.q.1",
+  "lesson": "07挪亞方舟",
+  "kind": "question",
+  "text": "哪個是方舟？"
+ },
+ {
+  "key": "praise.1",
+  "kind": "praise",
+  "text": "答對了，好棒！"
+ }
+]
