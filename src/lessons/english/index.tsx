@@ -77,14 +77,15 @@ export function EnglishLesson({ onDone }: LessonProps) {
         <Dino who="dodo" mood={stage === 'end' ? 'cheer' : 'happy'} size="100%" />
       </div>
       <div className="en-stage">
-        <AnimatePresence initial={false}>
+        {/* 一段淡出、下一段再淡入（紙感螢幕上兩段疊在一起看起來很亂，不交叉淡化） */}
+        <AnimatePresence initial={false} mode="wait">
           {letter && (
             <motion.div
               key={stage}
               className="en-pane"
               initial={{ opacity: 0 }}
-              animate={{ opacity: 1, transition: { duration: 0.55, ease: [0.22, 1, 0.36, 1] } }}
-              exit={{ opacity: 0, transition: { duration: 0.4, delay: 0.1 } }}
+              animate={{ opacity: 1, transition: { duration: 0.45, ease: [0.22, 1, 0.36, 1] } }}
+              exit={{ opacity: 0, transition: { duration: 0.3 } }}
             >
               {stage === 'meet' && <Meet letter={letter} review={plan!.review} onDone={() => setStage('trace')} />}
               {stage === 'trace' && <Trace letter={letter} onDone={() => setStage('words')} />}
