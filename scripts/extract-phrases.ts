@@ -80,3 +80,10 @@ const samples = SAMPLES.map(([name, en, br]) => {
 })
 writeFileSync('scripts/.cache/zh-words.json', JSON.stringify({ words: zhRows, samples }, null, 1))
 console.log(`${zhRows.length} zh words (${ZH_WORDS.length} keys)`)
+
+// 中文課文（src/lessons/chinese/）：180 篇的課文、紅字、選圖題，交給 gen_zh_breezy.py（BreezyVoice，一篇十幾分鐘，不在 npm run audio 裡產生）。
+// 同一句話（同 kind、同文字）在不同篇只產生一次，檔名在 data.ts 的 zhClip；gen_audio.py --check 照這份清單檢查缺檔
+const { ZH_TEXTS, clipRows } = await import('../src/lessons/chinese/data')
+const zhLessons = ZH_TEXTS.flatMap((t) => clipRows(t).map((r) => ({ ...r, date: t.date })))
+writeFileSync('scripts/.cache/zh-lessons.json', JSON.stringify(zhLessons, null, 1))
+console.log(`${zhLessons.length} zh lesson lines (${ZH_TEXTS.length} lessons, ${new Set(zhLessons.map((r) => r.kind + '|' + r.text)).size} unique)`)

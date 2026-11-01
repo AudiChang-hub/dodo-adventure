@@ -415,9 +415,11 @@ def check(args):
 
     zh = check_lessons(out=out / "zh-lesson")
     if zh is not None:
-        print(f"zh-lesson check: total {zh[0]}, problems {len(zh[1])}（scripts/gen_zh_breezy.py）")
+        print(f"zh-lesson check: total {zh[0]}, problems {len(zh[1])}, later {zh[2]['later']}, review {len(zh[2]['review'])}（scripts/gen_zh_breezy.py；{zh[2]['horizon']} 以前要上的課缺聲音才算問題）")
         for key, text, why in zh[1][:50]:
             print("ZH-LESSON", key, text, why)
+        for key, text in zh[2]["review"][:50]:
+            print("ZH-LESSON-REVIEW", key, text, "（3 次都沒通過，等家長聽）")
     if missing or untimed or (zh and zh[1]):
         sys.exit(1)
 

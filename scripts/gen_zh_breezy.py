@@ -93,21 +93,41 @@ def read_index(out: pathlib.Path) -> dict:
         return {}
 
 
-def check_lessons(lines=LIST, out=OUT):
-    """缺檔檢查（只用標準函式庫）：回傳 (總句數, 有問題的 [(key, text, 原因)])；沒有清單回傳 None"""
+# 缺檔檢查只擋「快要上到的課」：今天起 HORIZON_DAYS 天內要上的課文缺聲音才算失敗。
+# 180 篇全部產生要一整天以上（一篇十幾分鐘），後面的篇在背景慢慢做，還沒做到的只列出來、不擋 npm run verify。
+HORIZON_DAYS = 14
+
+
+def check_lessons(lines=LIST, out=OUT, today=None):
+    """缺檔檢查（只用標準函式庫）：回傳 (總句數, 有問題的 [(key, text, 原因)], 附註)；沒有清單回傳 None。
+    有問題 = 近期（HORIZON_DAYS 天內）要上的句子沒有 mp3、也不在「需確認」。
+    附註 = {"later": 之後的篇還沒產生的句數, "review": 3 次都沒通過、等家長聽的 [(key, text)]}，不算失敗：
+    App 對沒通過的句子不出聲（課文照樣顯示），家長聽過再用 --accept 放行。"""
+    import datetime
     lines, out = pathlib.Path(lines), pathlib.Path(out)
     if not lines.exists():
         return None
     rows = load_rows(lines)
     idx = read_index(out)
-    bad = []
+    today = today or datetime.date.today()
+    horizon = (today + datetime.timedelta(days=HORIZON_DAYS)).isoformat()
+    bad, later, review, seen = [], 0, [], set()
     for r in rows:
         stem = r["file"].split("/")[-1]
-        if not (out / f"{stem}.mp3").exists():
+        if stem in seen:
+            continue
+        seen.add(stem)
+        if (out / f"{stem}.mp3").exists() and stem in idx:
+            continue
+        if (out / "需確認" / f"{stem}.mp3").exists():
+            review.append((r["key"], r["text"]))
+        elif r.get("date", "") > horizon:
+            later += 1
+        elif not (out / f"{stem}.mp3").exists():
             bad.append((r["key"], r["text"], "沒有 mp3"))
-        elif stem not in idx:
+        else:
             bad.append((r["key"], r["text"], "沒有通過檢查（不在 index.json）"))
-    return len(rows), bad
+    return len(seen), bad, {"later": later, "review": review, "horizon": horizon}
 
 
 # ── 比對 ─────────────────────────────────────────────────────
@@ -321,6 +341,7 @@ def main():
     ap.add_argument("--accept", nargs="*", default=[], help="家長聽過、放行的句子 key")
     ap.add_argument("--samples", action="store_true", help="另外把每一篇的課文接成全文（試聽用）")
     ap.add_argument("--check", action="store_true", help="只檢查、不產生（不需要 BreezyVoice 環境）")
+    ap.add_argument("--days", default="", help="只做這幾天的課文，例如 1-30（清單的 day 欄位；分段產生、每段做完先合併上線）")
     args = ap.parse_args()
     out = pathlib.Path(args.out)
     sys.stdout.reconfigure(encoding="utf-8")  # -I 會忽略 PYTHONIOENCODING
@@ -330,13 +351,20 @@ def main():
         if res is None:
             print(f"zh-lesson check: 沒有清單 {args.lines}，略過")
             return
-        total, bad = res
-        print(f"zh-lesson check: total {total}, problems {len(bad)}")
+        total, bad, note = res
+        print(f"zh-lesson check: total {total}, problems {len(bad)}, later {note['later']}, review {len(note['review'])}（{note['horizon']} 以前要上的課缺聲音才算問題）")
         for key, text, why in bad[:50]:
             print("MISSING", key, text, why)
+        for key, text in note["review"][:50]:
+            print("REVIEW", key, text, "（3 次都沒通過，等家長聽）")
         sys.exit(1 if bad else 0)
 
     rows = load_rows(pathlib.Path(args.lines))
+    if args.days:
+        lo, _, hi = args.days.partition("-")
+        lo, hi = int(lo), int(hi or lo)
+        rows = [r for r in rows if lo <= r.get("day", 0) <= hi]
+        print(f"第 {lo}～{hi} 天：{len(rows)} 句", flush=True)
     out.mkdir(parents=True, exist_ok=True)
     idx = read_index(out)
     job = Lessons(args)
@@ -361,6 +389,9 @@ def main():
         tmp.replace(out / "index.json")
 
     samples = build_samples(rows, out, job.gz) if args.samples else []
+    # 分段產生（--days）：別段的紀錄留著，報告和摘要是全部做過的句子
+    mine = {r["key"] for r in report}
+    report += [r for k, r in prev.items() if k not in mine]
     takes = [t for r in report for t in r["takes"]]
     summary = {
         "sentences": len(report),

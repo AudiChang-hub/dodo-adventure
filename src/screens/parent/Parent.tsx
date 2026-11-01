@@ -1,4 +1,4 @@
-import { useMemo, useState, type ReactElement } from 'react'
+import { lazy, Suspense, useMemo, useState, type ReactElement } from 'react'
 import { go } from '../../lib/nav'
 import { useSync, syncConfigured } from '../../lib/sync'
 import { useParentData, type ParentData } from './data'
@@ -14,12 +14,15 @@ import { reviewStatus, useReview } from '../../lib/review'
 import { WEEKLY, draftChapters } from '../../content/story'
 import { RESET_DONE_KEY } from '../../lib/reset'
 import { CHILD_ZH } from '../../lib/env'
+// 中文課文（src/lessons/chinese/）：180 篇課文跟著這一頁分開下載
+const ZhParent = lazy(() => import('../../lessons/chinese/ParentPicker').then((m) => ({ default: m.ZhParent })))
 import './parent.css'
 import './reset.css'
 
 const TABS = [
   ['overview', '總覽'],
   ['outing', '出門任務卡'],
+  ['zh', '中文課文'],
   ['progress', '學習進度'],
   ['records', '作答紀錄'],
   ['words', '單字清單'],
@@ -57,9 +60,11 @@ export function Parent() {
     if (tab === 'settings') return <SettingsPanel onChanged={() => setReload((r) => r + 1)} />
     // 審稿不用讀學習資料（手機上也能直接審）
     if (tab === 'review') return <StoryReview />
+    // 中文課文：挑「今天上這篇」，不用讀學習資料
+    if (tab === 'zh') return <Suspense fallback={<p className="empty">讀取中…</p>}><ZhParent /></Suspense>
     if (error) return <p className="empty">讀取雲端資料失敗：{error}</p>
     if (!data) return <p className="empty">讀取中…</p>
-    const views: Record<Exclude<Tab, 'settings' | 'review'>, (d: ParentData) => ReactElement> = {
+    const views: Record<Exclude<Tab, 'settings' | 'review' | 'zh'>, (d: ParentData) => ReactElement> = {
       overview: (d) => <Overview d={d} />,
       progress: (d) => <Progress d={d} />,
       records: (d) => <Records d={d} />,

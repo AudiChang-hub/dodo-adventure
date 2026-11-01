@@ -1,0 +1,240 @@
+/*
+ * 中文課（src/lessons/chinese/）：課本一頁在右邊，莫莫站在左下角念；選圖沿用選擇題的卡片（ui/ui.css 的 .options、.tile）。
+ * 紙感：低飽和、高明度；紅字是學校課本的紅，其他都是墨色和莫莫的藍。畫面靜止，只有念到的那一行有帶子在走（MOTION-2）。
+ */
+.zh-read {
+  --zh-red: #c8463a;
+  --zh-blue: #a3c4e4;
+  --zh-blue-deep: #6f9cc8;
+  position: absolute;
+  /* 左邊讓給主持的恐龍（.stage-host 約 19vw），下面留一點地面 */
+  inset: 0 2.5cqw 4cqh 17cqw;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 2.4cqw;
+}
+
+/* ── 課本的一頁 ─────────────────────────────────────────── */
+.zh-page {
+  position: relative;
+  margin: 0;
+  max-height: 100%;
+  padding: 3.2cqh 3.4cqw 4cqh;
+  border-radius: 28px;
+  background:
+    /* 很淡的橫線：作業簿的感覺，不搶字 */
+    repeating-linear-gradient(transparent 0 calc(var(--zh-lh) - 2px), rgba(111, 156, 200, 0.12) calc(var(--zh-lh) - 2px) var(--zh-lh)) 0 calc(3.2cqh + var(--zh-title-h)) / 100% auto no-repeat,
+    var(--card);
+  box-shadow:
+    0 10px 0 rgba(46, 42, 37, 0.07),
+    0 0 0 3px rgba(46, 42, 37, 0.04) inset;
+  --zh-fs: min(9.6cqh, calc(58cqw / var(--chars)));
+  --zh-lh: calc(var(--zh-fs) * 1.7);
+  --zh-title-h: calc(var(--zh-fs) * 0.42 * 1.3 + 1.6cqh);
+}
+/* 書背的一條紙膠帶 */
+.zh-page::before {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: -14px;
+  width: 15%;
+  height: 28px;
+  translate: -50% 0;
+  rotate: -2deg;
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--zh-blue) 62%, transparent);
+}
+.zh-title {
+  margin: 0 0 1.6cqh;
+  font: 400 calc(var(--zh-fs) * 0.42) / 1.3 'Huninn', sans-serif;
+  letter-spacing: 0.18em;
+  color: var(--ink-faint);
+  text-align: center;
+}
+.zh-lines {
+  display: grid;
+}
+.zh-line {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  min-height: var(--zh-lh);
+  padding: 0 1.2cqw;
+  font: 400 var(--zh-fs) / 1.25 'Huninn', sans-serif;
+  letter-spacing: 0.06em;
+  color: var(--ink-soft);
+  transition: color 0.5s var(--ease-out);
+}
+.zh-line.seen,
+.zh-line.on {
+  color: var(--ink);
+}
+.zh-text {
+  position: relative;
+  z-index: 1;
+  white-space: nowrap;
+}
+
+/* 念到的那一行：淡藍帶子，底下一條深一點的線跟著聲音從左往右走 */
+.zh-band {
+  position: absolute;
+  inset: 6% -0.4cqw;
+  border-radius: 18px;
+  background: color-mix(in srgb, var(--zh-blue) 34%, transparent);
+  overflow: hidden;
+  pointer-events: none;
+}
+.zh-sweep {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 7px;
+  border-radius: 4px;
+  background: var(--zh-blue-deep);
+  opacity: 0.55;
+  transform-origin: left center;
+}
+
+/* 紅字：可以點。下面一條點點虛線，告訴大人「這是可以點的」 */
+.zh-red {
+  position: relative;
+  display: inline-block;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  letter-spacing: inherit;
+  color: var(--zh-red);
+  text-decoration: underline dotted color-mix(in srgb, var(--zh-red) 55%, transparent);
+  text-decoration-thickness: 3px;
+  text-underline-offset: 0.22em;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+/* 字只有一兩個那麼大：點得到的範圍往外撐到大約 2 公分（TOUCH-1） */
+.zh-red::after {
+  content: '';
+  position: absolute;
+  inset: -0.32em -0.18em;
+}
+.zh-red.pop {
+  animation: zh-pop 0.5s var(--ease-spring);
+}
+@keyframes zh-pop {
+  40% {
+    transform: translateY(-8%) scale(1.08);
+  }
+}
+
+/* 這一行紅字的圖：唸過才淡入，一直留著 */
+.zh-pics {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  gap: 0.9cqw;
+  padding-left: 1.4cqw;
+}
+.zh-pic {
+  width: calc(var(--zh-lh) * 0.86);
+  aspect-ratio: 1;
+  padding: 7%;
+  border: 0;
+  border-radius: 26%;
+  background: rgba(255, 255, 255, 0.86);
+  box-shadow: 0 4px 0 rgba(46, 42, 37, 0.08);
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+.zh-pic-in {
+  display: block;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+/* ── 再聽一次、去選圖：念完兩次才出現（位置一直留著，出現時版面不跳） ── */
+.zh-controls {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3cqh;
+  pointer-events: none;
+}
+.zh-controls.on {
+  pointer-events: auto;
+}
+.zh-again {
+  width: var(--touch-min, 90px);
+  height: var(--touch-min, 90px);
+}
+.zh-go {
+  display: grid;
+  place-items: center;
+  width: max(var(--touch-primary, 112px), 11cqw);
+  aspect-ratio: 1;
+  border: 0;
+  border-radius: 50%;
+  background: var(--zh-blue);
+  box-shadow: 0 7px 0 var(--zh-blue-deep);
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+  transition: translate 0.15s var(--ease-out), box-shadow 0.15s var(--ease-out);
+}
+.zh-go:active {
+  translate: 0 5px;
+  box-shadow: 0 2px 0 var(--zh-blue-deep);
+}
+
+/* ── 選圖 ────────────────────────────────────────────────── */
+.zh-quiz {
+  position: absolute;
+  inset: 0;
+}
+/* 題目卡：課文裡那個紅字（跟 .stimulus 同一個位置） */
+.zh-ask {
+  position: absolute;
+  left: calc(50% + 4cqw);
+  top: 6%;
+  height: 28%;
+  translate: -50% 0;
+  display: grid;
+  place-items: center;
+  padding: 0 6cqh;
+  border: 0;
+  border-radius: var(--radius-lg);
+  background: rgba(251, 248, 242, 0.8);
+  box-shadow: 0 6px 0 rgba(46, 42, 37, 0.06);
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+.zh-ask-word {
+  font: 400 min(16cqh, 9cqw) / 1 'Huninn', sans-serif;
+  letter-spacing: 0.08em;
+  color: #c8463a;
+  white-space: nowrap;
+}
+.zh-options .tile-in {
+  inset: 13%;
+}
+
+/* 手機直式（家長遠端看）：不壞版就好——課本佔滿寬度，按鈕排到下面 */
+@media (orientation: portrait) {
+  .zh-read {
+    inset: 0 3cqw 30cqh 3cqw;
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1fr) auto;
+  }
+  .zh-page {
+    --zh-fs: min(6cqh, calc(80cqw / var(--chars)));
+  }
+  .zh-controls {
+    flex-direction: row;
+    justify-content: flex-end;
+  }
+}
