@@ -180,6 +180,41 @@ async function firstPart(page: Page, ms = 15_000) {
   return partNow(page)
 }
 
+/**
+ * 描到一半再描（2026-11-01，track.ts 的 penDown）：沿著現在這一筆（虛線）描到一半，
+ * restart＝被手掌打斷（touchcancel）、再從綠點從頭描；continue＝抬筆、從斷掉的地方接著描。
+ * 回傳這一筆有沒有描完（換到下一筆、或這一次描完了）；還不能畫、找不到這一筆時回傳 null。
+ */
+async function halfThenAgain(k: Toddler, how: 'restart' | 'continue', sel: { board: string; done: string }) {
+  const page = k.page
+  const now = () =>
+    page.evaluate((sel) => {
+      const boards = [...document.querySelectorAll(sel.board)]
+      const b = boards[boards.length - 1]
+      const p = b?.querySelector<SVGPathElement>('path[stroke-dasharray="3 3"]')
+      const done = document.querySelectorAll(sel.done).length
+      if (!p) return { d: null as string | null, done, pts: [] as { x: number; y: number }[] }
+      const m = p.getScreenCTM()!
+      const len = p.getTotalLength()
+      const n = Math.max(8, Math.round(len / 4))
+      const pts = Array.from({ length: n + 1 }, (_, i) => {
+        const q = p.getPointAtLength((len * i) / n)
+        const s = new DOMPoint(q.x, q.y).matrixTransform(m)
+        return { x: s.x, y: s.y }
+      })
+      return { d: p.getAttribute('d'), done, pts }
+    }, sel)
+  const a = await now()
+  if (!a.d || a.pts.length < 4) return null
+  const mid = Math.round(a.pts.length * 0.55)
+  await k.drag(a.pts.slice(0, mid), { stepMs: 16, cancel: how === 'restart', label: how === 'restart' ? '描到一半被手掌打斷' : '描到一半抬筆' })
+  await k.wait(700)
+  await k.drag(how === 'restart' ? a.pts : a.pts.slice(mid - 1), { stepMs: 16, label: how === 'restart' ? '從綠點重描' : '從斷掉的地方接著描' })
+  await k.wait(900)
+  const b = await now()
+  return b.d !== a.d || b.done > a.done
+}
+
 test.describe('數學課', () => {
   test.skip(FEATURES.adventure, '今日冒險版沒有學校的三堂課')
 
@@ -298,6 +333,44 @@ test.describe('數學課', () => {
       await c.flush()
     } finally {
       finish(k, c, '中途返回')
+    }
+  })
+  test('寫數字：描到一半抬筆，再從綠點重描', async ({ page }, info) => {
+    test.skip(!want())
+    test.setTimeout(6 * 60_000)
+    const { k, c, n } = await setup(page, info, '描到一半')
+    try {
+      // 今天的數字已經上到寫數字（中途離開過）：一進來就從寫數字開始
+      const day = await page.evaluate(() => {
+        const d = new Date()
+        return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+      })
+      await setMath(page, { next: n, day, n, mode: 'new', part: 2, asked: 0, missed: 0 })
+      if (!(await enter(k, c))) return
+      const p = await firstPart(page)
+      if (p !== 'write') return void (await c.once('to-write', '困惑', '沒有從寫數字開始', `從 ${p} 開始`))
+      const ready = async () => {
+        for (let i = 0; i < 80; i++) {
+          if (await page.evaluate(() => !![...document.querySelectorAll('.ma-paper canvas[data-accepting="true"]')].length)) return true
+          await k.wait(250)
+        }
+        return false
+      }
+      for (const how of ['restart', 'continue', 'restart'] as const) {
+        k.behavior = how === 'restart' ? '描到一半被打斷，從綠點重描' : '描到一半抬筆，接著描'
+        if (!(await ready())) {
+          await c.once('write-ready', '卡死', '寫數字一直不能畫', '')
+          break
+        }
+        await k.wait(300)
+        const ok = await halfThenAgain(k, how, { board: '.ma-paper', done: '.ma-reps i.on' })
+        if (ok === null) continue
+        c.outcome(k.behavior, ok, `今天的數字 ${n}`)
+        if (!ok) await c.once(`half:${how}`, '卡死', `寫數字${how === 'restart' ? '描到一半被打斷，從綠點重描' : '描到一半抬筆再接著描'}，這一筆描不完`, `今天的數字 ${n}`)
+        await c.flush()
+      }
+    } finally {
+      finish(k, c, '描到一半')
     }
   })
 })

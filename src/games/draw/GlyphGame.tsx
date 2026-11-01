@@ -261,7 +261,10 @@ export function GlyphGame({ gameId, onDone, onExit }: GameProps) {
     idle.poke()
     setAgain(null)
     moved.current = false
-    drawing.current = tracker.current.near(p)
+    // 接著描，或描到一半又從綠點重新開始（這一筆從頭再描，track.ts 的 penDown）
+    const how = tracker.current.penDown(p)
+    drawing.current = !!how
+    if (how === 'again') setProg(0)
   }
   const onMove = (p: { x: number; y: number }) => {
     const t = tracker.current

@@ -47,6 +47,25 @@ export class PathTracker {
     return false
   }
 
+  /**
+   * 描字的下筆（描字遊戲、英文課描字母、數學課寫數字共用）：
+   * - 在目前進度附近 → 'go'：接著描；
+   * - 描到一半抬筆（或被手掌打斷），又從起點（綠點）下筆 → 'again'：這一筆從頭再描，進度和偏離紀錄歸零；
+   * - 其他地方 → null：這一下不推進度（線照樣畫得出來，放開後淡掉）。
+   * 以前只有接著描才算，孩子從綠點重新來過一直描不動，會以為壞掉（L-MA 三歲測試）。
+   */
+  penDown(p: P2): 'go' | 'again' | null {
+    if (this.near(p)) return 'go'
+    if (this.progress > 0 && dist(p, this.samples[0]) < this.tol * 1.2) {
+      this.progress = 0
+      this.devSum = 0
+      this.devN = 0
+      this.off = 0
+      return 'again'
+    }
+    return null
+  }
+
   feed(p: P2): boolean {
     const lo = Math.max(0, this.progress - 6)
     const hi = Math.min(this.samples.length - 1, this.progress + 14)
