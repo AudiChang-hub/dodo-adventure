@@ -22,6 +22,8 @@ import { COLORS, SHAPES } from './park'
 import { def, type Speaker } from './registry'
 import './lines-friends'
 import './lines-worksheet'
+// 三堂課的台詞（各課自己的檔，這裡只負責 import，npm run audio 才找得到）
+import '../lessons/english/lines'
 
 export { def, defBridge, isBridge, line, hasLine, allLines, segments, plainText, type Speaker, type Line, type Segment } from './registry'
 
