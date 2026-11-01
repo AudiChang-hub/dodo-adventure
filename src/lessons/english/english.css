@@ -142,7 +142,8 @@
 
 /* 單字：今天的字母上色 */
 .en-word {
-  font: 600 min(46px, 5.4vmin) / 1 'Fredoka', sans-serif;
+  font: 600 calc(min(46px, 5.4vmin) * var(--fit, 1)) / 1 'Fredoka', sans-serif;
+  white-space: nowrap;
   color: var(--ink-soft);
   letter-spacing: 0.01em;
 }

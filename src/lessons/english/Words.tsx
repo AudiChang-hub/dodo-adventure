@@ -32,11 +32,12 @@ async function linesOf(w: string): Promise<string[]> {
 }
 
 /**
- * 單字範例（英文課第 3 段）：三個今天字母開頭的字，一個一個出來，每個念「Apple → 蘋果 → Apple」。
+ * 單字範例（英文課第 3 段）：三個今天字母開頭的字，每個念「Apple → 蘋果 → Apple」，念到哪一個哪一個亮起來。
+ * 三張圖一進這一段就跟字幕一起出來（2026-11-01 PM：以前念「These words start with A!」的兩秒多畫面中間是空的，
+ * 三歲孩子盯著空白超過一秒就會開始亂點）。
  * 念完自己往下走；念完之後點圖可以再聽一次。念的時候點圖：圖跳一下、有聲音，不打斷。
  */
 export function Words({ letter, onDone }: { letter: LessonLetter; onDone: () => void }) {
-  const [shown, setShown] = useState(0)
   const [lit, setLit] = useState(-1)
   const [bump, setBump] = useState<{ i: number; n: number } | null>(null)
   const talking = useRef(true)
@@ -53,9 +54,8 @@ export function Words({ letter, onDone }: { letter: LessonLetter; onDone: () => 
       for (let i = 0; i < letter.words.length; i++) {
         if (!live.current) return
         const t = performance.now()
-        setShown(i + 1)
         setLit(i)
-        await wait(450)
+        await wait(350)
         const ls = await linesOf(letter.words[i].w)
         if (!live.current) return
         await say(...ls)
@@ -103,10 +103,9 @@ export function Words({ letter, onDone }: { letter: LessonLetter; onDone: () => 
           className={`en-word-card${lit === i ? ' is-lit' : ''}`}
           aria-label={w.w}
           onClick={() => void tap(i)}
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: i < shown ? 1 : 0, y: i < shown ? 0 : 20 }}
-          transition={{ duration: 0.5 }}
-          style={{ pointerEvents: i < shown ? 'auto' : 'none' }}
+          initial={{ opacity: 0, y: 16 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.45, delay: 0.1 + i * 0.12 }}
         >
           <span key={bump?.i === i ? bump.n : 0} className={bump?.i === i ? 'en-hop' : undefined}>
             <Emoji name={w.icon} />
