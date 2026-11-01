@@ -1,7 +1,7 @@
 import { test, expect, type Page } from '@playwright/test'
 import { boot, homeButton, settle, snap, targets } from './lib/app'
 import { Toddler, hashSeed } from './lib/toddler'
-import { Checker, doorAt, drawAndMeasure, pressBack, toHome, toddlerStep, waitLive } from './lib/flows'
+import { Checker, doorAt, drawAndMeasure, pressBack, tapDoor, toHome, toddlerStep, waitLive } from './lib/flows'
 import { FEATURES, hidden } from './lib/features'
 
 /**
@@ -135,9 +135,7 @@ test.describe('學校首頁', () => {
         // 再進去，一進去就連點返回鍵 6 下：只回首頁，首頁不會被連點的後面幾下點到別的門
         k.behavior = `「${d.name}」連點返回鍵`
         if (!(await toHome(k, c))) break
-        await settle(page)
-        await k.tap((await doorAt(page, d.door))!, d.name)
-        await waitLive(page, (l) => inDoor(d, l), 5000)
+        await tapDoor(k, c, d.door, d.name, (l) => inDoor(d, l), 5000)
         await k.wait(900)
         const h = await homeButton(page)
         if (!h) {

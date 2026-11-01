@@ -192,6 +192,27 @@ export async function toHome(k: Toddler, c: Checker) {
 /** 首頁的一扇門（三堂課、故事、畫畫）：data-door */
 export const doorAt = (page: Page, door: string) => centerOf(page, `.door[data-door="${door}"], .side-door[data-door="${door}"]`)
 
+/**
+ * 首頁已經穩定（只剩一層、轉場走完）之後點一扇門：沒進去就像孩子一樣再點一次，最多再點 2 次。
+ * 穩定之後點門被吃掉仍然是問題（孩子會覺得按了沒反應），記一筆「困惑」；只有轉場還沒走完就點的被擋，才是對的（不記）。
+ * 2026-11-01 三大門偶發：平板很忙、一秒只畫得出幾格時，首頁早就靜止了，點門卻被新畫面的防連點擋掉（src/lib/shown.ts 已修）。
+ */
+export async function tapDoor(k: Toddler, c: Checker, door: string, label: string, isIn: (live: string | null) => boolean, ms = 3000) {
+  const page = k.page
+  let live: string | null = null
+  for (let i = 0; i < 3; i++) {
+    const stable = await settle(page, 4000)
+    const p = await doorAt(page, door)
+    if (!p) return null
+    await k.tap(p, i ? `${label}（沒進去，再點一次）` : label)
+    live = await waitLive(page, isIn, ms)
+    if (isIn(live)) return live
+    if (stable && live === 'home')
+      await c.once(`door-eaten:${door}`, '困惑', `首頁穩定之後點「${label}」沒有反應`, `首頁只剩一層、轉場走完了才點，${ms / 1000} 秒後還在首頁（第 ${i + 1} 次）`)
+  }
+  return live
+}
+
 /** 地圖藏起來時（lib/features.ts）：從首頁那一扇門進遊戲 */
 async function enterFromHome(k: Toddler, c: Checker, g: GameDef, opts: { spam?: boolean }) {
   const page = k.page
@@ -201,9 +222,11 @@ async function enterFromHome(k: Toddler, c: Checker, g: GameDef, opts: { spam?: 
     await c.once('no-door', '小問題', `首頁找不到「${g.title}」的門`, '')
     return false
   }
-  if (opts.spam) await k.spam(door, 5 + k.r.int(5), '首頁的門')
-  else await k.tap(door, '首頁的門')
-  const live = await waitLive(page, (l) => l === `play-${g.id}`)
+  let live: string | null
+  if (opts.spam) {
+    await k.spam(door, 5 + k.r.int(5), '首頁的門')
+    live = await waitLive(page, (l) => l === `play-${g.id}`)
+  } else live = await tapDoor(k, c, HOME_GAMES[g.id], '首頁的門', (l) => l === `play-${g.id}`, 6000)
   if (live !== `play-${g.id}`) {
     await c.once('enter-door', '卡死', `點首頁的門沒有進到遊戲（停在 ${live}）`, '')
     return false
