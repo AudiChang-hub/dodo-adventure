@@ -65,6 +65,8 @@ export const SCREEN_TESTS = [
   // 學校的首頁（home.spec）：三大門會進每一堂課（各課資料夾的 index.tsx 是入口；登記表、LessonScreen 被 App、首頁 import，改了跑完整版）
   { token: 'home-doors', spec: 'home', files: ['src/lessons/english/index.tsx', 'src/lessons/chinese/index.tsx', 'src/lessons/math/index.tsx', 'src/screens/StoryBook.tsx'], games: ['d-free'] },
   { token: 'home-draw', spec: 'home', files: [], games: ['d-free'] },
+  // 學校的數學課（lesson-math.spec）：數學課資料夾裡的檔改了就跑
+  { token: 'lesson-math', spec: 'lesson-math', files: ['src/lessons/math/'], games: [] },
 ]
 
 /** 測試檔本身改了：跑那個檔的全部 */
@@ -75,6 +77,7 @@ const SPEC_TOKENS = {
   'cheer.spec.ts': ['cheer'],
   'nav-spam.spec.ts': ['nav-spam'],
   'home.spec.ts': ['home-doors', 'home-draw'],
+  'lesson-math.spec.ts': ['lesson-math'],
 }
 
 // ── 讀程式 ────────────────────────────────────────────────
