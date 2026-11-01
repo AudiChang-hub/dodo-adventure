@@ -26,7 +26,8 @@ D 組（家長 2026-10-31 選的，試聽在 docs/voice-samples/breezyvoice/）�
      課文的正確讀音用 g2pW（BreezyVoice 用的注音工具，會看上下文）判斷；Whisper 聽寫的字用 pypinyin 轉注音。
    - 注音不一樣 → 不對（例如「兔ㄊㄨ4／吐ㄊㄨ3」「哪ㄋㄚ3／那ㄋㄚ4」「倒ㄉㄠ3／到ㄉㄠ4」），換一個種子重生。
    一句最多 3 個版本。3 個都不對：挑最接近的（聲調拼音差最少、強制比對分數最高）放到 <輸出>/需確認/，**不放進 index.json**，列在報告裡。
-   家長聽過覺得沒問題的，用 --accept <key> 放行。
+   家長聽過覺得沒問題的，用 --accept <key> 放行：那個版本記進 scripts/zh-lessons-approved.json（家長放行清單），
+   之後重跑都直接用那個版本，不再檢查、不再重生。課文改了字就不算數（清單記著放行時的文字），會重新產生、重新檢查。
    聲調檢查靠的是 Whisper 選的字，Whisper 把錯的聲調聽成對的字時抓不到，最後還是要家長聽。
 
 可以重跑：已經放進 index.json 的會略過；中斷了（關機、Ctrl+C）再跑一次，做過的版本（梅爾頻譜和聽寫結果）從 scripts/.cache/zh-lesson/ 讀回來。
@@ -45,6 +46,7 @@ ROOT = pathlib.Path(__file__).resolve().parent.parent
 LIST = ROOT / "scripts" / ".cache" / "zh-lessons.json"
 OUT = ROOT / "public" / "audio" / "zh-lesson"
 CACHE = ROOT / "scripts" / ".cache" / "zh-lesson"
+APPROVED = ROOT / "scripts" / "zh-lessons-approved.json"   # 家長放行清單：{檔名: {key, kind, text, take, input, approved, note}}
 
 VOICE = "breezy|example2nd|v1"
 PROMPT = {"from": 9.05, "to": None, "text": "只有擁有解密方法的對象，經由解密過程，才能將密文還原為正常可讀的內容。",
@@ -203,6 +205,10 @@ class Lessons:
             self.meta = json.loads(self.meta_path.read_text(encoding="utf-8"))
         except (OSError, ValueError):
             self.meta = {}
+        try:
+            self.approved = json.loads(APPROVED.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            self.approved = {}
 
     @property
     def bv(self):
@@ -285,9 +291,28 @@ class Lessons:
         self.save_meta()
         return tid, m
 
+    def save_approved(self):
+        tmp = APPROVED.with_suffix(".tmp")
+        tmp.write_text(json.dumps(dict(sorted(self.approved.items())), ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
+        tmp.replace(APPROVED)
+
     def make(self, row, idx, out):
         """回傳這一句的報告"""
         stem = row["file"].split("/")[-1]
+        appr = self.approved.get(stem)
+        if appr and appr["text"] == row["text"]:  # 家長放行過：直接用那個版本（快取沒了就用同樣的種子、同樣的文字重做）
+            seed = int(appr["take"].rsplit("-", 1)[1])
+            tid, m = self.take(row, seed, annotated=SEEDS.index(seed) == 1)
+            if m.get("input") != appr["input"]:
+                raise SystemExit(f"{row['key']}：放行的版本念的是「{appr['input']}」，現在的規則會念「{m.get('input')}」，請重新請家長聽")
+            print(f"  {row['key']} 家長 {appr['approved']} 放行過，用種子 {seed} 的版本", flush=True)
+            tried = [(f"{stem}-{x}", self.meta[f"{stem}-{x}"]) for x in SEEDS if f"{stem}-{x}" in self.meta]
+            (out / f"{stem}.mp3").write_bytes((CACHE / f"{tid}.mp3").read_bytes())
+            idx[stem] = row["text"]
+            (out / "需確認" / f"{stem}.mp3").unlink(missing_ok=True)
+            return {"key": row["key"], "kind": row["kind"], "text": row["text"], "file": row["file"], "chosen": tid,
+                    "status": "家長放行", "approved": appr["approved"], "first_try": tried[0][1]["verdict"] != "不對",
+                    "takes": [dict(id=t, **x) for t, x in tried]}
         takes = []
         for i, seed in enumerate(SEEDS):
             tid, m = self.take(row, seed, annotated=i == 1)
@@ -305,11 +330,16 @@ class Lessons:
             (out / f"{stem}.mp3").write_bytes(src)
             idx[stem] = row["text"]
             review.unlink(missing_ok=True)
+            if not ok:  # 記進家長放行清單，之後重跑不再擋下、不再重生
+                self.approved[stem] = {"key": row["key"], "kind": row["kind"], "text": row["text"], "take": tid,
+                                       "input": m["input"], "approved": self.args.approved_on, "note": self.args.note}
+                self.save_approved()
         else:
             review.parent.mkdir(parents=True, exist_ok=True)
             review.write_bytes(src)
         return {"key": row["key"], "kind": row["kind"], "text": row["text"], "file": row["file"], "chosen": tid,
                 "status": "通過" if ok else ("家長放行" if accepted else "需確認"), "first_try": takes[0][1]["verdict"] != "不對",
+                **({"approved": self.args.approved_on} if accepted and not ok else {}),
                 "takes": [dict(id=t, **x) for t, x in takes]}
 
 
@@ -338,7 +368,9 @@ def main():
     ap.add_argument("--lines", default=str(LIST))
     ap.add_argument("--out", default=str(OUT))
     ap.add_argument("--threads", type=int, default=8, help="這台 i5-12500H 實測 8 比 16、4 都快")
-    ap.add_argument("--accept", nargs="*", default=[], help="家長聽過、放行的句子 key")
+    ap.add_argument("--accept", nargs="*", default=[], help="家長聽過、放行的句子 key（記進 scripts/zh-lessons-approved.json）")
+    ap.add_argument("--approved-on", default=time.strftime("%Y-%m-%d"), help="放行日期（記進放行清單）")
+    ap.add_argument("--note", default="家長聽過放行", help="放行備註（記進放行清單）")
     ap.add_argument("--samples", action="store_true", help="另外把每一篇的課文接成全文（試聽用）")
     ap.add_argument("--check", action="store_true", help="只檢查、不產生（不需要 BreezyVoice 環境）")
     ap.add_argument("--days", default="", help="只做這幾天的課文，例如 1-30（清單的 day 欄位；分段產生、每段做完先合併上線）")
@@ -398,6 +430,7 @@ def main():
         "first_try_ok": sum(r["first_try"] for r in report),
         "regenerated": len(takes) - len(report),
         "need_review": [f"{r['key']}「{r['text']}」" for r in report if r["status"] == "需確認"],
+        "parent_approved": [f"{r['key']}「{r['text']}」" for r in report if r["status"] == "家長放行"],
         "synth_seconds": round(sum(t.get("gen_seconds") or 0 for t in takes), 1),
         "wall_seconds_this_run": round(time.time() - t_start, 1),
         "samples": samples,
