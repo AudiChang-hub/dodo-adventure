@@ -53,8 +53,13 @@ export interface QuizSpec {
   answer: string
   /** 錯兩次、提示時說的話（This side has more!、This is three.） */
   correction: string[]
-  /** 題目上方的東西（比多少的徽章、有幾個的那一堆） */
+  /** 題目上方的東西（有幾個的那一堆：要數的圖，不是選項） */
   top?: ReactNode
+  /**
+   * 波波的對話泡泡（比多少問「多」還是「少」的徽章）：貼在波波頭上、很小、不能點，
+   * 畫面上能點的只有選項（以前放在選項上方的卡片，三歲孩子會以為也是一個選項）
+   */
+  ask?: ReactNode
   /** 選項是寬的（比多少的兩堆） */
   wide?: boolean
 }
@@ -167,6 +172,11 @@ export function Quiz({ spec, host, onDone }: { spec: QuizSpec; host: PartCtx['ho
       {spec.top && (
         <div className="ma-quiz-top" key={cue}>
           {spec.top}
+        </div>
+      )}
+      {spec.ask && (
+        <div className="ma-ask" key={`ask${cue}`} aria-hidden="true">
+          {spec.ask}
         </div>
       )}
       <div className={`ma-options${spec.wide ? ' wide' : ''}`}>
