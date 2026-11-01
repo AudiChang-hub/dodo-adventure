@@ -208,6 +208,31 @@ export async function say(...keys: string[]): Promise<void> {
   }
 }
 
+/**
+ * 直接播一個預先產生的音檔（public/audio/<name>.mp3），不經過台詞登記（中文課文：BreezyVoice，src/lessons/chinese/）。
+ * 和 say 共用打斷的規則（新的 say、stopSpeech 會停掉它；它也會停掉正在說的話），恐龍嘴巴照樣跟著動，不出字幕。
+ * onStart 拿到這段聲音的長度（秒）。回傳有沒有播出來（沒有音檔、被打斷都是 false）；絕不退回平板內建語音。
+ */
+export async function sayClip(name: string, speaker: Speaker, onStart?: (dur: number) => void): Promise<boolean> {
+  halt()
+  emit({ type: 'stop' })
+  const my = token
+  busy = my
+  try {
+    const buf = await load(name)
+    if (!buf || my !== token) return false
+    const dur = audibleDuration(buf, null)
+    let started = false
+    await playBuffer(buf, speaker, dur, () => {
+      started = true
+      onStart?.(dur)
+    })
+    return started && my === token
+  } finally {
+    if (busy === my) busy = 0
+  }
+}
+
 /** 一句台詞可能分成幾段（感嘆詞、鋪陳段、加重的目標字），段與段之間停一下（長度見 clip.ts 的 segmentGap） */
 async function playLine(key: string, l: Line, my: number) {
   const segs = segments(l)

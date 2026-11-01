@@ -87,6 +87,7 @@ export function skillLabel(key: string): string {
     glyph: (v) => `描 ${v}`,
     coloring: (v) => `蠟筆著色 ${v}`,
     phonics: (v) => `字母音 ${v}`,
+    zhtext: (v) => `中文課文 ${v}`,
     // 程式車庫
     arrow: (v) => `方向 ${DIR_ZH[v as Dir] ?? v}`,
     route: (v) => `箭頭卡 ${v} 張`,

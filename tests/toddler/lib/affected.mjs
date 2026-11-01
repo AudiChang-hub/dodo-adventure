@@ -69,6 +69,9 @@ export const SCREEN_TESTS = [
   { token: 'home-draw', spec: 'home', files: [], games: ['d-free'] },
   // 學校的數學課（lesson-math.spec）：數學課資料夾裡的檔改了就跑
   { token: 'lesson-math', spec: 'lesson-math', files: ['src/lessons/math/'], games: [] },
+  // 中文課（lesson-chinese.spec）：課本、選圖、中途返回；家長區挑課的分頁跟著跑家長區
+  { token: 'lesson-chinese', spec: 'lesson-chinese', files: ['src/lessons/chinese/'], games: [] },
+  { token: 'parent', spec: 'screens', files: ['src/lessons/chinese/ParentPicker.tsx'], games: [] },
 ]
 
 /** 測試檔本身改了：跑那個檔的全部 */
@@ -81,6 +84,7 @@ const SPEC_TOKENS = {
   'lesson-english.spec.ts': ['lesson-english'],
   'home.spec.ts': ['home-doors', 'home-draw'],
   'lesson-math.spec.ts': ['lesson-math'],
+  'lesson-chinese.spec.ts': ['lesson-chinese'],
 }
 
 // ── 讀程式 ────────────────────────────────────────────────

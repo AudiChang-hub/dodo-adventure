@@ -1,0 +1,112 @@
+/* 家長區「中文課文」（./ParentPicker.tsx）：跟其他分頁一樣的卡片、表格感 */
+.zh-now {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+.zh-now-label {
+  font-size: 13px;
+  color: var(--ink-soft);
+}
+.zh-now-title {
+  font-family: 'Huninn', sans-serif;
+  font-size: 22px;
+}
+.zh-now-title small {
+  margin-left: 10px;
+  font-size: 13px;
+  color: var(--ink-faint);
+}
+.zh-btn {
+  flex: none;
+  padding: 9px 16px;
+  border-radius: 999px;
+  background: #a3c4e4;
+  color: var(--ink);
+  font-size: 14px;
+}
+.zh-btn.ghost {
+  background: none;
+  box-shadow: inset 0 0 0 1.5px var(--paper-edge);
+}
+.zh-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+}
+.zh-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 4px 12px;
+  padding: 10px 14px;
+  border-radius: 14px;
+  background: var(--card);
+  box-shadow: 0 1px 0 var(--paper-edge);
+}
+.zh-row.now {
+  box-shadow: 0 0 0 2px #a3c4e4;
+}
+.zh-row-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 14px;
+  text-align: left;
+  font-size: 15px;
+  color: var(--ink);
+}
+.zh-day {
+  min-width: 4.6em;
+  color: var(--ink-soft);
+}
+.zh-date,
+.zh-cat {
+  font-size: 13px;
+  color: var(--ink-faint);
+}
+.zh-name {
+  font-family: 'Huninn', sans-serif;
+  font-size: 18px;
+}
+.zh-voice {
+  font-size: 12px;
+  color: var(--ink-faint);
+}
+.zh-voice.full {
+  color: var(--good);
+}
+.zh-state {
+  font-size: 13px;
+  color: #b0603f;
+}
+.zh-state.done {
+  color: var(--good);
+}
+.zh-today {
+  font-size: 13px;
+  color: #6f9cc8;
+}
+.zh-detail {
+  grid-column: 1 / -1;
+  padding: 6px 4px 2px;
+  font-family: 'Huninn', sans-serif;
+  font-size: 17px;
+  line-height: 1.7;
+}
+.zh-detail p {
+  margin: 0;
+}
+.zh-detail b {
+  font-weight: 400;
+  color: #c8463a;
+}
+.zh-detail .zh-tip {
+  margin-top: 6px;
+  font-family: 'Noto Sans TC', sans-serif;
+  font-size: 14px;
+  color: var(--ink-soft);
+}

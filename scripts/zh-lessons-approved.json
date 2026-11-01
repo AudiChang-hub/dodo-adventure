@@ -1,0 +1,56 @@
+{
+ "0iynila": {
+  "key": "l15.word.房子",
+  "kind": "word",
+  "text": "房子",
+  "take": "0iynila-2007",
+  "input": "房子。",
+  "approved": "2026-11-01",
+  "note": "家長聽過放行：「我聽他唸完覺得沒問題」"
+ },
+ "0l86fkd": {
+  "key": "l01.text.4",
+  "kind": "text",
+  "text": "爬呀爬，先到了！",
+  "take": "0l86fkd-7",
+  "input": "爬呀爬，先到了！",
+  "approved": "2026-11-01",
+  "note": "家長聽過放行：「我聽他唸完覺得沒問題」"
+ },
+ "0tnki6l": {
+  "key": "l01.text.2",
+  "kind": "text",
+  "text": "跑到樹下睡大覺。",
+  "take": "0tnki6l-7",
+  "input": "跑到樹下睡大覺。",
+  "approved": "2026-11-01",
+  "note": "家長聽過放行：「我聽他唸完覺得沒問題」"
+ },
+ "1a2jv9e": {
+  "key": "l01.word.烏龜",
+  "kind": "word",
+  "text": "烏龜",
+  "take": "1a2jv9e-1007",
+  "input": "烏龜。",
+  "approved": "2026-11-01",
+  "note": "家長聽過放行：「我聽他唸完覺得沒問題」"
+ },
+ "1jchocb": {
+  "key": "l07.text.3",
+  "kind": "text",
+  "text": "雨停了，鴿子飛出去，",
+  "take": "1jchocb-7",
+  "input": "雨停了，鴿子飛出去。",
+  "approved": "2026-11-01",
+  "note": "家長聽過放行：「我聽他唸完覺得沒問題」"
+ },
+ "1ldkxcu": {
+  "key": "l07.word.鴿子",
+  "kind": "word",
+  "text": "鴿子",
+  "take": "1ldkxcu-7",
+  "input": "鴿子。",
+  "approved": "2026-11-01",
+  "note": "家長聽過放行：「我聽他唸完覺得沒問題」"
+ }
+}
