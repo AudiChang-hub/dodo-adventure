@@ -212,6 +212,12 @@ export function WritePart({ ctx }: { ctx: PartCtx }) {
     setAgain(null)
     moved.current = false
     drawing.current = tracker.current.near(p)
+    // 描到一半手抬起來（或被手掌打斷），又從綠點重新開始：這一筆從頭再描（不然只有接著描才算，孩子會以為壞掉）
+    const s0 = tracker.current.samples[0]
+    if (!drawing.current && tracker.current.progress > 0 && Math.hypot(p.x - s0.x, p.y - s0.y) < LANE * 1.2) {
+      begin(strokeRef.current)
+      drawing.current = true
+    }
   }
   const onMove = (p: { x: number; y: number }) => {
     const t = tracker.current
