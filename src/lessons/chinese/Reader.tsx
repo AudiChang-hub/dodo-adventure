@@ -35,6 +35,8 @@ export function Reader({ t, ready, host, onNext }: { t: ZhText; ready: Set<strin
   const [seen, setSeen] = useState<Set<number>>(() => new Set())
   const [sweep, setSweep] = useState({ k: 0, dur: 1 })
   const [pop, setPop] = useState<{ w: string; k: number } | null>(null)
+  /** 正在單獨念的紅字（點了它）：那個詞底下亮起來，課文的帶子先停在行首 */
+  const [wordOn, setWordOn] = useState<string | null>(null)
   const run = useRef(0)
   const pos = useRef({ line: 0, passes: 2 })
   const modeRef = useRef<Mode>('reading')
@@ -83,6 +85,7 @@ export function Reader({ t, ready, host, onNext }: { t: ZhText; ready: Set<strin
   const read = async (from: number, passes: number) => {
     const my = ++run.current
     clearTimeout(auto.current)
+    setWordOn(null)
     setM('reading')
     for (let p = 0; p < passes; p++) {
       for (let i = p === 0 ? from : 0; i < t.lines.length; i++) {
@@ -124,6 +127,8 @@ export function Reader({ t, ready, host, onNext }: { t: ZhText; ready: Set<strin
     const my = ++run.current
     clearTimeout(auto.current)
     setPop({ w, k: performance.now() })
+    setWordOn(w)
+    setSweep({ k: performance.now(), dur: -1 })
     setSeen((s) => (s.has(line) ? s : new Set(s).add(line)))
     let played = false
     if (hasClip(ready, 'word', w)) played = await sayClip(zhClip('word', w), 'momo')
@@ -131,6 +136,7 @@ export function Reader({ t, ready, host, onNext }: { t: ZhText; ready: Set<strin
     if (my !== run.current) return
     if (!played) await wait(700)
     if (my !== run.current) return
+    setWordOn(null)
     if (resume) {
       await wait(350)
       if (my === run.current) void read(resume.line, resume.passes)
@@ -172,7 +178,7 @@ export function Reader({ t, ready, host, onNext }: { t: ZhText; ready: Set<strin
               <div key={i} className={`zh-line${on ? ' on' : ''}${seen.has(i) ? ' seen' : ''}`} data-line={i} onPointerDown={() => tapLine(i)}>
                 {on && (
                   <motion.span className="zh-band" layoutId={still ? undefined : 'zh-band'} transition={{ duration: 0.35, ease: EASE.inOut }} aria-hidden="true">
-                    <motion.i key={sweep.k} className="zh-sweep" initial={{ scaleX: 0 }} animate={{ scaleX: 1 }} transition={{ duration: still ? 0 : sweep.dur, ease: 'linear' }} />
+                    <motion.i key={sweep.k} className="zh-sweep" initial={{ scaleX: 0 }} animate={{ scaleX: sweep.dur < 0 ? 0 : 1 }} transition={{ duration: still || sweep.dur < 0 ? 0 : sweep.dur, ease: 'linear' }} />
                   </motion.span>
                 )}
                 <span className="zh-text">
@@ -181,7 +187,7 @@ export function Reader({ t, ready, host, onNext }: { t: ZhText; ready: Set<strin
                       <button
                         key={j}
                         type="button"
-                        className={`zh-red${pop?.w === p.text ? ' pop' : ''}`}
+                        className={`zh-red${pop?.w === p.text ? ' pop' : ''}${wordOn === p.text ? ' on' : ''}`}
                         data-word={p.text}
                         onPointerDown={(e) => {
                           e.stopPropagation()

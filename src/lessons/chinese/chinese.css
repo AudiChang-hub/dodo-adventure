@@ -123,6 +123,19 @@
   position: absolute;
   inset: -0.32em -0.18em;
 }
+.zh-red::before {
+  content: '';
+  position: absolute;
+  inset: -0.08em -0.14em;
+  z-index: -1;
+  border-radius: 0.28em;
+  background: color-mix(in srgb, var(--zh-red) 14%, transparent);
+  opacity: 0;
+  transition: opacity 0.3s var(--ease-out);
+}
+.zh-red.on::before {
+  opacity: 1;
+}
 .zh-red.pop {
   animation: zh-pop 0.5s var(--ease-spring);
 }
