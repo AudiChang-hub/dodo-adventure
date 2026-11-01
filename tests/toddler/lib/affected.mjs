@@ -67,6 +67,8 @@ export const SCREEN_TESTS = [
   // 英文字母課自己的測試（tests/toddler/lesson-english.spec.ts）：英文課資料夾裡的檔都從 index.tsx 走得到
   { token: 'lesson-english', spec: 'lesson-english', files: ['src/lessons/english/index.tsx'], games: [] },
   { token: 'home-draw', spec: 'home', files: [], games: ['d-free'] },
+  // 學校的數學課（lesson-math.spec）：數學課資料夾裡的檔改了就跑
+  { token: 'lesson-math', spec: 'lesson-math', files: ['src/lessons/math/'], games: [] },
 ]
 
 /** 測試檔本身改了：跑那個檔的全部 */
@@ -78,6 +80,7 @@ const SPEC_TOKENS = {
   'nav-spam.spec.ts': ['nav-spam'],
   'lesson-english.spec.ts': ['lesson-english'],
   'home.spec.ts': ['home-doors', 'home-draw'],
+  'lesson-math.spec.ts': ['lesson-math'],
 }
 
 // ── 讀程式 ────────────────────────────────────────────────
