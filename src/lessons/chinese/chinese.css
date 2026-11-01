@@ -244,7 +244,9 @@
     grid-template-rows: minmax(0, 1fr) auto;
   }
   .zh-page {
-    --zh-fs: min(6cqh, calc(80cqw / var(--chars)));
+    /* 行尾還有一欄圖（約 1.5 個字寬）、字距 0.06em：字要再小一點才不會被圖蓋到 */
+    --zh-fs: min(6cqh, calc(64cqw / (var(--chars) + 1.6)));
+    padding-inline: 2.4cqw;
   }
   .zh-controls {
     flex-direction: row;
