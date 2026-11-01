@@ -171,7 +171,9 @@ function distractors(n: number, k: number, max: number): number[] {
 export function reviewQs(l: Lesson): ReviewQ[] {
   const k = l.mode === 'new' ? 1 : 2
   const [icon] = countIcons(1)
-  const other = l.mode === 'new' ? l.n : pick(range(1, l.max).filter((x) => x !== l.n)) ?? l.n
+  // 混合複習的「有幾個」數量大一點（4～10）
+  const pool = l.mode === 'mix' ? range(4, LAST) : range(1, l.max)
+  const other = l.mode === 'new' ? l.n : pick(pool.filter((x) => x !== l.n)) ?? l.n
   const q = (kind: ReviewQ['kind'], n: number): ReviewQ => ({ kind, n, icon, options: shuffle([n, ...distractors(n, k, l.max)]) })
   return [q('find', l.n), q('howmany', other)]
 }
