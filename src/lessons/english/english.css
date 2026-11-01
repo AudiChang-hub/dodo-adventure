@@ -1,0 +1,413 @@
+/* 英文字母課（lessons/english）：首頁「英文字母」那扇門的綠，淡淡的；字母是主角，大、圓、留白多。
+   紙感螢幕：不用細線、漸層小、對比夠；動態只有淡入淡出和小小的跳一下，不縮放整個畫面。 */
+.en-lesson {
+  --en-tint: #e3f2e9;
+  --en-deep: #8fcbaa;
+  --en-ink: #2f7d57;
+  --en-soft: #cfe7d8;
+  background: radial-gradient(120% 90% at 50% 0%, var(--en-tint) 0%, var(--paper) 72%);
+  overflow: hidden;
+}
+/* 地面：一條很淡的草地，恐龍站在上面 */
+.en-lesson::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 11vh;
+  background: color-mix(in srgb, var(--en-deep) 22%, var(--paper));
+  border-top: 3px solid color-mix(in srgb, var(--en-deep) 30%, var(--paper));
+  z-index: 0;
+}
+.en-back {
+  position: absolute;
+  left: 26px;
+  top: 18px;
+  z-index: 5;
+}
+
+/* 進度：草地上的四顆小石頭（上面是字幕，不放上面） */
+.en-steps {
+  position: absolute;
+  bottom: calc(5.5vh - 23px);
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 16px;
+  z-index: 4;
+}
+.en-steps span {
+  width: 46px;
+  height: 46px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: var(--card);
+  box-shadow: inset 0 0 0 3px var(--en-soft), 0 3px 0 var(--paper-edge);
+  font: 600 26px/1 'Fredoka', sans-serif;
+  color: #fff;
+  transition: background 0.5s ease, box-shadow 0.5s ease;
+}
+.en-steps span.is-now {
+  box-shadow: inset 0 0 0 4px var(--en-deep), 0 3px 0 var(--paper-edge);
+}
+.en-steps span.is-done {
+  background: var(--en-deep);
+  box-shadow: 0 3px 0 color-mix(in srgb, var(--en-ink) 55%, var(--en-deep));
+}
+
+.en-host {
+  position: absolute;
+  left: 2.5vw;
+  bottom: 5vh;
+  width: min(19vw, 30vh);
+  z-index: 2;
+  pointer-events: none;
+}
+.en-stage {
+  position: absolute;
+  inset: 104px 3vw 12vh 3vw;
+  z-index: 3;
+}
+.en-pane {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+}
+
+/* ── 字母卡 ──────────────────────────────────────────────── */
+.en-letter {
+  display: grid;
+  place-items: center;
+  border-radius: 9%;
+  background: var(--card);
+  box-shadow: 0 8px 0 var(--paper-edge), 0 0 0 0 transparent;
+  font-family: 'Fredoka', sans-serif;
+  font-weight: 600;
+  line-height: 1;
+  color: var(--ink);
+  transition: background 0.45s ease, color 0.45s ease, box-shadow 0.45s ease;
+  touch-action: manipulation;
+}
+.en-letter.is-big {
+  width: min(300px, 34vmin);
+  height: min(340px, 39vmin);
+  font-size: min(250px, 29vmin);
+}
+.en-letter.is-little {
+  width: min(250px, 28vmin);
+  height: min(290px, 33vmin);
+  font-size: min(210px, 24vmin);
+  align-self: flex-end;
+}
+.en-letter.is-lit {
+  background: #f2faf5;
+  color: var(--en-ink);
+  box-shadow: 0 8px 0 color-mix(in srgb, var(--en-deep) 70%, var(--paper-edge)), 0 0 0 10px color-mix(in srgb, var(--en-deep) 35%, transparent);
+}
+
+.en-meet {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: min(64px, 5vmin);
+  padding-left: min(14vw, 180px);
+}
+.en-meet-pair {
+  display: flex;
+  align-items: flex-end;
+  /* 準則 TOUCH-1：兩個可點的東西至少隔 28px */
+  gap: max(32px, min(40px, 3.4vmin));
+}
+.en-meet-pic {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 22px 26px 18px;
+  border-radius: 28px;
+  background: var(--card);
+  box-shadow: 0 6px 0 var(--paper-edge);
+  touch-action: manipulation;
+}
+.en-meet-pic svg {
+  width: min(150px, 17vmin);
+  height: auto;
+}
+
+/* 單字：今天的字母上色 */
+.en-word {
+  font: 600 min(46px, 5.4vmin) / 1 'Fredoka', sans-serif;
+  color: var(--ink-soft);
+  letter-spacing: 0.01em;
+}
+.en-word b {
+  font-weight: 700;
+  color: var(--en-ink);
+}
+
+/* ── 單字範例 ────────────────────────────────────────────── */
+.en-words {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: min(36px, 3.4vmin);
+  padding-left: min(14vw, 180px);
+}
+.en-word-card {
+  width: min(250px, 25vmin);
+  aspect-ratio: 5 / 6;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: min(18px, 2vmin);
+  border-radius: 30px;
+  background: var(--card);
+  box-shadow: 0 7px 0 var(--paper-edge);
+  transition: box-shadow 0.45s ease, background 0.45s ease;
+  touch-action: manipulation;
+}
+.en-word-card svg {
+  width: min(150px, 15vmin);
+  height: auto;
+}
+.en-word-card.is-lit {
+  background: #f2faf5;
+  box-shadow: 0 7px 0 color-mix(in srgb, var(--en-deep) 70%, var(--paper-edge)), 0 0 0 9px color-mix(in srgb, var(--en-deep) 35%, transparent);
+}
+
+/* ── 描字 ────────────────────────────────────────────────── */
+.en-trace {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.en-trace-paper {
+  position: relative;
+  height: min(100%, 640px);
+  aspect-ratio: 100 / 140;
+  border-radius: 34px;
+  background: var(--card);
+  box-shadow: 0 8px 0 var(--paper-edge);
+}
+.en-trace-board {
+  position: absolute;
+  inset: 3%;
+}
+.en-trace-svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+.en-trace-lines line {
+  stroke: #d8e9de;
+  stroke-width: 0.8;
+}
+.en-trace-lines line.is-base {
+  stroke: #b9d6c4;
+  stroke-width: 1.1;
+}
+.en-trace-rounds {
+  position: absolute;
+  right: 4vw;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.en-trace-rounds span {
+  width: 62px;
+  height: 62px;
+  border-radius: 18px;
+  display: grid;
+  place-items: center;
+  background: var(--card);
+  box-shadow: 0 4px 0 var(--paper-edge);
+  font: 600 38px/1 'Fredoka', sans-serif;
+  color: var(--ink-faint);
+  transition: all 0.45s ease;
+}
+.en-trace-rounds span.is-now {
+  color: var(--en-ink);
+  box-shadow: 0 4px 0 var(--paper-edge), 0 0 0 4px var(--en-deep);
+}
+.en-trace-rounds span.is-done {
+  background: var(--en-deep);
+  color: #fff;
+}
+.en-trace-tool {
+  position: absolute;
+  right: 4vw;
+  bottom: 0;
+  display: flex;
+  align-items: flex-end;
+  gap: 4px;
+  opacity: 0.55;
+}
+
+/* ── 選擇 ────────────────────────────────────────────────── */
+.en-quiz {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  padding-left: min(14vw, 180px);
+}
+.en-options {
+  position: absolute;
+  inset: 0 0 0 min(14vw, 180px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: min(48px, 4vmin);
+}
+.en-opt {
+  position: relative;
+  width: min(250px, 27vmin);
+  aspect-ratio: 1;
+  display: grid;
+  place-items: center;
+  border-radius: 32px;
+  background: var(--card);
+  box-shadow: 0 8px 0 var(--paper-edge);
+  transition: background 0.35s ease, box-shadow 0.35s ease, opacity 0.35s ease;
+  touch-action: manipulation;
+}
+.en-opt > span {
+  display: grid;
+  place-items: center;
+}
+.en-opt svg {
+  width: min(160px, 17vmin);
+  height: auto;
+}
+.en-opt-letter {
+  font: 600 min(180px, 20vmin) / 1 'Fredoka', sans-serif;
+  color: var(--ink);
+}
+.en-opt.is-no {
+  opacity: 0.55;
+}
+.en-opt.is-yes {
+  background: #eaf6ef;
+  box-shadow: 0 8px 0 color-mix(in srgb, var(--en-deep) 70%, var(--paper-edge)), 0 0 0 12px color-mix(in srgb, var(--en-deep) 45%, transparent);
+}
+.en-opt.is-yes .en-opt-letter {
+  color: var(--en-ink);
+}
+.en-opt.is-hint {
+  box-shadow: 0 8px 0 var(--paper-edge), 0 0 0 8px color-mix(in srgb, var(--en-deep) 55%, transparent);
+}
+.en-opt-hand {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+/* ── 上完 ────────────────────────────────────────────────── */
+.en-end {
+  position: relative;
+  display: flex;
+  align-items: flex-end;
+  gap: min(36px, 3vmin);
+  padding-left: min(14vw, 180px);
+}
+.en-end-spark {
+  position: absolute;
+  left: calc(50% + min(7vw, 90px));
+  top: 45%;
+}
+
+/* 點了跳一下、點錯搖一下（只動裡面那一層） */
+.en-hop {
+  animation: en-hop 0.34s cubic-bezier(0.22, 1, 0.36, 1);
+}
+@keyframes en-hop {
+  40% {
+    transform: translateY(-8%);
+  }
+}
+.en-shake {
+  animation: en-shake 0.4s ease;
+}
+@keyframes en-shake {
+  20%,
+  60% {
+    transform: translateX(-5%);
+  }
+  40%,
+  80% {
+    transform: translateX(5%);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .en-hop,
+  .en-shake {
+    animation: none;
+  }
+}
+
+/* 手機直式（家長遠端看）：只求不壞版，內容往中間疊 */
+@media (orientation: portrait) {
+  .en-host {
+    width: 22vw;
+    bottom: 4vh;
+  }
+  .en-steps {
+    left: auto;
+    right: 4vw;
+    bottom: auto;
+    top: 112px;
+    transform: none;
+    gap: 8px;
+  }
+  .en-steps span {
+    width: 28px;
+    height: 28px;
+    font-size: 16px;
+  }
+  .en-trace-tool {
+    display: none;
+  }
+  .en-meet,
+  .en-words,
+  .en-quiz,
+  .en-end {
+    padding-left: 0;
+  }
+  .en-options {
+    inset: 0;
+  }
+  .en-meet {
+    flex-direction: column;
+    gap: 4vmin;
+  }
+  .en-words {
+    flex-wrap: wrap;
+    align-content: center;
+  }
+  .en-trace-rounds {
+    right: auto;
+    left: 50%;
+    top: auto;
+    bottom: 0;
+    transform: translateX(-50%);
+    flex-direction: row;
+  }
+  .en-trace-paper {
+    height: auto;
+    width: min(86vw, 100%);
+  }
+}
