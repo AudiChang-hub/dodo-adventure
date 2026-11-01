@@ -373,6 +373,7 @@ def main():
     ap.add_argument("--note", default="家長聽過放行", help="放行備註（記進放行清單）")
     ap.add_argument("--samples", action="store_true", help="另外把每一篇的課文接成全文（試聽用）")
     ap.add_argument("--check", action="store_true", help="只檢查、不產生（不需要 BreezyVoice 環境）")
+    ap.add_argument("--stay-awake", action="store_true", help="跑的期間不讓電腦閒置睡眠（Windows 的 SetThreadExecutionState，跑完自動恢復；不改電源設定）")
     ap.add_argument("--days", default="", help="只做這幾天的課文，例如 1-30（清單的 day 欄位；分段產生、每段做完先合併上線）")
     args = ap.parse_args()
     out = pathlib.Path(args.out)
@@ -391,6 +392,9 @@ def main():
             print("REVIEW", key, text, "（3 次都沒通過，等家長聽）")
         sys.exit(1 if bad else 0)
 
+    if args.stay_awake and sys.platform == "win32":
+        import ctypes
+        ctypes.windll.kernel32.SetThreadExecutionState(0x80000000 | 0x00000001)  # ES_CONTINUOUS | ES_SYSTEM_REQUIRED
     rows = load_rows(pathlib.Path(args.lines))
     if args.days:
         lo, _, hi = args.days.partition("-")
