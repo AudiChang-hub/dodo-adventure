@@ -213,9 +213,17 @@
   }
   const round = (x) => Math.round(x * 100) / 100
   // 動畫走到一半被打斷又往回走，在 settle 之後清掉歷史：只比較「同一段轉場」裡的方向
+  // 最近 30 格的間隔（三歲測試報「點了沒反應」時附上：平板多忙、畫格多慢）
+  P.frameGaps = []
+  let lastFrame = 0
   function frame() {
     const t = now()
     P.frames++
+    if (lastFrame) {
+      P.frameGaps.push(t - lastFrame)
+      if (P.frameGaps.length > 30) P.frameGaps.shift()
+    }
+    lastFrame = t
     const W = innerWidth
     const H = innerHeight
     // 只看最外層的整頁圖層（今日冒險裡面還有一疊自己的 .scene）

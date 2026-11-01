@@ -204,11 +204,50 @@ export async function tapDoor(k: Toddler, c: Checker, door: string, label: strin
     const stable = await settle(page, 4000)
     const p = await doorAt(page, door)
     if (!p) return null
+    // 按下去有沒有傳到畫面：最外層（window capture）收到、document 沒收到，就是被最外層的防連點攔掉了（ui/Scenes.tsx 的 Gate）
+    const before = await page.evaluate(() => {
+      const w = window as unknown as { __doorDown?: number[]; __doorLog?: string[] }
+      if (!w.__doorDown) {
+        w.__doorDown = [0, 0, 0, 0, 0, 0]
+        window.addEventListener('pointerdown', (e) => ((w as unknown as { __doorPd: string }).__doorPd = `${e.pointerType} id ${e.pointerId} primary ${e.isPrimary}`), true)
+        ;['pointerdown', 'pointerup', 'click'].forEach((t, i) => {
+          window.addEventListener(t, () => w.__doorDown![i * 2]++, true)
+          document.addEventListener(t, () => w.__doorDown![i * 2 + 1]++)
+        })
+        // 畫面換了哪幾次（點門之後有沒有進去又被帶回來）
+        new MutationObserver(() => {
+          const ids = [...document.querySelectorAll('.scene')].map((e) => `${e.getAttribute('data-scene')}:${e.getAttribute('data-role')}`).join(',')
+          const l = w.__doorLog!
+          if (l[l.length - 1]?.endsWith(ids)) return
+          l.push(`${Math.round(performance.now())} ${ids}`)
+          if (l.length > 20) l.shift()
+        }).observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['data-role', 'data-scene'] })
+      }
+      w.__doorLog = [`${Math.round(performance.now())} 點門之前`]
+      return [...w.__doorDown]
+    })
     await k.tap(p, i ? `${label}（沒進去，再點一次）` : label)
     live = await waitLive(page, isIn, ms)
     if (isIn(live)) return live
-    if (stable && live === 'home')
-      await c.once(`door-eaten:${door}`, '困惑', `首頁穩定之後點「${label}」沒有反應`, `首頁只剩一層、轉場走完了才點，${ms / 1000} 秒後還在首頁（第 ${i + 1} 次）`)
+    if (stable && live === 'home') {
+      const d = await page.evaluate(() => (window as unknown as { __doorDown: number[] }).__doorDown)
+      const log = await page.evaluate(() => (window as unknown as { __doorLog: string[]; __doorPd?: string }).__doorLog.join(' ／ ') + `；那一下 ${(window as unknown as { __doorPd?: string }).__doorPd}`)
+      const at = await page.evaluate(({ x, y }) => {
+        const e = document.elementFromPoint(x, y)
+        return e ? `${e.tagName.toLowerCase()}.${String(e.className).split(' ')[0]}${e.closest('[data-door]') ? `（門 ${e.closest('[data-door]')!.getAttribute('data-door')}）` : ''}` : '沒有'
+      }, p)
+      const fr = await page.evaluate(() => {
+        const f = (window as unknown as { __toddler?: { frameGaps?: number[] } }).__toddler?.frameGaps ?? []
+        const s = [...f].sort((a, b) => a - b)
+        return s.length ? `最近畫格間隔中位數 ${Math.round(s[Math.floor(s.length / 2)])}ms、最長 ${Math.round(s[s.length - 1])}ms` : ''
+      })
+      await c.once(
+        `door-eaten:${door}`,
+        '困惑',
+        `首頁穩定之後點「${label}」沒有反應`,
+        `首頁只剩一層、轉場走完了才點，${ms / 1000} 秒後還在首頁（第 ${i + 1} 次）；pointerdown／pointerup／click 最外層收到 ${d[0] - before[0]}／${d[2] - before[2]}／${d[4] - before[4]}、傳到畫面 ${d[1] - before[1]}／${d[3] - before[3]}／${d[5] - before[5]}；那一點是 ${at}${fr ? `；${fr}` : ''}；畫面：${log}`,
+      )
+    }
   }
   return live
 }

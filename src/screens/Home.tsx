@@ -6,6 +6,7 @@ import { go, type Route } from '../lib/nav'
 import { say, sfx } from '../lib/audio'
 import { on } from '../lib/features'
 import { audioReady, onUnlock } from '../lib/boot'
+import { useTaps } from '../ui/tap'
 import { useInstall } from '../lib/install'
 import { useIntro } from '../ui/Scenes'
 import { LESSONS, SUBJECTS, type Subject } from '../lessons'
@@ -77,6 +78,8 @@ function SchoolHome() {
     })
   }, [])
 
+  // 點門：按下、放開就進去，不等瀏覽器的 click（ui/tap.ts：有時候 click 沒來，孩子會覺得按了沒反應）
+  const tap = useTaps()
   const open = (to: Route) => {
     greeted = true
     sfx.pop()
@@ -120,7 +123,7 @@ function SchoolHome() {
                 initial={intro ? { y: 60, opacity: 0 } : false}
                 animate={{ y: 0, opacity: 1 }}
                 transition={{ type: 'spring', stiffness: 120, damping: 16, delay: 0.15 + i * 0.12 }}
-                onClick={() => open({ name: 'lesson', subject: s })}
+                {...tap(s, () => open({ name: 'lesson', subject: s }))}
               >
                 <span className="door-arch">
                   <span className="door-glass">{SIGN[s]}</span>
@@ -144,7 +147,7 @@ function SchoolHome() {
               initial={intro ? { scale: 0.6, opacity: 0 } : false}
               animate={{ scale: 1, opacity: 1 }}
               transition={{ type: 'spring', stiffness: 160, damping: 15, delay: 0.55 + i * 0.1 }}
-              onClick={() => open(x.to)}
+              {...tap(x.id, () => open(x.to))}
             >
               <span className="side-window">
                 <Emoji name={x.icon} />
