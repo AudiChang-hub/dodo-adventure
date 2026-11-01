@@ -53,6 +53,8 @@ export function MathLesson({ onDone }: LessonProps) {
   const [ping, setPing] = useState(0)
   const host = useRef<(() => void) | null>(null)
   const partRef = useRef(-1)
+  /** 開場中點波波：重說的那一次（開場要等它說完） */
+  const replay = useRef<Promise<void> | null>(null)
   const live = useLive()
 
   useEffect(() => {
@@ -75,13 +77,26 @@ export function MathLesson({ onDone }: LessonProps) {
       if (!live.current) return
       sfx.pop()
       await say(`ma.today.${lesson.n}`)
+      // 開場中點波波會從頭再說一次：等這一次說完才往下，不要被「Let's count!」切掉
+      const replayed = async () => {
+        while (live.current && replay.current) {
+          const r = replay.current
+          replay.current = null
+          await r
+        }
+      }
+      await replayed()
       if (!live.current) return
       await wait(700)
+      host.current = null
+      await replayed()
       if (!live.current) return
       setMood('idle')
       go(lesson.part)
     }, 0)
-    host.current = () => void say(`ma.today.${lesson.n}`)
+    host.current = () => {
+      replay.current = say(`ma.today.${lesson.n}`)
+    }
     return () => clearTimeout(t)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [lesson])

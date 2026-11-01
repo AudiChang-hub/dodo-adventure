@@ -674,7 +674,8 @@ test.describe('畫面', () => {
           const hit = document.elementFromPoint(b.left + b.width / 2, b.top + b.height / 2)
           return !!hit && el.contains(hit)
         }
-        return { z, sub: top(document.querySelector('.sub-pill')), corner: top(document.querySelector('.parent-corner')) }
+        // 換句時舊的那一句（data-gone）壓在新的下面淡出，本來就會被蓋：量正在說的那一句
+        return { z, sub: top(document.querySelector('.sub-pill:not([data-gone])')), corner: top(document.querySelector('.parent-corner')) }
       })
     }
     try {
