@@ -104,6 +104,41 @@ async function traceRound(k: Toddler) {
   return false
 }
 
+/**
+ * 描到一半再描（2026-11-01，track.ts 的 penDown）：沿著現在這一筆（虛線）描到一半，
+ * restart＝被手掌打斷（touchcancel）、再從綠點從頭描；continue＝抬筆、從斷掉的地方接著描。
+ * 回傳這一筆有沒有描完（換到下一筆、或這一次描完了）；還不能畫、找不到這一筆時回傳 null。
+ */
+async function halfThenAgain(k: Toddler, how: 'restart' | 'continue', sel: { board: string; done: string }) {
+  const page = k.page
+  const now = () =>
+    page.evaluate((sel) => {
+      const boards = [...document.querySelectorAll(sel.board)]
+      const b = boards[boards.length - 1]
+      const p = b?.querySelector<SVGPathElement>('path[stroke-dasharray="3 3"]')
+      const done = document.querySelectorAll(sel.done).length
+      if (!p) return { d: null as string | null, done, pts: [] as { x: number; y: number }[] }
+      const m = p.getScreenCTM()!
+      const len = p.getTotalLength()
+      const n = Math.max(8, Math.round(len / 4))
+      const pts = Array.from({ length: n + 1 }, (_, i) => {
+        const q = p.getPointAtLength((len * i) / n)
+        const s = new DOMPoint(q.x, q.y).matrixTransform(m)
+        return { x: s.x, y: s.y }
+      })
+      return { d: p.getAttribute('d'), done, pts }
+    }, sel)
+  const a = await now()
+  if (!a.d || a.pts.length < 4) return null
+  const mid = Math.round(a.pts.length * 0.55)
+  await k.drag(a.pts.slice(0, mid), { stepMs: 16, cancel: how === 'restart', label: how === 'restart' ? '描到一半被手掌打斷' : '描到一半抬筆' })
+  await k.wait(700)
+  await k.drag(how === 'restart' ? a.pts : a.pts.slice(mid - 1), { stepMs: 16, label: how === 'restart' ? '從綠點重描' : '從斷掉的地方接著描' })
+  await k.wait(900)
+  const b = await now()
+  return b.d !== a.d || b.done > a.done
+}
+
 /** 選擇：今天的字母、今天的字是答案；複習題（以前的字母）先點錯兩次、看亮起來的答案再點 */
 async function answer(k: Toddler, wrongFirst: boolean) {
   const page = k.page
@@ -386,6 +421,42 @@ test.describe('英文字母課', () => {
     } finally {
       await c.flush().catch(() => {})
       finish(k, c, '進度')
+    }
+  })
+  test('描字：描到一半抬筆，再從綠點重描', async ({ page }, info) => {
+    test.skip(!want('lesson-english'))
+    test.setTimeout(6 * 60_000)
+    const { k, c } = await setup(page, info, '描到一半')
+    try {
+      if (!(await enter(k, c))) return
+      const toTrace = await waitStage(page, 'trace', 60_000)
+      if (!toTrace) return void (await c.once('to-trace', '卡死', '沒有走到描字', `停在 ${await stageOf(page)}`))
+      const ready = async () => {
+        for (let i = 0; i < 80; i++) {
+          if (await page.evaluate(() => {
+            const t = document.querySelector('.en-trace')
+            return !!t && t.getAttribute('data-accepting') !== 'false' && !t.hasAttribute('data-demo')
+          }))
+            return true
+          await k.wait(250)
+        }
+        return false
+      }
+      for (const how of ['restart', 'continue', 'restart'] as const) {
+        k.behavior = how === 'restart' ? '描到一半被打斷，從綠點重描' : '描到一半抬筆，接著描'
+        if (!(await ready())) {
+          await c.once('trace-ready', '卡死', '描字一直不能畫', `停在 ${await stageOf(page)}`)
+          break
+        }
+        await k.wait(300)
+        const ok = await halfThenAgain(k, how, { board: '.en-trace-board', done: '.en-trace-rounds .is-done' })
+        if (ok === null) continue
+        c.outcome(k.behavior, ok, '')
+        if (!ok) await c.once(`half:${how}`, '卡死', `描字${how === 'restart' ? '描到一半被打斷，從綠點重描' : '描到一半抬筆再接著描'}，這一筆描不完`, '')
+        await c.flush()
+      }
+    } finally {
+      finish(k, c, '描到一半')
     }
   })
 })

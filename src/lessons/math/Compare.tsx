@@ -7,7 +7,7 @@ import { compareQs, countIcons, type CompareQ } from './plan'
 import { Fade, Quiz, type PartCtx, type QuizResult } from './kit'
 
 /**
- * 比多少（比多少 m-compare 的做法）：左右兩堆，「Which side has more?」。題目上方一直掛著徽章（一大堆／只有一個），靜音也知道問的是哪一個。
+ * 比多少（比多少 m-compare 的做法）：左右兩堆，「Which side has more?」。波波頭上的對話泡泡是徽章（一大堆／只有一個），靜音也知道問的是哪一個；泡泡很小、不能點，畫面上能點的只有兩堆。
  * 第一次問「多」或「少」先上教學卡（6 對 2，這邊比較多、這邊比較少），教過才考。
  */
 export function ComparePart({ ctx }: { ctx: PartCtx }) {
@@ -67,7 +67,7 @@ export function ComparePart({ ctx }: { ctx: PartCtx }) {
             correction: [q.ask === 'more' ? 'm.this.more' : 'm.this.less'],
             answer: String(q.ask === 'more' ? Math.max(q.a, q.b) : Math.min(q.a, q.b)),
             wide: true,
-            top: (
+            ask: (
               <div className="ma-cue">
                 <CueArt cue={q.ask} icon={q.icon} />
               </div>
