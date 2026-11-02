@@ -294,8 +294,19 @@ class Lessons:
     def why(self, row):
         return (self.say.get(f"{row['kind']}|{row['text']}") or {}).get("why")
 
+    def recover(self, row):
+        """報告裡沒有這一句（產生到一半被停掉，報告還沒寫）：從快取的版本紀錄補一列（用的是第一個通過的版本）"""
+        stem = row["file"].split("/")[-1]
+        tried = [(f"{stem}-{x}", self.meta[f"{stem}-{x}"]) for x in SEEDS if f"{stem}-{x}" in self.meta]
+        ok = [t for t in tried if t[1].get("verdict") != "不對"]
+        if not ok:
+            return None  # 試跑沿用的句子（家長試聽過），快取裡沒有
+        return {"key": row["key"], "kind": row["kind"], "text": row["text"], "file": row["file"], "chosen": ok[0][0],
+                "status": "通過", "first_try": tried[0][1].get("verdict") != "不對", "takes": [dict(id=t, **x) for t, x in tried]}
+
     def needs_regen(self, row, rep_row) -> bool:
         """多音字重做：之前用的版本念的文字，少了現在規則要加的注音（或 say 指定的念法）"""
+        rep_row = rep_row or self.recover(row)
         if not rep_row:
             return False  # 試跑沿用的句子（家長試聽過）
         used = self.meta.get(rep_row.get("chosen", ""), {}).get("input", "")
@@ -646,6 +657,8 @@ def main():
         if stem in idx and (out / f"{stem}.mp3").exists() and stem not in args.accept_stems | args.redo_stems | args.regen_stems:
             if row["key"] in prev:
                 report.append(prev[row["key"]])
+            elif (r := job.recover(row)):
+                report.append(r)
             continue
         print(f"[{i + 1}/{len(rows)}] {row['key']}「{row['text']}」", flush=True)
         report.append(job.make(row, idx, out))
