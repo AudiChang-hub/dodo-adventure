@@ -41,6 +41,12 @@ D 組（家長 2026-10-31 選的，試聽在 docs/voice-samples/breezyvoice/）�
   torch.set_num_threads(n)、set_num_interop_threads(1)。
 - 一開始就把自己降成 Idle 優先權（Windows 的 SetPriorityClass），子程序跟著是 Idle；家長用電腦時讓給前景程式。
 - --stay-awake 只防閒置睡眠，跟耗電無關，照樣可以用。
+- 排隊：同一時間只跑一個（scripts/.cache/zh-lesson/run.lock 記著正在跑的 PID）；後來的先等，前一個結束才開始。
+  要插隊時，排程的 shell 先把自己的 PID 寫進 run.lock，再用環境變數 ZH_LOCK_HANDOFF=<那個 PID> 啟動，鎖直接交給它。
+
+家長聽完「需確認」的句子：--results 家長聽音結果.json（{"ok": [key…], "redo": [key…]}）
+- ok 的照 --accept 放行；redo 的換 REDO_SEEDS 重新產生，電腦檢查通過就直接用，還是沒過的留在「需確認」等家長再聽。
+- key 對應到檔名：同一句話在不同天出現只算一次（例如兩天都有「蠟燭」）。
 """
 import argparse
 import json
@@ -59,6 +65,7 @@ VOICE = "breezy|example2nd|v1"
 PROMPT = {"from": 9.05, "to": None, "text": "只有擁有解密方法的對象，經由解密過程，才能將密文還原為正常可讀的內容。",
           "bopomofo": False, "fade": False}
 SEEDS = [7, 1007, 2007]        # 第一個是試聽時用的種子
+REDO_SEEDS = [3007, 4007, 5007, 6007]  # 家長聽過說要重做的句子：換這幾個種子重新產生（之前的版本都不用），單數位置的加注音
 KINDS = {"text", "word", "question", "praise"}
 SPEED = {"text": (4.5, 4.0), "word": (3.2, 3.0), "question": (3.2, 3.0), "praise": (3.2, 3.0)}  # 每秒超過幾個字 → 放慢到幾個字
 LINE_GAP_MS = 600              # 試聽全文：課文一行和一行之間
@@ -306,7 +313,10 @@ class Lessons:
     def make(self, row, idx, out):
         """回傳這一句的報告"""
         stem = row["file"].split("/")[-1]
-        appr = self.approved.get(stem)
+        redo = stem in self.args.redo_stems
+        appr = None if redo else self.approved.get(stem)
+        if redo and self.approved.pop(stem, None):  # 放行過、家長又說要重做：從放行清單拿掉
+            self.save_approved()
         if appr and appr["text"] == row["text"]:  # 家長放行過：直接用那個版本（快取沒了就用同樣的種子、同樣的文字重做）
             seed = int(appr["take"].rsplit("-", 1)[1])
             tid, m = self.take(row, seed, annotated=SEEDS.index(seed) == 1)
@@ -321,15 +331,15 @@ class Lessons:
                     "status": "家長放行", "approved": appr["approved"], "first_try": tried[0][1]["verdict"] != "不對",
                     "takes": [dict(id=t, **x) for t, x in tried]}
         takes = []
-        for i, seed in enumerate(SEEDS):
-            tid, m = self.take(row, seed, annotated=i == 1)
+        for i, seed in enumerate(REDO_SEEDS if redo else SEEDS):
+            tid, m = self.take(row, seed, annotated=i % 2 == 1 if redo else i == 1)
             takes.append((tid, m))
             print(f"  {row['key']} 種子 {seed}：{m['verdict']}　聽成「{m['heard']}」　合成 {m.get('gen_seconds')} 秒　"
                   f"{m['seconds']} 秒長、每秒 {m['cps']} 字" + (f"（放慢 {m['speed']}）" if m["speed"] != 1.0 else ""), flush=True)
             if m["verdict"] != "不對":
                 break
         ok = [t for t in takes if t[1]["verdict"] != "不對"]
-        accepted = row["key"] in self.args.accept
+        accepted = stem in self.args.accept_stems
         tid, m = ok[0] if ok else min(takes, key=lambda t: (t[1]["tone_dist"], -t[1].get("force", 0)))
         src = (CACHE / f"{tid}.mp3").read_bytes()
         review = out / "需確認" / f"{stem}.mp3"
@@ -347,6 +357,7 @@ class Lessons:
         return {"key": row["key"], "kind": row["kind"], "text": row["text"], "file": row["file"], "chosen": tid,
                 "status": "通過" if ok else ("家長放行" if accepted else "需確認"), "first_try": takes[0][1]["verdict"] != "不對",
                 **({"approved": self.args.approved_on} if accepted and not ok else {}),
+                **({"redo": self.args.approved_on} if redo else {}),
                 "takes": [dict(id=t, **x) for t, x in takes]}
 
 
@@ -368,6 +379,56 @@ def build_samples(rows, out: pathlib.Path, gz):
             gz.encode(np.concatenate(parts[:-1]), dst)
             made.append(dst.name)
     return made
+
+
+def alive(pid: int) -> bool:
+    if sys.platform != "win32":
+        try:
+            os.kill(pid, 0)
+            return True
+        except OSError:
+            return False
+    import ctypes
+    from ctypes import wintypes
+    k32 = ctypes.windll.kernel32
+    k32.OpenProcess.restype = wintypes.HANDLE
+    h = k32.OpenProcess(0x1000, False, pid)  # PROCESS_QUERY_LIMITED_INFORMATION
+    if not h:
+        return False
+    code = wintypes.DWORD()
+    k32.GetExitCodeProcess(wintypes.HANDLE(h), ctypes.byref(code))
+    k32.CloseHandle(wintypes.HANDLE(h))
+    return code.value == 259  # STILL_ACTIVE
+
+
+def queue(lock: pathlib.Path):
+    """排隊：同一時間只跑一個生成（家長的筆電插著電還會掉電）。run.lock 記著正在跑的 PID，那個程式還在就等"""
+    lock.parent.mkdir(parents=True, exist_ok=True)
+    told = False
+    while True:
+        try:
+            with open(lock, "x", encoding="utf-8") as f:
+                f.write(str(os.getpid()))
+            break
+        except FileExistsError:
+            try:
+                pid = int(lock.read_text(encoding="utf-8").strip() or 0)
+            except (OSError, ValueError):
+                pid = 0
+            if pid and str(pid) == os.environ.get("ZH_LOCK_HANDOFF"):  # 排程的 shell 先替這一個佔好位子，交給它
+                lock.write_text(str(os.getpid()), encoding="utf-8")
+                break
+            if pid and pid != os.getpid() and alive(pid):
+                if not told:
+                    print(f"排隊：PID {pid} 還在生成，等它結束（{time.strftime('%H:%M:%S')}）", flush=True)
+                    told = True
+                time.sleep(20)
+                continue
+            lock.unlink(missing_ok=True)  # 留下來的舊鎖
+    if told:
+        print(f"排隊：輪到了（{time.strftime('%H:%M:%S')}）", flush=True)
+    import atexit
+    atexit.register(lambda: lock.read_text(encoding="utf-8").strip() == str(os.getpid()) and lock.unlink(missing_ok=True))
 
 
 def gentle(args):
@@ -408,6 +469,8 @@ def main():
     ap.add_argument("--check", action="store_true", help="只檢查、不產生（不需要 BreezyVoice 環境）")
     ap.add_argument("--stay-awake", action="store_true", help="跑的期間不讓電腦閒置睡眠（Windows 的 SetThreadExecutionState，跑完自動恢復；不改電源設定）")
     ap.add_argument("--days", default="", help="只做這幾天的課文，例如 1-30（清單的 day 欄位；分段產生、每段做完先合併上線）")
+    ap.add_argument("--redo", nargs="*", default=[], help="家長聽過說要重做的句子 key：換 REDO_SEEDS 重新產生")
+    ap.add_argument("--results", default="", help='家長聽音結果 JSON：{"ok": [key…], "redo": [key…]}，等於 --accept ok… --redo redo…')
     args = ap.parse_args()
     out = pathlib.Path(args.out)
     sys.stdout.reconfigure(encoding="utf-8")  # -I 會忽略 PYTHONIOENCODING
@@ -425,11 +488,25 @@ def main():
             print("REVIEW", key, text, "（3 次都沒通過，等家長聽）")
         sys.exit(1 if bad else 0)
 
+    queue(CACHE / "run.lock")
     gentle(args)
     if args.stay_awake and sys.platform == "win32":
         import ctypes
         ctypes.windll.kernel32.SetThreadExecutionState(0x80000000 | 0x00000001)  # ES_CONTINUOUS | ES_SYSTEM_REQUIRED
     rows = load_rows(pathlib.Path(args.lines))
+    if args.results:
+        res = json.loads(pathlib.Path(args.results).read_text(encoding="utf-8"))
+        args.accept += res.get("ok", [])
+        args.redo += res.get("redo", [])
+    # key → 檔名：同一句話在不同天出現只有一個檔，放行／重做都照檔名算；兩邊都有的照重做
+    stem_of = {r["key"]: r["file"].split("/")[-1] for r in rows}
+    unknown = [k for k in args.accept + args.redo if k not in stem_of]
+    if unknown:
+        raise SystemExit(f"清單裡沒有這些 key：{' '.join(unknown)}")
+    args.redo_stems = {stem_of[k] for k in args.redo}
+    args.accept_stems = {stem_of[k] for k in args.accept} - args.redo_stems
+    if args.accept or args.redo:
+        print(f"放行 {len(args.accept_stems)} 個檔、重做 {len(args.redo_stems)} 個檔", flush=True)
     if args.days:
         lo, _, hi = args.days.partition("-")
         lo, hi = int(lo), int(hi or lo)
@@ -448,7 +525,7 @@ def main():
         if stem in seen:  # 同一句話（同 kind、同文字）只做一次
             continue
         seen.add(stem)
-        if stem in idx and (out / f"{stem}.mp3").exists() and row["key"] not in args.accept:
+        if stem in idx and (out / f"{stem}.mp3").exists() and stem not in args.accept_stems | args.redo_stems:
             if row["key"] in prev:
                 report.append(prev[row["key"]])
             continue
@@ -461,7 +538,8 @@ def main():
     samples = build_samples(rows, out, job.gz) if args.samples else []
     # 分段產生（--days）：別段的紀錄留著，報告和摘要是全部做過的句子
     mine = {r["key"] for r in report}
-    report += [r for k, r in prev.items() if k not in mine]
+    files = {r["file"] for r in report}  # 同一個檔在別天的紀錄（舊的）一起換掉
+    report += [r for k, r in prev.items() if k not in mine and r["file"] not in files]
     takes = [t for r in report for t in r["takes"]]
     summary = {
         "sentences": len(report),
