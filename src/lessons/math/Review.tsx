@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { VisualView } from '../../ui/Visual'
 import { logAttempt } from '../../lib/record'
 import { reviewQs } from './plan'
@@ -6,13 +6,19 @@ import { Fade, Quiz, type PartCtx, type QuizResult } from './kit'
 
 /**
  * 小複習：兩題。「Where is three?」找出今天的數字（找數字 m-find）、「How many?」數一數上面那一堆、點數字（有幾個 m-match）。
- * 兩題都是剛剛教過、數過、寫過的；教過 3 個數字以後一律 3 選 1（plan.ts 的 reviewQs）。
+ * 兩題都是剛剛教過、數過、寫過的；一律 3 選 1，只教了 1、2 的那兩天沒有小複習（plan.ts 的 reviewQs）。
  */
 export function ReviewPart({ ctx }: { ctx: PartCtx }) {
   const [qs] = useState(() => reviewQs(ctx.lesson))
   const [i, setI] = useState(0)
   const [missed, setMissed] = useState(0)
   const q = qs[i]
+  // 今天沒有小複習（只教了 1、2，index.tsx 本來就會跳過）：直接下課，不留一個空的畫面
+  useEffect(() => {
+    if (!qs.length) ctx.done(0, 0)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+  if (!q) return null
 
   const answered = (r: QuizResult) => {
     void logAttempt({
