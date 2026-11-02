@@ -84,8 +84,9 @@ export class Finger {
         if (el.closest('.parent-corner')) return '家長角落'
         if (el.tagName === 'CANVAS') return '畫布'
         const b = el.closest('button, [role=button], .door, .side-door, .book-card')
-        if (b) return `按鈕「${b.getAttribute('aria-label') || (b as HTMLElement).dataset.door || b.textContent?.trim().slice(0, 12) || b.className.toString().split(' ')[0]}」`
-        const cls = (el as HTMLElement).className?.toString().split(' ')[0]
+        if (b) return `按鈕「${b.getAttribute('aria-label') || (b as HTMLElement).dataset.door || b.textContent?.trim().slice(0, 12) || (b.getAttribute('class') ?? '').split(' ')[0]}」`
+        // SVG 的 className 是 SVGAnimatedString，用 getAttribute 才拿得到字
+        const cls = (el.getAttribute('class') ?? '').split(' ')[0]
         return cls ? `空白處（${cls}）` : `空白處（${el.tagName.toLowerCase()}）`
       }, p)
       .catch(() => '（讀不到）')

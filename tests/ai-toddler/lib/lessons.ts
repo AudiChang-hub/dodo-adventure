@@ -23,10 +23,12 @@ export const LESSONS: Record<string, LessonDef> = {
 export const ALIASES: Record<string, string> = { english: 'en', chinese: 'zh', 中文: 'zh', 英文: 'en', 數學: 'math', 畫畫: 'draw', 故事: 'story' }
 
 /**
- * 故事書要有講過的章節才有書可以選。舊的冒險拿掉以後新裝置的書架是空的，
- * 測試照 tests/toddler/story.spec.ts 放幾本進去（通用章節、長篇、經典各一種）。
+ * 故事書要有講過的章節才有書可以選。舊的冒險拿掉以後（T-75）沒有地方會再寫新的章節，新裝置的書架是空的，
+ * 測試照 tests/toddler/story.spec.ts 放 8 本進去（通用章節、長篇、經典各一種）。
+ * story.spec 的書每本只有 3～6 句（回歸測試夠用），這裡用 App 自己的章節內容（chapterLines）補成完整的長度，
+ * 孩子才是在聽真的故事；讀不到就用原本的短版。
  */
-export const STORY_ROWS = (() => {
+const STORY_ROWS = (() => {
   const picks = { words: [], friends: [], stickers: [], drawings: [] }
   const base = { part: 0, arc: 'evergreen', chapter: 0, kind: 'evergreen', band: 'small', picks, choices: {}, done: true, synced: 1 }
   const doors = ['bus', 'farm', 'zoo', 'rain', 'fruit', 'ocean']
@@ -40,7 +42,26 @@ export const STORY_ROWS = (() => {
   ]
 })()
 
+async function storyRows() {
+  try {
+    // 路徑放變數：型別檢查不要把 App 的原始碼（import.meta.env）拉進測試的 tsconfig
+    const src = '../../../src/content/story/index.ts'
+    const m = (await import(src)) as { allChapters: () => { id: string }[]; chapterLines: (c: unknown) => [string, string, string][] }
+    return STORY_ROWS.map((r) => {
+      const ch = m.allChapters().find((c) => c.id === r.ref)
+      if (!ch) return r
+      // 長篇的分支句（lang／num／think／hand）一次只講其中一種：只留每一站的第一句
+      const keys = m.chapterLines(ch).map(([k]) => k).filter((k) => !/\.(lang|num|think|hand)\.\d+$/.test(k))
+      const pics = new Map(r.script.map((b) => [b.k, (b as { pic?: string }).pic]))
+      return { ...r, script: keys.map((k) => (pics.get(k) ? { k, pic: pics.get(k) } : { k })) }
+    })
+  } catch {
+    return STORY_ROWS
+  }
+}
+
 export async function seedStory(page: Page) {
+  const rows = await storyRows()
   await page.evaluate(async (rows) => {
     await new Promise<void>((res, rej) => {
       const rq = indexedDB.open('dodo-adventure')
@@ -59,7 +80,7 @@ export async function seedStory(page: Page) {
       }
     })
     sessionStorage.setItem('dodo.resume', 'home')
-  }, STORY_ROWS)
+  }, rows)
   await page.reload()
   await page.waitForSelector('.screen.home', { timeout: 20_000 })
 }
