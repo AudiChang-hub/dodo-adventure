@@ -30,7 +30,8 @@ function hintOf(stage: Stage, x: LessonLetter) {
     case 'trace':
       return '描歪沒關係，讚美他從綠點開始'
     case 'words':
-      return zh ? `問他：家裡有沒有${zh}？` : `問他：家裡有什麼是 ${x.L} 開頭的？`
+      // 不問「家裡有沒有」：第一個字可能是 snake、volcano 這種家裡沒有的（AI 小男生測試 2026-11-02）
+      return zh ? `跟他一起說：${zh}、${x.words[0].w}` : `跟他一起找：還有什麼是 ${x.L} 開頭的？`
     case 'quiz':
       return '讓他自己找，錯了會有提示'
     default:

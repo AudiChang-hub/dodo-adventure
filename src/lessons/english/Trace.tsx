@@ -14,10 +14,14 @@ const LANE = 20
 /** 描字板的邏輯座標（跟 SVG viewBox、Ink 一樣） */
 const VIEW_H = 140
 
-/** 每一輪的顏色：兩輪看得出不一樣（A5：要多練的話每一輪要看得出不一樣） */
+/**
+ * 每一輪的顏色：兩輪看得出不一樣（A5：要多練的話每一輪要看得出不一樣）。
+ * 起點圓點兩輪都是綠色：語音說「Start at the green dot!」，三歲認得顏色，圓點變藍色就對不上（AI 小男生測試 2026-11-02）。
+ * tag：右邊大小寫格子的顏色。
+ */
 const LOOKS = {
-  green: { rim: '#CFE3D6', lane: '#8FCBAA', dot: '#4E9A72', dash: '#9DB5A6' },
-  blue: { rim: '#D3E2F1', lane: '#9DC2E5', dot: '#3E7DB6', dash: '#9AB0C6' },
+  green: { rim: '#CFE3D6', lane: '#8FCBAA', dot: '#4E9A72', dash: '#9DB5A6', tag: '#4E9A72' },
+  blue: { rim: '#D3E2F1', lane: '#9DC2E5', dot: '#4E9A72', dash: '#9AB0C6', tag: '#3E7DB6' },
 } as const
 
 /**
@@ -312,7 +316,7 @@ export function Trace({ letter, onDone }: { letter: LessonLetter; onDone: (good:
       {/* 兩輪：大寫、小寫，描好的變成那一輪的顏色 */}
       <div className="en-trace-rounds" aria-hidden="true">
         {ROUNDS.map((x, i) => (
-          <span key={i} className={i < r ? 'is-done' : i === r ? 'is-now' : ''} style={{ '--round': LOOKS[x.look].dot } as CSSProperties}>
+          <span key={i} className={i < r ? 'is-done' : i === r ? 'is-now' : ''} style={{ '--round': LOOKS[x.look].tag } as CSSProperties}>
             {x.big ? letter.L : letter.l}
           </span>
         ))}

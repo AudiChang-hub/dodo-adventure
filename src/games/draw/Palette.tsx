@@ -64,7 +64,9 @@ export function CheckButton({ onPress, guard }: { onPress: () => void; guard?: (
 /**
  * 清空畫布：點一下垃圾桶晃一下、變粉紅（「真的要清掉嗎？」）；3 秒內再點一下才清掉（準則 DRAW-6：確認一次）。
  * 變粉紅的時候，一隻手在垃圾桶上「再點一下」給他看（AI 小男生測試 #6：三歲看不懂要再點，連點了三下）。
+ * 第一下之後 0.6 秒內的第二下不算確認：三歲常常一點就是兩下，連點的第二下會把整張畫清掉（AI 小男生測試 2026-11-03）。
  */
+const CONFIRM_AFTER_MS = 600
 export function ClearButton({ onClear }: { onClear: () => void }) {
   const [armed, setArmed] = useState(0)
   const [tap, setTap] = useState(0)
@@ -85,6 +87,8 @@ export function ClearButton({ onClear }: { onClear: () => void }) {
       onPointerDown={(e) => {
         if (!firstFinger(e.nativeEvent)) return
         clearTimeout(timer.current)
+        // 連點的第二下：當成同一下
+        if (armed && performance.now() - armed < CONFIRM_AFTER_MS) return
         clearTimeout(handTimer.current)
         if (!armed) {
           sfx.gentle()
