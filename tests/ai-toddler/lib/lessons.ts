@@ -23,8 +23,9 @@ export const LESSONS: Record<string, LessonDef> = {
 export const ALIASES: Record<string, string> = { english: 'en', chinese: 'zh', 中文: 'zh', 英文: 'en', 數學: 'math', 畫畫: 'draw', 故事: 'story' }
 
 /**
- * 故事書要有講過的章節才有書可以選。舊的冒險拿掉以後（T-75）沒有地方會再寫新的章節，新裝置的書架是空的，
- * 測試照 tests/toddler/story.spec.ts 放 8 本進去（通用章節、長篇、經典各一種）。
+ * 舊裝置的故事書：書架上已經有講過的章節（T-77 之後點「故事」會先講今天的新章節，講完收進書架；
+ * 這 8 本是「已經用了一陣子」的樣子）。測試照 tests/toddler/story.spec.ts 放 8 本進去（通用章節、長篇、經典各一種）；
+ * 要測新裝置（書架什麼都沒有）用 --fresh。
  * story.spec 的書每本只有 3～6 句、大多沒有圖（回歸測試夠用），這裡用 App 自己的 scriptOf 把每一本補成真的樣子
  * （每一句和那一句的圖），孩子才是在聽真的故事；讀不到就用原本的短版。
  */

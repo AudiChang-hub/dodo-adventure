@@ -1,5 +1,5 @@
 import { test, expect, type Page } from '@playwright/test'
-import { boot, homeButton, settle, snap } from './lib/app'
+import { boot, homeButton, settle, snap, storyToldToday } from './lib/app'
 import { Toddler, hashSeed } from './lib/toddler'
 import { Checker, alive, doorAt, enterGame, holdHome, pressBack, toHome, toddlerStep, waitLive } from './lib/flows'
 import fs from 'node:fs'
@@ -221,6 +221,8 @@ test.describe('畫面', () => {
     test.skip(!want('layers'))
     test.setTimeout(25 * 60_000)
     const { k, c } = await setup(page, info, '來回換畫面', { to: 'home' })
+    // 故事門照舊直接進書架（新章節的流程在 story.spec.ts）
+    await storyToldToday(page)
     /** 量一次：最高的整頁圖層 z-index、字幕（點恐龍讓它說話）和家長角落是不是在最上面 */
     const measure = async () => {
       const host = await page.evaluate(() => {

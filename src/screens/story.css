@@ -140,19 +140,71 @@
   background: var(--ink-soft);
   border-color: var(--ink-soft);
 }
-.book-empty {
+/* 書架上聽過的書：書角一顆星（看得出哪幾本聽過） */
+.book-star {
   position: absolute;
-  inset: 0;
-  display: grid;
-  place-items: center;
-  align-content: center;
-  gap: 3vh;
+  top: -10px;
+  right: -8px;
+  width: clamp(36px, 6.5vmin, 54px);
+  pointer-events: none;
 }
-.book-empty .story-pic {
-  width: clamp(160px, 28vmin, 260px);
+/* 今天的新書（還沒講完）：沒有星，整本有一圈靜態的光（不閃、不呼吸，MOTION-2） */
+.book-card.is-new {
+  box-shadow:
+    inset 12px 0 0 var(--spine, #c9a57e),
+    0 0 0 6px color-mix(in srgb, #f1d27c 70%, transparent),
+    0 18px 30px -22px rgba(46, 42, 37, 0.45);
 }
 
-/* 重聽一章：大大的圖、下面是說故事的恐龍；上面一排小點是講到第幾句 */
+/* 讀完了：封面上一圈星星，下面兩個大按鈕（再聽一次、回書架） */
+.book-done-stars {
+  position: absolute;
+  inset: 50% auto auto 50%;
+  pointer-events: none;
+}
+.book-done .story-home-card {
+  position: absolute;
+  top: 18vh;
+  left: 50%;
+  width: clamp(200px, 40vh, 340px);
+  translate: -50% 0;
+}
+.book-done .story-home-card > .story-pic {
+  position: absolute;
+  left: 18%;
+  top: 18%;
+  width: 64%;
+  height: 64%;
+}
+.book-done-badge {
+  position: absolute;
+  top: -4%;
+  right: -4%;
+  width: 26%;
+  filter: drop-shadow(0 6px 8px rgba(46, 42, 37, 0.25));
+}
+.book-done-sky {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+.book-done-sky span {
+  position: absolute;
+  opacity: 0.85;
+}
+.book-done-actions {
+  position: absolute;
+  right: 6vw;
+  bottom: 8vh;
+  display: flex;
+  gap: 28px;
+}
+.book-done-actions .round-btn {
+  width: clamp(88px, 13vmin, 112px);
+  height: clamp(88px, 13vmin, 112px);
+}
+
+/* 講一章（新章節、重聽）：大大的圖、下面是說故事的恐龍；上面一排小點是講到第幾句 */
 .book-replay {
   position: absolute;
   inset: 0;

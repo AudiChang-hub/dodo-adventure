@@ -1,5 +1,5 @@
 import { test, expect, type Page } from '@playwright/test'
-import { boot, homeButton, settle, snap, targets } from './lib/app'
+import { boot, homeButton, settle, snap, storyToldToday, targets } from './lib/app'
 import { Toddler, hashSeed } from './lib/toddler'
 import { Checker, doorAt, drawAndMeasure, pressBack, tapDoor, toHome, toddlerStep, waitLive } from './lib/flows'
 
@@ -61,6 +61,8 @@ test.describe('學校首頁', () => {
     test.skip(!want('home-doors'))
     test.setTimeout(10 * 60_000)
     const { k, c } = await setup(page, info, '三大門')
+    // 故事門照舊直接進書架（新章節的流程在 story.spec.ts）
+    await storyToldToday(page)
     try {
       // 首頁只有五扇門（家長角落另外量）
       k.behavior = '首頁有什麼'
@@ -123,6 +125,8 @@ test.describe('學校首頁', () => {
         k.behavior = `「${d.name}」按 Android 返回`
         if (inDoor(d, (await snap(page)).live)) {
           await settle(page)
+          // 亂玩時可能剛按過返回（重聽 → 書架）：App 返回之後 1 秒內不收下一次返回（連點不多跳一層，lib/nav.ts），等它過去
+          await k.wait(1200)
           k.act('history.back()')
           await page.evaluate(() => history.back())
           live = await waitLive(page, (l) => l === 'home', 4000)

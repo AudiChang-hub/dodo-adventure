@@ -1,4 +1,7 @@
-// 故事系統的執行期（docs/成長系統設計.md §3、§5.1）：
+// 故事系統的執行期（docs/成長系統設計.md §3、§5.1）。
+// 2026-11-02 起（T-77）故事不在冒險裡講了：首頁的「故事」點進去，今天有還沒講完的新章節就先講（todaysStory），講完收進書架。
+// 下面說的「冒險」「今天的門」是當初的設計；現在一天一章，用的是同一套選章和記錄的規則。
+//
 // - 決定今天播哪一章：故事沒開（家長設定「故事（試播）」）→ 今天這扇門的通用章節，冒險和以前一模一樣；
 //   開了 → 長篇的下一章（指定今天走哪一扇門），每週一章故事時間（莫莫講經典，照年段挑那一則的版本）。
 // - 記錄進度：每天一筆 chapters（id 是日期），念完結尾才算講完；kv.story 記長篇講到哪、講過哪些經典、魔法屋多了什麼。
@@ -14,7 +17,7 @@ import { warmAudio } from './audio-cache'
 import { playable } from './review'
 import { clipName } from './clip'
 import { line, segments, hasLine } from '../content/lines'
-import { ARCS, CLASSICS, arcOf, arcsOfPart, chapterLines, chapterOf, classicDoneKey, classicFor, classicOfChapter, evergreenOf, houseItem, scriptOf, type Arc, type Chapter, type Pic, type Script } from '../content/story'
+import { ARCS, CLASSICS, EVERGREEN, arcOf, arcsOfPart, chapterLines, chapterOf, classicDoneKey, classicFor, classicOfChapter, evergreenOf, houseItem, scriptOf, type Arc, type Chapter, type Pic, type Script } from '../content/story'
 import type { ThemeId } from '../content/themes'
 import type { Plan } from './plan'
 
@@ -117,7 +120,7 @@ export async function friendFor(date: string): Promise<string | null> {
   return fs.length ? fs[parseInt(fnv1a(`friend|${date}`), 36) % fs.length] : null
 }
 
-/** 今天冒險實際要念的句子（Adventure 用）。沒有主題的舊存檔回傳 null，冒險走舊的站點流程 */
+/** 今天冒險實際要念的句子（舊的冒險用）。沒有主題的舊存檔回傳 null，冒險走舊的站點流程 */
 export function scriptForPlan(plan: Plan, friend: string | null = null): Script | null {
   const ch = chapterOfPlan(plan)
   if (!ch) return null
@@ -142,8 +145,11 @@ export interface ToldChapter extends ChapterRow {
 const toldBeats = (s: Script): ToldBeat[] =>
   [...s.title, ...s.intro, ...s.stops.flat(), ...s.finale, ...s.end].map((x) => (x.pic ? { k: x.key, pic: x.pic } : { k: x.key }))
 
-/** 冒險開始講今天這一章（路線圖第一次出現）：記一筆還沒講完的；同一天再進來不重記 */
-export async function startChapter(plan: Plan, s: Script): Promise<void> {
+/** 講故事的那一天：日期（chapters 的 id）和今天的門（通用章節用；以前是冒險的 Plan） */
+export type StoryDay = Pick<Plan, 'date' | 'theme'>
+
+/** 開始講今天這一章：記一筆還沒講完的；同一天再進來不重記 */
+export async function startChapter(plan: StoryDay, s: Script): Promise<void> {
   const id = plan.date
   const had = (await db.chapters.get(id)) as ToldChapter | undefined
   if (had?.ref === s.chapter.id) return
@@ -175,19 +181,23 @@ const finishing = new Map<string, Promise<string | null>>()
  * 這一章講完了（結尾念完；孩子在結尾按返回離開也算，故事已經講到最後）。
  * 長篇往下一章；這一篇講完了，魔法屋多一樣東西。回傳這次魔法屋多的東西（之前就講完了是 null）
  */
-export function finishChapter(plan: Plan, s: Script): Promise<string | null> {
+export function finishChapter(plan: StoryDay, s: Script): Promise<string | null> {
   const k = `${plan.date}|${s.chapter.id}`
   let p = finishing.get(k)
   if (!p) finishing.set(k, (p = finish(plan, s)))
   return p
 }
 
-async function finish(plan: Plan, s: Script): Promise<string | null> {
+async function finish(plan: StoryDay, s: Script): Promise<string | null> {
   const row = (await db.chapters.get(plan.date)) as ToldChapter | undefined
   if (!row || row.ref !== s.chapter.id) await startChapter(plan, s)
   if (row?.done) return null
-  await db.chapters.update(plan.date, { done: true, synced: 0 })
-  const ch = s.chapter
+  return finishCore(plan.date, s.chapter)
+}
+
+/** 記成講完、長篇往下一章（finishChapter、finishTold 共用） */
+async function finishCore(date: string, ch: Chapter): Promise<string | null> {
+  await db.chapters.update(date, { done: true, synced: 0 })
   const st = await storyState()
   let added: string | null = null
   if (ch.kind === 'classic') {
@@ -219,6 +229,69 @@ async function finish(plan: Plan, s: Script): Promise<string | null> {
   }
   await setKV(KV, st)
   return added
+}
+
+/**
+ * 已經記下來的一章講完了（故事書講今天的新章節用：中途離開、下次再進來接著講，這時手上只有存下來的那一筆）。
+ * 同一章只算一次；回傳魔法屋多的東西（同 finishChapter）
+ */
+export function finishTold(row: ToldChapter): Promise<string | null> {
+  const ch = chapterOf(row.ref)
+  if (!ch) return Promise.resolve(null)
+  const k = `${row.date}|${ch.id}`
+  let p = finishing.get(k)
+  if (!p)
+    finishing.set(
+      k,
+      (p = (async () => {
+        const now = (await db.chapters.get(row.id)) as ToldChapter | undefined
+        return now?.done ? null : finishCore(row.id, ch)
+      })()),
+    )
+  return p.then((x) => (setKV(AT_KV, null), x))
+}
+
+// ── 故事時間：首頁的「故事」（T-77）────────────────────────────
+
+/** 今天的新章節講到第幾句（中途離開，下次進來從這一句接著講） */
+const AT_KV = 'story.at'
+
+export const toldAt = async (date: string) => {
+  const a = await getKV<{ date: string; at: number } | null>(AT_KV, null)
+  return a?.date === date ? a.at : 0
+}
+export const saveToldAt = (date: string, at: number) => setKV(AT_KV, { date, at })
+
+/**
+ * 沒有長篇、故事時間可以講的日子講哪一扇門的通用章節：還沒講過的門先講（照日期輪），12 扇都講過了照日期輪。
+ * 第一次打開 App 的那天也是從這裡（或長篇的第一章）開始，所以書架一定有書。
+ */
+async function evergreenDoor(date: string): Promise<ThemeId> {
+  const doors = Object.keys(EVERGREEN) as ThemeId[]
+  const told = new Set(((await db.chapters.toArray()) as ToldChapter[]).filter((r) => r.done).map((r) => r.ref))
+  const fresh = doors.filter((d) => !told.has(EVERGREEN[d].id))
+  const pool = fresh.length ? fresh : doors
+  return pool[parseInt(fnv1a(`door|${date}`), 36) % pool.length]
+}
+
+/**
+ * 今天的新章節（故事書一打開就先講）：
+ * - 今天已經記了一章：講完了回傳 null（直接進書架）；還沒講完就是那一章（中途離開過，接著講）。
+ * - 還沒有：照原本的規則挑（一週一章故事時間、長篇的下一章；家長在故事審稿通過的才講），都沒有就講一扇門的通用章節，
+ *   記一筆還沒講完的，回傳它。
+ */
+export async function todaysStory(date = today()): Promise<ToldChapter | null> {
+  const had = (await db.chapters.get(date)) as ToldChapter | undefined
+  if (had && Array.isArray(had.script) && had.script.length) return had.done ? null : had
+  let ch = await chapterForNewPlan(date)
+  const door: ThemeId = ch?.door ?? (await evergreenDoor(date))
+  ch ??= evergreenOf(door)
+  const s = scriptOf(ch, { tracks: [], friend: await friendFor(date), door })
+  if (!s) return null
+  const day: StoryDay = { date, theme: door }
+  await startChapter(day, s)
+  warmStory(s)
+  return ((await db.chapters.get(date)) as ToldChapter | undefined) ?? null
 }
 
 /** 我的故事書：講完的章節（新的在前）。同一章講過好幾次只留最近的一次 */

@@ -16,4 +16,3 @@ for (const ch of allChapters()) for (const [key, speaker, en] of chapterLines(ch
 def('story.house.hello', 'dodo', 'Welcome back to the Magic House!')
 def('story.house.new', 'dodo', 'Look! Something new!')
 def('story.book.hello', 'momo', 'Pick a story.')
-def('story.book.empty', 'momo', "No stories yet. Let's go!")

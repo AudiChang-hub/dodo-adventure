@@ -16,6 +16,7 @@
 //   --headed          開看得到的瀏覽器（喇叭會出聲）
 //   --out DIR         報告放這裡（預設主 repo 的 docs/AI小男生測試/<日期>-<課>/）
 //   --no-lock         不跟 test:toddler 排隊（預設同一台機器同時只跑一個）
+//   --fresh           故事：新裝置（書架上什麼都沒有）；預設是已經聽過 8 本的舊裝置
 //   環境變數 AI_TODDLER_PORT：預設 4537
 import { chromium, type Page } from '@playwright/test'
 import { spawn, spawnSync, type ChildProcess } from 'node:child_process'
@@ -220,7 +221,8 @@ let finger!: Finger
 let fatal: string | null = null
 try {
   await boot(page, SEED, { to: 'home', settings: lesson.id === 'story' ? { story: true } : {} })
-  if (lesson.id === 'story') await seedStory(page)
+  // 故事：預設是舊裝置（書架上已經有 8 本講過的書，今天的新章節照樣先講）；--fresh 是新裝置（什麼都沒有）
+  if (lesson.id === 'story' && !flag('fresh')) await seedStory(page)
   await settle(page)
   finger = new Finger(page, SEED, VP)
   await finger.init()

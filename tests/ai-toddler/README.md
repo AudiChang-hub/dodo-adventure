@@ -30,7 +30,7 @@ npm run test:ai-toddler -- --lesson zh --minutes 8 --seed 1
 
 worktree 裡跑要先有 `node_modules`、`public/audio`、`.env.local`（都不進 git）：從主 repo 複製，或用 junction 連過去（PowerShell：`New-Item -ItemType Junction -Path node_modules -Target <主 repo>\node_modules`）。**用 junction 的話，清 worktree 前要先拆掉連結**（`[System.IO.Directory]::Delete((Resolve-Path node_modules).Path)`，只拆連結、不碰內容），不然遞迴刪除 worktree 時會刪到主 repo 的 `node_modules`、`public/audio`。
 
-開 App 的方式：首頁 → 爸爸媽媽幫他點開那一課（不算小男生的動作）→ 小男生自己玩。故事會先放 8 本講過的書（同 test:toddler 那 8 本，但用 App 的 `scriptOf` 補成真的句數和每一句的圖），不然新裝置的書架是空的（T-75 之後沒有地方會再寫新的章節）。
+開 App 的方式：首頁 → 爸爸媽媽幫他點開那一課（不算小男生的動作）→ 小男生自己玩。故事預設先放 8 本講過的書（同 test:toddler 那 8 本，但用 App 的 `scriptOf` 補成真的句數和每一句的圖），像用了一陣子的平板；點「故事」會先講今天的新章節（T-77）。加 `--fresh` 是新裝置（書架什麼都沒有）。
 
 ### 什麼時候停
 

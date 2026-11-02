@@ -85,6 +85,32 @@ export const snap = (page: Page): Promise<Snap> =>
   })
 
 /** 等轉場結束：只剩一層畫面、而且 0.3 秒內沒有變動層數 */
+/**
+ * 今天的故事已經講完（寫一筆講完的章節）：首頁的「故事」點進去直接是書架。
+ * 只測「每一扇門進得去、回得來」的測試用；新章節的流程在 story.spec.ts 測（T-77：今天有新章節會先講）。
+ */
+export async function storyToldToday(page: Page) {
+  await page.evaluate(
+    () =>
+      new Promise<void>((res, rej) => {
+        const d = new Date()
+        const id = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+        const rq = indexedDB.open('dodo-adventure')
+        rq.onerror = () => rej(rq.error)
+        rq.onsuccess = () => {
+          const db = rq.result
+          const tx = db.transaction('chapters', 'readwrite')
+          tx.objectStore('chapters').put({ id, date: id, part: 0, arc: 'evergreen', chapter: 0, kind: 'evergreen', band: 'small', picks: { words: [], friends: [], stickers: [], drawings: [] }, choices: {}, done: true, synced: 1, ref: 'ev-zoo', door: 'zoo', script: [{ k: 'theme.zoo.title' }, { k: 'theme.zoo.intro' }] })
+          tx.oncomplete = () => {
+            db.close()
+            res()
+          }
+          tx.onerror = () => rej(tx.error)
+        }
+      }),
+  )
+}
+
 export async function settle(page: Page, max = 6000) {
   const end = Date.now() + max
   let stable = 0
