@@ -241,6 +241,8 @@ try {
     }
   }
   if (!inside) throw new Error(`點「${lesson.name}」的門沒有進去（停在 ${(await snap(page)).live}）`)
+  // 等轉場淡入走完再開始（不然第一張截圖是空白的，小男生會以為畫面壞了）
+  await settle(page, 5000)
 } catch (e) {
   fatal = `開始之前就失敗：${(e as Error).message}`
 }
