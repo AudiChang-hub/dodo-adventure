@@ -16,6 +16,17 @@ for (const u of EXTRA_PHONICS) {
   def(`ph.${u.letter}.sound`, 'dodo', cueText({ unit: u, names: 1, sound: true }))
 }
 
+/**
+ * 答錯時的說明（A16）：說出孩子選的是什麼、要找的是什麼，例如 That's big B. → Find big A!（Quiz.tsx 的 wrongKeys）。
+ * 單字題：That's a banana. → Find the apple!。冠詞照字決定（複數、the sun／the moon、沒有冠詞的字）。
+ */
+const PLURAL = new Set(['grapes', 'jeans', 'noodles', 'socks'])
+const THE = new Set(['sun', 'moon'])
+const BARE = new Set(['up', 'quiet', 'yarn', 'ice cream', 'zero'])
+const thatWord = (w: string) =>
+  PLURAL.has(w) ? `Those are | ${w}.` : THE.has(w) || BARE.has(w) ? `That's ${THE.has(w) ? 'the ' : ''}| ${w}.` : `That's ${/^(a|e|i|o|u(?!ni)|x-)/.test(w) ? 'an' : 'a'} | ${w}.`
+const findWord = (w: string) => (BARE.has(w) && w !== 'ice cream' && w !== 'zero' ? `Find | ${w}!` : `Find the | ${w}!`)
+
 def('le.en.write', 'dodo', "Let's write it!")
 def('le.en.play', 'dodo', "Let's play!")
 def('le.en.done', 'dodo', 'You did it! See you tomorrow!')
@@ -32,6 +43,14 @@ for (const x of LESSON_LETTERS) {
   def(`ph.${l}.q.word`, 'dodo', `Which one starts with | ${L}?`)
   def(`en.where.big.${L}`, 'dodo', `Where is big | ${L}?`)
   def(`en.where.little.${l}`, 'dodo', `Where is little | ${l}?`)
+  def(`en.that.big.${L}`, 'dodo', `That's big | ${L}.`)
+  def(`en.that.little.${l}`, 'dodo', `That's little | ${l}.`)
+  def(`en.find.big.${L}`, 'dodo', `Find big | ${L}!`)
+  def(`en.find.little.${l}`, 'dodo', `Find little | ${l}!`)
+  for (const { w } of x.starts) {
+    def(`en.that.word.${wordId(w)}`, 'dodo', thatWord(w))
+    def(`en.find.word.${wordId(w)}`, 'dodo', findWord(w))
+  }
   for (const { w } of x.words) {
     // 點名一個字：Apple.（字母森林有的就沿用同一句、同一個音檔）
     if (!hasLine(`ph.word.${wordId(w)}`)) def(`ph.word.${wordId(w)}`, 'dodo', `${cap(w)}.`)

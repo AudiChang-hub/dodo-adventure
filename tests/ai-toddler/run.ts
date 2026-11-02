@@ -334,6 +334,8 @@ const history: string[] = []
 let lastTouch: Touch | null = null
 let lastResult = ''
 let doneAt: number | null = null
+/** 上一步在畫布上畫出線了（畫畫不改 DOM：算畫面有動，不要誤報「很久沒動」） */
+let inkedLast = false
 let confusedRun = 0
 
 /** 上一步之後開始播的語音（對照成文字；對照不到的寫音檔名字） */
@@ -364,7 +366,7 @@ while (!fatal) {
   }
   checkProbe(n, p)
   const heard = describeHeard(p)
-  if (heard.length || p.speaking || p.now - p.lastMut < 1500) quietSince = Date.now()
+  if (heard.length || p.speaking || p.now - p.lastMut < 1500 || inkedLast) quietSince = Date.now()
   const shot = path.join(OUT, '截圖', `${pad(n)}.jpg`)
   const forBrain = path.join(OUT, 'brain', `${pad(n)}.jpg`)
   try {
@@ -490,6 +492,7 @@ while (!fatal) {
   const outcome = s2.live !== before.live ? '畫面換成別的了' : inked > 0 ? `畫出線了${reacted ? '，畫面有動' : ''}` : reacted ? (after.voices.length > before.voices || after.heard > before.heard ? '有聲音、畫面有動' : '畫面有動') : action === 'wait' ? '' : '好像沒有反應'
   lastResult = [what, where, outcome].filter(Boolean).join('，')
   lastTouch = touch
+  inkedLast = inked > 0
   step.result = [touch?.hit, s2.live !== before.live ? `→ ${s2.live}` : '', outcome].filter(Boolean).join('；')
   history.push(`- 第 ${n} 步：${step.think || '（沒想什麼）'}（${FEEL[step.feeling] ?? step.feeling}）→ ${what}，${outcome || '沒什麼變'}`)
   console.log(`  [${pad(n)} ${el}s ${(a.ms / 1000).toFixed(0)}s] ${FEEL[step.feeling] ?? step.feeling}「${step.think}」→ ${action}${step.x != null ? ` ${step.x},${step.y}` : ''}｜${step.result}`)

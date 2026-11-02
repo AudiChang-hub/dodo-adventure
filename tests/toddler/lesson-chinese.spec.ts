@@ -211,7 +211,7 @@ test.describe('中文課', () => {
     }
   })
 
-  test('念課文時亂點紅字：念完那個詞接著念，課文照樣念完', async ({ page }, info) => {
+  test('念課文時亂點紅字：第一遍不插話（A17）、之後念完那個詞接著念，課文照樣念完', async ({ page }, info) => {
     test.skip(!want('lesson-chinese-red'))
     test.setTimeout(6 * 60_000)
     const { k, c } = await setup(page, info, '亂點紅字')

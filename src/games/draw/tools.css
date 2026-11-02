@@ -71,6 +71,12 @@
 }
 
 /* 清空：垃圾桶。點一下會晃一下、變粉紅（「真的要清掉嗎？」），3 秒內再點一下才清掉 */
+/* 垃圾桶變粉紅時「再點一下」的示範手：疊在按鈕上，不收點擊 */
+.tool-hand {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
 .tool-clear.armed {
   background: #f8d6cc;
   box-shadow:

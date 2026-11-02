@@ -51,10 +51,13 @@ export function useIdle() {
   useEffect(() => () => clearTimeout(timer.current), [])
 
   return useRef({
-    /** 新的題目（或新步驟）唸完了：從頭開始計時 */
-    start(s: IdleSteps) {
+    /**
+     * 新的題目（或新步驟）唸完了：從頭開始計時。
+     * ms：這一步自己的秒數（例如描字 10 秒沒動就再示範一次，AI #3），沒給的照年段。
+     */
+    start(s: IdleSteps, ms?: Partial<{ repeat: number; hint: number; again: number }>) {
       steps.current = s
-      times.current = idleTimes()
+      times.current = { ...idleTimes(), ...ms }
       stage.current = 0
       schedule()
     },

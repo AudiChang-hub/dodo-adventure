@@ -64,7 +64,20 @@ export const LESSON_LETTERS: LessonLetter[] = [...ORDER].map((L) => {
   return { L, l, unit, words, starts, upper: GLYPHS[L], lower: LOWER[l] }
 })
 
-export const lessonLetter = (i: number) => LESSON_LETTERS[Math.max(0, Math.min(LESSON_LETTERS.length - 1, i))]
+/**
+ * 一輪字母的順序（A12）：孩子英文名字裡的字母先上（照名字裡出現的順序、不重複），其他的再照 A→Z 補上。
+ * 名字只從 .env.local 的 VITE_CHILD_NAME_EN 讀（plan.ts 的 nameOrder），不寫進 repo；沒設名字就是 A→Z。
+ */
+export function orderFor(name: string | null | undefined): string {
+  const first = [...new Set((name ?? '').toUpperCase().replace(/[^A-Z]/g, ''))].join('')
+  return first + [...ORDER].filter((c) => !first.includes(c)).join('')
+}
+
+/** seq（這一輪的字母順序，預設 A→Z）第 i 個字母 */
+export const lessonLetter = (i: number, seq = ORDER) => {
+  const L = seq[Math.max(0, Math.min(seq.length - 1, i))]
+  return LESSON_LETTERS.find((x) => x.L === L) ?? LESSON_LETTERS[0]
+}
 
 /** 字的 id：台詞 key、選項 id 用（fire truck → fire-truck） */
 export const wordId = (w: string) => w.toLowerCase().replace(/[^a-z0-9]+/g, '-')

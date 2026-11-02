@@ -1,0 +1,94 @@
+// 英文課的單元測試（docs/全球幼教指引-現況對照.md 的 A6、A12、A16）：
+// - A6：「哪個字是 A 開頭」（開頭音）不算進「錯很多隔天重上」，只算字母題；
+// - A12：設了孩子的英文名字，新帳號名字裡的字母先上；沒設、舊的進度照 A→Z；換了順序也一樣不教不考；
+// - A16：每一題點錯任何一個選項，都有「That's …」「Find …」的台詞。
+// 執行：npx tsx scripts/test-english.ts（失敗就 exit 1）
+import assert from 'node:assert/strict'
+import '../src/content/lines'
+import { hasLine } from '../src/content/registry'
+import { ORDER, lessonLetter, orderFor, wordId, LESSON_LETTERS } from '../src/lessons/english/data'
+import { lessonGood, planFor, type EnglishProgress } from '../src/lessons/english/plan'
+import { makeQuiz, wrongKeys } from '../src/lessons/english/quiz-plan'
+
+let n = 0
+const ok = (name: string) => console.log(`ok ${++n} ${name}`)
+
+// ── A6 ────────────────────────────────────────────────────
+assert.equal(lessonGood([{ kind: 'big', first: true }, { kind: 'little', first: true }, { kind: 'word', first: false }, { kind: 'big', first: true }]), true)
+ok('A6 字母題全對、開頭音答錯 → 不重上')
+assert.equal(lessonGood([{ kind: 'big', first: false }, { kind: 'little', first: false }, { kind: 'word', first: true }, { kind: 'big', first: false }]), false)
+ok('A6 字母題全錯、開頭音答對 → 重上（開頭音答對不會救回來）')
+assert.equal(lessonGood([{ kind: 'big', first: true }, { kind: 'little', first: false }, { kind: 'word', first: false }, { kind: 'word', first: false }]), true)
+ok('A6 字母題一半對（開頭音兩題都錯）→ 不重上')
+
+// ── A12 ───────────────────────────────────────────────────
+assert.equal(orderFor(undefined), ORDER)
+assert.equal(orderFor(''), ORDER)
+ok('A12 沒設名字 → A→Z')
+const ben = orderFor('Ben')
+assert.equal(ben.slice(0, 3), 'BEN')
+assert.equal(ben.length, 26)
+assert.equal(new Set(ben).size, 26)
+assert.equal(orderFor('Anna-Lee').slice(0, 4), 'ANLE')
+ok('A12 名字的字母先（不重複、忽略符號），其他照 A→Z，一共 26 個')
+
+const days = ['2026-11-03', '2026-11-04', '2026-11-05', '2026-11-06']
+let p: EnglishProgress | null = null
+const seen: string[] = []
+for (const d of days) {
+  const pl = planFor(p, d, ben)
+  seen.push(lessonLetter(pl.idx, pl.seq).L)
+  p = { idx: pl.idx, seq: pl.seq, date: d, done: true, good: true }
+}
+assert.deepEqual(seen, ['B', 'E', 'N', 'A'])
+ok('A12 新帳號設了 BEN：前三天是 B、E、N，第四天 A')
+
+const old = planFor({ idx: 1, date: '2026-11-01', done: true, good: true }, '2026-11-02', ben)
+assert.equal(old.seq, ORDER)
+assert.equal(lessonLetter(old.idx, old.seq).L, 'C')
+ok('A12 舊的進度（沒有 seq）照 A→Z 往下走，不會因為設了名字就換順序')
+
+// 換了順序也不教不考：答案、選項都是今天或之前上過的
+for (const seq of [ORDER, ben]) {
+  for (let idx = 0; idx < seq.length; idx++) {
+    const taught = new Set(seq.slice(0, idx + 1))
+    const words = new Set(LESSON_LETTERS.filter((x) => taught.has(x.L)).flatMap((x) => x.words.map((w) => wordId(w.w))))
+    for (const q of makeQuiz(lessonLetter(idx, seq), idx, seq)) {
+      const okId = (id: string) => (q.kind === 'word' ? words.has(id) : taught.has(id.split(':')[0]))
+      assert.ok(okId(q.answer), `${seq.slice(0, 3)} 第 ${idx + 1} 天 答案 ${q.answer} 還沒教`)
+      for (const o of q.options) assert.ok(okId(o.id), `${seq.slice(0, 3)} 第 ${idx + 1} 天 選項 ${o.id} 還沒教`)
+    }
+  }
+}
+ok('A12 A→Z 和 BEN 開頭兩種順序，26 天的題目都不教不考')
+
+for (const first of 'CKOPSUVWXZ') {
+  const seq = orderFor(first)
+  for (let k = 0; k < 5; k++) for (const q of makeQuiz(lessonLetter(0, seq), 0, seq)) assert.ok(q.options.length >= 2, `第一天是 ${first}：${q.kind} 題只有 ${q.options.length} 個選項`)
+}
+ok('A12 名字從大小寫同形的字母（S、C、O…）開始：第一天每一題也至少 2 個選項')
+
+// ── A16 ───────────────────────────────────────────────────
+let checked = 0
+for (const seq of [ORDER, ben]) {
+  for (let idx = 0; idx < seq.length; idx++) {
+    for (let k = 0; k < 6; k++) {
+      // 選項是隨機的：每一天多出幾次，盡量碰到每一種干擾選項
+      for (const q of makeQuiz(lessonLetter(idx, seq), idx, seq)) {
+        for (const o of q.options) {
+          if (o.id === q.answer) continue
+          for (const key of wrongKeys(q, o)) assert.ok(hasLine(key), `沒有台詞 ${key}（${q.kind} 題，答案 ${q.answer}，點了 ${o.id}）`)
+          checked++
+        }
+      }
+    }
+  }
+}
+ok(`A16 點錯的每一種情況都有說明台詞（檢查了 ${checked} 次）`)
+
+const big = makeQuiz(lessonLetter(5), 5)[0]
+const flip = { id: `${big.answer}:little`, text: big.answer.toLowerCase() }
+assert.deepEqual(wrongKeys(big, flip), [`en.that.little.${big.answer.toLowerCase()}`, `en.find.big.${big.answer}`])
+ok('A16 問大寫、點了同一個字母的小寫：That\'s little f. → Find big F!')
+
+console.log('ALL PASS')

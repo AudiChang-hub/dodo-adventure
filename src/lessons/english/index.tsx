@@ -7,22 +7,43 @@ import { Sparkles } from '../../ui/Sparkles'
 import { say, sfx, stopSpeech } from '../../lib/audio'
 import { wait } from '../../games/lines'
 import type { LessonProps } from '../types'
-import { lessonLetter } from './data'
-import { goodEnough, loadProgress, markDone, markStarted, planFor, type TodayPlan } from './plan'
+import { lexWord, wordKey } from '../../content/lexicon'
+import { lessonLetter, type LessonLetter } from './data'
+import { lessonGood, loadProgress, markDone, markStarted, planFor, type QuizResult, type TodayPlan } from './plan'
 import { Meet } from './Meet'
 import { Trace } from './Trace'
 import { Words } from './Words'
 import { Quiz } from './Quiz'
 import { makeQuiz, type Question } from './quiz-plan'
+import '../../games/coplay.css'
 import './english.css'
 
 type Stage = 'meet' | 'trace' | 'words' | 'quiz' | 'end'
 const STEPS: Stage[] = ['meet', 'trace', 'words', 'quiz']
 
+/** 給大人看的一行陪玩小字（A10，角落、不收點擊；跟數學課的 HINT、中文課的 parentTip 一樣） */
+function hintOf(stage: Stage, x: LessonLetter) {
+  const zh = lexWord(wordKey(x.words[0].w))?.zh?.replace(/\s+/g, '')
+  switch (stage) {
+    case 'meet':
+      return `跟他一起用手指在空中寫 ${x.L}`
+    case 'trace':
+      return '描歪沒關係，讚美他從綠點開始'
+    case 'words':
+      // 不問「家裡有沒有」：第一個字可能是 snake、volcano 這種家裡沒有的（AI 小男生測試 2026-11-02）
+      return zh ? `跟他一起說：${zh}、${x.words[0].w}` : `跟他一起找：還有什麼是 ${x.L} 開頭的？`
+    case 'quiz':
+      return '讓他自己找，錯了會有提示'
+    default:
+      return `今天的字母是 ${x.L}、${x.l}`
+  }
+}
+
 /**
  * 英文字母課（豆豆）：照學校的順序，一堂約 5 分鐘。
- * 認字母 → 描字（大寫、小寫各兩次）→ 單字範例（三個字，中文三明治）→ 選擇（4 題）→ 上完（貼紙由 LessonScreen 給）。
- * 一天一個新字母（A→Z），同一天再進來複習今天的字母；選擇題錯很多就隔天重上（./plan.ts）。
+ * 認字母 → 描字（大寫、小寫各一次）→ 單字範例（三個字，中文三明治）→ 選擇（4 題）→ 上完（貼紙由 LessonScreen 給）。
+ * 一天一個新字母（名字的字母先、再 A→Z），同一天再進來複習今天的字母；字母題錯很多就隔天重上（./plan.ts）。
+ * 右上角一行給大人的陪玩小字（hintOf）。
  * 段落之間在原地淡入淡出，不縮放、不跳整頁卡片；上面四顆小石頭是進度。左上角返回鍵回首頁（中途離開隔天重上同一個字母）。
  */
 export function EnglishLesson({ onDone }: LessonProps) {
@@ -35,7 +56,7 @@ export function EnglishLesson({ onDone }: LessonProps) {
     live.current = true
     void loadProgress().then(async (p) => {
       const pl = planFor(p)
-      qs.current = makeQuiz(lessonLetter(pl.idx), pl.idx)
+      qs.current = makeQuiz(lessonLetter(pl.idx, pl.seq), pl.idx, pl.seq)
       await markStarted(pl)
       if (live.current) setPlan(pl)
     })
@@ -45,9 +66,9 @@ export function EnglishLesson({ onDone }: LessonProps) {
     }
   }, [])
 
-  const finish = async (right: number, total: number) => {
+  const finish = async (rs: QuizResult[]) => {
     if (!plan) return
-    await markDone(plan, goodEnough(right, total))
+    await markDone(plan, lessonGood(rs))
     if (!live.current) return
     setStage('end')
     sfx.done()
@@ -56,7 +77,7 @@ export function EnglishLesson({ onDone }: LessonProps) {
     if (live.current) onDone()
   }
 
-  const letter = plan ? lessonLetter(plan.idx) : null
+  const letter = plan ? lessonLetter(plan.idx, plan.seq) : null
   const at = STEPS.indexOf(stage)
 
   return (
@@ -74,6 +95,12 @@ export function EnglishLesson({ onDone }: LessonProps) {
           </span>
         ))}
       </div>
+      {letter && (
+        <p className="coplay-hint en-coplay" aria-hidden="true">
+          <span className="coplay-tag">陪玩</span>
+          {hintOf(stage, letter)}
+        </p>
+      )}
       <div className="en-host" aria-hidden="true">
         <Dino who="dodo" mood={stage === 'end' ? 'cheer' : 'happy'} size="100%" />
       </div>
@@ -91,7 +118,7 @@ export function EnglishLesson({ onDone }: LessonProps) {
               {stage === 'meet' && <Meet letter={letter} review={plan!.review} onDone={() => setStage('trace')} />}
               {stage === 'trace' && <Trace letter={letter} onDone={() => setStage('words')} />}
               {stage === 'words' && <Words letter={letter} onDone={() => setStage('quiz')} />}
-              {stage === 'quiz' && <Quiz qs={qs.current} onDone={(r, t) => void finish(r, t)} />}
+              {stage === 'quiz' && <Quiz qs={qs.current} onDone={(rs) => void finish(rs)} />}
               {stage === 'end' && (
                 <div className="en-end">
                   <span className="en-letter is-big is-lit">{letter.L}</span>

@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type CSSProperties } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
 import { Dino } from '../art/Dino'
 import { Emoji } from '../art/Emoji'
+import { Hand } from '../games/Demo'
 import { ArtSticker } from './StickerArt'
 import { AlbumPage, PER_PAGE } from './Album'
 import { album, nextPick, pickOptions, placeSticker, type OwnedSticker } from '../lib/achievements'
@@ -18,10 +19,14 @@ import './sticker-ui.css'
  * - 「再看別的」：換一批隨機的 6 張。
  * - 「等一下再選」：留著這一張，貼紙本、今日回顧都可以再挑；不會卡住流程。
  * - 很久沒選：20 秒、40 秒豆豆溫和地鼓勵，**不會替他選**；90 秒都沒碰畫面（可能走開了）才安靜地收起來，留到下次再選。
+ * - 示範的手（AI 小男生測試 #5：說明是英文句子，孩子只能猜）：攤開後手在一張貼紙上「點一下、再點一下」（只是示範，不會選）；
+ *   點了一張、4 秒沒再點，手在那一張上再點一下給他看；很久沒選時鼓勵的同時也再示範一次。
  */
 const IDLE_1_MS = 20_000
 const IDLE_2_MS = 40_000
 const IDLE_CLOSE_MS = 90_000
+/** 點了一張以後多久沒再點，手示範「再點一下」 */
+const AGAIN_HAND_MS = 4000
 /** 一張張攤開的間隔 */
 const DEAL_S = 0.07
 
@@ -39,6 +44,9 @@ export function StickerPicker({ onDone }: { onDone: () => void }) {
   const [sel, setSel] = useState<number | null>(null)
   const [placed, setPlaced] = useState<{ stk: Stk; page: OwnedSticker[]; key: string } | null>(null)
   const [nudge, setNudge] = useState(0)
+  /** 示範的手：在第幾張、點了幾下（點一下、再點一下） */
+  const [hand, setHand] = useState<{ i: number; tap: number } | null>(null)
+  const handRun = useRef(0)
   const seenArts = useRef(new Set<string>())
   const toldAgain = useRef(false)
   const first = useRef(true)
@@ -65,6 +73,27 @@ export function StickerPicker({ onDone }: { onDone: () => void }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pick])
 
+  /** 手在第 i 張上點 taps 下（不會真的選）；孩子一碰畫面就收起來 */
+  const showHand = async (i: number, taps: number, delay: number) => {
+    const my = ++handRun.current
+    const same = () => live.current && handRun.current === my
+    await wait(delay)
+    if (!same()) return
+    setHand({ i, tap: 0 })
+    for (let k = 1; k <= taps; k++) {
+      await wait(k === 1 ? 650 : 750)
+      if (!same()) return
+      setHand({ i, tap: k })
+      sfx.tap()
+    }
+    await wait(900)
+    if (same()) setHand(null)
+  }
+  const hideHand = () => {
+    handRun.current++
+    setHand(null)
+  }
+
   const newBatch = (feature?: Stk) => {
     const b = pickOptions(seenArts.current, feature)
     b.forEach((s) => seenArts.current.add(s.art))
@@ -86,6 +115,8 @@ export function StickerPicker({ onDone }: { onDone: () => void }) {
       newBatch(pick.feature)
       setPhase('choose')
       lastTouch.current = performance.now()
+      // 攤開完：手在第一張上點一下、再點一下
+      void showHand(0, 2, 6 * DEAL_S * 1000 + 700)
     })()
     return () => {
       alive = false
@@ -106,18 +137,29 @@ export function StickerPicker({ onDone }: { onDone: () => void }) {
         said.add(2)
         setNudge((n) => n + 1)
         void say('stk.pick.idle.1')
+        void showHand(0, 2, 0)
       } else if (idle > IDLE_1_MS && !said.has(1)) {
         said.add(1)
         setNudge((n) => n + 1)
         void say('stk.pick.idle.0')
+        void showHand(0, 2, 0)
       } else if (idle < IDLE_1_MS) said.clear()
     }, 1000)
     return () => clearInterval(t)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [phase])
 
+  // 點了一張、4 秒沒再點：手在那一張上再點一下
+  useEffect(() => {
+    if (phase !== 'choose' || sel == null) return
+    const t = window.setTimeout(() => void showHand(sel, 1, 0), AGAIN_HAND_MS)
+    return () => clearTimeout(t)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sel, phase])
+
   const tapOption = (i: number) => {
     if (phase !== 'choose') return
+    hideHand()
     if (sel === i) return keep()
     sfx.tap()
     setSel(i)
@@ -129,6 +171,7 @@ export function StickerPicker({ onDone }: { onDone: () => void }) {
 
   const more = () => {
     if (phase !== 'choose') return
+    hideHand()
     sfx.whoosh()
     hushSpeech()
     newBatch()
@@ -137,6 +180,7 @@ export function StickerPicker({ onDone }: { onDone: () => void }) {
 
   const later = () => {
     if (phase !== 'choose') return
+    hideHand()
     sfx.tap()
     hushSpeech()
     setPhase('place')
@@ -180,7 +224,10 @@ export function StickerPicker({ onDone }: { onDone: () => void }) {
       initial="initial"
       animate="enter"
       exit="exit"
-      onPointerDown={() => (lastTouch.current = performance.now())}
+      onPointerDown={() => {
+        lastTouch.current = performance.now()
+        if (hand) hideHand()
+      }}
     >
       <div className="pk-glow" aria-hidden="true" />
 
@@ -224,6 +271,13 @@ export function StickerPicker({ onDone }: { onDone: () => void }) {
               >
                 {sel === i && <span className="pk-halo" aria-hidden="true" />}
                 <ArtSticker art={s.art} seed={s.seed} />
+                <AnimatePresence>
+                  {hand?.i === i && phase === 'choose' && (
+                    <span className="pk-hand" aria-hidden="true">
+                      <Hand x={58} y={56} tap={hand.tap} size="46%" cuff="#F2C9A8" />
+                    </span>
+                  )}
+                </AnimatePresence>
               </motion.button>
             ))}
           </AnimatePresence>
