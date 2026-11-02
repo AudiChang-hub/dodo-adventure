@@ -64,6 +64,8 @@ async function next(timeoutMs = 100_000) {
       console.log(`角色設定／系統提示（第一次先讀）：${q.system}`)
       if (q.image) console.log(`截圖（用 Read 讀）：${q.image}`)
       console.log(`回答：node tests/ai-toddler/relay.mjs answer "${dir}" ${q.id} <<'EOF'\n{…JSON…}\nEOF`)
+      if (q.image)
+        console.log('規則：你是 3 歲的小男生，只能根據這張截圖和下面的題目（聽到的話、上一步發生什麼）決定。不要讀程式碼、不要看 DOM 或網頁原始碼、不要讀 run.json 或 relay 資料夾裡其他的檔案。')
       console.log('──────── 題目 ────────')
       console.log(q.text)
       return

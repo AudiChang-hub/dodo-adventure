@@ -48,13 +48,14 @@ worktree 裡跑要先有 `node_modules`、`public/audio`、`.env.local`（都不
 
 | `--brain` | 怎麼叫 | 什麼時候用 |
 |---|---|---|
-| `auto`（預設） | 環境變數本來就有 `ANTHROPIC_API_KEY` → `api`，否則 → `cli` | 平常 |
+| `auto`（預設） | 環境變數本來就有 `ANTHROPIC_API_KEY` → `api`；否則 claude 找得到又已登入 → `cli`；都不行 → **自動退回 `relay`**（印出怎麼接手） | 平常 |
 | `cli` | 本機已登入的 Claude Code 無頭模式：`claude -p --model claude-sonnet-5-5 --system-prompt-file … --tools Read`，用 Read 讀截圖、只回 JSON。每一步開一個新的 claude（不留紀錄，`--no-session-persistence`） | 平常（訂閱帳號的額度） |
 | `api` | 直接打 Messages API（圖片放在訊息裡，一次來回，比 cli 快）；打失敗會自動退回 `cli` | 環境裡剛好有金鑰時 |
 | `relay` | 交接模式：不呼叫任何東西，把題目寫成檔案，等一個 Claude Code 工作階段回答 | 本機 claude 沒登入時；PM 的工作階段自己驗收時 |
 | `mock` | 不叫 Claude，亂點亂等 | 只測執行器本身 |
 
-**claude 找不到或沒登入**：桌面版的 Claude Code 登入不會給子程序用（`claude auth status` 會是 `loggedIn: false`）。家長在終端機跑一次就好（瀏覽器會打開，用訂閱帳號登入，不需要 API key）：
+**claude 找不到或沒登入**：桌面版的 Claude Code 登入不會給子程序用（`claude auth status` 會是 `loggedIn: false`）。`auto` 會自動退回交接模式；要改用 `claude -p`，家長在終端機跑一次就好（瀏覽器會打開，用訂閱帳號登入，不需要 API key）。
+登入**一定要家長自己在終端機操作**：密碼、金鑰都只在家長的瀏覽器和 claude 之間，不經過 PM、測試程式或任何工作階段；登入資訊存在家長自己的 `~/.claude`，不進 repo。
 
 ```bash
 npm run ai-toddler:login
@@ -72,6 +73,8 @@ claude 的位置：`CLAUDE_BIN` → PATH 上的 `claude` → 桌面版帶的 `cl
    > 用 `node tests/ai-toddler/relay.mjs answer latest <題號> <<'EOF' … EOF` 交一個 JSON，它會接著印出下一題。
    > 印出 `WAIT` 就再跑一次 `next latest`；印出 `DONE` 就結束。最後一題（題號 analysis）是用大人的眼光寫分析，照題目給的格式回答。
    > 不要因為自己是 AI 就表現得比三歲孩子聰明：看不懂就猜、無聊就亂點或按返回。
+   > **只能根據截圖和題目文字（聽到的話、上一步發生什麼）判斷**：不要讀程式碼、不要看 DOM 或網頁原始碼、不要讀 run.json 或 relay 資料夾裡其他的檔案，也不要開瀏覽器。這樣才是「3 歲的眼睛」。
+   > 每一題只做兩件事：用 Read 看截圖、用 answer 交答案。
 
    每一題等 240 秒（`AI_TODDLER_RELAY_TIMEOUT` 可改），沒人回答就算大腦沒回應。
 

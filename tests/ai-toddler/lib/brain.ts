@@ -9,7 +9,8 @@ import path from 'node:path'
  * - api：環境變數本來就有 ANTHROPIC_API_KEY 時，直接打 Messages API（圖片放在訊息裡，一次來回）。
  *        不會叫家長提供金鑰，也不會把金鑰寫進任何檔案；打失敗會自動退回 cli。
  * - cli：本機已登入的 Claude Code 無頭模式 `claude -p`（訂閱帳號的額度）。用 Read 讀截圖檔，只回 JSON。
- *        沒登入時清楚說要跑一次 `npm run ai-toddler:login`。
+ *        沒登入時清楚說要跑一次 `npm run ai-toddler:login`（家長自己在終端機登入，密碼、金鑰都不經過測試程式）。
+ * - auto（預設）：有 ANTHROPIC_API_KEY → api；否則 claude 找得到又已登入 → cli；都沒有 → 自動退回 relay。
  * - relay：交接模式，不呼叫任何東西：把題目寫成 relay/req-NNN.json，等別人寫 relay/res-NNN.json。
  *        給已經在跑的 Claude Code 工作階段（或它的子代理）扮演小男生用，見 README〈交接模式〉。
  * - mock：不叫 Claude，亂點亂等。只用來測執行器本身（開 App、送觸控、寫報告），不花額度。
@@ -113,25 +114,34 @@ export function cliLoggedIn(bin: string): { ok: boolean; detail: string } {
 export class Brain {
   kind: BrainKind
   private bin: string | null = null
-  /** 退回 cli 的原因（報告寫上） */
+  /** 換成別種大腦的原因（報告寫上） */
   note = ''
+  private readonly auto: boolean
   constructor(
     want: 'auto' | BrainKind,
     readonly model: string,
     /** cli 的工作目錄（截圖要在這下面，Read 才讀得到）、relay 的交接資料夾的上一層 */
     readonly dir: string,
   ) {
+    this.auto = want === 'auto'
     if (want === 'auto') this.kind = process.env.ANTHROPIC_API_KEY ? 'api' : 'cli'
     else this.kind = want
     if (this.kind === 'api' && !process.env.ANTHROPIC_API_KEY) throw new Error('--brain api：環境變數裡沒有 ANTHROPIC_API_KEY（不需要另外申請，用預設的 cli 就好）')
   }
 
-  /** 開跑前檢查：cli 要找得到、要已登入 */
+  /** 開跑前檢查：cli 要找得到、要已登入；auto 時不行就退回交接模式 */
   check() {
     if (this.kind !== 'cli') return
     this.bin = findClaude()
+    const st = this.bin ? cliLoggedIn(this.bin) : { ok: false, detail: '' }
+    if (!st.ok && this.auto) {
+      this.kind = 'relay'
+      this.note = this.bin ? '本機的 claude 沒有登入，自動退回交接模式' : '找不到 claude，自動退回交接模式'
+      console.log(`[大腦] ${this.note}（要用 claude -p：家長在終端機跑一次 npm run ai-toddler:login）`)
+      console.log('[大腦] 交接模式要有人扮演小男生：讓一個 Claude Code 工作階段照 tests/ai-toddler/README.md〈交接模式〉跑 node tests/ai-toddler/relay.mjs next latest')
+      return
+    }
     if (!this.bin) throw new Error('找不到 claude（Claude Code）。裝了桌面版的話設 CLAUDE_BIN 指到 claude.exe；或改用 --brain relay（交接模式）')
-    const st = cliLoggedIn(this.bin)
     if (!st.ok)
       throw new Error(
         `本機的 claude 沒有登入（${this.bin}）。\n` +
@@ -154,6 +164,7 @@ export class Brain {
         console.log(`[大腦] ${this.note}`)
         try {
           this.check()
+          if ((this.kind as BrainKind) === 'relay') this.note = `API 失敗（${msg.slice(0, 80)}），claude 也不能用，退回交接模式`
           return this.ask(q)
         } catch (e2) {
           return { raw: '', json: null, ms: Date.now() - t, brain: 'cli', error: String((e2 as Error).message ?? e2) }
