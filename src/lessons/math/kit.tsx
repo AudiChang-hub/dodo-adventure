@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type MutableRefObject, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type CSSProperties, type MutableRefObject, type ReactNode } from 'react'
 import { AnimatePresence, motion, useIsPresent } from 'motion/react'
 import { Hand } from '../../games/Demo'
 import { WaitShield, firstFinger } from '../../games/NotYet'
@@ -207,7 +207,8 @@ export function Quiz({ spec, host, onDone }: { spec: QuizSpec; host: PartCtx['ho
             ref={(el: HTMLButtonElement | null) => {
               if (el) tiles.current.set(o.id, el)
             }}
-            className={`tile ma-tile${spec.wide ? ' wide' : ''}${marks[o.id] === 'correct' ? ' correct' : ''}${hint && o.id === spec.answer && marks[o.id] !== 'correct' ? ' hint' : ''}${ready && !hint ? ' cue' : ''}`}
+            className={`tile ma-tile${spec.wide ? ' wide' : ''}${marks[o.id] === 'correct' ? ' correct' : ''}${hint && o.id === spec.answer && marks[o.id] !== 'correct' ? ' hint' : ''}${ready && !hint ? ' cue turn-hop' : ''}`}
+            style={{ '--turn-i': i } as CSSProperties}
             aria-label={o.label}
             initial={{ y: 24, opacity: 0 }}
             animate={marks[o.id] === 'wrong' ? { x: [0, -10, 10, 0], opacity: 0.45, y: 0 } : { y: 0, opacity: 1 }}

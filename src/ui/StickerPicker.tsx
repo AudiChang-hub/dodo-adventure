@@ -10,6 +10,7 @@ import type { Stk } from '../lib/sticker-pick'
 import { say, sfx, hushSpeech, stopSpeech } from '../lib/audio'
 import { wait } from '../games/lines'
 import { FADE, overlay } from './motion'
+import { useTaps } from './tap'
 import './sticker-ui.css'
 
 /**
@@ -21,6 +22,10 @@ import './sticker-ui.css'
  * - 很久沒選：20 秒、40 秒豆豆溫和地鼓勵，**不會替他選**；90 秒都沒碰畫面（可能走開了）才安靜地收起來，留到下次再選。
  * - 示範的手（AI 小男生測試 #5：說明是英文句子，孩子只能猜）：攤開後手在一張貼紙上「點一下、再點一下」（只是示範，不會選）；
  *   點了一張、4 秒沒再點，手在那一張上再點一下給他看；很久沒選時鼓勵的同時也再示範一次。
+ * - 貼紙和右邊的按鈕跟首頁的門一樣（ui/tap.ts）：手指按下、放開就算，不等瀏覽器產生 click。
+ *   三歲常常按住半秒多才放開，觸控按超過約 0.5 秒瀏覽器當成長按、不產生 click，以前就是「第一下沒反應、要連點」（T-84）。
+ *   發牌時一張一出現就可以點，不用等「Pick a sticker you like」念完（挑貼紙不是教學示範，沒有要等的答案）。
+ *   連點：同一下的放開和 click 只算一次；同一張 0.7 秒內再點一下當成同一下（不會一下就收下），點別張只是換選哪一張，一次只會選一張。
  */
 const IDLE_1_MS = 20_000
 const IDLE_2_MS = 40_000
@@ -47,6 +52,7 @@ export function StickerPicker({ onDone }: { onDone: () => void }) {
   /** 示範的手：在第幾張、點了幾下（點一下、再點一下） */
   const [hand, setHand] = useState<{ i: number; tap: number } | null>(null)
   const handRun = useRef(0)
+  const tap = useTaps()
   const seenArts = useRef(new Set<string>())
   const toldAgain = useRef(false)
   const first = useRef(true)
@@ -59,13 +65,14 @@ export function StickerPicker({ onDone }: { onDone: () => void }) {
     onDone()
   }
 
-  useEffect(
-    () => () => {
+  // 掛上時設回 true：開發模式（StrictMode）會先卸載再掛一次，只在卸載時改成 false 的話，翻牌之後就永遠停住
+  useEffect(() => {
+    live.current = true
+    return () => {
       live.current = false
       stopSpeech()
-    },
-    [],
-  )
+    }
+  }, [])
 
   // 沒有待選的貼紙（例如從別的地方挑完了）：直接收起來
   useEffect(() => {
@@ -267,7 +274,7 @@ export function StickerPicker({ onDone }: { onDone: () => void }) {
                 }
                 exit={{ scale: 0.4, opacity: 0, y: -20, transition: { duration: 0.22, delay: i * 0.03 } }}
                 transition={{ type: 'spring', stiffness: 280, damping: 20, delay: sel == null && phase === 'choose' ? i * DEAL_S : 0, opacity: FADE }}
-                onClick={() => tapOption(i)}
+                {...tap(`opt:${deal}:${i}`, () => tapOption(i))}
               >
                 {sel === i && <span className="pk-halo" aria-hidden="true" />}
                 <ArtSticker art={s.art} seed={s.seed} />
@@ -303,19 +310,19 @@ export function StickerPicker({ onDone }: { onDone: () => void }) {
         <div className="pk-side">
           <AnimatePresence>
             {sel != null && (
-              <motion.button key="ok" className="pk-btn is-ok" aria-label="就選這張" initial={{ scale: 0 }} animate={{ scale: [1, 1.06, 1] }} exit={{ scale: 0 }} transition={{ scale: { duration: 0.9, repeat: Infinity, repeatDelay: 3, ease: 'easeInOut' } }} onClick={() => void keep()}>
+              <motion.button key="ok" className="pk-btn is-ok" aria-label="就選這張" initial={{ scale: 0 }} animate={{ scale: [1, 1.06, 1] }} exit={{ scale: 0 }} transition={{ scale: { duration: 0.9, repeat: Infinity, repeatDelay: 3, ease: 'easeInOut' } }} {...tap('ok', () => void keep())}>
                 <svg viewBox="0 0 48 48" width="52%" aria-hidden="true">
                   <path d="M11 25 L20 34 L37 15" fill="none" stroke="#FBF8F2" strokeWidth={6.5} strokeLinecap="round" strokeLinejoin="round" />
                 </svg>
               </motion.button>
             )}
           </AnimatePresence>
-          <motion.button className="pk-btn" aria-label="再看別的貼紙" whileTap={{ scale: 0.92 }} onClick={more}>
+          <motion.button className="pk-btn" aria-label="再看別的貼紙" whileTap={{ scale: 0.92 }} {...tap('more', more)}>
             <span className="pk-btn-pic">
               <Emoji name="counterclockwise-arrows-button" />
             </span>
           </motion.button>
-          <motion.button key={`later${nudge}`} className="pk-btn is-later" aria-label="等一下再選" whileTap={{ scale: 0.92 }} animate={nudge > 1 ? { scale: [1, 1.1, 1] } : {}} transition={{ duration: 0.8 }} onClick={later}>
+          <motion.button key={`later${nudge}`} className="pk-btn is-later" aria-label="等一下再選" whileTap={{ scale: 0.92 }} animate={nudge > 1 ? { scale: [1, 1.1, 1] } : {}} transition={{ duration: 0.8 }} {...tap('later', later)}>
             <svg viewBox="0 0 48 48" width="46%" aria-hidden="true">
               <path d="M17 11 L31 24 L17 37" fill="none" stroke="#FBF8F2" strokeWidth={6} strokeLinecap="round" strokeLinejoin="round" />
             </svg>
