@@ -1,6 +1,6 @@
 // 出門任務卡（PRD §5.11）：假日出門順便玩，走路、等車、排隊的空檔玩 1–2 分鐘，不需要道具。
 // 這裡只放題目資料：哪些詞在外面找得到、五種固定的思考題型。
-// 依作答紀錄挑題的邏輯在 src/lib/outing.ts；台詞在 lines-outing.ts；家長區畫面在 src/screens/parent/Outing.tsx。
+// 依作答紀錄挑題的邏輯在 src/lib/outing.ts；家長區畫面在 src/screens/parent/Outing.tsx。
 
 /** 四條能力主線（PRD §5.10），任務卡上的小標籤 */
 export type Track = 'lang' | 'math' | 'think'

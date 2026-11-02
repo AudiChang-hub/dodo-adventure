@@ -2,11 +2,8 @@ import { useEffect, useRef, useState } from 'react'
 import { MotionConfig, motion } from 'motion/react'
 import { Emoji } from '../art/Emoji'
 import { onSpeakLevel, say, sfx } from '../lib/audio'
-import { getKV, today } from '../lib/db'
-import { currentRoute } from '../lib/nav'
 import { finishBreak } from '../lib/session'
-import type { ThemeId } from '../content/themes'
-import { EYE_FIND, EYE_FIND_ROTATION, EYE_FIND_THEME, EYE_KEEP, EYE_MOVES, type EyeFind, type EyeMove } from '../content/lines-eyebreak'
+import { EYE_FIND, EYE_FIND_ROTATION, EYE_KEEP, EYE_MOVES, type EyeFind, type EyeMove } from '../content/lines-eyebreak'
 import '../art/dino.css'
 import '../games/coplay.css'
 import './eyebreak.css'
@@ -20,7 +17,7 @@ const SECONDS = 20
  * - 豆豆想的東西（樹、小鳥、藍色…）放在一個小泡泡裡，說完就沿著視線越飛越小、飛出去：「它在外面」。
  * - 之後整個畫面慢慢蒙上一層紙色，變得很淡，沒有東西可看；只剩語音帶著他做。
  * - 中間穿插一個身體小任務（眨眼／伸懶腰／揮手），豆豆做同一個動作；之後再請他看遠方。
- * 每次休息輪替不同的任務；今日冒險有主題時，找東西的任務跟故事呼應。
+ * 每次休息輪替不同的任務。
  * 中文只給爸爸看（角落小字，跟遊戲裡的陪玩提示同一種樣式），倒數是角落的一排小點。
  */
 
@@ -52,17 +49,9 @@ function remember(id: string) {
 
 const findById = (id: string) => EYE_FIND.find((f) => f.id === id)!
 
-/** 今日冒險途中有主題，就問跟主題有關的東西（同一個任務不連著出兩次） */
-async function pickFind(n: number, last: string | null): Promise<EyeFind> {
-  const plain = findById(EYE_FIND_ROTATION[n % EYE_FIND_ROTATION.length])
-  if (currentRoute().name !== 'adventure') return plain
-  try {
-    const plan = await getKV<{ theme?: ThemeId } | null>(`plan:${today()}`, null)
-    const id = plan?.theme ? EYE_FIND_THEME[plan.theme] : undefined
-    return id && id !== last ? findById(id) : plain
-  } catch {
-    return plain
-  }
+/** 找東西的任務照順序輪替 */
+function pickFind(n: number): Promise<EyeFind> {
+  return Promise.resolve(findById(EYE_FIND_ROTATION[n % EYE_FIND_ROTATION.length]))
 }
 
 // ── 視線：從豆豆的眼睛往右上方、一路延伸到畫面外的一條弧線 ──────────
@@ -317,7 +306,7 @@ export function EyeBreak({ onDone }: { onDone?: () => void }) {
       if (ms > 0) await wait(ms)
       return alive
     }
-    const findP = pickFind(turn.n, turn.last).then((f) => {
+    const findP = pickFind(turn.n).then((f) => {
       if (alive) setFind(f)
       return f
     })

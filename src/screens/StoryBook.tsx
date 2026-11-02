@@ -4,7 +4,6 @@ import { BackButton } from '../ui/Back'
 import { StoryPic } from '../ui/StoryPic'
 import { Scenes, Swap, type SceneMove } from '../ui/Scenes'
 import { useBack } from '../lib/nav'
-import { on } from '../lib/features'
 import { HomeIcon } from '../games/Shell'
 import { say, sfx, hushSpeech, stopSpeech } from '../lib/audio'
 import { toldChapters, type ToldChapter } from '../lib/story'
@@ -67,7 +66,7 @@ export function StoryBook() {
     setOpen(null)
   }
 
-  // 返回鍵、Android 的返回：重聽中先回書架，書架才回魔法屋（魔法屋藏起來時回首頁）
+  // 返回鍵、Android 的返回：重聽中先回書架，書架才回首頁
   useBack(() => {
     if (!open) return false
     close()
@@ -135,11 +134,11 @@ export function StoryBook() {
 }
 
 /**
- * 返回鍵：每一段（書架、重聽）都放在自己那一層裡，位置一樣（跟冒險的每一段一樣，NAV-1）。
- * 重聽 → 書架（畫成書架）；書架 → 魔法屋（畫成魔法屋，照路由回上一層）。魔法屋藏起來的時候書架回首頁（lib/features.ts）
+ * 返回鍵：每一段（書架、重聽）都放在自己那一層裡，位置一樣（NAV-1）。
+ * 重聽 → 書架（畫成書架）；書架 → 首頁。
  */
 function BookBack({ onClose }: { onClose?: () => void }) {
-  if (!onClose && !on('house'))
+  if (!onClose)
     return (
       <div style={{ position: 'absolute', left: 26, top: 18, zIndex: 6 }}>
         <BackButton label="回首頁">
@@ -149,25 +148,14 @@ function BookBack({ onClose }: { onClose?: () => void }) {
     )
   return (
     <div style={{ position: 'absolute', left: 26, top: 18, zIndex: 6 }}>
-      <BackButton label={onClose ? '回書架' : '回魔法屋'} onTap={onClose}>
+      <BackButton label="回書架" onTap={onClose}>
         <svg viewBox="0 0 48 48" width={40} aria-hidden="true">
-          {onClose ? (
-            // 書架
-            <>
-              <rect x={8} y={8} width={32} height={34} rx={3} fill="#C9A57E" stroke="#2E2A25" strokeWidth={3} />
-              <path d="M8 25 H40" stroke="#2E2A25" strokeWidth={3} />
-              <rect x={13} y={12} width={5} height={11} fill="#E8907E" />
-              <rect x={20} y={13} width={5} height={10} fill="#9FCB9A" />
-              <rect x={27} y={29} width={5} height={11} fill="#8DB8D8" />
-            </>
-          ) : (
-            // 魔法屋
-            <>
-              <path d="M6 22 L24 7 L42 22 Z" fill="#E7B9A2" stroke="#2E2A25" strokeWidth={3} strokeLinejoin="round" />
-              <rect x={10} y={22} width={28} height={19} rx={2} fill="#F1E3CC" stroke="#2E2A25" strokeWidth={3} />
-              <path d="M24 22 V41 M10 31 H38" stroke="#2E2A25" strokeWidth={2.4} />
-            </>
-          )}
+          {/* 書架 */}
+          <rect x={8} y={8} width={32} height={34} rx={3} fill="#C9A57E" stroke="#2E2A25" strokeWidth={3} />
+          <path d="M8 25 H40" stroke="#2E2A25" strokeWidth={3} />
+          <rect x={13} y={12} width={5} height={11} fill="#E8907E" />
+          <rect x={20} y={13} width={5} height={10} fill="#9FCB9A" />
+          <rect x={27} y={29} width={5} height={11} fill="#8DB8D8" />
         </svg>
       </BackButton>
     </div>

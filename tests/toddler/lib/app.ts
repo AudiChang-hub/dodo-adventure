@@ -7,8 +7,8 @@ export const PORT = Number(process.env.TODDLER_PORT || 4527)
 export const BASE = `http://localhost:${PORT}/dodo-adventure/`
 const PROBE = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'probe.js')
 
-/** 開 App、解鎖地圖（自由探索），進到地圖 */
-export async function boot(page: Page, seed: number, opts: { to?: 'map' | 'home'; settings?: Record<string, unknown> } = {}) {
+/** 開 App、寫好測試用的設定，進到首頁 */
+export async function boot(page: Page, seed: number, opts: { to?: 'home'; settings?: Record<string, unknown> } = {}) {
   await page.addInitScript((seed) => {
     if (!sessionStorage.getItem('toddler.seed')) sessionStorage.setItem('toddler.seed', String(seed))
   }, seed)
@@ -38,10 +38,10 @@ export async function boot(page: Page, seed: number, opts: { to?: 'map' | 'home'
       })
       sessionStorage.setItem('dodo.resume', to)
     },
-    { extra: opts.settings ?? {}, to: opts.to ?? 'map' },
+    { extra: opts.settings ?? {}, to: 'home' },
   )
   await page.reload()
-  await page.waitForSelector(opts.to === 'home' ? '.screen.home' : '.screen.map', { timeout: 20_000 })
+  await page.waitForSelector('.screen.home', { timeout: 20_000 })
   await settle(page)
 }
 

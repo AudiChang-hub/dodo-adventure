@@ -14,7 +14,7 @@ const IDLE_MS = 5000
 const APPLY_TIMEOUT = 10 * 1000
 
 /** 這些畫面重新載入不會打斷題目；載入後回到同一個畫面 */
-const SAFE: Route['name'][] = ['home', 'map', 'collection', 'parent']
+const SAFE: Route['name'][] = ['home', 'parent']
 
 /** 等 Service Worker 回應最多這麼久：舊版的大型 precache 還在下載時，register() 會一直排隊不回來（T-54） */
 const SW_WAIT = 4000

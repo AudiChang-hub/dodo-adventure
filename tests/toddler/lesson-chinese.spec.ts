@@ -2,7 +2,6 @@ import { test, expect, type Page } from '@playwright/test'
 import { attempts, boot, homeButton, settle, snap } from './lib/app'
 import { Toddler, hashSeed, type Pt } from './lib/toddler'
 import { Checker, alive, checkDoubleRecords, doorAt, pressBack, toHome, toddlerStep, waitLive } from './lib/flows'
-import { FEATURES } from './lib/features'
 
 /**
  * 中文課（src/lessons/chinese/）：念課文（紅字可以點）→ 選圖（三選一）→ 貼紙。
@@ -127,7 +126,6 @@ async function answerAll(k: Toddler, c: Checker, spam = 3) {
 }
 
 test.describe('中文課', () => {
-  test.skip(FEATURES.adventure, '今日冒險版的首頁沒有中文課的門')
 
   test('亂點、連點：念課文、去選圖、選項，上完拿貼紙（沒有聲音的那一篇）', async ({ page }, info) => {
     test.skip(!want('lesson-chinese-play'))

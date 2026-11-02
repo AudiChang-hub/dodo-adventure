@@ -1,16 +1,16 @@
 import { test, expect } from '@playwright/test'
 import { boot, homeButton, settle, snap, targets } from './lib/app'
 import { Toddler, hashSeed, rng } from './lib/toddler'
-import { Checker, alive, attemptsSince, audit, pressBack, background, checkDoubleRecords, doorAt, enterGame, grabDuringTeach, holdHome, idle, midBack, reload, toHome, toMap, toddlerStep, waitLive, wrongMany } from './lib/flows'
+import { Checker, alive, attemptsSince, audit, pressBack, background, checkDoubleRecords, doorAt, enterGame, grabDuringTeach, holdHome, idle, midBack, reload, toHome, toddlerStep, waitLive, wrongMany } from './lib/flows'
 import { DRAWING, STATIONS, selected } from './catalog'
-import { FEATURES, HOME_GAMES, upOf } from './lib/features'
+import { HOME_GAMES, upOf } from './lib/features'
 
 const BASE_SEED = Number(process.env.TODDLER_SEED || 20261029)
 /** 沒畫到該畫的地方時，線放開後會淡掉的遊戲（設計如此，墨跡門檻放寬，見 flows.ts toddlerStep） */
 const FADING = new Set(['dots', 'trace', 'glyph'])
 
 /**
- * 每個遊戲：一個三歲小孩從地圖進去（地圖藏起來時從首頁的門，lib/features.ts；孩子點不到的遊戲不跑），依序做這些事（同一個 seed 動作一樣）：
+ * 每個遊戲（現在只有首頁「畫畫」那一扇門進去的自由畫畫）：一個三歲小孩從首頁的門進去，依序做這些事（同一個 seed 動作一樣）：
  * 連點進場 → 搶著操作 → 亂玩 → 一直答錯 → 發呆 → 切背景 → 拖曳中按首頁 → 教學中按首頁 → 轉場中按首頁 → 返回鍵 → 重新整理
  */
 for (const g of selected()) {
@@ -20,7 +20,7 @@ for (const g of selected()) {
     const k = new Toddler(page, info, seed, info.project.name)
     const c = new Checker(k, page)
     k.where = `${STATIONS[g.station]}／${g.title}（${g.id}）`
-    await boot(page, seed, { to: FEATURES.map ? 'map' : 'home' })
+    await boot(page, seed, { to: 'home' })
     await k.init()
     const up = upOf(g)
     const drawing = DRAWING.has(g.kind)
@@ -122,9 +122,9 @@ for (const g of selected()) {
         c.rule('NAV-2', back === up, `遊戲裡按返回到 ${back}（準則：回上一層 ${up}）`)
       }
 
-      // 9. 轉場中按首頁：點遊戲卡後馬上按住左上角（地圖藏起來時：點首頁的門後馬上按）
+      // 9. 轉場中按首頁：點首頁的門後馬上按左上角
       k.behavior = '轉場中按首頁'
-      if (!FEATURES.map && (await toHome(k, c))) {
+      if (await toHome(k, c)) {
         await settle(page)
         await k.wait(700)
         await k.tap((await doorAt(page, HOME_GAMES[g.id]))!, '首頁的門')
@@ -135,32 +135,6 @@ for (const g of selected()) {
         const live = await waitLive(page, (l) => l === 'home', 3000)
         if (live !== 'home') await c.once('home-transition', '無法返回', '點門後轉場中按左上角沒有回首頁', `停在 ${live}`)
         c.outcome('轉場中按首頁', live === 'home', live === 'home' ? '回到首頁' : `停在 ${live}`)
-        await c.screenOk('轉場中按首頁')
-        await c.flush()
-      } else if (FEATURES.map && (await toMap(k, c))) {
-        const stop = await page.evaluate((name) => {
-          const el = document.querySelector(`.map-stop[aria-label="${name}"]`)
-          const r = el!.getBoundingClientRect()
-          return { x: r.left + r.width / 2, y: r.top + r.height / 2 }
-        }, STATIONS[g.station])
-        await k.tap(stop, '站牌')
-        await waitLive(page, (l) => l === `st-${g.station}`)
-        await settle(page)
-        const tile = await page.evaluate((title) => {
-          const el = [...document.querySelectorAll('.scene')].filter((e) => !(e as HTMLElement).inert).pop()!.querySelector(`.game-tile[aria-label="${title}"]`)
-          const r = el!.getBoundingClientRect()
-          return { x: r.left + r.width / 2, y: r.top + r.height / 2 }
-        }, g.title)
-        await k.tap(tile, '遊戲卡')
-        await k.wait(120)
-        // 回首頁鈕的位置（遊戲和站點的左上角鈕在同一個地方）
-        const h = (await homeButton(page)) ?? { x: 64, y: 57, label: '', tap: false }
-        k.act(`轉場還在進行，${h.tap ? '點' : '按住'}左上角`)
-        await pressBack(k, h, '轉場中按左上角')
-        const live = await waitLive(page, (l) => l === 'home' || l === 'map' || l === `st-${g.station}`, 3000)
-        const ok = live === 'home' || live === 'map' || live === `st-${g.station}`
-        if (!ok) await c.once('home-transition', '無法返回', '轉場中按住左上角 1.5 秒沒有回去', `停在 ${live}；新畫面在轉場剛開始的 ${'ARM_MS'} 內不收點擊，孩子按下去的那一下被吃掉，要再按一次`)
-        c.outcome('轉場中按首頁', ok, ok ? `回到 ${live}` : `停在 ${live}，要再按一次`)
         await c.screenOk('轉場中按首頁')
         await c.flush()
       }

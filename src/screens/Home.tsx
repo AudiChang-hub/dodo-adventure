@@ -4,22 +4,15 @@ import { Dino } from '../art/Dino'
 import { Emoji } from '../art/Emoji'
 import { go, type Route } from '../lib/nav'
 import { say, sfx } from '../lib/audio'
-import { on } from '../lib/features'
 import { audioReady, onUnlock } from '../lib/boot'
 import { useTaps } from '../ui/tap'
 import { useInstall } from '../lib/install'
 import { useIntro } from '../ui/Scenes'
 import { LESSONS, SUBJECTS, type Subject } from '../lessons'
 import type { Speaker } from '../content/lines'
-import { AdventureHome } from './HomeAdventure'
 import './school.css'
 
 let greeted = false
-
-/** 首頁：今日冒險打開時是舊的「出發」首頁；現在是學校的樣子（三個大門＋故事、畫畫） */
-export function Home() {
-  return on('adventure') ? <AdventureHome /> : <SchoolHome />
-}
 
 /** 門上的圖：孩子不識字，看圖和守門的恐龍就知道是哪一課（門下的字是給大人看的） */
 const SIGN: Record<Subject, ReactNode> = {
@@ -63,7 +56,7 @@ const SIDE: { id: 'story' | 'draw'; label: string; icon: string; to: Route }[] =
  * 旁邊兩個小一點的故事、畫畫。除了家長角落沒有別的按鈕；點門任何地方一下就進去。
  * 畫面靜止（MOTION-2）：只有剛打開 App 時大家走進來一次，之後不閃、不晃。
  */
-function SchoolHome() {
+export function Home() {
   const intro = useIntro()
   const install = useInstall()
 

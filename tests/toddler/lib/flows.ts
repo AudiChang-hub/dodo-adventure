@@ -1,8 +1,8 @@
 import type { Page } from '@playwright/test'
 import { attempts, drain, homeButton, settle, snap, targets, type Target } from './app'
 import type { Pt, Severity, Toddler } from './toddler'
-import { STATIONS, type GameDef } from '../catalog'
-import { FEATURES, HOME_GAMES, upOf } from './features'
+import type { GameDef } from '../catalog'
+import { HOME_GAMES, upOf } from './features'
 
 /** 一段行為的結果，報告的結果表用 */
 export interface Outcome {
@@ -139,34 +139,6 @@ export async function waitLive(page: Page, pred: (live: string | null) => boolea
   return (await snap(page)).live
 }
 
-/** 從任何畫面回到地圖（不算在測試的行為裡，用來換場） */
-export async function toMap(k: Toddler, c: Checker) {
-  const page = k.page
-  for (let i = 0; i < 4; i++) {
-    await settle(page, 4000)
-    const s = await snap(page)
-    if (s.live === 'map') return true
-    if (s.cheer) {
-      await k.tap({ x: 600, y: 400 }, '跳過慶祝')
-      await k.wait(1500)
-      continue
-    }
-    if (s.live === 'home') {
-      const p = await centerOf(page, '.home-dock [aria-label="地圖"]')
-      if (p) await k.tap(p, '地圖')
-    } else {
-      const h = await homeButton(page)
-      if (h) await pressBack(k, h)
-      else await k.tap({ x: 600, y: 400 })
-    }
-    await waitLive(page, (l) => l === 'map' || l === 'home', 5000)
-  }
-  const ok = (await snap(page)).live === 'map'
-  if (!ok) await c.once('tomap', '無法返回', '找不到回地圖的路', JSON.stringify(await snap(page)))
-  return ok
-}
-
-/** 地圖 → 站點 → 遊戲；spam=true 時站牌、遊戲卡都連點 */
 /** 回到首頁（返回鍵一層一層回去） */
 export async function toHome(k: Toddler, c: Checker) {
   const page = k.page
@@ -252,7 +224,7 @@ export async function tapDoor(k: Toddler, c: Checker, door: string, label: strin
   return live
 }
 
-/** 地圖藏起來時（lib/features.ts）：從首頁那一扇門進遊戲 */
+/** 從首頁那一扇門進遊戲 */
 async function enterFromHome(k: Toddler, c: Checker, g: GameDef, opts: { spam?: boolean }) {
   const page = k.page
   if (!(await toHome(k, c))) return false
@@ -274,46 +246,7 @@ async function enterFromHome(k: Toddler, c: Checker, g: GameDef, opts: { spam?: 
 }
 
 export async function enterGame(k: Toddler, c: Checker, g: GameDef, opts: { spam?: boolean } = {}) {
-  const page = k.page
-  if (!FEATURES.map) return enterFromHome(k, c, g, opts)
-  if (!(await toMap(k, c))) return false
-  const stop = await centerOf(page, `.map-stop[aria-label="${STATIONS[g.station]}"]`)
-  if (!stop) return false
-  if (opts.spam) await k.spam(stop, 5 + k.r.int(4), '站牌')
-  else await k.tap(stop, '站牌')
-  let st = await waitLive(page, (l) => l === `st-${g.station}`)
-  if (opts.spam) {
-    // 連點的後面幾下可能落到站點畫面同一個位置的東西上
-    await k.wait(1200)
-    st = (await snap(page)).live
-    if (st !== `st-${g.station}` && (st ?? '').startsWith('play-')) {
-      await c.once('spam-stop', '困惑', `連點站牌直接掉進遊戲「${st!.slice(5)}」`, `在地圖連點「${STATIONS[g.station]}」站牌：站點畫面出現後，後面幾下點到同一個位置的遊戲卡，孩子沒有選就被帶進遊戲`)
-      return enterGame(k, c, g, { spam: false })
-    }
-  }
-  if (st !== `st-${g.station}`) {
-    await c.once(`enter-st:${g.station}`, '卡死', `點站牌沒有進到站點（停在 ${st}）`, '')
-    return false
-  }
-  await settle(page)
-  await k.wait(300)
-  const tile = await centerOf(page, `.game-tile[aria-label="${g.title}"]`)
-  if (!tile) {
-    await c.once('no-tile', '小問題', `站點裡找不到「${g.title}」`, '')
-    return false
-  }
-  if (opts.spam) await k.spam(tile, 5 + k.r.int(5), '遊戲卡')
-  else await k.tap(tile, '遊戲卡')
-  const live = await waitLive(page, (l) => l === `play-${g.id}`)
-  if (live !== `play-${g.id}` && (live ?? '').startsWith('play-')) {
-    await c.once('spam-tile', '困惑', `連點遊戲卡進錯遊戲「${live!.slice(5)}」`, '')
-    return enterGame(k, c, g, { spam: false })
-  }
-  if (live !== `play-${g.id}`) {
-    await c.once('enter-game', '卡死', `點遊戲卡沒有進到遊戲（停在 ${live}）`, '')
-    return false
-  }
-  return true
+  return enterFromHome(k, c, g, opts)
 }
 
 /** 按返回鍵：新版（[data-back]）點一下，舊版按住 */

@@ -22,20 +22,13 @@ def('ws.intro.give', 'bobo', "I'm hungry! Can I have some eggs?")
 def('ws.intro.flash', 'bobo', 'Look fast! How many?')
 
 // ── 找出全部：通用回饋 ─────────────────────────────────────
-const voice: Record<'bobo' | 'momo', { here: string; done: string; left: string[] }> = {
-  bobo: { here: 'Here they are! Tap them all!', done: 'You found them all!', left: ['One more!', 'Two more!', 'Three more!'] },
-  momo: { here: 'Here they are. Tap them all.', done: 'You found them all.', left: ['One more.', 'Two more.', 'Three more.'] },
+const left: Record<'bobo' | 'momo', string[]> = {
+  bobo: ['One more!', 'Two more!', 'Three more!'],
+  momo: ['One more.', 'Two more.', 'Three more.'],
 }
-for (const s of ['bobo', 'momo'] as const) {
-  def(`ws.here.${s}`, s, voice[s].here)
-  def(`ws.done.${s}`, s, voice[s].done)
-  voice[s].left.forEach((t, i) => def(`ws.left.${s}.${i + 1}`, s, t))
-}
+for (const s of ['bobo', 'momo'] as const) left[s].forEach((t, i) => def(`ws.left.${s}.${i + 1}`, s, t))
 // 莫莫找到一個就數一個（波波沿用 m.num.*）
 for (let n = 1; n <= 6; n++) def(`ws.num.momo.${n}`, 'momo', `${cap(NUM[n])}.`)
-def('ws.lasso.here', 'bobo', 'Go around each one!')
-def('ws.lasso.close', 'bobo', 'Go all the way around!')
-def('ws.lasso.around', 'bobo', 'Go around it!')
 
 // ── 找出全部：類別 ─────────────────────────────────────────
 // 找出全部、圈圈看用同一句（Find all the | apples!）；點錯時唸名字用 lex.this.*（This is a | ball.，lines.ts），只唸教過的字
@@ -85,26 +78,3 @@ for (const u of USE_TAGS) {
       def(key, 'momo', text)
     }
 }
-
-// ── 塗格子表示數量 ─────────────────────────────────────────
-// 塗格子不用 circle、fill（circle 是形狀的名字）：Color one for each!
-def('ws.fill.ask', 'bobo', 'Color one for each!')
-def('ws.fill.more', 'bobo', 'Not yet! Color one for each.')
-def('ws.fill.toomany', 'bobo', 'Oops, too many! Take one away.')
-def('ws.check', 'bobo', 'All done? Tap the check!')
-def('ws.count', 'bobo', "Let's count!")
-
-// ── 給波波 N 顆蛋（數量感）─────────────────────────────────
-for (let n = 1; n <= 10; n++) {
-  def(`ws.give.${n}`, 'bobo', n === 1 ? 'Give me | one egg!' : `Give me | ${NUM[n]} eggs!`)
-  def(`ws.want.${n}`, 'bobo', n === 1 ? 'I want | one egg.' : `I want | ${NUM[n]} eggs.`)
-}
-def('ws.give.more', 'bobo', 'More, please!')
-def('ws.give.toomany', 'bobo', 'Oops, too many!')
-def('ws.give.takeout', 'bobo', 'Take one out!')
-def('ws.give.thanks', 'bobo', 'Yum! Thank you!')
-
-// ── 一眼看出幾個（subitizing）──────────────────────────────
-def('ws.flash.ask', 'bobo', 'How many?')
-def('ws.flash.look', 'bobo', 'Look!')
-def('ws.flash.peek', 'bobo', 'Tap the leaves!')

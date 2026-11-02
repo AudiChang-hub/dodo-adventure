@@ -1,7 +1,6 @@
 import { createContext, useContext, useEffect, useState, type CSSProperties, type ReactNode } from 'react'
 import { Dino, type Mood } from '../art/Dino'
 import { BackButton } from '../ui/Back'
-import { Emoji } from '../art/Emoji'
 import { Scenery } from '../ui/Scenery'
 import { ThemeScenery } from '../ui/ThemeScenery'
 import { themeNow } from '../lib/theme-play'
@@ -11,17 +10,10 @@ import { coplayHint } from '../content/coplay'
 import { useRoute } from '../lib/nav'
 import { holdBedtime } from '../lib/session'
 import { useGrowth } from '../lib/growth'
-import { on } from '../lib/features'
 import { bandOf } from './frame'
 import { FRAMES } from '../content/growth'
 import type { StationId } from '../lib/db'
 import './coplay.css'
-
-/**
- * 現在在玩哪個遊戲：今日冒險用它告訴 Shell（陪玩提示要依遊戲 id 挑）。
- * 從站點直接玩時路由本身就帶著遊戲 id，不需要提供。
- */
-export const PlayingGame = createContext<string | null>(null)
 
 /**
  * 一局結束的慶祝（ui/Celebrate.tsx：每局回顧、里程碑、挑貼紙）正蓋在遊戲上面：PlayGame 告訴 Shell。
@@ -30,10 +22,10 @@ export const PlayingGame = createContext<string | null>(null)
  */
 export const Cheering = createContext(false)
 
+/** 現在在玩哪個遊戲（陪玩提示要依遊戲 id 挑）：路由帶著遊戲 id；學校的一堂課沒有 */
 function usePlayingGame(): string | null {
-  const fromAdventure = useContext(PlayingGame)
   const r = useRoute()
-  return fromAdventure ?? (r.name === 'play' ? r.game : null)
+  return r.name === 'play' ? r.game : null
 }
 
 /** 給爸爸看的一行中文陪玩提示：小字、低對比、不接收點擊（benchmark 手法 2） */
@@ -72,40 +64,6 @@ export function HomeIcon() {
   )
 }
 
-/** 站點的圓牌（跟地圖上那一站同一個圖）：從站點進來的遊戲「回站點」用 */
-export function StationIcon({ station }: { station: StationId }) {
-  const st = stationDef(station)
-  return (
-    <span className="back-station" style={{ background: st.tint }} aria-hidden="true">
-      <Emoji name={st.icon} />
-    </span>
-  )
-}
-
-/** 今天的小路線（三面小旗沿著路、最後是蛋）：今日冒險裡「回路線圖」用 */
-export function RouteIcon() {
-  return (
-    <svg viewBox="0 0 48 48" width={40} aria-hidden="true">
-      <path d="M6 38 C14 38 14 28 22 28 S 32 18 42 14" fill="none" stroke="#E2D8C6" strokeWidth={9} strokeLinecap="round" />
-      <path d="M6 38 C14 38 14 28 22 28 S 32 18 42 14" fill="none" stroke="#2E2A25" strokeWidth={2.5} strokeDasharray="3 4" strokeLinecap="round" />
-      <path d="M12 34 V22 L19 25 L12 28" fill="#E99A84" stroke="#2E2A25" strokeWidth={2.5} strokeLinejoin="round" />
-      <path d="M27 24 V12 L34 15 L27 18" fill="#BFDCC8" stroke="#2E2A25" strokeWidth={2.5} strokeLinejoin="round" />
-      <ellipse cx={41} cy={10} rx={5} ry={6.5} fill="#F1D27C" stroke="#2E2A25" strokeWidth={2.5} />
-    </svg>
-  )
-}
-
-/** 摺起來的地圖：站點畫面「回地圖」用 */
-export function MapIcon() {
-  return (
-    <svg viewBox="0 0 48 48" width={40} aria-hidden="true">
-      <path d="M6 12 L17 8 L31 13 L42 9 V36 L31 40 L17 35 L6 39 Z" fill="#BFDCC8" stroke="#2E2A25" strokeWidth={3.5} strokeLinejoin="round" />
-      <path d="M17 8 V35 M31 13 V40" stroke="#2E2A25" strokeWidth={3} />
-      <path d="M22 22 q4 -6 8 0 q-4 7 -4 9 q0 -2 -4 -9 Z" fill="#E99A84" />
-    </svg>
-  )
-}
-
 interface Props {
   station: StationId
   mood: Mood
@@ -132,11 +90,6 @@ export function Shell({ station, mood, progress, onExit, onHost, children, hideH
   const [th] = useState(themeNow)
   // 遊戲在畫面上的時候，每日時間到了也先等它玩完（在兩個遊戲之間才去睡覺）
   useEffect(() => holdBedtime(), [])
-  // 從站點進來的遊戲回站點；今日冒險裡的遊戲回冒險的路線圖（保留今天走到哪）；
-  // 地圖藏起來時（lib/features.ts，首頁的畫畫）和學校的一堂課（src/lessons/）回首頁
-  const r = useRoute()
-  const toHome = r.name === 'lesson' || (r.name === 'play' && !on('map'))
-  const toStation = r.name === 'play' && !toHome
   // 年段的操作外框（成長系統 G-3）：觸控尺寸寫成 CSS 變數給共用元件用；data-band 給三歲模擬測試和截圖看是哪個年段的外框
   const growth = useGrowth()
   const f = growth.frame
@@ -156,8 +109,9 @@ export function Shell({ station, mood, progress, onExit, onHost, children, hideH
     >
       {th ? <ThemeScenery def={th} /> : <Scenery station={station} />}
       <div className="stage-top">
-        <BackButton label={toHome ? '回首頁' : toStation ? `回${st.name}` : '回路線圖'} onTap={onExit}>
-          {toHome ? <HomeIcon /> : toStation ? <StationIcon station={station} /> : <RouteIcon />}
+        {/* 學校的一堂課、首頁的畫畫：返回都回首頁 */}
+        <BackButton label="回首頁" onTap={onExit}>
+          <HomeIcon />
         </BackButton>
         {/* 答對時星星飛進這一格（成就感強化） */}
         {progress && <ProgressStars total={progress.total} done={progress.done} />}

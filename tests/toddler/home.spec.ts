@@ -2,7 +2,6 @@ import { test, expect, type Page } from '@playwright/test'
 import { boot, homeButton, settle, snap, targets } from './lib/app'
 import { Toddler, hashSeed } from './lib/toddler'
 import { Checker, doorAt, drawAndMeasure, pressBack, tapDoor, toHome, toddlerStep, waitLive } from './lib/flows'
-import { FEATURES, hidden } from './lib/features'
 
 /**
  * 學校的首頁（2026-10-31，src/screens/Home.tsx 的 SchoolHome）：三個大門（英文字母、中文課文、數學數字）＋故事、畫畫。
@@ -42,7 +41,7 @@ function finish(k: Toddler, c: Checker, name: string) {
   expect.soft(k.findings.length, `全部問題：${k.findings.map((f) => f.title).join(' | ')}`).toBe(0)
 }
 
-/** 平板忙：下一次 click 之後（換畫面的那一下），主執行緒卡 ms（跟 nav-spam.spec 一樣） */
+/** 平板忙：下一次 click 之後（換畫面的那一下），主執行緒卡 ms */
 const stallAfterNextClick = (page: Page, ms: number) =>
   page.evaluate((ms) => {
     window.addEventListener(
@@ -57,7 +56,6 @@ const stallAfterNextClick = (page: Page, ms: number) =>
   }, ms)
 
 test.describe('學校首頁', () => {
-  test.skip(FEATURES.adventure, '今日冒險版的首頁在 screens.spec.ts 的「首頁」')
 
   test('三大門：亂點、連點每一扇門、進出、返回', async ({ page }, info) => {
     test.skip(!want('home-doors'))

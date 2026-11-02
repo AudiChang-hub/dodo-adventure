@@ -2,10 +2,10 @@
 // 三歲模擬測試：npm run test:toddler -- [遊戲 id／站點／種類／screens／畫面名稱…] [選項]
 //
 //   npm run test:toddler                       全部遊戲＋全部畫面，1200×800 完整版＋1280×800 精簡版
-//   npm run test:toddler -- m-count d-color    只跑這兩個遊戲
-//   npm run test:toddler -- math               數字工地的全部遊戲
-//   npm run test:toddler -- screens            只跑畫面（首頁、地圖、家長區、冒險…）
-//   npm run test:toddler -- parent bedtime     只跑某幾個畫面（home map collection parent back adventure eyebreak bedtime）
+//   npm run test:toddler -- d-free             只跑自由畫畫
+//   npm run test:toddler -- home-doors lesson-math  只跑首頁三大門和數學課
+//   npm run test:toddler -- screens            只跑畫面（家長區、護眼休息、睡覺、減少動態、來回換畫面…）
+//   npm run test:toddler -- parent bedtime     只跑某幾個畫面（parent eyebreak bedtime motion settings layers）
 //   npm run test:toddler -- --changed          只跑跟 main 比改到的部分（對照表見 tests/toddler/lib/affected.mjs）
 //
 // 選項：

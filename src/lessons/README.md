@@ -43,9 +43,8 @@ export function EnglishLesson({ onDone }: LessonProps) {
 | 要做的 | 零件 | 路徑 | 怎麼用 |
 |---|---|---|---|
 | 字母、代表字、圖 | `LETTERS`（A apple 🍎…）、`LETTER_GROUPS`、`letterEntry('B')`；自然發音用 `PHONICS`、`soundUnit` | `src/content/letters.ts` | 純資料，直接 import |
-| 描字（字母、數字） | `kind: 'glyph'` 的遊戲 `GlyphGame`；筆順 `GLYPHS`、零件 `PARTS`、級數 `GLYPH_LEVELS`、`glyphPool(lv)` | `src/games/draw/GlyphGame.tsx`、`src/games/draw/glyphs.ts` | 整個遊戲：`<PlayGame gameId="d-glyph" onDone={…} onExit={leaveLesson} />`（`src/games/PlayGame.tsx`）。成長系統的關卡鎖已經關掉，字母不用等階梯 |
-| 選擇題（4 選 1、聽詞找圖） | `ChoiceGame`：題目來自遊戲設定的 `make(level, recent)` | `src/games/ChoiceGame.tsx`；題目產生器 `src/content/games.ts`（`mFind`、`zFind`、`mCompare`…） | 現成的遊戲直接 `<PlayGame gameId="m-compare" …/>`；要新的題目，在 `src/content/games.ts` 的 `GAMES` 最後**自己那一段**（`// ── 英文課 ──` 等）加一行，`make` 寫在自己資料夾 |
-| 數數 | `CountGame`（點點數數 `m-count`） | `src/games/CountGame.tsx` | `<PlayGame gameId="m-count" …/>` |
+| 描字（字母、數字） | 筆順 `GLYPHS`、零件 `PARTS`；描的跑道 `PathTracker`、畫布 `Ink` | `src/games/draw/glyphs.ts`、`src/games/draw/track.ts`、`src/games/draw/Ink.tsx` | 英文課的 `Trace.tsx`、數學課的 `Write.tsx` 是現成的例子 |
+| 選擇題、數數 | 舊的站點遊戲（ChoiceGame、CountGame…）T-75 已經拿掉，各課自己組（中文課的 `Quiz.tsx`、數學課的 `kit.tsx` 的 `Quiz`、`Count.tsx`） | `src/lessons/<科>/` | 互動做法照抄現有的課 |
 | 教學卡（恐龍拿出來念、孩子點一下再聽一次） | `TeachCard`，內容是 `TeachSpec` | `src/games/Teach.tsx`、型別在 `src/content/games.ts` | `<TeachCard spec={…} onDone={(ms) => …} />` |
 | 說話、音效 | `say(...keys)`（依序念、會被新的 say 打斷）、`stopSpeech()`、`sfx.pop()` 等 | `src/lib/audio.ts` | 台詞要先登記：`def(key, 'dodo', 'text')`（`src/content/lines.ts` 或自己檔案再 import 進 `lines.ts`），再 `npm run phrases && python scripts/gen_audio.py --only <key 前綴>` 產生音檔 |
 | 中文的詞 | 中文三明治（中文 → 停一下 → 英文）`ZH_WORDS`、`bridgeKey` | `src/content/zh-words.ts`、`src/content/lines-zh.ts` | 中文語音是另一套（BreezyVoice，`scripts/gen_zh_words.py`） |
@@ -57,7 +56,7 @@ export function EnglishLesson({ onDone }: LessonProps) {
 
 ## 其他規矩
 
-- 功能開關在 `src/lib/features.ts`（地圖、冒險、魔法屋…都藏起來了，程式沒刪）。
+- 舊的地圖、冒險、魔法屋、貼紙本、站點遊戲 T-75 已經從程式拿掉（要找回來從 git 歷史救）；`src/lib/features.ts` 只剩成長系統的關卡鎖和睡覺畫面兩個開關。
 - 孩子的名字、幼兒園、生日不能寫進 repo（台詞裡用 `lines.ts` 的 `N`）。
 - 三歲測試：`npm run test:toddler -- --changed`。只改自己的資料夾時，會跑 `home.spec.ts` 的「三大門」（進出每一課、連點、返回）；
   自己的課要加測試，寫一個新的 spec（例如 `tests/toddler/lesson-english.spec.ts`），加進 `playwright.config.ts` 的 `testMatch`。

@@ -1,6 +1,5 @@
 // 過程型的稱讚（T-49 FB-3、V-31）：說出孩子剛剛做了什麼，不只是 Yes!。
 // 一個遊戲對一種「做了什麼」，每句 ≤ 6 個字；三隻恐龍各一份（莫莫用句號，比較沉穩）。
-// 找出全部、圈圈看本來就說 You found them all!（ws.done），連點成圖有自己的 DOTS_PRAISE，這裡不重複。
 // games/lines.ts 的 praiseKey 依「現在這一局是哪個遊戲」挑這裡的句子；之後的新遊戲加一行對應就好。
 import { def, type Speaker } from './registry'
 

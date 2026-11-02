@@ -1,5 +1,5 @@
 // 故事的目錄：部、季、篇、故事時間，以及「這一章今天實際要念哪些句子」（純函式，排課的結果傳進來）。
-// 決定今天播哪一章、記錄進度在 lib/story.ts；台詞在 lines.ts 產生；畫面在 screens/Adventure.tsx、StoryBook.tsx。
+// 決定今天播哪一章、記錄進度在 lib/story.ts；台詞在 lines.ts 產生；畫面在 screens/StoryBook.tsx（冒險的故事時間 T-75 拿掉了）。
 //
 // 第一批正式故事由 G-9、G-11 產生。現在只有示範：第一部第 1 篇〈彩虹蛋滾進來了〉、故事時間 A01 龜兔賽跑、B01 挪亞方舟。
 import type { Speaker } from '../registry'

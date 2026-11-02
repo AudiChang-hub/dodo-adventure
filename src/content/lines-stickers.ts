@@ -27,8 +27,6 @@ def('stk.pick.another', 'dodo', 'Ooh! || One more sticker for you!')
 def('stk.pick.idle.0', 'dodo', 'Take your time. Which one do you like?')
 def('stk.pick.idle.1', 'dodo', 'You can pick one now, or later!')
 def('stk.pick.later', 'dodo', 'Okay! Your sticker will wait for you!')
-// 還沒挑的貼紙：今日回顧、貼紙本裡那張發光的卡片
-def('stk.wait', 'dodo', 'Look! || A sticker is waiting for you!')
 
 // ── 點貼紙念它的英文名字（順便學詞彙）──────────────────────────────
 // 「這是 ___」全站只用一種說法（2026-10-28 單字盤點第 4 章）：This is a | dog! ／ These are | grapes!

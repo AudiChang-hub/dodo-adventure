@@ -2,7 +2,6 @@ import { test, expect, type Page } from '@playwright/test'
 import { attempts, boot, homeButton, settle, snap } from './lib/app'
 import { Toddler, hashSeed, type Pt } from './lib/toddler'
 import { Checker, alive, audit, checkDoubleRecords, doorAt, grabDuringTeach, pressBack, toHome, toddlerStep, waitLive } from './lib/flows'
-import { FEATURES } from './lib/features'
 import type { GameDef } from './catalog'
 
 /**
@@ -216,7 +215,6 @@ async function halfThenAgain(k: Toddler, how: 'restart' | 'continue', sel: { boa
 }
 
 test.describe('數學課', () => {
-  test.skip(FEATURES.adventure, '今日冒險版沒有學校的三堂課')
 
   test('上完一堂：連點門、亂點、連點、示範時搶著點和畫', async ({ page }, info) => {
     test.skip(!want())
