@@ -5,7 +5,7 @@ gen_zh_breezy.py 3 個版本都沒通過的句子，最接近的那個版本放�
 這一頁列出每一句：第幾天、哪一課、課文、機器聽成什麼，按一下播放；家長勾「可以用」，最下面整理成放行指令。
 勾選只存在家長自己的瀏覽器裡（localStorage），不會傳到任何地方。
 
-    python -I scripts/zh_review_page.py [--out docs/voice-samples/breezyvoice/正式/待家長聽.html]
+    python -I scripts/zh_review_page.py [--out docs/voice-samples/breezyvoice/正式/待家長聽.html] [--days 1-120]
 """
 import argparse
 import base64
@@ -23,14 +23,17 @@ KIND = {"text": "課文", "word": "紅字", "question": "題目"}
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--out", default=str(ROOT / "docs" / "voice-samples" / "breezyvoice" / "正式" / "待家長聽.html"))
+    ap.add_argument("--days", default="", help="只列這幾天，例如 1-120（還在生成時先給家長聽前面的）")
     args = ap.parse_args()
+    lo, _, hi = args.days.partition("-")
+    lo, hi = int(lo or 1), int(hi or lo or 9999) if _ else int(lo or 9999)
 
     titles = {t["day"]: t["title"] for t in json.loads(TEXTS.read_text(encoding="utf-8"))}
     rows = json.loads((AUDIO / "report.json").read_text(encoding="utf-8"))["rows"]
-    rows = [r for r in rows if r["status"] == "需確認"]
+    rows = [r for r in rows if r["status"] == "需確認" and lo <= int(re.match(r"d(\d+)", r["key"]).group(1)) <= hi]
     rows.sort(key=lambda r: r["key"])
 
-    cards, day_now = [], None
+    cards, day_now, n = [], None, 0
     for r in rows:
         day = int(re.match(r"d(\d+)", r["key"]).group(1))
         mp3 = AUDIO / "需確認" / f"{r['file'].split('/')[-1]}.mp3"
@@ -41,6 +44,7 @@ def main():
                 cards.append("</section>")
             cards.append(f'<section class="day"><h2><span class="n">第 {day} 天</span>{html.escape(titles.get(day, ""))}</h2>')
             day_now = day
+        n += 1
         chosen = next((t for t in r["takes"] if t["id"] == r["chosen"]), r["takes"][-1])
         src = "data:audio/mpeg;base64," + base64.b64encode(mp3.read_bytes()).decode()
         cards.append(
@@ -56,11 +60,11 @@ def main():
     if day_now is not None:
         cards.append("</section>")
 
-    page = PAGE.replace("{{COUNT}}", str(len(rows))).replace("{{CARDS}}", "\n".join(cards))
+    page = PAGE.replace("{{COUNT}}", str(n)).replace("{{CARDS}}", "\n".join(cards))
     out = pathlib.Path(args.out)
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(page, encoding="utf-8")
-    print(f"{len(rows)} 句 → {out}（{out.stat().st_size // 1024} KB）")
+    print(f"{n} 句 → {out}（{out.stat().st_size // 1024} KB）")
 
 
 PAGE = """<!doctype html>
