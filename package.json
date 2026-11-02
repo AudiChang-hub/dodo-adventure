@@ -14,6 +14,8 @@
     "icons": "node scripts/build-icons.mjs",
     "deploy": "node scripts/deploy.mjs",
     "test:toddler": "node tests/toddler/run.mjs",
+    "test:ai-toddler": "tsx tests/ai-toddler/run.ts",
+    "ai-toddler:login": "tsx tests/ai-toddler/login.ts",
     "verify": "node scripts/verify.mjs"
   },
   "dependencies": {
