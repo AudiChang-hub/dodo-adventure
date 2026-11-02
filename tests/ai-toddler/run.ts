@@ -289,6 +289,25 @@ const probe = () =>
   })
 
 type Probe = Awaited<ReturnType<typeof probe>>
+/** 畫布上有多少墨（每 6 px 取一點，不透明的點數）：畫畫、描字不會改 DOM，要看畫布才知道有沒有畫出線 */
+const ink = () =>
+  page
+    .evaluate(() => {
+      let n = 0
+      for (const c of document.querySelectorAll('canvas')) {
+        if (!c.width || !c.height) continue
+        try {
+          const d = c.getContext('2d', { willReadFrequently: true })?.getImageData(0, 0, c.width, c.height).data
+          if (!d) continue
+          const step = 6 * 4 * Math.max(1, Math.round(c.width / c.getBoundingClientRect().width || 1))
+          for (let i = 3; i < d.length; i += step) if (d[i] > 40) n++
+        } catch {
+          /* 被污染的畫布 */
+        }
+      }
+      return n
+    })
+    .catch(() => 0)
 let voiceSeen = 0
 let quietSince = Date.now()
 const issue = (step: number, kind: AppIssue['kind'], title: string, detail = '') => {
@@ -412,7 +431,7 @@ while (!fatal) {
   else confusedRun++
 
   // ── 做動作 ──
-  const before = { live: s.live, resp: p.resp, sfx: p.sfx, voices: p.voices.length, heard: p.heard, mut: p.mut }
+  const before = { live: s.live, resp: p.resp, sfx: p.sfx, voices: p.voices.length, heard: p.heard, mut: p.mut, ink: action === 'drag' ? await ink() : 0 }
   let touch: Touch | null = null
   try {
     if (action === 'tap' && step.x != null && step.y != null) touch = await finger.tap({ x: step.x, y: step.y }, step.times)
@@ -442,6 +461,7 @@ while (!fatal) {
   }
   checkProbe(n, after)
   const changed = s2.live !== before.live
+  const inked = action === 'drag' && touch?.hit === '畫布' ? (await ink()) - before.ink : 0
   const reacted = after.resp > before.resp || after.sfx > before.sfx || after.voices.length > before.voices || after.heard > before.heard
   const backish = action === 'back' || touch?.hit === '返回鍵'
   if (backish && !changed) {
@@ -463,7 +483,7 @@ while (!fatal) {
   const where = touch?.got[0] ? `手指實際點在 (${touch.got[0].x}, ${touch.got[0].y})` : ''
   const what =
     action === 'tap' ? `你點了${step.times > 1 || touch?.times! > 1 ? ` ${touch?.times ?? step.times} 下` : '一下'}` : action === 'drag' ? `你拖了一下${touch?.early ? '（拖到一半手放開了）' : ''}` : action === 'back' ? '你用返回手勢' : `你等了 ${step.seconds} 秒`
-  const outcome = s2.live !== before.live ? '畫面換成別的了' : reacted ? (after.voices.length > before.voices || after.heard > before.heard ? '有聲音、畫面有動' : '畫面有動') : action === 'wait' ? '' : '好像沒有反應'
+  const outcome = s2.live !== before.live ? '畫面換成別的了' : inked > 0 ? `畫出線了${reacted ? '，畫面有動' : ''}` : reacted ? (after.voices.length > before.voices || after.heard > before.heard ? '有聲音、畫面有動' : '畫面有動') : action === 'wait' ? '' : '好像沒有反應'
   lastResult = [what, where, outcome].filter(Boolean).join('，')
   lastTouch = touch
   step.result = [touch?.hit, s2.live !== before.live ? `→ ${s2.live}` : '', outcome].filter(Boolean).join('；')
