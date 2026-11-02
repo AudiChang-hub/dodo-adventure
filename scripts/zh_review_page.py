@@ -9,6 +9,10 @@ gen_zh_breezy.py 3 個版本都沒通過的句子，最接近的那個版本放�
 
 --artifact：做成發布在 claude.ai 的頁面（手機的檔案預覽不會跑 HTML，只會顯示原始碼）。
 發布時宣告 capabilities {db:{}}，家長按的「可以用／要重做」存在頁面的 votes 集合，PM 用 ArtifactData 直接讀，不用複製貼上。
+
+--why：列出範圍內 report.json 有 why 的每一句（新句、家長說要重做的、多音字重做、課文改寫的），不管電腦檢查有沒有通過。
+音檔先找 需確認/，沒有就用 App 在播的那個；plays_old（多音字重做沒通過，App 還在播舊版）兩個都放，讓家長比較。
+每張卡標 why 和電腦檢查結果；家長說要重做的附上當時的原因（listen，加上 scripts/zh-lessons-say.json 的 note）。
 """
 import argparse
 import base64
@@ -20,6 +24,7 @@ import re
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 AUDIO = ROOT / "public" / "audio" / "zh-lesson"
 TEXTS = ROOT / "src" / "lessons" / "chinese" / "texts.json"
+SAY = ROOT / "scripts" / "zh-lessons-say.json"
 KIND = {"text": "課文", "word": "紅字", "question": "題目"}
 
 
@@ -28,21 +33,30 @@ def main():
     ap.add_argument("--out", default=str(ROOT / "docs" / "voice-samples" / "breezyvoice" / "正式" / "待家長聽.html"))
     ap.add_argument("--days", default="", help="只列這幾天，例如 1-120（還在生成時先給家長聽前面的）")
     ap.add_argument("--artifact", action="store_true", help="發布成 claude.ai 頁面用：拿掉 doctype 和 head 的 meta（發布時會自動包上）")
+    ap.add_argument("--why", action="store_true", help="列出有 why 的每一句（新句、重做、多音字重做、改寫），不只「需確認」")
     args = ap.parse_args()
     lo, _, hi = args.days.partition("-")
     lo, hi = int(lo or 1), int(hi or lo or 9999) if _ else int(lo or 9999)
 
     titles = {t["day"]: t["title"] for t in json.loads(TEXTS.read_text(encoding="utf-8"))}
     rows = json.loads((AUDIO / "report.json").read_text(encoding="utf-8"))["rows"]
-    rows = [r for r in rows if r["status"] == "需確認" and lo <= int(re.match(r"d(\d+)", r["key"]).group(1)) <= hi]
+    rows = [r for r in rows if (r.get("why") if args.why else r["status"] == "需確認")
+            and lo <= int(re.match(r"d(\d+)", r["key"]).group(1)) <= hi]
     rows.sort(key=lambda r: r["key"])
+    say = json.loads(SAY.read_text(encoding="utf-8"))
+    shown = []
 
     cards, day_now, n = [], None, 0
     for r in rows:
         day = int(re.match(r"d(\d+)", r["key"]).group(1))
-        mp3 = AUDIO / "需確認" / f"{r['file'].split('/')[-1]}.mp3"
+        stem = r["file"].split("/")[-1]
+        mp3, live = AUDIO / "需確認" / f"{stem}.mp3", AUDIO / f"{stem}.mp3"
+        if args.why and not mp3.exists():
+            mp3 = live
         if not mp3.exists():
             continue
+        shown.append(r)
+        old = args.why and r.get("plays_old") and mp3 != live and live.exists()
         if day != day_now:
             if day_now is not None:
                 cards.append("</section>")
@@ -50,16 +64,27 @@ def main():
             day_now = day
         n += 1
         chosen = next((t for t in r["takes"] if t["id"] == r["chosen"]), r["takes"][-1])
-        src = "data:audio/mpeg;base64," + base64.b64encode(mp3.read_bytes()).decode()
+        tags, note = "", ""
+        if args.why:
+            passed = r["status"] != "需確認"
+            tags = (f'<span class="tag">{html.escape(r["why"])}</span>'
+                    f'<span class="tag {"pass" if passed else "fail"}">電腦檢查{"通過" if passed else "沒通過"}</span>')
+            why_redo = "、".join(x for x in (r.get("listen"), (say.get(f'{r["kind"]}|{r["text"]}') or {}).get("note")) if x)
+            if r.get("redo") and why_redo:
+                note = f'<p class="note">上次重做的原因：{html.escape(why_redo)}</p>'
         cards.append(
             f'<article class="clip" data-key="{html.escape(r["key"])}">'
-            f'<button class="play" type="button" aria-label="播放"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5.5v13l11-6.5z"/></svg></button>'
-            f'<div class="body"><span class="kind">{KIND.get(r["kind"], r["kind"])}</span>'
+            f'<button class="play" type="button" data-play="0" aria-label="播放"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5.5v13l11-6.5z"/></svg></button>'
+            f'<div class="body"><span class="kind">{KIND.get(r["kind"], r["kind"])}</span>{tags}'
             f'<p class="line">{html.escape(r["text"])}</p>'
-            f'<p class="heard">機器聽成「{html.escape(chosen.get("heard", ""))}」</p></div>'
-            f'<div class="vote" role="group" aria-label="這句">'
-            f'<button type="button" data-v="ok">可以用</button><button type="button" data-v="redo">要重做</button></div>'
-            f'<audio preload="none" src="{src}"></audio></article>'
+            f'<p class="heard">機器聽成「{html.escape(chosen.get("heard", ""))}」</p>{note}'
+            + ('<div class="ab"><button type="button" class="alt" data-play="0">▶ 新版</button>'
+               '<button type="button" class="alt" data-play="1">▶ App 現在播的</button></div>' if old else '')
+            + '</div><div class="vote" role="group" aria-label="這句">'
+            f'<button type="button" data-v="ok">{"可以用（換新版）" if old else "可以用"}</button><button type="button" data-v="redo">要重做</button></div>'
+            f'<audio preload="none" src="{data_url(mp3)}"></audio>'
+            + (f'<audio preload="none" src="{data_url(live)}"></audio>' if old else '')
+            + '</article>'
         )
     if day_now is not None:
         cards.append("</section>")
@@ -67,12 +92,29 @@ def main():
     page = PAGE
     if args.artifact:
         page = page.replace(HEAD, '<meta name="claude:viewport-fit-sides" content="cover">\n')
+    if args.why:
+        rewrite = [r for r in shown if r["why"].startswith("改寫") or (r["why"].startswith("重做") and not r.get("redo"))]
+        redo = [r for r in shown if r.get("redo") and r not in rewrite]
+        poly = [r for r in shown if r["why"].startswith("多音字")]
+        he = [r for r in poly if "和" in r["why"]]
+        new = [r for r in shown if r["why"] == "新句"]
+        page = page.replace(LEDE, f'<p class="lede">這一頁是第 {lo}～{hi} 天要請你聽的 {n} 句：新句子 {len(new)} 句、你上次說要重做的 {len(redo)} 句、'
+                            f'多音字重做的 {len(poly)} 句（其中「和」念ㄏㄜˊ的 {len(he)} 句）、數數和「……」改寫的 {len(rewrite)} 句。'
+                            '每張卡標了是哪一種、電腦檢查有沒有通過；有兩個鈕的，可以比較新版和 App 現在播的。'
+                            '按圓鈕聽，覺得念得對就按「可以用」，<span id="howto">最下面按「複製結果」傳給我。</span></p>')
+        page = page.replace("const KEY = 'zh-review-picks'", f"const KEY = 'zh-review-picks-{lo}-{hi}'")
     page = page.replace("{{COUNT}}", str(n)).replace("{{CARDS}}", "\n".join(cards))
     out = pathlib.Path(args.out)
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(page, encoding="utf-8")
     print(f"{n} 句 → {out}（{out.stat().st_size // 1024} KB）")
 
+
+def data_url(mp3: pathlib.Path) -> str:
+    return "data:audio/mpeg;base64," + base64.b64encode(mp3.read_bytes()).decode()
+
+
+LEDE = '<p class="lede">這 {{COUNT}} 句，電腦聽寫檢查了 3 個版本都覺得不太對，所以 App 先不播。常常只是語氣詞（咚、嘿喲）或同音字聽錯。按圓鈕聽，覺得念得對就按「可以用」，<span id="howto">最下面按「複製結果」傳給我。</span></p>'
 
 HEAD = """<!doctype html>
 <meta charset="utf-8">
@@ -117,6 +159,13 @@ h1 { font-family: var(--display); font-size: clamp(1.8rem, 6vw, 2.4rem); line-he
 .kind { font-size: .75rem; color: var(--muted); letter-spacing: .06em; }
 .line { font-family: var(--display); font-size: 1.45rem; line-height: 1.35; margin: 0; }
 .heard { margin: 2px 0 0; font-size: .88rem; color: var(--muted); }
+.tag { display: inline-block; margin-left: 8px; padding: 0 8px; border-radius: 999px; font-size: .72rem; line-height: 1.6; background: var(--band); color: var(--ink); }
+.tag.pass { background: transparent; color: var(--ok); box-shadow: 0 0 0 1px var(--ok) inset; }
+.tag.fail { background: transparent; color: var(--redo); box-shadow: 0 0 0 1px var(--redo) inset; }
+.note { margin: 2px 0 0; font-size: .85rem; color: var(--redo); }
+.ab { display: flex; gap: 8px; margin-top: 6px; flex-wrap: wrap; }
+.alt { font: inherit; font-size: .85rem; min-height: 36px; padding: 0 14px; border-radius: 999px; border: 0; cursor: pointer; background: var(--band); color: var(--ink); }
+.alt.playing { background: var(--blue); color: #fff; }
 .vote { grid-column: 2; display: flex; gap: 8px; margin-top: 6px; }
 .vote button { font: inherit; font-size: .9rem; min-height: 40px; padding: 0 16px; border-radius: 999px; border: 0; cursor: pointer;
   background: transparent; color: var(--muted); box-shadow: 0 0 0 1.5px var(--line) inset; transition: background .2s, color .2s, box-shadow .2s; }
@@ -158,15 +207,23 @@ const tally = () => {
   document.getElementById('copy').disabled = ok + redo === 0
 }
 for (const c of clips) {
-  const a = c.querySelector('audio')
+  const auds = [...c.querySelectorAll('audio')]
   if (picks[c.dataset.key]) c.dataset.pick = picks[c.dataset.key]
-  c.querySelector('.play').addEventListener('click', () => {
+  for (const b of c.querySelectorAll('[data-play]')) b.addEventListener('click', () => {
+    const a = auds[+b.dataset.play]
     if (cur && cur !== a) { cur.pause(); cur.currentTime = 0 }
     cur = a; a.currentTime = 0; a.play()
   })
-  a.addEventListener('play', () => c.classList.add('playing'))
-  a.addEventListener('pause', () => c.classList.remove('playing'))
-  a.addEventListener('ended', () => c.classList.remove('playing'))
+  // 第一個是圓鈕（和「新版」）播的，第二個是「App 現在播的」
+  auds.forEach((a, i) => {
+    const mark = (on) => {
+      if (i === 0) c.classList.toggle('playing', on)
+      for (const b of c.querySelectorAll('.alt[data-play="' + i + '"]')) b.classList.toggle('playing', on)
+    }
+    a.addEventListener('play', () => mark(true))
+    a.addEventListener('pause', () => mark(false))
+    a.addEventListener('ended', () => mark(false))
+  })
   for (const b of c.querySelectorAll('[data-v]')) b.addEventListener('click', () => {
     const v = picks[c.dataset.key] === b.dataset.v ? null : b.dataset.v
     if (v) picks[c.dataset.key] = v; else delete picks[c.dataset.key]
