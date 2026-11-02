@@ -30,7 +30,7 @@ npm run test:ai-toddler -- --lesson zh --minutes 8 --seed 1
 
 worktree 裡跑要先有 `node_modules`、`public/audio`、`.env.local`（都不進 git）：從主 repo 複製，或用 junction 連過去（PowerShell：`New-Item -ItemType Junction -Path node_modules -Target <主 repo>\node_modules`）。
 
-開 App 的方式：首頁 → 爸爸媽媽幫他點開那一課（不算小男生的動作）→ 小男生自己玩。故事會先放 8 本講過的書（跟 test:toddler 的故事測試一樣），不然新裝置的書架是空的。
+開 App 的方式：首頁 → 爸爸媽媽幫他點開那一課（不算小男生的動作）→ 小男生自己玩。故事會先放 8 本講過的書（同 test:toddler 那 8 本，但用 App 的 `scriptOf` 補成真的句數和每一句的圖），不然新裝置的書架是空的（T-75 之後沒有地方會再寫新的章節）。
 
 ### 什麼時候停
 
@@ -109,7 +109,7 @@ claude 的位置：`CLAUDE_BIN` → PATH 上的 `claude` → 桌面版帶的 `cl
 一步大約：系統提示（角色設定）約 4 千 token、截圖約 1.4 千 token、題目 0.5 千 token，回答 0.2 千 token。
 `cli` 每一步是兩次來回（先 Read 截圖、再回答），所以一步約 1.2 萬 token 輸入（大部分是快取讀取）、0.4 千 token 輸出；
 一課 8 分鐘約 25～40 步，再加最後的分析一次（約 1 萬 token），合計**一課約 30～50 萬 token 輸入、1.5 萬 token 輸出**。
-**2026-11-02 試跑實測（交接模式，Sonnet 子代理扮演）**：每一步平均想 4.7～6.3 秒；英文 58 步（6:48，自己說不玩了）、中文 10 步（1:17，上完）、數學 27 步（3:07，上完）、畫畫 34 步（4:36）、故事。
+**2026-11-02 試跑實測（交接模式，Sonnet 子代理扮演）**：每一步平均想 4.7～6.3 秒；英文 58 步（6:48，自己說不玩了）、中文 10 步（1:17，上完）、數學 27 步（3:07，上完）、畫畫 34 步（4:36，自己說不玩了）、故事 19 步（2:08，聽完）。總結在主 repo `docs/AI小男生測試/2026-11-02-試跑總結.md`。
 子代理每課結束時的對話長度 9 萬～21 萬 token（截圖一張一張累積在同一段對話裡），所以交接模式的總輸入是「每一步重讀整段對話」，比 `cli`（每一步重新開始、只帶最近 6 步的文字）多，雖然大部分是快取讀取。平常用 `cli`；交接模式留給本機 claude 沒登入、或 PM 想自己看著跑的時候。
 
 `cli` 用的是訂閱帳號的使用額度（會算進每 5 小時的上限），五課一輪大約是一個人密集用 Claude Code 半小時的量；`api` 照 Sonnet 的價格算，報告的摘要表會寫實際花了多少（cli 回報的等值金額）。
@@ -127,5 +127,7 @@ claude 的位置：`CLAUDE_BIN` → PATH 上的 `claude` → 桌面版帶的 `cl
 | [lib/report.ts](lib/report.ts) | 縮圖、分析、`報告.md` |
 | [relay.mjs](relay.mjs) | 交接模式的另一頭 |
 | [login.ts](login.ts) | `npm run ai-toddler:login` |
+
+**待辦**：`docs/全球幼教指引-3到4歲.md` 整理好以後，persona.md〈依據〉改成引用那份（現在引用的是 `docs/幼兒設計準則.md` 用過的原始出處）。
 
 探針（語音、字幕、閃動、示範狀態、錯誤）和開 App 的方法沿用 `tests/toddler/probe.js`、`tests/toddler/lib/app.ts`。
