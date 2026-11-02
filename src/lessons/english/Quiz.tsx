@@ -5,15 +5,18 @@ import { Hand } from '../../games/Demo'
 import { useIdle } from '../../games/idle'
 import { praiseKey, retryKey, wait } from '../../games/lines'
 import { say, sfx, stopSpeech } from '../../lib/audio'
+import { hasLine } from '../../content/lines'
 import { logAttempt } from '../../lib/record'
-import type { Opt, Question } from './quiz-plan'
+import type { QuizResult } from './plan'
+import { wrongKeys, type Opt, type Question } from './quiz-plan'
 
 /**
  * 選擇（英文課第 4 段）：一題一題問，念完題目才收作答（念的時候點：輕輕一聲，不算）。
- * 答錯：再試一次；又錯：答案亮起來、手指著，點了才往下（一起練，不算答對）。發呆 15 秒再念一次題目、30 秒手指著答案。
- * 每一題都寫作答紀錄（家長區看得到）。onDone(第一次就答對幾題, 共幾題)。
+ * 答錯：說出點的是什麼、要找的是什麼（That's big B. Find big A!），答案同時亮起來、手指著，點了才往下（一起練，不算答對）。
+ * 發呆 15 秒再念一次題目、30 秒手指著答案。
+ * 每一題都寫作答紀錄（家長區看得到）。onDone(每一題的種類和第一次有沒有答對)：隔天重不重上只看字母題（plan.ts 的 lessonGood）。
  */
-export function Quiz({ qs, onDone }: { qs: Question[]; onDone: (right: number, total: number) => void }) {
+export function Quiz({ qs, onDone }: { qs: Question[]; onDone: (rs: QuizResult[]) => void }) {
   const [i, setI] = useState(0)
   const [accept, setAccept] = useState(false)
   const [state, setState] = useState<Record<string, 'no' | 'yes'>>({})
@@ -24,7 +27,7 @@ export function Quiz({ qs, onDone }: { qs: Question[]; onDone: (right: number, t
   const tries = useRef(0)
   const taps = useRef<{ pick: string; ms: number }[]>([])
   const t0 = useRef(0)
-  const right = useRef(0)
+  const results = useRef<QuizResult[]>([])
   const idle = useIdle()
   const q = qs[i]
 
@@ -70,8 +73,10 @@ export function Quiz({ qs, onDone }: { qs: Question[]; onDone: (right: number, t
       sfx.gentle()
       setState((s) => ({ ...s, [o.id]: 'no' }))
       busy.current = true
-      if (tries.current >= 2) setHint(true)
-      await say(tries.current >= 2 ? q.prompt : retryKey('dodo'))
+      // 答案亮起來、手指著；第一次錯說明點的是什麼、要找的是什麼，之後再錯只念題目
+      setHint(true)
+      const why = wrongKeys(q, o)
+      await say(...(tries.current >= 2 ? [q.prompt] : why.every(hasLine) ? why : [retryKey('dodo')]))
       if (!live.current) return
       busy.current = false
       return
@@ -80,7 +85,7 @@ export function Quiz({ qs, onDone }: { qs: Question[]; onDone: (right: number, t
     setAccept(false)
     idle.stop()
     const first = tries.current === 0
-    if (first) right.current++
+    results.current.push({ kind: q.kind, first })
     setState((s) => ({ ...s, [o.id]: 'yes' }))
     sfx.correct()
     void logAttempt({
@@ -88,8 +93,8 @@ export function Quiz({ qs, onDone }: { qs: Question[]; onDone: (right: number, t
       game: 'lesson-en',
       itemId: `${q.kind}:${q.answer}`,
       skill: q.skill,
-      // 答錯兩次、手指著答案才點對的：算一起練
-      phase: tries.current >= 2 ? 'guided' : 'quiz',
+      // 答錯過（答案已經亮起來、手指著）才點對的：算一起練
+      phase: tries.current >= 1 ? 'guided' : 'quiz',
       level: 1,
       options: q.options.map((x) => x.id),
       answer: q.answer,
@@ -102,7 +107,7 @@ export function Quiz({ qs, onDone }: { qs: Question[]; onDone: (right: number, t
     await say(...(first ? [praiseKey('dodo'), q.yes] : [q.yes]))
     await wait(300)
     if (!live.current) return
-    if (i + 1 >= qs.length) return onDone(right.current, qs.length)
+    if (i + 1 >= qs.length) return onDone(results.current)
     setI(i + 1)
     void ask(i + 1)
   }

@@ -25,6 +25,8 @@ type Mode = 'reading' | 'free'
  * 念課文：課本一頁，課文一行一行大字，紅字是重點字詞。
  * - 莫莫念到哪一行，那一行底下亮一條藍色的帶子，跟著聲音從左往右走（唸到哪裡）；唸過的行，紅字旁邊的圖淡入。
  * - 點紅字（或它的圖）：莫莫單獨再念一次那個詞，圖輕輕跳一下；正在念課文的話，念完那個詞再接著念這一行。
+ *   第一遍念課文的時候不插話（A17：故事念到一半的熱點會讓孩子分心、理解變差）：只有圖輕輕跳一下，課文照常念下去；
+ *   第二遍和念完以後才單獨念那個詞。
  * - 一開始念兩次；之後出現「再聽一次」和「去選圖」，孩子沒動作也會自己去選圖。
  * - 沒有聲音的句子不出聲（不用平板內建語音），帶子照樣走，課文照樣看得到。
  */
@@ -123,6 +125,11 @@ export function Reader({ t, ready, host, onNext }: { t: ZhText; ready: Set<strin
   /** 點紅字、點圖：單獨念那個詞；正在念課文就念完詞再從這一行接著念 */
   const tapWord = async (w: string, line: number) => {
     if (left.current) return
+    // 第一遍（還沒開始念也算）：圖跳一下就好，不打斷課文
+    if (modeRef.current === 'reading' && pos.current.passes >= 2) {
+      setPop({ w, k: performance.now() })
+      return
+    }
     const resume = modeRef.current === 'reading' ? { ...pos.current } : null
     const my = ++run.current
     clearTimeout(auto.current)

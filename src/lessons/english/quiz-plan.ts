@@ -52,14 +52,15 @@ function letterOptions(X: string, big: boolean, taught: string[], learned: strin
 
 /**
  * 出今天的選擇題（4 題）。問的都是今天剛教過的字母、單字，或以前上過的字母（複習）；干擾選項也一樣只用教過的。
+ * seq：這一輪的字母順序（plan.ts；名字的字母先上時不是 A→Z），「以前上過」照它算。
  * 1. Where is big A?（大寫）  2. Where is little a?（小寫）  3. Which one starts with A?（圖）
  * 4. 以前學過的字母複習一題（第一天沒有以前的字母，就再問一題今天的單字）。
  * 圖的題目要有以前學過的字當陪襯：第一天沒有，就改問字母。
  * 選項數：前三個字母 2 選 1，之後 3 選 1（教過的不夠就少一個）。
  */
-export function makeQuiz(letter: LessonLetter, idx: number): Question[] {
-  const learned = [...ORDER.slice(0, idx)]
-  const taught = [...ORDER.slice(0, idx + 1)]
+export function makeQuiz(letter: LessonLetter, idx: number, seq = ORDER): Question[] {
+  const learned = [...seq.slice(0, idx)]
+  const taught = [...seq.slice(0, idx + 1)]
   const n = idx < 3 ? 1 : 2
   const { L, l } = letter
   const qs: Question[] = []
@@ -97,4 +98,15 @@ export function makeQuiz(letter: LessonLetter, idx: number): Question[] {
   if (learned.length) qs.push(letterQ(pick(learned.slice(-3)), true))
   else qs.push((starts.length > 1 && wordQ(starts[1])) || letterQ(L, false))
   return qs
+}
+
+/**
+ * 答錯時說明（A16）：說出孩子點的是什麼、要找的是什麼（That's big B. Find big A!／That's a banana. Find the apple!）。
+ * 字母選項的 id 是大寫字母；「同一個字母的另一種寫法」是 A:little／A:big（flipId），照畫面上看到的大小寫念。台詞在 lines.ts。
+ */
+export function wrongKeys(q: Question, o: Opt): string[] {
+  if (q.kind === 'word') return [`en.that.word.${o.id}`, `en.find.word.${q.answer}`]
+  const [c, shown] = o.id.split(':')
+  const big = shown ? shown === 'big' : q.kind === 'big'
+  return [big ? `en.that.big.${c}` : `en.that.little.${c.toLowerCase()}`, q.kind === 'big' ? `en.find.big.${q.answer}` : `en.find.little.${q.answer.toLowerCase()}`]
 }

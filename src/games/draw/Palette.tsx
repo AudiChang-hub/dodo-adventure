@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { COLORS } from '../../content/park'
 import { sfx } from '../../lib/audio'
 import { firstFinger } from '../NotYet'
+import { Hand } from '../Demo'
 import './tools.css'
 
 /** 自由畫畫的顏色：彩虹的 5 色＋粉紅＋墨色，一共 7 個（準則 DRAW-5：≤ 8 個，每個 ≥ 2 cm） */
@@ -60,11 +61,22 @@ export function CheckButton({ onPress, guard }: { onPress: () => void; guard?: (
   )
 }
 
-/** 清空畫布：點一下垃圾桶晃一下、變粉紅（「真的要清掉嗎？」）；3 秒內再點一下才清掉（準則 DRAW-6：確認一次） */
+/**
+ * 清空畫布：點一下垃圾桶晃一下、變粉紅（「真的要清掉嗎？」）；3 秒內再點一下才清掉（準則 DRAW-6：確認一次）。
+ * 變粉紅的時候，一隻手在垃圾桶上「再點一下」給他看（AI 小男生測試 #6：三歲看不懂要再點，連點了三下）。
+ */
 export function ClearButton({ onClear }: { onClear: () => void }) {
   const [armed, setArmed] = useState(0)
+  const [tap, setTap] = useState(0)
   const timer = useRef(0)
-  useEffect(() => () => clearTimeout(timer.current), [])
+  const handTimer = useRef(0)
+  useEffect(
+    () => () => {
+      clearTimeout(timer.current)
+      clearTimeout(handTimer.current)
+    },
+    [],
+  )
   return (
     <button
       key={armed}
@@ -73,9 +85,13 @@ export function ClearButton({ onClear }: { onClear: () => void }) {
       onPointerDown={(e) => {
         if (!firstFinger(e.nativeEvent)) return
         clearTimeout(timer.current)
+        clearTimeout(handTimer.current)
         if (!armed) {
           sfx.gentle()
           setArmed(performance.now())
+          setTap(0)
+          // 晃完以後手點一下（不會真的清掉，只是示範）
+          handTimer.current = window.setTimeout(() => setTap(1), 650)
           timer.current = window.setTimeout(() => setArmed(0), 3000)
           return
         }
@@ -89,6 +105,11 @@ export function ClearButton({ onClear }: { onClear: () => void }) {
         <path d="M10 15 H38 M20 15 V10 Q20 8 22 8 H26 Q28 8 28 10 V15" fill="none" stroke="#2E2A25" strokeWidth={3.5} strokeLinecap="round" strokeLinejoin="round" />
         <path d="M21 21 V36 M27 21 V36" stroke="#2E2A25" strokeWidth={3} strokeLinecap="round" />
       </svg>
+      {armed > 0 && (
+        <span className="tool-hand" aria-hidden="true">
+          <Hand x={58} y={58} tap={tap} size="62%" />
+        </span>
+      )}
     </button>
   )
 }

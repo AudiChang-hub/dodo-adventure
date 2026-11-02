@@ -242,11 +242,11 @@
   transition: all 0.45s ease;
 }
 .en-trace-rounds span.is-now {
-  color: var(--en-ink);
-  box-shadow: 0 4px 0 var(--paper-edge), 0 0 0 4px var(--en-deep);
+  color: var(--round, var(--en-ink));
+  box-shadow: 0 4px 0 var(--paper-edge), 0 0 0 4px var(--round, var(--en-deep));
 }
 .en-trace-rounds span.is-done {
-  background: var(--en-deep);
+  background: var(--round, var(--en-deep));
   color: #fff;
 }
 .en-trace-tool {
@@ -410,5 +410,20 @@
   .en-trace-paper {
     height: auto;
     width: min(86vw, 100%);
+  }
+}
+
+/* ── 陪玩小字（A10，給大人看，樣式在 games/coplay.css）──────────────
+   上面中間是字幕條（長句會延伸到右上），所以放在右上角家長閘門的下面、描字的大小寫格子上面。
+   手機直式（家長遠端看）畫面太窄，會疊到字幕和進度：不顯示。 */
+.en-coplay {
+  top: 108px;
+  right: 24px;
+  max-width: 240px;
+  z-index: 3;
+}
+@media (orientation: portrait) {
+  .en-coplay {
+    display: none;
   }
 }
