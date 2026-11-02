@@ -9,7 +9,7 @@ import { DUR, EASE } from '../../ui/motion'
 import type { Mood } from '../../art/Dino'
 import { leaveLesson } from '../LessonScreen'
 import type { LessonProps } from '../types'
-import { openLesson, partDone, PARTS, type Lesson } from './plan'
+import { REVIEW_FROM, openLesson, partDone, PARTS, type Lesson } from './plan'
 import { Fade, useLive, type PartCtx } from './kit'
 import { CountPart } from './Count'
 import { GivePart } from './Give'
@@ -69,6 +69,8 @@ export function MathLesson({ onDone }: LessonProps) {
     partRef.current = p
     setPart(p)
   }
+  /** 這一段今天沒有東西可以做（只教了 1、2 的那兩天沒有小複習，plan.ts 的 reviewQs） */
+  const skip = (p: number, l: Lesson) => PARTS[p] === 'review' && l.max < REVIEW_FROM
 
   // 開場：波波說今天的數字（複習、混合複習先說一句），數字和點點在中間；說完就開始數數（中途離開過的從那一段接著上）
   useEffect(() => {
@@ -94,6 +96,10 @@ export function MathLesson({ onDone }: LessonProps) {
       await replayed()
       if (!live.current) return
       setMood('idle')
+      if (skip(lesson.part, lesson)) {
+        void partDone(lesson.part, 0, 0)
+        return void finish()
+      }
       go(lesson.part)
     }, 0)
     host.current = () => {
@@ -127,7 +133,8 @@ export function MathLesson({ onDone }: LessonProps) {
       const p = partRef.current
       if (p < 0 || p >= PARTS.length) return
       void partDone(p, asked, missed)
-      if (p + 1 >= PARTS.length) void finish()
+      if (p + 1 < PARTS.length && skip(p + 1, lesson)) void partDone(p + 1, 0, 0)
+      if (p + 1 >= PARTS.length || skip(p + 1, lesson)) void finish()
       else go(p + 1)
     },
     mood: setMood,

@@ -1,6 +1,7 @@
 import { useEffect, useRef, type CSSProperties } from 'react'
 import { motion } from 'motion/react'
 import { onSpeakLevel } from '../lib/audio'
+import { useNotYetBeat } from '../games/NotYet'
 import type { Speaker } from '../content/lines'
 import './dino.css'
 
@@ -184,6 +185,7 @@ interface DinoProps {
 /** 單獨一隻恐龍：出現時眨一次眼、說話時嘴巴會動；開心時跳兩下就停（不一直動） */
 export function Dino({ who, mood = 'idle', size = 220, flip, onTap, style, className }: DinoProps) {
   const box = DINO_BOX[who]
+  const nod = useNotYetBeat()
   return (
     <motion.svg
       className={className}
@@ -202,7 +204,15 @@ export function Dino({ who, mood = 'idle', size = 220, flip, onTap, style, class
       aria-label={DINO_NAME[who]}
     >
       <g transform={flip ? `translate(${box.w} 0) scale(-1 1)` : undefined}>
-        <DinoArt who={who} mood={mood} />
+        {/* 還不能動手時被點了：點一下頭（「等一下、先看我」，games/NotYet 的 useNotYetBeat），一次就停 */}
+        <motion.g
+          key={nod}
+          style={{ transformBox: 'fill-box', transformOrigin: '50% 100%' }}
+          animate={nod ? { rotate: [0, -5, 3, 0] } : {}}
+          transition={{ duration: 0.55, ease: 'easeInOut' }}
+        >
+          <DinoArt who={who} mood={mood} />
+        </motion.g>
       </g>
     </motion.svg>
   )

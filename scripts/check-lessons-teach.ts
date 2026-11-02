@@ -146,8 +146,8 @@ const bads: [string, () => Report][] = [
     () => checkEnglish((idx) => makeQuiz(lessonLetter(idx), idx).map((q, i) => (idx === 0 && i === 0 ? { ...q, options: [...q.options, { id: 'Z', text: 'Z' }] } : q))),
   ],
   [
-    '數學：第一天的小複習放進還沒教的 5',
-    () => checkMath((l) => reviewQs(l).map((q) => (l.mode === 'new' && l.n === 1 ? { ...q, options: [...q.options, 5] } : q))),
+    '數學：第三天的小複習放進還沒教的 5（第一、二天沒有小複習）',
+    () => checkMath((l) => reviewQs(l).map((q) => (l.mode === 'new' && l.n === 3 ? { ...q, options: [...q.options, 5] } : q))),
   ],
   [
     '中文：用家長原本定的干擾圖（課文裡沒有的詞）',

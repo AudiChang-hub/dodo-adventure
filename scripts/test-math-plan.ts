@@ -57,10 +57,12 @@ function main() {
   console.log('ok 4 比多少：數量不超過開放的範圍（還沒開 6 就在 5 以內），兩邊不一樣多')
   for (let run = 0; run < 200; run++) {
     for (let n = 3; n <= 10; n++) for (const q of reviewQs(L('new', n, n))) assert.equal(q.options.length, 3, `教了 ${n} 個數字，選項應該 3 個`)
-    assert.ok(reviewQs(L('new', 2, 2)).every((q) => q.options.length <= 2))
+    assert.equal(reviewQs(L('new', 1, 1)).length, 0, '只教了 1：不出小複習')
+    assert.equal(reviewQs(L('new', 2, 2)).length, 0, '只教了 1、2：不出小複習（湊不到 3 選 1）')
+    for (const q of reviewQs(L('mix', 3, FIRM))) assert.equal(q.options.length, 3)
     for (const q of reviewQs(L('mix', 2, FIRM))) assert.ok(q.n <= FIRM && q.options.every((o) => o <= FIRM))
   }
-  console.log('ok 5 小複習：教過 3 個數字以後一律 3 選 1；1～5 混合複習不出 6 以上')
+  console.log('ok 5 小複習：一律 3 選 1，只教了 1、2 的時候不出；1～5 混合複習不出 6 以上')
   for (let run = 0; run < 200; run++) {
     for (let n = 1; n <= 10; n++)
       for (const mode of ['new', 'review'] as const) {
