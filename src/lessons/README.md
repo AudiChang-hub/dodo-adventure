@@ -34,9 +34,8 @@ export function EnglishLesson({ onDone }: LessonProps) {
   用 `games/Shell` 包起來的話，Shell 已經有返回鍵（在 lesson 路由上自動寫「回首頁」），`onExit` 給 `leaveLesson`（`./LessonScreen.tsx`）。
   一課裡有好幾段、返回要先回上一段的話，用 `useBack`（`src/lib/nav.ts`）：回傳 `false` 交給外層回首頁。
 - **路由**：`{ name: 'lesson', subject: 'english' | 'chinese' | 'math' }`（`src/lib/nav.ts`）；畫面的 id（三歲測試看的 `live`）是 `lesson-english` 這樣。
-- **還沒做好**：`NotReady.tsx`（大恐龍＋返回鍵＋「準備中」牌子）。做好之後把自己的 `index.tsx` 換掉就好。
 
-不要改的檔（三課共用，改了會互相打架）：`index.ts`、`types.ts`、`LessonScreen.tsx`、`NotReady.tsx`、`lessons.css`。
+不要改的檔（三課共用，改了會互相打架）：`index.ts`、`types.ts`、`LessonScreen.tsx`。
 需要改共用的地方，回報給 PM。
 
 ## 可以重用的零件
