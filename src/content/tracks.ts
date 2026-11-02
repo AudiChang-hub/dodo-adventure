@@ -1,13 +1,13 @@
 // 四條能力主線（PRD §5.10）：語言、數與規律、思考、動手。
-// 排課、每週新概念額度、能力雷達圖、課綱對照都以這裡為準。
+// 排課、每週新概念額度都以這裡為準（家長區的雷達圖、課綱對照 2026-11-02 拿掉了）。
 // 主線是對「遊戲」分的，不是對站點：同一站的遊戲可能練不同的能力（例如彩虹公園的「圈圈看」是運筆）。
 // 注意：這個檔案會被 src/lib/adaptive.ts 引用，而 code.ts 也引用 adaptive，形成循環。
 // 所以從 code.ts 拿的資料只在函式裡讀，模組頂層不讀，任何引用順序都安全。
-import { VOCAB, THEME_LABEL, type VocabTheme } from './vocab'
+import { VOCAB, THEME_LABEL } from './vocab'
 import { COLORS, SHAPES, SOLIDS } from './park'
 import { PHONICS } from './letters'
 import { CATEGORIES } from './worksheet-data'
-import { DIR_ZH, PATTERN_ZH, story, driveSkills, storiesFor, patternKinds, type Dir, type PatternKind } from './code'
+import { DIR_ZH, PATTERN_ZH, story, driveSkills, storiesFor, patternKinds, type Dir } from './code'
 
 export type TrackId = 'lang' | 'num' | 'think' | 'hand'
 
@@ -210,105 +210,4 @@ export function trackConcepts(t: TrackId): string[] {
     case 'hand':
       return [...lv('d-trace'), ...lv('d-dots'), ...lv('d-glyph'), 'pen:lasso']
   }
-}
-
-const CAT_ZH: Record<string, string> = { fly: '會飛的', water: '在水裡的', wheels: '有輪子的', eat: '可以吃的', legs4: '四隻腳的' }
-const USE_ZH: Record<string, string> = { rain: '下雨天用的', eat: '吃的', wear: '穿的', bath: '洗澡用的', bed: '睡覺用的' }
-const LV_GAME_ZH: Record<string, string> = { 'd-trace': '運筆小路', 'd-dots': '連點成圖', 'd-glyph': '描數字字母' }
-
-/** 家長區用：概念翻成中文 */
-export function conceptLabel(c: string): string {
-  const [kind, v, w] = c.split(':')
-  switch (kind) {
-    case 'sound':
-      return `字母音 ${v}`
-    case 'theme':
-      return `詞彙主題：${THEME_LABEL[v as VocabTheme] ?? v}`
-    case 'colors':
-      return v === '1' ? '顏色（紅黃藍綠橘）' : '顏色（紫、粉紅、咖啡）'
-    case 'shapes':
-      return v === '1' ? '平面形狀（圓、三角、正方、星）' : '平面形狀（愛心、長方形）'
-    case 'solids':
-      return v === '1' ? '立體形狀（積木、球）' : '立體形狀（圓柱、圓錐、三角柱，延後）'
-    case 'n':
-      return `數字 ${v}`
-    case 'compare':
-      return v === 'more' ? '比多少（多）' : '比多少（少）'
-    case 'size':
-      return v === 'big' ? '比大小（大）' : '比大小（小）'
-    case 'pattern':
-      return `規律 ${PATTERN_ZH[v as PatternKind] ?? v}`
-    case 'dir':
-      return `方向「${DIR_ZH[v as Dir] ?? v}」`
-    case 'route':
-      return `箭頭卡 ${v} 張`
-    case 'seq':
-      return `排順序（${v} 步）`
-    case 'order':
-      return v === 'short' ? '照順序（5 以內）' : '照順序（5 以上）'
-    case 'cat':
-      return `分類：${CAT_ZH[v] ?? v}`
-    case 'use':
-      return `功能分類：${USE_ZH[v] ?? v}`
-    case 'sort':
-      return `找出全部（依${{ category: '類別', color: '顏色', shape: '形狀' }[v] ?? v}）`
-    case 'pen':
-      return '用筆圈起來'
-    case 'lv':
-      return `${LV_GAME_ZH[v] ?? v} 第 ${w} 級`
-    default:
-      return c
-  }
-}
-
-// ── 課綱對照（PRD §5.10）──────────────────────────────────────
-/**
- * 對照教育部「幼兒園教保活動課程大綱」。只寫領域與能力的正式名稱，
- * 學習指標用白話描述大意、不寫指標代碼（避免寫錯代碼誤導家長）。
- * 語言線比較特別：課綱的語文領域是華語，App 的英文只做「聽懂」，不教讀寫，也不教注音。
- */
-export interface CurriculumRow {
-  domain: string
-  levels: { age: '小班' | '中班' | '大班'; text: string }[]
-  /** App 目前教到哪裡、刻意不做什麼 */
-  app: string
-}
-
-export const CURRICULUM: Record<TrackId, CurriculumRow> = {
-  lang: {
-    domain: '語文領域：理解、表達（口語、圖像符號、文字功能）',
-    levels: [
-      { age: '小班', text: '聽懂日常的簡單指示與熟悉的詞彙，喜歡聽故事、兒歌' },
-      { age: '中班', text: '理解圖像與符號代表的意思，察覺生活中的文字有用途' },
-      { age: '大班', text: '察覺文字的組成與書寫方向，開始接觸注音符號的聲音' },
-    ],
-    app: '用英文做「聽懂」：聽音找圖、聽詞找圖、字幕逐字亮起建立聲音與文字的連結；不考讀寫，注音留給學校大班',
-  },
-  num: {
-    domain: '認知領域：蒐集訊息、整理訊息（生活環境中的數學）',
-    levels: [
-      { age: '小班', text: '觀察物品的數量與形狀，點數少量的東西' },
-      { age: '中班', text: '點數 10 以內的數量、比較多少與大小，看出簡單的排列規律' },
-      { age: '大班', text: '用數字記錄數量、合起來與分開，比較長短輕重，預測規律的下一個' },
-    ],
-    app: '以 1–10 的點數、認數字、比多少為主，熟了才延伸到 20；規律從 ABAB 開始；不做加減法',
-  },
-  think: {
-    domain: '認知領域：整理訊息、解決問題',
-    levels: [
-      { age: '小班', text: '依一個明顯的特徵把東西分類，說出事情的先後' },
-      { age: '中班', text: '依特徵比較與排序，說出事件的順序與原因' },
-      { age: '大班', text: '遇到問題時想辦法、試試看，和別人討論解決的方法' },
-    ],
-    app: '分類、排順序、用 1–3 張箭頭卡開車，開錯了改一張卡再試（除錯）；只用上下左右的絕對方向',
-  },
-  hand: {
-    domain: '身體動作與健康領域：協調與控制（用具操作）；美感領域：表現與創作',
-    levels: [
-      { age: '小班', text: '練習手眼協調，用蠟筆、畫筆隨意塗鴉、畫線' },
-      { age: '中班', text: '較穩定地控制畫筆，沿線條畫、畫出簡單形狀' },
-      { age: '大班', text: '精細動作更熟練，能操作剪刀等工具，嘗試描寫簡單的符號' },
-    ],
-    app: '用觸控筆沿路開車、連點、描大大的數字字母（判定寬鬆），先用手指再換筆；不要求寫字',
-  },
 }

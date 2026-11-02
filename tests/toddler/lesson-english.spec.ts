@@ -150,16 +150,20 @@ async function answer(k: Toddler, wrongFirst: boolean) {
     if (s.accepting && s.n === 1) break
     await page.waitForTimeout(250)
   }
-  const opts = await page.evaluate(() =>
-    [...([...document.querySelectorAll('.en-options')].pop()?.querySelectorAll<HTMLElement>('.en-opt') ?? [])].map((e) => {
+  const { kind, opts } = await page.evaluate(() => {
+    const box = [...document.querySelectorAll('.en-options')].pop()
+    const kind = (['big', 'little', 'word'] as const).find((k) => box?.classList.contains(`is-${k}`)) ?? null
+    const opts = [...(box?.querySelectorAll<HTMLElement>('.en-opt') ?? [])].map((e) => {
       const r = e.getBoundingClientRect()
       return { x: r.left + r.width / 2, y: r.top + r.height / 2, label: e.getAttribute('aria-label') ?? '', hint: e.classList.contains('is-hint') }
-    }),
-  )
+    })
+    return { kind, opts }
+  })
   if (!opts.length) return false
   const L = await page.evaluate(() => (window as unknown as { __enL?: string }).__enL ?? null)
   const words = await page.evaluate(() => (window as unknown as { __enWords?: string[] }).__enWords ?? [])
-  const right = opts.find((o) => o.label === L || o.label === L?.toLowerCase() || words.includes(o.label))
+  // 大寫題的陪襯可能是同一個字母的小寫（教過的才當陪襯）：照題型比對
+  const right = opts.find((o) => (kind === 'big' ? o.label === L : kind === 'little' ? o.label === L?.toLowerCase() : words.includes(o.label)))
   if (wrongFirst || !right) {
     const wrong = opts.find((o) => o !== right)!
     await k.tap(wrong, `選錯 ${wrong.label}`)
@@ -287,10 +291,11 @@ test.describe('英文字母課', () => {
       c.outcome('選完到上完', toEnd || (await snap(page)).cheer, `停在 ${await stageOf(page)}`)
       await page.waitForTimeout(1500)
       await shot(page, '7-上完', info)
-      // 作答紀錄：每一題一筆、連點不重複
+      // 作答紀錄：每一題一筆、連點不重複。一課固定 4 題（quiz-plan.ts 的 makeQuiz）；
+      // 第一天教過的只有 A，同一題（大寫 A、小寫 a）會問兩次，所以不能用 itemId 有沒有重複判斷，改看筆數
       const rows = (await attempts(page)).filter((a) => a.game === 'lesson-en' && a.ts >= t0 && a.phase !== 'teach')
       const keys = rows.map((a) => a.itemId)
-      const dup = keys.length - new Set(keys).size
+      const dup = Math.max(0, rows.length - 4)
       c.outcome('作答紀錄', rows.length >= 4 && !dup, `${rows.length} 筆（${keys.join('、')}），重複 ${dup}`)
       if (dup) await c.once('dup', '誤記作答', `選擇題連點答案被記了兩次（${dup} 筆）`, keys.join('、'))
       if (rows.length < 4) await c.once('rows', '誤記作答', `選擇題的作答紀錄少了（${rows.length} 筆）`, keys.join('、'))

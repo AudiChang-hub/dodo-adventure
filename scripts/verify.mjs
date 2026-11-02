@@ -7,7 +7,7 @@
 //   npm run verify                              型別、單元測試、模擬、故事檢查、音檔檢查
 //   npm run verify -- --with-toddler            接著跑三歲測試（完整版）
 //   npm run verify -- --with-toddler --changed  接著只跑受影響的三歲測試（--changed 之後的參數都交給 tests/toddler/run.mjs）
-//   npm run verify -- --only tsc,sim-teach      只跑某幾項（id 見下面 CHECKS）
+//   npm run verify -- --only tsc,lessons-teach  只跑某幾項（id 見下面 CHECKS）
 //
 // 每一項的完整輸出在 test-results/verify/<id>.log；表格另存 test-results/verify/verify.md。
 import { spawn } from 'node:child_process'
@@ -43,33 +43,14 @@ const CHECKS = [
   { id: 'test-ladder', name: '單元：支線與階梯', cmd: ['npx', 'tsx', 'scripts/test-ladder.ts'], check: unit },
   { id: 'test-reset-cloud', name: '單元：重置的雲端刪除', cmd: ['npx', 'tsx', 'scripts/test-reset-cloud.ts'], check: unit },
   {
-    id: 'sim-teach',
-    name: '不教不考（sim-teach）',
-    cmd: ['npx', 'tsx', 'scripts/sim-teach.ts'],
+    id: 'lessons-teach',
+    name: '三堂課不教不考（check-lessons-teach）',
+    cmd: ['npx', 'tsx', 'scripts/check-lessons-teach.ts'],
     check: (s) => {
-      const n = num(/沒教就考 (\d+) 題/, s)
-      return { ok: n === '0', key: n == null ? '找不到「沒教就考 N 題」' : `沒教就考 ${n} 題` }
-    },
-  },
-  { id: 'sim-tracks', name: '主線排課（sim-tracks）', cmd: ['npx', 'tsx', 'scripts/sim-tracks.ts'], check: (s) => ({ ok: true, key: (/自己答題數：\s*(.+)/.exec(s)?.[1] ?? '').trim() }) },
-  {
-    id: 'sim-themes',
-    name: '主題冒險（sim-themes）',
-    cmd: ['npx', 'tsx', 'scripts/sim-themes.ts'],
-    check: (s) => {
-      const n = num(/與 planDay 不同的天數 (\d+)/, s)
-      return { ok: n === '0', key: `排課不同 ${n ?? '?'} 天、主題 6 天內重複 ${num(/6 天內重複的主題：(\d+)/, s) ?? '?'} 次` }
-    },
-  },
-  {
-    id: 'sim-growth',
-    name: '成長模擬（sim-growth）',
-    // 結果寫到暫存資料夾（預設會寫 docs/成長模擬）
-    cmd: ['npx', 'tsx', 'scripts/sim-growth.ts', `--out=${path.join(tmp, '成長模擬')}`],
-    check: (s) => {
-      const v = [...s.matchAll(/違規 (\d+)/g)].reduce((a, m) => a + Number(m[1]), 0)
-      const pass = /斷言：全部通過/.test(s)
-      return { ok: pass && v === 0, key: `${pass ? '斷言全部通過' : '斷言沒有全部通過'}、違規 ${v}` }
+      const n = num(/沒教就考 (\d+) 個/, s)
+      const bad = /壞例子擋下 (\d+)\/(\d+)/.exec(s)
+      const caught = !!bad && bad[1] === bad[2]
+      return { ok: n === '0' && caught, key: `${n == null ? '找不到「沒教就考 N 個」' : `沒教就考 ${n} 個`}、${bad ? `壞例子擋下 ${bad[1]}/${bad[2]}` : '找不到壞例子的結果'}` }
     },
   },
   {

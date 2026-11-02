@@ -7,7 +7,7 @@ import type { Mood } from '../../art/Dino'
 import { leaveLesson } from '../LessonScreen'
 import type { LessonProps } from '../types'
 import { questionsOf, zhReady, type ZhQuestion, type ZhText } from './data'
-import { markDone, todays } from './progress'
+import { doneDays, markDone, todays } from './progress'
 import { Reader } from './Reader'
 import { Quiz } from './Quiz'
 import './chinese.css'
@@ -34,11 +34,11 @@ export function ChineseLessonBody({ onDone }: LessonProps) {
 
   useEffect(() => {
     let off = false
-    void Promise.all([todays(), zhReady()]).then(([x, r]) => {
+    void Promise.all([todays(), zhReady(), doneDays()]).then(([x, r, done]) => {
       if (off) return
       setT(x)
       setReady(r)
-      setQs(questionsOf(x))
+      setQs(questionsOf(x, done))
     })
     return () => {
       off = true

@@ -19,7 +19,7 @@ export type Feature = keyof typeof FEATURES
 const forced: Partial<Record<Feature, boolean>> = {}
 
 /**
- * 離線的單元測試、模擬（scripts/test-ladder.ts、sim-teach.ts、sim-growth.ts）測的是藏起來的那一套（成長系統的關卡鎖）：
+ * 離線的單元測試（scripts/test-ladder.ts）測的是藏起來的那一套（成長系統的關卡鎖）：
  * 它們在開頭把開關打開再測。App 裡不要用。
  */
 export function forceFeature(f: Feature, v: boolean) {

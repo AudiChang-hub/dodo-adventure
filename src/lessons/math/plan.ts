@@ -3,7 +3,7 @@
 // - 10 之後做 1～10 的混合複習，數量可以大一點（11～20 這次不做）。
 import { getKV, setKV, today } from '../../lib/db'
 import { isNew, mastered } from '../../lib/adaptive'
-import { pick, rand, sample, shuffle } from '../../lib/random'
+import { pick, rand, shuffle } from '../../lib/random'
 
 export const LAST = 10
 const KV_KEY = 'lesson:math'
@@ -155,18 +155,21 @@ export interface ReviewQ {
 /** 長得像、同一題不一起出的數字 */
 const LOOKALIKE: Record<number, number[]> = { 6: [9], 9: [6], 1: [7], 7: [1] }
 
-/** 干擾的數字：先用教過的（離答案遠一點的優先，一眼分得出來），不夠才用還沒教的 */
-function distractors(n: number, k: number, max: number): number[] {
+/**
+ * 干擾的數字：只用教過的（不教不考，家長 2026-11-02；離答案遠一點的優先，一眼分得出來）。
+ * 教過的不夠就少一個選項：第一天只教了 1，「Where is one?」只有 1 一個選項，點它就好。
+ */
+export function distractors(n: number, k: number, max: number): number[] {
   const bad = [n, ...(LOOKALIKE[n] ?? [])]
   const far = (x: number) => Math.abs(x - n) >= 2
-  const taught = shuffle(range(1, max).filter((x) => !bad.includes(x))).sort((x, y) => Number(far(y)) - Number(far(x)))
-  const rest = sample(range(1, LAST).filter(far), k, [...bad, ...taught])
-  return [...taught, ...rest].slice(0, k)
+  return shuffle(range(1, max).filter((x) => !bad.includes(x)))
+    .sort((x, y) => Number(far(y)) - Number(far(x)))
+    .slice(0, k)
 }
 
 /**
  * 小複習：兩題。「Where is N?」（找出今天的數字）和「How many?」（數一數、點數字）。
- * 新的數字剛教完：兩個選項（LOAD-1 新內容先 2 個）；複習 3 個。
+ * 新的數字剛教完：兩個選項（LOAD-1 新內容先 2 個）；複習 3 個。教過的數字不夠就少一個（見 distractors）。
  */
 export function reviewQs(l: Lesson): ReviewQ[] {
   const k = l.mode === 'new' ? 1 : 2

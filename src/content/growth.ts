@@ -37,7 +37,6 @@ export interface Frame {
    * - tap：只用點一下；拖曳只用在畫畫、描線、塗色這種「動作本身就是學習目標」的地方
    * - short：加上短距離拖放（放手會吸附、拖到一半放開不算錯），一樣要能用點的完成
    * - long：拖曳本身是學習目標時（插到中間、在格線內寫字）可以是必要的；長按、雙擊、捏合只能選用
-   * 拿起來放進去的共用元件是 games/place/Place.tsx（操作降階版）。
    */
   drag: 'tap' | 'short' | 'long'
   /** 一句旁白最多幾個英文字（PHASE-6、FRAME-4） */
@@ -199,19 +198,4 @@ export const RAMP_WEEK: Record<keyof Frame, 1 | 2 | 3 | 4> = {
   touchCm: 4,
   primaryCm: 4,
   gapCm: 4,
-}
-
-/** 家長區用的白話說明：這個年段的外框 */
-export function frameLines(f: Frame): string[] {
-  const range = ([a, b]: readonly [number, number], unit: string) => (a === b ? `${a} ${unit}` : `${a}–${b} ${unit}`)
-  const drag = { tap: '只用點一下', short: '加上短距離拖放（一樣能用點的完成）', long: '拖放是學習目標時可以要求拖（插到中間、在格線內寫字）' }[f.drag]
-  const wrong = { retry: '再試一次 → 提示 → 標出答案', contrast: '先說「再想想」，再問「哪裡不一樣？」', findStep: '先說「換個方法試試」，答對後問「你怎麼知道的？」' }[f.afterWrong]
-  return [
-    `按鈕至少 ${f.touchCm} 公分，一畫面最多 ${f.maxOptions} 個選項`,
-    `操作：${drag}`,
-    `一句旁白最多 ${f.maxWords} 個英文字`,
-    `一回合 ${range(f.roundItems, '題')}、${f.roundMinutes} 分鐘內；一天 ${range(f.stationsPerDay, '站')}`,
-    `沒動作 ${f.idleSec[1]} 秒才重說題目；答錯時${wrong}`,
-    `故事一章約 ${f.story.words} 字${f.storyChoices ? `，有 ${f.storyChoices} 次選擇` : ''}`,
-  ]
 }

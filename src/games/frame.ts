@@ -106,9 +106,6 @@ export function wrongLinesOf(g: GrowthStatus, host: string): string[] {
   return [`${retryLineOf(g)}.${host}`, `contrast.${host}`, ...(asksHowOf(g) ? [`how.${host}`] : [])]
 }
 
-/** 拿起來放進去（games/place/Place.tsx）在這個年段能不能拖：小班段只用點的（TOUCH-2、FRAME-3） */
-export const dragOf = (g: GrowthStatus): Frame['drag'] => g.frame.drag
-
 // ── 遊戲用：讀現在的年段 ────────────────────────────────────
 
 export const frameNow = () => getGrowth()

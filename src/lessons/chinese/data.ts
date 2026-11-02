@@ -52,26 +52,47 @@ export interface ZhQuestion {
 const iconOf = (t: ZhText, w: string) => t.emoji[w] ?? null
 
 /**
- * 一篇的選圖題：先考家長定的那一題（quiz），其他紅字詞各一題。
- * - 答案一定是這一篇的紅字（念課文時聽過、看過圖）；還沒有圖的字詞先不考（總表「需要新畫的圖」）。
- * - 干擾圖：家長定的那一題用 quiz.distractors；其他題從同一篇的字詞（家長定的干擾、其他紅字）挑兩張，沒有圖的跳過。
+ * 一篇要考哪些字詞（也決定要產生哪些「哪個是〇〇？」的聲音，scripts/extract-phrases.ts 經 clipRows 讀）：
+ * 家長定的那一題（quiz）先考，其他紅字詞各一題；還沒有圖的字詞先不考（總表「需要新畫的圖」）。
+ * 這一篇自己的字詞裡找不到兩張不一樣的圖可以當陪襯的（一把筷子：全是筷子）也不考。
  */
-export function questionsOf(t: ZhText): ZhQuestion[] {
+export function quizWords(t: ZhText): string[] {
   const words = [t.quiz.answer, ...t.redWords.filter((w) => w !== t.quiz.answer)]
-  const out: ZhQuestion[] = []
-  for (const w of words) {
+  return words.filter((w) => {
     const icon = iconOf(t, w)
-    if (!icon || !t.redWords.includes(w)) continue
+    if (!icon || !t.redWords.includes(w)) return false
+    const icons = new Set([icon])
+    for (const x of [...t.quiz.distractors, ...t.redWords, ...Object.keys(t.emoji)]) {
+      const ic = iconOf(t, x)
+      if (x !== w && ic) icons.add(ic)
+    }
+    return icons.size >= 3
+  })
+}
+
+/**
+ * 一篇的選圖題（三選一，教過的不夠就二選一）。不教不考（家長 2026-11-02）：答案和干擾圖都只能是教過的字詞——
+ * 這一篇的紅字（念課文時聽過、看過圖），或之前上過的篇（done，progress.ts 的 doneDays）的紅字。
+ * - 干擾圖的順序：家長定的干擾（教過的才用）→ 這一篇其他紅字 → 上過的篇的紅字（最近上的先）；同一張圖不出現兩次。
+ * - 連一張教過的陪襯都沒有的題目不出。
+ */
+export function questionsOf(t: ZhText, done: ReadonlySet<number> = new Set()): ZhQuestion[] {
+  const earlier = ZH_TEXTS.filter((x) => x.day !== t.day && done.has(x.day)).sort((a, b) => b.day - a.day)
+  // 教過的字詞 → 圖（這一篇的圖優先）
+  const taught = new Map<string, string>()
+  for (const x of [t, ...earlier]) for (const w of x.redWords) if (!taught.has(w) && iconOf(x, w)) taught.set(w, iconOf(x, w)!)
+  const out: ZhQuestion[] = []
+  for (const w of quizWords(t)) {
+    const icon = iconOf(t, w)!
     const pref = w === t.quiz.answer ? t.quiz.distractors : []
-    // 同一張圖不出現兩次（彩蛋、雞蛋都是 egg）
     const used = new Set([icon])
     const ds: string[] = []
-    for (const x of [...pref, ...t.quiz.distractors, ...t.redWords, ...Object.keys(t.emoji)]) {
-      const ic = iconOf(t, x)
+    for (const x of [...pref, ...t.redWords, ...earlier.flatMap((e) => e.redWords)]) {
+      const ic = taught.get(x)
       if (ds.length < 2 && x !== w && ic && !used.has(ic)) used.add(ic), ds.push(x)
     }
-    if (ds.length < 2) continue
-    out.push({ word: w, options: [{ word: w, icon }, ...ds.map((x) => ({ word: x, icon: iconOf(t, x)! }))] })
+    if (!ds.length) continue
+    out.push({ word: w, options: [{ word: w, icon }, ...ds.map((x) => ({ word: x, icon: taught.get(x)! }))] })
   }
   return out
 }
@@ -109,6 +130,6 @@ export function clipRows(t: ZhText) {
   return [
     ...t.lines.map((l, i) => ({ key: `d${d}.text.${i + 1}`, lesson, day: t.day, kind: 'text' as const, text: plain(l) })),
     ...t.redWords.map((w) => ({ key: `d${d}.word.${w}`, lesson, day: t.day, kind: 'word' as const, text: w })),
-    ...questionsOf(t).map((q) => ({ key: `d${d}.q.${q.word}`, lesson, day: t.day, kind: 'question' as const, text: questionText(q.word) })),
+    ...quizWords(t).map((w) => ({ key: `d${d}.q.${w}`, lesson, day: t.day, kind: 'question' as const, text: questionText(w) })),
   ]
 }

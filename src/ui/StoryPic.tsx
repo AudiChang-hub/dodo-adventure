@@ -4,7 +4,7 @@ import type { Pic } from '../content/story'
 import { TWO, artParts } from '../content/story/art'
 
 // 故事的畫面（content/story 的 Pic）：Fluent Emoji，或 @ 開頭的故事自己的圖；用 + 疊兩張（第二張小小的靠在右下角）。
-// 畫風跟 art/Egg.tsx 一樣：紙色、淡墨線、低彩度；靜止不動（畫面靜止時不留循環動畫，MOTION-2）。
+// 畫風：紙色、淡墨線、低彩度；靜止不動（畫面靜止時不留循環動畫，MOTION-2）。
 
 const INK = '#2E2A25'
 const LINE = '#D9C7A6'

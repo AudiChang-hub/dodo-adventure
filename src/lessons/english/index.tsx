@@ -12,7 +12,8 @@ import { goodEnough, loadProgress, markDone, markStarted, planFor, type TodayPla
 import { Meet } from './Meet'
 import { Trace } from './Trace'
 import { Words } from './Words'
-import { Quiz, makeQuiz, type Question } from './Quiz'
+import { Quiz } from './Quiz'
+import { makeQuiz, type Question } from './quiz-plan'
 import './english.css'
 
 type Stage = 'meet' | 'trace' | 'words' | 'quiz' | 'end'
