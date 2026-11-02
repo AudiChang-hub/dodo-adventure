@@ -25,8 +25,8 @@ export const ALIASES: Record<string, string> = { english: 'en', chinese: 'zh', �
 /**
  * 故事書要有講過的章節才有書可以選。舊的冒險拿掉以後（T-75）沒有地方會再寫新的章節，新裝置的書架是空的，
  * 測試照 tests/toddler/story.spec.ts 放 8 本進去（通用章節、長篇、經典各一種）。
- * story.spec 的書每本只有 3～6 句（回歸測試夠用），這裡用 App 自己的章節內容（chapterLines）補成完整的長度，
- * 孩子才是在聽真的故事；讀不到就用原本的短版。
+ * story.spec 的書每本只有 3～6 句、大多沒有圖（回歸測試夠用），這裡用 App 自己的 scriptOf 把每一本補成真的樣子
+ * （每一句和那一句的圖），孩子才是在聽真的故事；讀不到就用原本的短版。
  */
 const STORY_ROWS = (() => {
   const picks = { words: [], friends: [], stickers: [], drawings: [] }
@@ -46,14 +46,16 @@ async function storyRows() {
   try {
     // 路徑放變數：型別檢查不要把 App 的原始碼（import.meta.env）拉進測試的 tsconfig
     const src = '../../../src/content/story/index.ts'
-    const m = (await import(src)) as { allChapters: () => { id: string }[]; chapterLines: (c: unknown) => [string, string, string][] }
+    type Said = { key: string; pic?: string }
+    type Script = { title: Said[]; intro: Said[]; stops: Said[][]; finale: Said[]; end: Said[] }
+    const m = (await import(src)) as { chapterOf: (id: string) => unknown; scriptOf: (ch: unknown, input: { tracks: unknown[]; friend: null; door?: string }) => Script | null }
     return STORY_ROWS.map((r) => {
-      const ch = m.allChapters().find((c) => c.id === r.ref)
-      if (!ch) return r
-      // 長篇的分支句（lang／num／think／hand）一次只講其中一種：只留每一站的第一句
-      const keys = m.chapterLines(ch).map(([k]) => k).filter((k) => !/\.(lang|num|think|hand)\.\d+$/.test(k))
-      const pics = new Map(r.script.map((b) => [b.k, (b as { pic?: string }).pic]))
-      return { ...r, script: keys.map((k) => (pics.get(k) ? { k, pic: pics.get(k) } : { k })) }
+      const ch = m.chapterOf(r.ref)
+      // 跟 App 記一章時一樣（src/lib/story.ts 的 startChapter → toldBeats）：每一句連同那一句的圖
+      const s = ch ? m.scriptOf(ch, { tracks: [], friend: null, door: r.door }) : null
+      if (!s) return r
+      const beats = [...s.title, ...s.intro, ...s.stops.flat(), ...s.finale, ...s.end]
+      return { ...r, script: beats.map((x) => (x.pic ? { k: x.key, pic: x.pic } : { k: x.key })) }
     })
   } catch {
     return STORY_ROWS
