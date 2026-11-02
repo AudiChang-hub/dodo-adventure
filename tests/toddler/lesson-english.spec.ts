@@ -150,16 +150,20 @@ async function answer(k: Toddler, wrongFirst: boolean) {
     if (s.accepting && s.n === 1) break
     await page.waitForTimeout(250)
   }
-  const opts = await page.evaluate(() =>
-    [...([...document.querySelectorAll('.en-options')].pop()?.querySelectorAll<HTMLElement>('.en-opt') ?? [])].map((e) => {
+  const { kind, opts } = await page.evaluate(() => {
+    const box = [...document.querySelectorAll('.en-options')].pop()
+    const kind = (['big', 'little', 'word'] as const).find((k) => box?.classList.contains(`is-${k}`)) ?? null
+    const opts = [...(box?.querySelectorAll<HTMLElement>('.en-opt') ?? [])].map((e) => {
       const r = e.getBoundingClientRect()
       return { x: r.left + r.width / 2, y: r.top + r.height / 2, label: e.getAttribute('aria-label') ?? '', hint: e.classList.contains('is-hint') }
-    }),
-  )
+    })
+    return { kind, opts }
+  })
   if (!opts.length) return false
   const L = await page.evaluate(() => (window as unknown as { __enL?: string }).__enL ?? null)
   const words = await page.evaluate(() => (window as unknown as { __enWords?: string[] }).__enWords ?? [])
-  const right = opts.find((o) => o.label === L || o.label === L?.toLowerCase() || words.includes(o.label))
+  // 大寫題的陪襯可能是同一個字母的小寫（教過的才當陪襯）：照題型比對
+  const right = opts.find((o) => (kind === 'big' ? o.label === L : kind === 'little' ? o.label === L?.toLowerCase() : words.includes(o.label)))
   if (wrongFirst || !right) {
     const wrong = opts.find((o) => o !== right)!
     await k.tap(wrong, `選錯 ${wrong.label}`)
@@ -225,7 +229,7 @@ test.describe('英文字母課', () => {
       if (!toTrace) await c.once('meet-stuck', '卡死', '認字母念完沒有往下走到描字', `停在 ${await stageOf(page)}`)
       await c.flush()
 
-      // 2. 描字：示範時搶著畫（不能留下墨、不能算描完），之後照筆順描四回合
+      // 2. 描字：示範時搶著畫（不能留下墨、不能算描完），之後照筆順描到下一段（大寫、小寫各一次，A5；以前是四回合）
       k.behavior = '示範時搶著畫'
       await page.waitForSelector('.en-trace', { timeout: 10_000 })
       let grabbed = 0
@@ -243,8 +247,8 @@ test.describe('英文字母課', () => {
       c.outcome('示範時搶著畫', doneEarly === 0, `搶畫 ${grabbed ? '有' : '沒有'}做到；描完的回合 ${doneEarly}`)
       if (doneEarly) await c.once('trace-early', '誤記作答', '示範時亂畫就算描完了', `描完的回合 ${doneEarly}`)
       k.behavior = '描字'
-      for (let r = 0; r < 4; r++) {
-        if (r === 2) await shot(page, '4-描小寫', info)
+      for (let r = 0; r < 4 && (await stageOf(page)) === 'trace'; r++) {
+        if (r === 1) await shot(page, '4-描小寫', info)
         const ok2 = await traceRound(k)
         if (!ok2) {
           await c.once('trace-stuck', '卡死', `描字第 ${r + 1} 回合描不完`, `沿著虛線描了 60 秒`)
@@ -254,7 +258,7 @@ test.describe('英文字母課', () => {
         if (k.r.chance(0.5)) await k.tap({ x: k.r.range(300, 900), y: k.r.range(250, 700) }, '描完亂點')
       }
       const toWords = await waitStage(page, 'words', 30_000)
-      c.outcome('描完四回合到單字', toWords, toWords ? '' : `停在 ${await stageOf(page)}`)
+      c.outcome('描完大小寫到單字', toWords, toWords ? '' : `停在 ${await stageOf(page)}`)
       await c.flush()
 
       // 3. 單字：一直點圖
@@ -287,10 +291,11 @@ test.describe('英文字母課', () => {
       c.outcome('選完到上完', toEnd || (await snap(page)).cheer, `停在 ${await stageOf(page)}`)
       await page.waitForTimeout(1500)
       await shot(page, '7-上完', info)
-      // 作答紀錄：每一題一筆、連點不重複
+      // 作答紀錄：每一題一筆、連點不重複。一課固定 4 題（quiz-plan.ts 的 makeQuiz）；
+      // 第一天教過的只有 A，同一題（大寫 A、小寫 a）會問兩次，所以不能用 itemId 有沒有重複判斷，改看筆數
       const rows = (await attempts(page)).filter((a) => a.game === 'lesson-en' && a.ts >= t0 && a.phase !== 'teach')
       const keys = rows.map((a) => a.itemId)
-      const dup = keys.length - new Set(keys).size
+      const dup = Math.max(0, rows.length - 4)
       c.outcome('作答紀錄', rows.length >= 4 && !dup, `${rows.length} 筆（${keys.join('、')}），重複 ${dup}`)
       if (dup) await c.once('dup', '誤記作答', `選擇題連點答案被記了兩次（${dup} 筆）`, keys.join('、'))
       if (rows.length < 4) await c.once('rows', '誤記作答', `選擇題的作答紀錄少了（${rows.length} 筆）`, keys.join('、'))
@@ -431,8 +436,10 @@ test.describe('英文字母課', () => {
       if (!(await enter(k, c))) return
       const toTrace = await waitStage(page, 'trace', 60_000)
       if (!toTrace) return void (await c.once('to-trace', '卡死', '沒有走到描字', `停在 ${await stageOf(page)}`))
+      /** 可以畫了 → true；一直不能畫 → false；已經描完、走到下一段了 → null（描字只有大寫、小寫各一次，A5） */
       const ready = async () => {
         for (let i = 0; i < 80; i++) {
+          if ((await stageOf(page)) !== 'trace') return null
           if (await page.evaluate(() => {
             const t = document.querySelector('.en-trace')
             return !!t && t.getAttribute('data-accepting') !== 'false' && !t.hasAttribute('data-demo')
@@ -444,7 +451,9 @@ test.describe('英文字母課', () => {
       }
       for (const how of ['restart', 'continue', 'restart'] as const) {
         k.behavior = how === 'restart' ? '描到一半被打斷，從綠點重描' : '描到一半抬筆，接著描'
-        if (!(await ready())) {
+        const r = await ready()
+        if (r === null) break
+        if (!r) {
           await c.once('trace-ready', '卡死', '描字一直不能畫', `停在 ${await stageOf(page)}`)
           break
         }

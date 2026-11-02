@@ -23,9 +23,6 @@ const tickle: Record<Speaker, string[]> = {
   momo: ['Again, again.', 'Hee hee. That tickles.', 'I like you.'],
 }
 for (const [s, list] of Object.entries(tickle) as [Speaker, string[]][]) list.slice(0, TICKLE_COUNT).forEach((t, i) => def(`friend.tickle.${s}.${i}`, s, t))
-/** 點還沒孵出來的蛋：去冒險就能孵出來 */
-def('friend.egg', 'dodo', 'Let’s go! The egg will crack!')
-
 /** 收集頁偶爾數一數：波波最愛數東西 */
 export const FRIEND_COUNT_MAX = 30
 for (let n = 1; n <= FRIEND_COUNT_MAX; n++) def(`friend.count.${n}`, 'bobo', n === 1 ? 'You have | one friend!' : `You have | ${NUM[n]} friends!`)
@@ -49,7 +46,3 @@ export const STORY_EGG_COUNT = 4
 
 // ── 今日路線（手法 8）：開局先看到今天要去幾站 ─────────────────────
 for (let n = 2; n <= 5; n++) def(`route.stops.${n}`, 'dodo', `Today, we have | ${NUM[n]} stops!`)
-
-// ── 先用手指描，再換筆（手法 5）──────────────────────────────────
-def('ink.finger', 'dodo', 'Use your finger!')
-def('ink.pen', 'dodo', 'Now use the pen!')

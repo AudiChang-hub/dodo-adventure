@@ -5,102 +5,18 @@ import { Hand } from '../../games/Demo'
 import { useIdle } from '../../games/idle'
 import { praiseKey, retryKey, wait } from '../../games/lines'
 import { say, sfx, stopSpeech } from '../../lib/audio'
+import { hasLine } from '../../content/lines'
 import { logAttempt } from '../../lib/record'
-import { pick, shuffle } from '../../lib/random'
-import { LOOKALIKE, LOOKALIKE_LOWER } from '../../content/letters'
-import { LESSON_LETTERS, ORDER, wordId, type LessonLetter } from './data'
-
-interface Opt {
-  id: string
-  /** 字母選項：顯示的字 */
-  text?: string
-  /** 圖的選項 */
-  icon?: string
-}
-
-export interface Question {
-  kind: 'big' | 'little' | 'word'
-  /** 這一題問的字母（複習題是以前學的字母） */
-  L: string
-  prompt: string
-  answer: string
-  options: Opt[]
-  skill: string
-  /** 答對之後念的那一句 */
-  yes: string
-}
-
-/** 跟 x 長得像、或念起來容易混的，不放在同一題（三歲還在認形狀，先不考 b／d） */
-const like = (a: string, b: string) => {
-  const A = a.toUpperCase()
-  const B = b.toUpperCase()
-  return (LOOKALIKE[A] ?? '').includes(B) || (LOOKALIKE[B] ?? '').includes(A) || (LOOKALIKE_LOWER[a.toLowerCase()] ?? '').includes(b.toLowerCase()) || (LOOKALIKE_LOWER[b.toLowerCase()] ?? '').includes(a.toLowerCase())
-}
-
-/** 干擾的字母：先挑學過的，不夠再挑還沒學的（只是陪襯，答案一定是教過的） */
-function otherLetters(target: string, learned: string[], n: number): string[] {
-  // X 看起來像「打叉」，不拿來當陪襯
-  const ok = (c: string) => c !== target && !like(c, target) && (c !== 'X' || learned.includes('X'))
-  const a = shuffle(learned.filter(ok))
-  const b = shuffle([...ORDER].filter((c) => ok(c) && !learned.includes(c)))
-  return [...a, ...b].slice(0, n)
-}
-
-/**
- * 出今天的選擇題（3～5 題，這裡出 4 題）。先教再考：問的都是今天剛教過的字母、單字，或以前上過的字母（複習）。
- * 1. Where is big A?（大寫）  2. Where is little a?（小寫）  3. Which one starts with A?（圖）
- * 4. 以前學過的字母複習一題（第一天沒有以前的字母，就再問一題今天的單字）。
- * 選項數：前三個字母 2 選 1，之後 3 選 1。
- */
-export function makeQuiz(letter: LessonLetter, idx: number): Question[] {
-  const learned = [...ORDER.slice(0, idx)]
-  const n = idx < 3 ? 1 : 2
-  const { L, l } = letter
-  const qs: Question[] = []
-  const letterQ = (X: string, big: boolean): Question => {
-    const others = otherLetters(X, learned.filter((c) => c !== X), n)
-    const show = (c: string) => (big ? c : c.toLowerCase())
-    return {
-      kind: big ? 'big' : 'little',
-      L: X,
-      prompt: big ? `en.where.big.${X}` : `en.where.little.${X.toLowerCase()}`,
-      answer: X,
-      options: shuffle([X, ...others]).map((c) => ({ id: c, text: show(c) })),
-      skill: `letter:${big ? X : X.toLowerCase()}`,
-      yes: `ph.${X.toLowerCase()}.sound`,
-    }
-  }
-  const wordQ = (ans: string): Question => {
-    // 干擾的圖：別的字母的字（先挑學過的字母），不是今天字母開頭、圖也不一樣
-    const pool = LESSON_LETTERS.filter((x) => x.L !== L)
-    const prefer = pool.filter((x) => learned.includes(x.L))
-    const cands = (xs: LessonLetter[]) => xs.flatMap((x) => x.starts).filter((w) => w.w[0].toLowerCase() !== l && w.alt !== l)
-    const others = [...shuffle(cands(prefer)), ...shuffle(cands(pool))].filter((w, i, a) => a.findIndex((v) => v.icon === w.icon) === i).slice(0, n)
-    const a = letter.words.find((w) => w.w === ans)!
-    return {
-      kind: 'word',
-      L,
-      prompt: `ph.${l}.q.word`,
-      answer: wordId(ans),
-      options: shuffle([a, ...others]).map((w) => ({ id: wordId(w.w), icon: w.icon })),
-      skill: `phonics:${l}`,
-      yes: `ph.word.${wordId(ans)}`,
-    }
-  }
-  qs.push(letterQ(L, true), letterQ(L, false))
-  const starts = shuffle(letter.starts.map((w) => w.w))
-  qs.push(starts.length ? wordQ(starts[0]) : letterQ(L, true))
-  if (learned.length) qs.push(letterQ(pick(learned.slice(-3)), true))
-  else qs.push(starts.length > 1 ? wordQ(starts[1]) : letterQ(L, false))
-  return qs
-}
+import type { QuizResult } from './plan'
+import { wrongKeys, type Opt, type Question } from './quiz-plan'
 
 /**
  * 選擇（英文課第 4 段）：一題一題問，念完題目才收作答（念的時候點：輕輕一聲，不算）。
- * 答錯：再試一次；又錯：答案亮起來、手指著，點了才往下（一起練，不算答對）。發呆 15 秒再念一次題目、30 秒手指著答案。
- * 每一題都寫作答紀錄（家長區看得到）。onDone(第一次就答對幾題, 共幾題)。
+ * 答錯：說出點的是什麼、要找的是什麼（That's big B. Find big A!），答案同時亮起來、手指著，點了才往下（一起練，不算答對）。
+ * 發呆 15 秒再念一次題目、30 秒手指著答案。
+ * 每一題都寫作答紀錄（家長區看得到）。onDone(每一題的種類和第一次有沒有答對)：隔天重不重上只看字母題（plan.ts 的 lessonGood）。
  */
-export function Quiz({ qs, onDone }: { qs: Question[]; onDone: (right: number, total: number) => void }) {
+export function Quiz({ qs, onDone }: { qs: Question[]; onDone: (rs: QuizResult[]) => void }) {
   const [i, setI] = useState(0)
   const [accept, setAccept] = useState(false)
   const [state, setState] = useState<Record<string, 'no' | 'yes'>>({})
@@ -111,7 +27,7 @@ export function Quiz({ qs, onDone }: { qs: Question[]; onDone: (right: number, t
   const tries = useRef(0)
   const taps = useRef<{ pick: string; ms: number }[]>([])
   const t0 = useRef(0)
-  const right = useRef(0)
+  const results = useRef<QuizResult[]>([])
   const idle = useIdle()
   const q = qs[i]
 
@@ -157,8 +73,10 @@ export function Quiz({ qs, onDone }: { qs: Question[]; onDone: (right: number, t
       sfx.gentle()
       setState((s) => ({ ...s, [o.id]: 'no' }))
       busy.current = true
-      if (tries.current >= 2) setHint(true)
-      await say(tries.current >= 2 ? q.prompt : retryKey('dodo'))
+      // 答案亮起來、手指著；第一次錯說明點的是什麼、要找的是什麼，之後再錯只念題目
+      setHint(true)
+      const why = wrongKeys(q, o)
+      await say(...(tries.current >= 2 ? [q.prompt] : why.every(hasLine) ? why : [retryKey('dodo')]))
       if (!live.current) return
       busy.current = false
       return
@@ -167,7 +85,7 @@ export function Quiz({ qs, onDone }: { qs: Question[]; onDone: (right: number, t
     setAccept(false)
     idle.stop()
     const first = tries.current === 0
-    if (first) right.current++
+    results.current.push({ kind: q.kind, first })
     setState((s) => ({ ...s, [o.id]: 'yes' }))
     sfx.correct()
     void logAttempt({
@@ -175,8 +93,8 @@ export function Quiz({ qs, onDone }: { qs: Question[]; onDone: (right: number, t
       game: 'lesson-en',
       itemId: `${q.kind}:${q.answer}`,
       skill: q.skill,
-      // 答錯兩次、手指著答案才點對的：算一起練
-      phase: tries.current >= 2 ? 'guided' : 'quiz',
+      // 答錯過（答案已經亮起來、手指著）才點對的：算一起練
+      phase: tries.current >= 1 ? 'guided' : 'quiz',
       level: 1,
       options: q.options.map((x) => x.id),
       answer: q.answer,
@@ -189,7 +107,7 @@ export function Quiz({ qs, onDone }: { qs: Question[]; onDone: (right: number, t
     await say(...(first ? [praiseKey('dodo'), q.yes] : [q.yes]))
     await wait(300)
     if (!live.current) return
-    if (i + 1 >= qs.length) return onDone(right.current, qs.length)
+    if (i + 1 >= qs.length) return onDone(results.current)
     setI(i + 1)
     void ask(i + 1)
   }

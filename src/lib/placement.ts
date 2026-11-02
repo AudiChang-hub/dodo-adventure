@@ -21,7 +21,7 @@ import type { GameLevel, ProbeStep } from './db'
  *     找不到就當一般題目（新的照樣先教），探測不算這一題，等學過的內容夠了再探。
  *   - 數數、塗格子、給蛋、一眼看幾個、學習單：這些引擎本來就是新內容先示範或教學卡、一起練，才自己答，
  *     探測只決定「出幾個、出哪一級」，答案目標都已經教過。
- * 自動檢查：scripts/sim-teach.ts（空資料庫一路玩 40 天，每一題自己答都必須已學過或剛教過）。
+ * （舊站點遊戲的自動檢查 sim-teach 2026-11-02 拿掉了；三堂課的不教不考檢查是 scripts/check-lessons-teach.ts。）
  */
 export const PROBE_START: Record<string, number> = {
   'm-count': 2,

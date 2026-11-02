@@ -16,14 +16,14 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../.
 /**
  * 共用的檔：改到就跑完整版。
  * src/ui、src/lib、樣式、App、Scenes（ui）、遊戲引擎（src/games 最上層不是某個遊戲的檔）、
- * 每一項測試都會經過的首頁、地圖、站點，以及遊戲清單（content/games.ts、PlayGame）。
+ * 每一項測試都會經過的首頁，以及遊戲清單（content/games.ts、PlayGame）。
  */
 export const CORE = [
   [/^src\/(ui|lib|styles|art)\//, 'ui／lib／樣式／圖：每個畫面都用'],
   [/^src\/(App|main)\.tsx$|^src\/globals\.d\.ts$/, 'App 入口'],
-  // 遊戲元件本身（ChoiceGame、CountGame…，PlayGame 的 BY_KIND 列的）不算，見 affected() 的 kindFiles
+  // 遊戲元件本身（自由畫畫，PlayGame 的 BY_KIND 列的）不算，見 affected() 的 kindFiles
   [/^src\/games\/[^/]+$/, '遊戲引擎（Shell、PlayGame、Teach、Demo、idle…）'],
-  [/^src\/screens\/(Home|MapScreen|StationScreen)\.tsx$|^src\/screens\/screens\.css$/, '首頁、地圖、站點：每一項測試都從這裡進出'],
+  [/^src\/screens\/Home\.tsx$|^src\/screens\/(screens|school)\.css$/, '首頁：每一項測試都從這裡進出'],
   [/^src\/content\/(games|registry)\.ts$/, '遊戲清單與出題'],
   [/^(index\.html|vite\.config\.ts|package(-lock)?\.json|tsconfig[^/]*\.json)$/, '打包設定'],
   [/^public\//, '音檔、圖示（缺音檔每一項都會報）'],
@@ -40,28 +40,19 @@ export const NONE = [
 ]
 
 /**
- * 每一項畫面測試會用到的畫面檔（src/screens 底下，不含上面 CORE 的首頁、地圖、站點）和遊戲。
- * games: 'any' 是玩今日冒險排到的遊戲（App 依日期、seed 排，事先不知道是哪一個）：任何遊戲改了都要跑。
- * token 是傳給 TODDLER_GAMES 的名稱（screens.spec 的 want()、story／cheer／nav-spam 各自的 want()）。
+ * 每一項畫面測試會用到的畫面檔（src/screens 底下，不含上面 CORE 的首頁）和遊戲。
+ * token 是傳給 TODDLER_GAMES 的名稱（screens.spec、story.spec、home.spec 和各課 spec 的 want()）。
  */
 export const SCREEN_TESTS = [
-  { token: 'home', spec: 'screens', files: ['src/screens/HomeFriends.tsx', 'src/screens/Adventure.tsx', 'src/screens/Route.tsx'], games: [] },
-  { token: 'map', spec: 'screens', files: [], games: [] },
-  { token: 'collection', spec: 'screens', files: ['src/screens/Collection.tsx', 'src/screens/Stickers.tsx'], games: [] },
   { token: 'parent', spec: 'screens', files: ['src/screens/parent/Parent.tsx'], games: [] },
-  // back 同時跑「返回鍵在孩子畫面」和「今日冒險每一段都能返回」
-  { token: 'back', spec: 'screens', files: ['src/screens/Adventure.tsx', 'src/screens/Route.tsx'], games: 'any' },
-  { token: 'adventure', spec: 'screens', files: ['src/screens/Adventure.tsx', 'src/screens/Route.tsx', 'src/screens/DayRecap.tsx', 'src/screens/OutingAsk.tsx'], games: 'any' },
-  // 護眼休息（ui/EyeBreak，共用）、睡覺畫面：在地圖上等它出現，不進遊戲
+  // 護眼休息（ui/EyeBreak，共用）、睡覺畫面：在首頁等它出現，不進遊戲
   { token: 'eyebreak', spec: 'screens', files: [], games: [] },
   { token: 'bedtime', spec: 'screens', files: ['src/screens/Bedtime.tsx'], games: [] },
-  { token: 'motion', spec: 'screens', files: [], games: ['m-match'] },
+  { token: 'motion', spec: 'screens', files: [], games: ['d-free'] },
   { token: 'settings', spec: 'screens', files: [], games: [] },
-  { token: 'layers', spec: 'screens', files: ['src/screens/Collection.tsx'], games: ['m-match'] },
-  { token: 'story', spec: 'story', files: ['src/screens/Adventure.tsx', 'src/screens/Route.tsx', 'src/screens/StoryBook.tsx', 'src/screens/MagicHouse.tsx', 'src/content/story/'], games: ['p-color', 'm-match'] },
-  // 慶祝中點返回（m-match、z-find）、換畫面連點（每站點一項）：選了那個遊戲就會跟著跑（各 spec 的 want()）
-  { token: 'cheer', spec: 'cheer', files: [], games: [] },
-  { token: 'nav-spam', spec: 'nav-spam', files: [], games: [] },
+  // 來回換畫面：首頁 ↔ 三堂課、故事、畫畫
+  { token: 'layers', spec: 'screens', files: ['src/screens/StoryBook.tsx'], games: ['d-free'] },
+  { token: 'story', spec: 'story', files: ['src/screens/StoryBook.tsx', 'src/content/story/'], games: [] },
   // 學校的首頁（home.spec）：三大門會進每一堂課（各課資料夾的 index.tsx 是入口；登記表、LessonScreen 被 App、首頁 import，改了跑完整版）
   { token: 'home-doors', spec: 'home', files: ['src/lessons/english/index.tsx', 'src/lessons/chinese/index.tsx', 'src/lessons/math/index.tsx', 'src/screens/StoryBook.tsx'], games: ['d-free'] },
   // 英文字母課自己的測試（tests/toddler/lesson-english.spec.ts）：英文課資料夾裡的檔都從 index.tsx 走得到
@@ -79,8 +70,6 @@ const SPEC_TOKENS = {
   'games.spec.ts': 'GAMES',
   'screens.spec.ts': SCREEN_TESTS.filter((t) => t.spec === 'screens').map((t) => t.token),
   'story.spec.ts': ['story'],
-  'cheer.spec.ts': ['cheer'],
-  'nav-spam.spec.ts': ['nav-spam'],
   'lesson-english.spec.ts': ['lesson-english'],
   'home.spec.ts': ['home-doors', 'home-draw'],
   'lesson-math.spec.ts': ['lesson-math'],
@@ -292,20 +281,15 @@ export function affected(base = 'main', files = changedFiles(base)) {
     rows.push({ file: f, rule: '順著 import 找到的入口', effect: [...hitGames, ...hitScreens].join(' ') })
   }
 
-  // 遊戲改了：用到那個遊戲的畫面測試、玩今日冒險（不知道排到哪個遊戲）的畫面測試也要跑
+  // 遊戲改了：用到那個遊戲的畫面測試也要跑
   if (gameIds.size)
     for (const t of SCREEN_TESTS) {
-      const why = t.games === 'any' ? '玩今日冒險排到的遊戲' : t.games.filter((id) => gameIds.has(id)).join('、')
+      const why = t.games.filter((id) => gameIds.has(id)).join('、')
       if (why && !tokens.has(t.token)) {
         tokens.add(t.token)
-        rows.push({ file: '（遊戲有改）', rule: `${t.token} 會${t.games === 'any' ? why : `玩 ${why}`}`, effect: t.token })
+        rows.push({ file: '（遊戲有改）', rule: `${t.token} 會玩 ${why}`, effect: t.token })
       }
     }
-  if (gameIds.size) {
-    const sts = [...new Set(games.filter((x) => gameIds.has(x.id)).map((x) => x.station))]
-    const ch = ['m-match', 'z-find'].filter((id) => gameIds.has(id))
-    rows.push({ file: '（遊戲有改）', rule: 'nav-spam.spec、cheer.spec 依選到的遊戲自動帶上（各自的 want()）', effect: `換畫面連點 ${sts.join(' ')}${ch.length ? `；慶祝中點返回 ${ch.join(' ')}` : ''}` })
-  }
   gameIds.forEach((id) => tokens.add(id))
   return { base, files, full, tokens: full ? [] : [...tokens], rows }
 }

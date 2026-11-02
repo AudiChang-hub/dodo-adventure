@@ -1,19 +1,14 @@
 import { useEffect, useRef, useSyncExternalStore } from 'react'
 import type { StationId } from './db'
 import { shownFor, type Shown } from './shown'
-import { on } from './features'
 import type { Subject } from '../lessons/types'
 
 export type Route =
   | { name: 'home' }
-  | { name: 'adventure' }
-  | { name: 'map' }
-  | { name: 'station'; station: StationId }
+  /** 首頁「畫畫」那一扇門進去的遊戲（自由畫畫）；station 是作答紀錄用的站點 */
   | { name: 'play'; game: string; station: StationId }
   /** 學校的一堂課（src/lessons/）：首頁的三個大門 */
   | { name: 'lesson'; subject: Subject }
-  | { name: 'collection' }
-  | { name: 'house' }
   | { name: 'storybook' }
   | { name: 'bedtime' }
   | { name: 'parent' }
@@ -27,8 +22,6 @@ function initialRoute(): Route {
     const r = sessionStorage.getItem(RESUME_KEY)
     sessionStorage.removeItem(RESUME_KEY)
     if (r === 'home' || r === 'storybook' || r === 'parent') return { name: r }
-    // 藏起來的畫面（lib/features.ts）回不去：留在首頁
-    if ((r === 'map' && on('map')) || (r === 'collection' && on('collection')) || (r === 'house' && on('house'))) return { name: r }
   } catch {
     /* 讀不到就照網址 */
   }
@@ -98,23 +91,12 @@ export function useRoute(): Route {
 // ── 返回：點一下回上一層 ─────────────────────────────────────
 // 不跳出 App 交給 Android 的螢幕固定；App 裡的返回只回上一層，最上層（首頁）就停住。
 
-/**
- * 上一層：遊戲 → 站點 → 地圖 → 首頁；故事書 → 魔法屋 → 首頁；一堂課、朋友、冒險、家長區 → 首頁。首頁和睡覺畫面沒有上一層。
- * 地圖、魔法屋藏起來的時候（lib/features.ts），遊戲（首頁的畫畫）、故事書直接回首頁。
- */
+/** 上一層：一堂課、畫畫、故事書、家長區 → 首頁。首頁和睡覺畫面沒有上一層。 */
 export function parentOf(r: Route): Route | null {
   switch (r.name) {
     case 'play':
-      return on('map') ? { name: 'station', station: r.station } : { name: 'home' }
-    case 'station':
-      return { name: 'map' }
     case 'storybook':
-      return on('house') ? { name: 'house' } : { name: 'home' }
     case 'lesson':
-    case 'map':
-    case 'house':
-    case 'collection':
-    case 'adventure':
     case 'parent':
       return { name: 'home' }
     case 'home':

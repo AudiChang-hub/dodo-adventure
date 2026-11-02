@@ -2,11 +2,6 @@ import { useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } fr
 import { AnimatePresence, MotionConfig, motion } from 'motion/react'
 import { useRoute, go, isChildPlay, lastHow, parentOf, type Route } from './lib/nav'
 import { Home } from './screens/Home'
-import { Adventure } from './screens/Adventure'
-import { MapScreen } from './screens/MapScreen'
-import { StationScreen } from './screens/StationScreen'
-import { Collection } from './screens/Collection'
-import { MagicHouse } from './screens/MagicHouse'
 import { StoryBook } from './screens/StoryBook'
 import { Bedtime } from './screens/Bedtime'
 import { Parent } from './screens/parent/Parent'
@@ -27,32 +22,22 @@ const isNight = () => {
 }
 
 /** 畫面的層級：往深的地方走是「往前」（新畫面蓋上來淡入），往淺的地方是「往回」（上面的畫面淡出） */
-const DEPTH: Record<Route['name'], number> = { home: 0, map: 1, collection: 1, house: 1, adventure: 1, parent: 1, bedtime: 1, lesson: 1, station: 2, storybook: 2, play: 3 }
+const DEPTH: Record<Route['name'], number> = { home: 0, parent: 1, bedtime: 1, lesson: 1, storybook: 1, play: 1 }
 
-const keyOf = (r: Route) => (r.name === 'play' ? `play-${r.game}` : r.name === 'station' ? `st-${r.station}` : r.name === 'lesson' ? `lesson-${r.subject}` : r.name)
+const keyOf = (r: Route) => (r.name === 'play' ? `play-${r.game}` : r.name === 'lesson' ? `lesson-${r.subject}` : r.name)
 
 /** 每一層畫面拿到的是它自己的路由：轉場時舊畫面還留在下面，不會讀到新路由變成新畫面 */
 function Screen({ r }: { r: Route }) {
   switch (r.name) {
     case 'home':
       return <Home />
-    case 'adventure':
-      return <Adventure />
-    case 'map':
-      return <MapScreen />
-    case 'station':
-      return <StationScreen id={r.station} />
     case 'play': {
-      // 玩完、離開都回上一層：站點；地圖藏起來時（首頁的畫畫）回首頁
+      // 玩完、離開都回上一層（首頁的畫畫：回首頁）
       const up = parentOf(r)!
       return <PlayGame gameId={r.game} onDone={() => go(up)} onExit={() => go(up, { back: true })} />
     }
     case 'lesson':
       return <LessonScreen subject={r.subject} />
-    case 'collection':
-      return <Collection />
-    case 'house':
-      return <MagicHouse />
     case 'storybook':
       return <StoryBook />
     case 'bedtime':
@@ -67,8 +52,8 @@ export function App() {
   const [gate, setGate] = useState(false)
   const breakDue = useSyncExternalStore(onBreakChange, isBreakDue)
   const { nightWarm } = useSettings()
-  // 護眼休息只在兩個遊戲之間出現；冒險流程自己處理，避免打斷題目
-  const showBreak = breakDue && (r.name === 'home' || r.name === 'map' || r.name === 'station' || r.name === 'collection' || r.name === 'house')
+  // 護眼休息只在首頁出現（上完一堂課、畫完畫回到首頁的時候），不打斷題目
+  const showBreak = breakDue && r.name === 'home'
   const key = keyOf(r)
   // 上一個畫面：換畫面的那一次 render 用它判斷往前還是往回
   const prev = useRef(r)

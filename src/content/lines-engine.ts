@@ -19,17 +19,15 @@ for (const c of COLORS) def(`tease.color.${c.id}`, 'bobo', `Hmm... is this | ${c
 for (const s of SHAPES) def(`tease.shape.${s.id}`, 'bobo', `Hmm... is this the | ${s.en}?`)
 for (const v of VOCAB) def(`tease.vocab.${v.id}`, 'momo', v.id === 'grapes' ? `Hmm... are these the | ${v.en}?` : `Hmm... is this the | ${v.en}?`)
 
-const tease: Record<Speaker, { try: string; thanks: string; oops: string; show: string }> = {
-  dodo: { try: 'Let me try!', thanks: `Oh! Thank you, ${N}!`, oops: "Hmm... I don't think so. Let's look again!", show: 'Let me show you!' },
-  bobo: { try: 'Let me try!', thanks: `Oh! You're right, ${N}! Thank you!`, oops: "Hmm... I don't think so. Let's look again!", show: 'Let me show you!' },
-  momo: { try: 'Let me try.', thanks: `Oh, thank you, ${N}.`, oops: "Hmm... I don't think so. Let's look again.", show: 'Let me show you.' },
+const tease: Record<Speaker, { try: string; thanks: string; oops: string }> = {
+  dodo: { try: 'Let me try!', thanks: `Oh! Thank you, ${N}!`, oops: "Hmm... I don't think so. Let's look again!" },
+  bobo: { try: 'Let me try!', thanks: `Oh! You're right, ${N}! Thank you!`, oops: "Hmm... I don't think so. Let's look again!" },
+  momo: { try: 'Let me try.', thanks: `Oh, thank you, ${N}.`, oops: "Hmm... I don't think so. Let's look again." },
 }
 for (const s of SPEAKERS) {
   def(`tease.try.${s}`, s, tease[s].try)
   def(`tease.thanks.${s}`, s, tease[s].thanks)
   def(`tease.oops.${s}`, s, tease[s].oops)
-  // 程度校準：探測題沒答對，表示還沒學過，直接教
-  def(`probe.show.${s}`, s, tease[s].show)
 }
 
 /** 這個技能有沒有「豆豆說錯」的台詞（只有「這是 X 嗎？」說得通的題型才有） */
@@ -41,4 +39,3 @@ export const canTease = (skill: string) => hasLine(teaseKey(skill))
 def('quick.intro', 'bobo', "Ready? Let's go, go, go!")
 export const QUICK_CHEERS = ['Yes!', 'Yes, yes!', 'Woo-hoo!', 'Wow, wow, wow!', `Hooray! You did it, ${N}!`]
 QUICK_CHEERS.forEach((t, i) => def(`quick.cheer.${i}`, 'bobo', t))
-def('quick.done', 'bobo', 'That was so much fun! High five!')

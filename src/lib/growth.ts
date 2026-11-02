@@ -103,13 +103,6 @@ export function bandForMonths(months: number): Band {
   return band
 }
 
-/** 「3 歲 4 個月」 */
-export function ageLabel(months: number): string {
-  const y = Math.floor(months / 12)
-  const m = months % 12
-  return m ? `${y} 歲 ${m} 個月` : `${y} 歲`
-}
-
 export function overrideActive(ov: Override | undefined, day: string): ov is Override {
   return Boolean(ov && (ov.band || ov.shift) && (!ov.until || day < ov.until))
 }
@@ -213,7 +206,7 @@ export function statusOf(profile: Profile | null, growth: GrowthState, day: stri
 
 // ── 支線與階梯（G-2，§1.3、§1.4、§5.4）──────────────────────
 // 純函式：輸入是技能點的熟練度和「在哪些遊戲第一次就答對過」，輸出是每一階開了沒、完成了沒、要不要回補。
-// 孩子端（lib/adaptive.ts）每一回合開始時算一次；家長區（G-6）、試算報告（scripts/ladder-report.ts）用同一套。
+// 孩子端（lib/adaptive.ts）每一回合開始時算一次。
 
 /** 熟練度裡判斷階梯要用的欄位（db.Skill 的一部分） */
 export interface SkillView {
@@ -655,30 +648,6 @@ export async function loadGrowth() {
   }
 }
 
-/** 家長設定生日（'YYYY-MM'）；null 是清除。時間軸只記「設定了」，不記生日本身 */
-export async function setBirth(birth: string | null) {
-  if (birth !== null && !validBirth(birth, today())) throw new Error('生日的格式不對，或是在未來')
-  if (birth === null) {
-    profile = null
-    await db.kv.delete(PROFILE_KV)
-  } else {
-    profile = { birth, setAt: Date.now() }
-    await setKV(PROFILE_KV, profile)
-  }
-  await addLog([{ kind: 'profile', data: { action: birth ? 'set' : 'clear' } }])
-  await refreshGrowth()
-}
-
-/** 家長覆寫年段；null 是改回跟著年齡 */
-export async function setOverride(ov: Omit<Override, 'setAt'> | null) {
-  const { override: _o, ...rest } = growth
-  growth = ov ? { ...rest, override: { ...ov, setAt: Date.now() } } : rest
-  await setKV(GROWTH_KV, clean(growth))
-  await addLog([{ kind: 'override', data: ov ? clean({ ...ov }) : { action: 'clear' } }])
-  await refreshGrowth()
-}
-
-export const getProfile = () => profile
 export const getGrowthState = () => growth
 /** 現在的年段和操作外框（G-3 套用到遊戲時讀這個） */
 export const getGrowth = () => status

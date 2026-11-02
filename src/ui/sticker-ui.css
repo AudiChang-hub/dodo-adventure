@@ -226,6 +226,13 @@
   padding: 4%;
   touch-action: manipulation;
 }
+/* 示範的手（點一下、再點一下）：疊在貼紙上，不收點擊 */
+.pk-hand {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 3;
+}
 .pk-halo {
   position: absolute;
   inset: -18%;

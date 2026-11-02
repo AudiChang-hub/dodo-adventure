@@ -41,14 +41,14 @@ const BEHAVIORS = ['連點進場', '搶著操作', '亂玩', '亂玩中途返回
 const WHERE = [
   [/整頁畫面縮放|透明度來回跳（scene|空白底色|疊在一起/, 'src/ui/motion.ts 的 page／RANGE（整頁 0.6↔1、背景 1↔1.06）、src/ui/Scenes.tsx', 'T-44～T-48 轉場（transition-nozoom）處理中'],
   [/題目層|card-bg|card-fg/, 'src/ui/motion.ts 的 foreground／background、src/ui/Scenes.tsx 的 CardStage', 'T-44～T-48 轉場（transition-nozoom）處理中'],
-  [/連點站牌|連點遊戲卡/, 'src/ui/Scenes.tsx 的 ARM_MS（新畫面 0.x 秒後就收點擊）＋ src/screens/MapScreen.tsx 站牌、StationScreen.tsx 遊戲卡的位置重疊', ''],
+  [/連點/, 'src/ui/Scenes.tsx 的 ARM_MS（新畫面 0.x 秒後就收點擊）＋ 首頁的門和下一個畫面按鈕的位置重疊', ''],
   [/轉場中按住/, 'src/ui/Scenes.tsx：新畫面還沒 armed 時 pointer-events:none，按下去的那一下（pointerdown）被吃掉，src/ui/Hold.tsx 的 useHold 就不會開始計時', ''],
   [/按住.*沒有回去|回首頁/, 'src/ui/Hold.tsx、src/games/Shell.tsx 的 HoldButton', ''],
   [/短按/, 'src/ui/Hold.tsx（遊戲 1.2 秒、其他 0.6 秒）', ''],
   [/返回鍵/, 'src/lib/lock.ts installGuards（popstate 一律吃掉）', ''],
-  [/歡迎語音/, 'src/App.tsx 換畫面時的 stopSpeech() effect（在子畫面 say 之後才跑）、src/screens/StationScreen.tsx', ''],
-  [/示範還沒結束就能畫|示範中/, '各畫畫遊戲的示範流程（src/games/draw/*、src/games/sheet/SheetGame.tsx）', ''],
-  [/墨跡/, 'src/games/draw/ColoringGame.tsx 的 RegionMap clip（蠟筆只塗在下筆的那一塊）、src/games/draw/Ink.tsx', ''],
+  [/歡迎語音/, 'src/App.tsx 換畫面時的 stopSpeech() effect（在子畫面 say 之後才跑）', ''],
+  [/示範還沒結束就能畫|示範中/, '各課描字的示範流程（src/lessons/english/Trace.tsx、src/lessons/math/Write.tsx）', ''],
+  [/墨跡/, 'src/games/draw/Ink.tsx、src/games/draw/adopt.ts', ''],
   [/重複|一直說話|沒有提示/, 'src/games/idle.ts 與各遊戲的 idle.start', ''],
   [/語音疊/, 'src/lib/audio.ts 的 say／halt', ''],
   [/音檔缺漏/, 'public/audio（npm run audio）', ''],
@@ -211,8 +211,8 @@ bugs.forEach((b, i) => {
   L.push(`- **出現在**：${hits.length > 8 ? hits.slice(0, 8).join('、') + ` 等 ${hits.length} 處` : hits.join('、')}（共 ${b.count} 次）`)
   L.push(`- **說明**：${esc(f.detail)}`)
   L.push(`- **推測程式位置**：${where}`)
-  const bySpec = { 'nav-spam.spec.ts': 'nav-spam', 'cheer.spec.ts': 'cheer', 'story.spec.ts': 'story' }[b.run.test?.file]
-  const sel = b.run.game?.id ?? bySpec ?? ({ 首頁: 'home', 地圖與站點: 'map', 貼紙本: 'collection', 家長區: 'parent', 返回鍵: 'back', 今日冒險: 'adventure', 護眼休息: 'eyebreak', 睡覺畫面: 'bedtime' }[b.run.screen] ?? 'screens')
+  const bySpec = { 'story.spec.ts': 'story' }[b.run.test?.file]
+  const sel = b.run.game?.id ?? bySpec ?? ({ 家長區: 'parent', 護眼休息: 'eyebreak', 睡覺畫面: 'bedtime' }[b.run.screen] ?? 'screens')
   L.push(`- **重現**：\`npm run test:toddler -- ${sel} --seed ${base}${f.viewport === 'tab1200' ? ' --quick' : ''}\`（這一段的 seed ${f.seed}，行為「${f.behavior}」，第 ${(f.at / 1000).toFixed(0)} 秒）`)
   if (f.shot) L.push(`- **截圖**：![${f.title}](${shotDirName}/${encodeURI(prefix + f.shot)})`)
   else L.push(`- **截圖**：（逐幀問題是事後從探針資料判斷的，截圖拍不到那一幀；數值見說明）`)

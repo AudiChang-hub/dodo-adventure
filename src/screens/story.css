@@ -1,4 +1,4 @@
-/* 故事（G-8）：故事的圖、魔法屋剖面圖、冒險裡的魔法屋開場與結尾、我的故事書 */
+/* 故事（G-8）：故事的圖、我的故事書 */
 
 /* ── 故事的圖（ui/StoryPic.tsx）：一張大的，可以疊一張小的在右下角 ───────── */
 .story-pic {
@@ -24,125 +24,7 @@
   filter: drop-shadow(0 6px 5px rgba(46, 42, 37, 0.14));
 }
 
-/* ── 魔法屋剖面圖（ui/MagicHouseArt.tsx）：畫布是 1200×786，跟著外框等比例縮放 ───── */
-.house-stage {
-  position: relative;
-  width: min(100%, calc(var(--house-h, 100%) * 1200 / 786));
-  aspect-ratio: 1200 / 786;
-  margin: 0 auto;
-}
-.house-svg {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-}
-.house-stage > div,
-.house-stage > button {
-  transition: opacity 0.5s;
-}
-.house-door,
-.house-item,
-.house-room {
-  display: grid;
-  place-items: center;
-  padding: 0;
-  border: 0;
-  background: none;
-  font: inherit;
-  -webkit-tap-highlight-color: transparent;
-}
-.house-door,
-.house-item {
-  pointer-events: none;
-}
-.house-door > svg {
-  margin-top: -18%;
-}
-.house-room {
-  z-index: 0;
-  border-radius: 10px;
-}
-/* 書房（打開故事書）：一圈淡淡的框告訴孩子這裡可以點；靜止，不呼吸 */
-.house-room[data-room='book'] {
-  box-shadow: inset 0 0 0 5px rgba(168, 135, 90, 0.45);
-}
-.house-room:active {
-  background: rgba(46, 42, 37, 0.05);
-}
-.house-door,
-.house-item {
-  z-index: 1;
-}
-/* 新加的東西：一圈靜態的光（不閃、不轉） */
-.house-item.is-fresh::before {
-  content: '';
-  position: absolute;
-  inset: -34%;
-  border-radius: 50%;
-  background: radial-gradient(closest-side, rgba(241, 210, 124, 0.55), rgba(241, 210, 124, 0));
-  z-index: -1;
-}
-
-/* ── 魔法屋畫面 ───────────────────────────────────────────── */
-.house-screen {
-  display: grid;
-  place-items: center;
-  padding: 10vh 3vw 4vh;
-  background: linear-gradient(#f6f1e6, var(--paper) 70%);
-}
-.house-screen .house-frame {
-  --house-h: calc(100vh - 14vh);
-  width: 100%;
-  height: 100%;
-  display: grid;
-  place-items: center;
-}
-.house-title {
-  position: absolute;
-  bottom: 22px;
-  left: 30px;
-  font-family: 'Huninn', sans-serif;
-  font-size: 18px;
-  letter-spacing: 0.08em;
-  color: var(--ink-faint);
-}
-.house-book-btn.round-btn {
-  position: absolute;
-  right: 3vw;
-  bottom: 4vh;
-  z-index: 4;
-  /* 準則 TOUCH-1：小班段主要按鈕 ≥ 2 cm */
-  width: 96px;
-  height: 96px;
-}
-
-/* ── 冒險裡的魔法屋（開場、結尾）：左邊是故事卡和說話的恐龍，右邊是剖面圖（亮著今天用到的房間） ───── */
-.story-home {
-  position: absolute;
-  inset: 0;
-  display: grid;
-  grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.5fr);
-  align-items: center;
-  gap: 2vw;
-  padding: 12vh 3vw 5vh 4vw;
-  background: linear-gradient(#f6f1e6, var(--paper));
-}
-.story-home .house-frame {
-  --house-h: 74vh;
-  display: grid;
-  place-items: center;
-  opacity: 0.9;
-  transition: opacity 0.6s;
-}
-.story-home-side {
-  position: relative;
-  display: grid;
-  justify-items: center;
-  align-content: center;
-  gap: 2vh;
-  height: 100%;
-}
+/* ── 故事卡和說話的恐龍（重聽一章用；原本是冒險裡魔法屋開場的那張卡） ───── */
 .story-home-card {
   position: relative;
   width: min(100%, 44vh);
@@ -162,13 +44,6 @@
 }
 .story-home-dino {
   width: min(70%, 26vh);
-}
-/* 這一篇講完、魔法屋多了東西：故事卡收起來，剖面圖移到正中間（原地淡入，不縮放、不移動） */
-.story-home.is-added {
-  grid-template-columns: 1fr;
-}
-.story-home.is-added .house-frame {
-  --house-h: 80vh;
 }
 /* 重聽（故事書）沿用同一張卡：放在畫面中間 */
 .book-replay .story-home-card {
@@ -265,19 +140,79 @@
   background: var(--ink-soft);
   border-color: var(--ink-soft);
 }
-.book-empty {
+/* 書架上聽過的書：書角一顆星（看得出哪幾本聽過） */
+.book-star {
   position: absolute;
-  inset: 0;
-  display: grid;
-  place-items: center;
-  align-content: center;
-  gap: 3vh;
+  top: -10px;
+  right: -8px;
+  width: clamp(36px, 6.5vmin, 54px);
+  pointer-events: none;
 }
-.book-empty .story-pic {
-  width: clamp(160px, 28vmin, 260px);
+/* 今天的新書（還沒講完）：沒有星，整本有一圈靜態的光（不閃、不呼吸，MOTION-2） */
+.book-card.is-new {
+  box-shadow:
+    inset 12px 0 0 var(--spine, #c9a57e),
+    0 0 0 6px color-mix(in srgb, #f1d27c 70%, transparent),
+    0 18px 30px -22px rgba(46, 42, 37, 0.45);
 }
 
-/* 重聽一章：大大的圖、下面是說故事的恐龍；上面一排小點是講到第幾句 */
+/* 讀完了：封面上一圈星星，下面兩個大按鈕（再聽一次、回書架） */
+.book-done-stars {
+  position: absolute;
+  inset: 50% auto auto 50%;
+  pointer-events: none;
+}
+.book-done .story-home-card {
+  position: absolute;
+  top: 18vh;
+  left: 50%;
+  width: clamp(200px, 40vh, 340px);
+  translate: -50% 0;
+}
+.book-done .story-home-card > .story-pic {
+  position: absolute;
+  left: 18%;
+  top: 18%;
+  width: 64%;
+  height: 64%;
+}
+.book-done-badge {
+  position: absolute;
+  top: -4%;
+  right: -4%;
+  width: 26%;
+  filter: drop-shadow(0 6px 8px rgba(46, 42, 37, 0.25));
+}
+.book-done-sky {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+.book-done-sky span {
+  position: absolute;
+  opacity: 0.85;
+}
+.book-done-actions {
+  position: absolute;
+  right: 6vw;
+  bottom: 8vh;
+  display: flex;
+  gap: 28px;
+}
+.book-done-actions .round-btn {
+  width: clamp(88px, 13vmin, 112px);
+  height: clamp(88px, 13vmin, 112px);
+}
+/* 再聽一次用暖黃色，跟回書架分得出來 */
+.book-done-actions .book-again {
+  background: #f6dc8f;
+  box-shadow: 0 4px 0 #d9b85a;
+}
+.book-done-badge {
+  pointer-events: auto;
+}
+
+/* 講一章（新章節、重聽）：大大的圖、下面是說故事的恐龍；上面一排小點是講到第幾句 */
 .book-replay {
   position: absolute;
   inset: 0;
@@ -312,22 +247,6 @@
     inset: 18vh 6vw 19vh;
     grid-template-columns: repeat(2, 1fr);
     grid-template-rows: repeat(3, 1fr);
-  }
-  .house-screen {
-    padding: 14vh 3vw 10vh;
-  }
-  .house-screen .house-frame {
-    --house-h: 60vh;
-    height: auto;
-  }
-  .story-home {
-    grid-template-columns: 1fr;
-    grid-template-rows: auto auto;
-    align-content: center;
-    padding: 14vh 4vw 4vh;
-  }
-  .story-home .house-frame {
-    --house-h: 40vh;
   }
   .story-home-card {
     width: min(70vw, 30vh);

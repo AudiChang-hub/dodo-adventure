@@ -1,17 +1,14 @@
 import './lines-engine'
 import './lines-phonics'
 import './lines-code'
-import './lines-outing'
 import './lines-achieve'
 import './lines-themes'
 import './lines-eyebreak'
 import './lines-dots'
 import './lines-stickers'
 import './lines-crayon'
-import './lines-pattern'
 import './lines-zh'
 import './lines-praise'
-import './lines-glyph'
 import './lines-frame'
 import './lines-math-lesson'
 import { CHILD_EN } from '../lib/env'
@@ -56,49 +53,18 @@ const retry: Record<Speaker, string[]> = {
 for (const s of SPEAKERS) {
   praise[s].forEach((t, i) => def(`praise.${s}.${i}`, s, t))
   retry[s].forEach((t, i) => def(`retry.${s}.${i}`, s, t))
-  // 提示和教學卡後的「答案在這裡」同一句（teach.here.*）
-  def(`hint.${s}`, s, s === 'momo' ? 'Here it is. Tap it.' : 'Here it is! Tap it!')
   def(`idle.${s}`, s, 'Which one?')
 }
 // 舊版遊戲會用到的英文稱讚，沿用豆豆的句子
 praise.dodo.forEach((t, i) => def(`praise.en.${i}`, 'dodo', t))
 
-// ── 首頁、冒險流程 ─────────────────────────────────────────
+// ── 首頁 ───────────────────────────────────────────────────
 def('home.hello', 'dodo', `Hi, ${N}! Let's go!`)
-def('home.tapdodo', 'dodo', "I'm Dodo! I love driving my car!")
-def('home.tapbobo', 'bobo', "I'm Bobo! I love counting things!")
-def('home.tapmomo', 'momo', "I'm Momo. I have a long, long neck.")
-def('adv.go', 'dodo', "Let's go!")
-// 學校的三堂課還在準備（src/lessons/NotReady.tsx）：守門的恐龍說快好了
-def('lesson.soon.english', 'dodo', 'Our ABC class is almost ready. See you soon!')
-def('lesson.soon.chinese', 'momo', 'Our reading class is almost ready. See you soon.')
-def('lesson.soon.math', 'bobo', 'Our number class is almost ready. See you soon!')
-def('adv.done', 'dodo', `We did it! Great job today, ${N}!`)
-def('adv.again', 'dodo', "We already went today. Let's play on the map!")
-def('station.english', 'dodo', 'Next stop, | Letter Forest!')
-def('station.math', 'bobo', 'Next stop, | Number Land!')
-def('station.mandarin', 'momo', 'Next stop, | Animal Village.')
-def('station.draw', 'dodo', 'Next stop, | Drawing House!')
-def('station.park', 'bobo', 'Next stop, | Rainbow Park!')
-def('welcome.english', 'dodo', 'Welcome to Letter Forest!')
-def('welcome.math', 'bobo', "I'm Bobo! Welcome to Number Land!")
-def('welcome.mandarin', 'momo', "I'm Momo. Welcome to Animal Village.")
-def('welcome.draw', 'dodo', 'Welcome to Drawing House! Get your pen!')
-def('welcome.park', 'bobo', 'Welcome to Rainbow Park!')
-def('map.where', 'dodo', 'Where do you want to go?')
-def('map.locked', 'dodo', 'First, let’s finish today!')
-def('egg.crack', 'dodo', 'Look! The egg is cracking!')
-def('egg.ready', 'dodo', 'The egg is ready! Tap the egg!')
-def('egg.hatch', 'dodo', 'Wow! A new friend!')
-def('collection.hi', 'dodo', 'These are all your friends!')
-def('collection.empty', 'dodo', 'Let’s go! New friends are coming!')
 def('bedtime', 'dodo', `Dodo is sleepy... Let's play again tomorrow. Good night, ${N}!`)
 // 每局最後一題（比較難）：只說 Last one!，不用 tricky 這種抽象字
 def('challenge', 'dodo', 'Last one!')
 def('challenge.bobo', 'bobo', 'Last one!')
 def('challenge.momo', 'momo', 'Last one.')
-def('levelup', 'dodo', "You're getting so good! Let's try a harder one!")
-def('goodbye', 'dodo', `Bye-bye, ${N}!`)
 // 護眼休息的台詞在 lines-eyebreak.ts
 
 // ── 字母森林 ───────────────────────────────────────────────
@@ -116,14 +82,12 @@ def('m.more', 'bobo', 'Which side has | more?')
 def('m.less', 'bobo', 'Which side has | fewer?')
 def('m.this.more', 'bobo', 'This side has more!')
 def('m.this.less', 'bobo', 'This side has fewer!')
-def('m.order.start', 'bobo', 'Start with one!')
 def('m.count.go', 'bobo', 'Tap and count with me!')
 for (let n = 1; n <= 20; n++) {
   def(`m.num.${n}`, 'bobo', `${cap(NUM[n])}!`)
   def(`m.findnum.${n}`, 'bobo', `Where is | ${NUM[n]}?`)
   def(`m.total.${n}`, 'bobo', n === 1 ? 'There is | one!' : `There are | ${NUM[n]}!`)
   def(`m.thisis.${n}`, 'bobo', `This is | ${NUM[n]}.`)
-  def(`dodo.num.${n}`, 'dodo', `${cap(NUM[n])}!`)
 }
 
 // ── 動物村（英文詞彙）──────────────────────────────────────
@@ -160,14 +124,12 @@ def('p.this.smaller', 'bobo', 'This one is smaller!')
 def('d.intro.trace', 'dodo', 'Help me drive home! Use your pen!')
 def('d.intro.free', 'dodo', 'Draw anything you like!')
 def('d.intro.glyph', 'dodo', 'Start at the green dot! Go this way!')
-def('d.trace.done', 'dodo', "We're home! Thank you!")
-def('d.trace.keep', 'dodo', "Keep going! We're not home yet!")
-// 運筆小路：不是從車子出發時（每條路最多兩次）
-def('d.trace.start', 'dodo', 'Start at the car!')
-def('d.color.done', 'dodo', 'So pretty!')
 def('d.free.done', 'dodo', 'I love it!')
 def('d.glyph.done', 'dodo', 'Great writing!')
 def('d.glyph.next', 'dodo', 'Now the next line!')
+// 描字的鼓勵（AI 小男生測試 #3）：描到一半放手、一直畫到跑道外面時說（Trace.tsx，最少隔 5 秒）
+def('d.glyph.keep', 'dodo', 'Keep going! You can do it!')
+def('d.glyph.back', 'dodo', 'Almost! Follow the line!')
 // 連點成圖連完：This is a | house!（菱形 diamond 不是小班教的形狀、又是鑽石，改說像風箏 kite）
 const DOTS: Record<string, string> = { triangle: 'triangle', square: 'square', house: 'house', fish: 'fish', star: 'star', boat: 'boat', heart: 'heart', diamond: 'kite' }
 for (const [d, name] of Object.entries(DOTS)) def(`d.dots.is.${d}`, 'dodo', `This is ${articleOf(name)} | ${name}!`)

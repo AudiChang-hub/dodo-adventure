@@ -1,5 +1,5 @@
 import { phaseOf, today, type Attempt, type StationId } from './db'
-import { LOAD_DAYS, LOAD_LOW, isProtege, isProbe, isScored, loadCheck, median, speedCat, type DayRate } from './engine'
+import { LOAD_DAYS, LOAD_LOW, isScored, loadCheck, median, speedCat, type DayRate } from './engine'
 import { fnv1a } from './hash'
 import { TRACKS, conceptOf, levelConcept, trackConcepts, trackOf, type TrackId } from '../content/tracks'
 
@@ -313,53 +313,6 @@ export function planDay(input: {
   return out
 }
 
-// ── 雷達圖 ───────────────────────────────────────────────────
-/**
- * 依作答紀錄重算熟練度（和孩子端 recordSkill 同一套規則的簡化版：不看速度）。
- * 雷達圖的「這週」與「上週」都用這個算，兩個形狀才比得起來。
- */
-export function replayBoxes(attempts: readonly Attempt[], date: string): Map<string, number> {
-  const box = new Map<string, number>()
-  for (const a of [...attempts].filter((x) => x.date <= date && phaseOf(x) === 'quiz' && !isProtege(x)).sort((x, y) => x.ts - y.ts)) {
-    if (isProbe(a) && !a.firstTryCorrect) continue
-    const b = box.get(a.skill) ?? 0
-    box.set(a.skill, a.firstTryCorrect ? Math.min(5, b + 1) : a.metrics?.softHint ? b : Math.max(0, b - 1))
-  }
-  return box
-}
-
-export interface RadarAxis {
-  track: TrackId
-  /** 0–100 */
-  score: number
-  mastery: number
-  coverage: number
-  /** 最近 14 天第一次就答對的比例；沒有作答時是 null */
-  accuracy: number | null
-  quiz14: number
-}
-
-/** 分數 = 熟練 45% + 涵蓋 30% + 第一次就答對 25% */
-export const RADAR_W = { mastery: 0.45, coverage: 0.3, accuracy: 0.25 }
-
-/**
- * 某一天的四軸分數：
- * - 熟練：最近 4 週出現過的技能，平均熟練度（3 格以上算滿分）；
- * - 涵蓋：這條線 3–6 歲全部的概念裡，已經接觸過幾成（不是越多越好，是看平衡）；
- * - 第一次就答對：最近 14 天自己答的第一次答對率（不含探測題、孩子教豆豆的題目）。
- */
-export function radarScores(attempts: readonly Attempt[], date: string): RadarAxis[] {
-  const rows = attempts.filter((a) => a.date <= date)
-  const box = replayBoxes(rows, date)
-  const stats = trackStats(rows, date, (k) => box.get(k) ?? 0, { intros: conceptIntros(rows) })
-  return stats.map((s) => {
-    const coverage = s.total ? s.known / s.total : 0
-    const accuracy = s.quiz14 ? s.ok14 / s.quiz14 : null
-    const score = s.skills || s.known ? Math.round(100 * (RADAR_W.mastery * s.mastery + RADAR_W.coverage * coverage + RADAR_W.accuracy * (accuracy ?? 0))) : 0
-    return { track: s.track, score, mastery: s.mastery, coverage, accuracy, quiz14: s.quiz14 }
-  })
-}
-
 // ── 依支線的負擔控制與加速（成長系統 §1.4，G-2）───────────────
 /** 作答屬於哪條支線（content/ladder.ts 的 strandOfSkill；從外面傳進來，這個檔案不必引用階梯的內容） */
 export type StrandOf = (a: Pick<Attempt, 'game' | 'skill'>) => string | null
@@ -453,29 +406,4 @@ export function fastStrands(attempts: readonly Attempt[], todayDate: string, str
     if (!now.length || (was.length && median(now) < median(was))) out.push(s)
   }
   return out
-}
-
-// ── 負擔控制的歷程 ───────────────────────────────────────────
-export interface LoadSpan {
-  /** 第一個啟動減輕負擔的有玩日子 */
-  from: string
-  /** 恢復的那個有玩日子；還在減輕中是 null */
-  to: string | null
-}
-
-/** 最近 days 天內，每個有玩的日子是不是在「減輕負擔」狀態（和孩子端開機時的判斷一樣），整理成一段一段 */
-export function loadSpans(attempts: readonly Attempt[], date: string, days = 21): LoadSpan[] {
-  const from = shiftDate(date, -(days - 1))
-  const dates = [...new Set(attempts.filter((a) => a.date >= from && a.date <= date).map((a) => a.date)), date].sort()
-  const spans: LoadSpan[] = []
-  let cur: LoadSpan | null = null
-  for (const d of [...new Set(dates)]) {
-    const on = loadCheck(attempts, d).overloaded
-    if (on && !cur) spans.push((cur = { from: d, to: null }))
-    else if (!on && cur) {
-      cur.to = d
-      cur = null
-    }
-  }
-  return spans
 }

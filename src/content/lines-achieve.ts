@@ -59,7 +59,6 @@ roundCode.forEach((t, i) => def(`ach.round.code.bobo.${i}`, 'bobo', t))
 for (const n of FIX_STEPS) def(`ach.fixes.${n}`, 'bobo', n === 1 ? 'You fixed it for the | first time!' : `You fixed it | ${word(n)} times!`)
 
 // ── 貼紙本：點 v1 舊貼紙時說它是什麼（其餘沿用教學卡的句子；挑選式貼紙的台詞在 lines-stickers.ts）────────────
-def('ach.book.hi', 'dodo', 'These are your stickers! Tap one!')
 for (let n = 1; n <= 20; n++) {
   def(`stk.num.${n}`, 'bobo', `This is | ${NUM[n]}!`)
   def(`stk.count.${n}`, 'bobo', `You counted | ${NUM[n]}!`)
@@ -70,9 +69,3 @@ def('stk.pattern', 'bobo', 'You know | what comes next!')
 def('stk.seq', 'bobo', 'First this, | then that!')
 def('stk.trace', 'dodo', 'You drove the road with your | pen!')
 for (let n = 2; n <= 6; n++) def(`stk.stars.${n}`, 'dodo', `Wow, | ${NUM[n]} stars!`)
-
-// ── 今日冒險的結尾：給爸爸看 ─────────────────────────────────
-def('ach.showdad', 'dodo', "Let's show Daddy what you did!")
-def('ach.recap.hi', 'dodo', 'Daddy, look! We did so much today!')
-def('ach.recap.friend', 'dodo', 'And a new friend!')
-def('ach.recap.end', 'dodo', 'High five!')

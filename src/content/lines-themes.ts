@@ -12,12 +12,7 @@ import { allChapters, chapterLines } from './story'
 
 for (const ch of allChapters()) for (const [key, speaker, en] of chapterLines(ch)) def(key, speaker, en.replaceAll('{name}', CHILD_EN))
 
-// 魔法屋、我的故事書（screens/MagicHouse.tsx、StoryBook.tsx）
+// 我的故事書（screens/StoryBook.tsx）
 def('story.house.hello', 'dodo', 'Welcome back to the Magic House!')
 def('story.house.new', 'dodo', 'Look! Something new!')
 def('story.book.hello', 'momo', 'Pick a story.')
-def('story.book.empty', 'momo', "No stories yet. Let's go!")
-
-// 箭頭卡開車：主題式冒險裡開的是說故事那隻恐龍的車（主持一樣是波波）
-def('c.intro.drive.momo', 'bobo', 'Help Momo drive! Use the arrow cards!')
-def('c.intro.drive.bobo', 'bobo', "Let's drive my car! Use the arrow cards!")

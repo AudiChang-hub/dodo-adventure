@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState, type ReactElement } from 'react'
 import { game } from '../content/games'
 import { Cheering, type GameProps, type GameResult } from './Shell'
 import { Celebrate } from '../ui/Celebrate'
@@ -6,48 +6,18 @@ import { beginRound, endRound, type RoundSummary } from '../lib/achievements'
 import { useThemeScope } from '../lib/theme-play'
 import { useBack } from '../lib/nav'
 import { stopSpeech } from '../lib/audio'
-import { ChoiceGame } from './ChoiceGame'
-import { PhonicsGame } from './phonics/PhonicsGame'
-import { CountGame } from './CountGame'
-import { OrderGame } from './OrderGame'
-import { TraceGame } from './draw/TraceGame'
-import { DotsGame } from './draw/DotsGame'
-import { ColoringGame } from './draw/ColoringGame'
 import { FreeDraw } from './draw/FreeDraw'
-import { GlyphGame } from './draw/GlyphGame'
-import { FindAllGame } from './FindAllGame'
-import { LassoGame } from './LassoGame'
-import { FillCountGame } from './FillCountGame'
-import { GiveGame } from './GiveGame'
-import { SubitizeGame } from './SubitizeGame'
-import { DriveGame } from './code/DriveGame'
-import { SequenceGame } from './code/SequenceGame'
-import { PatternGame } from './code/PatternGame'
+import type { GameKind } from '../content/games'
 
-const BY_KIND = {
-  choice: ChoiceGame,
-  phonics: PhonicsGame,
-  count: CountGame,
-  order: OrderGame,
-  trace: TraceGame,
-  dots: DotsGame,
-  coloring: ColoringGame,
+/**
+ * 孩子點得到的遊戲只剩首頁「畫畫」那一扇門進去的自由畫畫（2026-10-31 改成學校的三堂課；舊的站點、冒險遊戲 T-75 拿掉了）。
+ * 其他 id（舊的網址、舊資料）沒有畫面：直接交回上一層。
+ */
+const BY_KIND: Partial<Record<GameKind, (p: GameProps) => ReactElement>> = {
   free: FreeDraw,
-  glyph: GlyphGame,
-  // 工作線 B：學習單題型
-  findall: FindAllGame,
-  lasso: LassoGame,
-  fill: FillCountGame,
-  give: GiveGame,
-  subitize: SubitizeGame,
-  // 程式車庫
-  drive: DriveGame,
-  sequence: SequenceGame,
-  pattern: PatternGame,
 }
 
 export function PlayGame(props: GameProps) {
-  // 舊的字母遊戲 id（今天已經排好的冒險）會對到改寫後的自然發音遊戲
   const g = game(props.gameId)
   const C = BY_KIND[g.kind]
   // 主題式冒險：遊戲在畫面上的期間，題目產生器都讀得到今天的主題
@@ -85,6 +55,10 @@ export function PlayGame(props: GameProps) {
     props.onExit()
   }
   useBack(exit)
+  useEffect(() => {
+    if (!C) props.onExit()
+  }, [])
+  if (!C) return null
   return (
     <Cheering.Provider value={!!cheer}>
       <C key={g.id} {...props} gameId={g.id} onDone={onDone} onExit={exit} />

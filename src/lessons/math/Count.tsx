@@ -8,16 +8,29 @@ import { praiseKey, wait } from '../../games/lines'
 import { useIdle } from '../../games/idle'
 import { PACE } from '../../games/pace'
 import { logAttempt, logTeach } from '../../lib/record'
+import { mastered } from '../../lib/adaptive'
 import { say, sfx } from '../../lib/audio'
 import { FADE } from '../../ui/motion'
-import { countRounds, type CountRound } from './plan'
+import { FIRM, countRounds, lineUp, type CountRound } from './plan'
 import { Fade, useLive, type PartCtx } from './kit'
 
 interface Round extends CountRound {
   pos: { x: number; y: number }[]
 }
 
-const place = (r: CountRound): Round => ({ ...r, pos: scatter(r.n, r.n > 6 ? 5 : 4, r.n > 4 ? 2 : 1) })
+/** 排好的位置：一排最多 5 個；6 個以上第一排 5 個、第二排是多出來的，靠左對齊（「5 和 1」）。左下角留給波波，所以從 x 30% 起排 */
+const COLS = [30, 44, 58, 72, 86]
+function rows(n: number): { x: number; y: number }[] {
+  if (n <= FIRM) {
+    const gap = Math.min(14, 60 / Math.max(1, n - 1))
+    const x0 = 58 - (gap * (n - 1)) / 2
+    return Array.from({ length: n }, (_, i) => ({ x: x0 + i * gap, y: 44 }))
+  }
+  return Array.from({ length: n }, (_, i) => ({ x: COLS[i % FIRM], y: i < FIRM ? 30 : 66 }))
+}
+
+/** 還沒熟的數量、6 個以上：排好再數（plan.ts 的 lineUp）；熟了的 5 以內才撒開 */
+const place = (r: CountRound): Round => ({ ...r, pos: lineUp(r.n, mastered(`count:${r.n}`)) ? rows(r.n) : scatter(r.n, 4, r.n > 4 ? 2 : 1) })
 
 /** 數的順序：先上排再下排、由左到右（示範和「下一個」的提示都照這個，不跳來跳去） */
 const order = (r: Round) =>
