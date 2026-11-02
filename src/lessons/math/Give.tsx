@@ -119,6 +119,8 @@ export function GivePart({ ctx }: { ctx: PartCtx }) {
       await fillTo()
       if (!live.current) return
       await point(DONE, 500)
+      // 手點完勾勾就收起來，不停在勾勾上（AI 小男生測試 2026-11-02 數學-2 第 4～7 步：手最後停在勾勾，他就一直點勾勾，沒去拿東西）
+      setHand(null)
       await say(`m.total.${n}`)
       if (!live.current) return
       setGlad(true)
@@ -138,6 +140,8 @@ export function GivePart({ ctx }: { ctx: PartCtx }) {
     await ask()
     if (!live.current) return
     open()
+    // 剛示範完：手停在第一個可以拿的東西上（跟數數一樣），看得出要先「拿」
+    if (round.demo) void point(SUPPLY[0], 0)
   }
 
   /** 閒置第二段、點波波：手指著下一步（還不夠：左邊的一個；太多：盤子裡的一個；剛好：勾勾） */
