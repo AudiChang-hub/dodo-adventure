@@ -35,9 +35,16 @@ D 組（家長 2026-10-31 選的，試聽在 docs/voice-samples/breezyvoice/）�
 要用 BreezyVoice 自己的 Python 環境（和 gen_zh_words.py 一樣，C:\\Users\\user\\breezyvoice\\）：
     C:\\Users\\user\\breezyvoice\\venv\\Scripts\\python.exe -I scripts/gen_zh_breezy.py [--lines 清單.json] [--out 輸出資料夾] [--samples]
 --check 只檢查不產生（不需要 BreezyVoice 環境）：清單裡每一句有沒有 mp3、有沒有列在 index.json；gen_audio.py --check（npm run verify）也會順便跑。
+
+節制資源（家長 2026-11-02：筆電插著電還在掉電，一次要跑好幾個小時）：
+- --threads 預設 4、最多核心數的一半：在載入 torch／numpy 之前設好 OMP／MKL／OpenBLAS／NumExpr 的執行緒數（ffmpeg 等子程序也照這些環境變數），
+  torch.set_num_threads(n)、set_num_interop_threads(1)。
+- 一開始就把自己降成 Idle 優先權（Windows 的 SetPriorityClass），子程序跟著是 Idle；家長用電腦時讓給前景程式。
+- --stay-awake 只防閒置睡眠，跟耗電無關，照樣可以用。
 """
 import argparse
 import json
+import os
 import pathlib
 import sys
 import time
@@ -363,11 +370,37 @@ def build_samples(rows, out: pathlib.Path, gz):
     return made
 
 
+def gentle(args):
+    """節制資源：限制執行緒數（要在載入 torch／numpy 之前）、降成 Idle 優先權"""
+    n = max(1, min(args.threads, (os.cpu_count() or 2) // 2))
+    args.threads = n
+    for k in ("OMP_NUM_THREADS", "MKL_NUM_THREADS", "OPENBLAS_NUM_THREADS", "NUMEXPR_NUM_THREADS"):
+        os.environ[k] = str(n)  # 子程序（ffmpeg）也繼承
+    import torch
+    torch.set_num_threads(n)
+    try:
+        torch.set_num_interop_threads(1)
+    except RuntimeError:  # 已經開始平行運算就不能改了
+        pass
+    prio = "Idle"
+    if sys.platform == "win32":
+        import ctypes
+        from ctypes import wintypes
+        k32 = ctypes.windll.kernel32
+        k32.GetCurrentProcess.restype = wintypes.HANDLE  # 64 位元的 handle，預設的 int 會截掉
+        k32.SetPriorityClass.argtypes = (wintypes.HANDLE, wintypes.DWORD)
+        if not k32.SetPriorityClass(k32.GetCurrentProcess(), 0x40):  # IDLE_PRIORITY_CLASS
+            prio = "沒改成"
+    else:
+        os.nice(19)
+    print(f"節制資源：{n} 個執行緒、優先權 {prio}", flush=True)
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--lines", default=str(LIST))
     ap.add_argument("--out", default=str(OUT))
-    ap.add_argument("--threads", type=int, default=8, help="這台 i5-12500H 實測 8 比 16、4 都快")
+    ap.add_argument("--threads", type=int, default=4, help="最多用幾個執行緒（上限是核心數的一半；8 最快，但筆電插著電還會掉電）")
     ap.add_argument("--accept", nargs="*", default=[], help="家長聽過、放行的句子 key（記進 scripts/zh-lessons-approved.json）")
     ap.add_argument("--approved-on", default=time.strftime("%Y-%m-%d"), help="放行日期（記進放行清單）")
     ap.add_argument("--note", default="家長聽過放行", help="放行備註（記進放行清單）")
@@ -392,6 +425,7 @@ def main():
             print("REVIEW", key, text, "（3 次都沒通過，等家長聽）")
         sys.exit(1 if bad else 0)
 
+    gentle(args)
     if args.stay_awake and sys.platform == "win32":
         import ctypes
         ctypes.windll.kernel32.SetThreadExecutionState(0x80000000 | 0x00000001)  # ES_CONTINUOUS | ES_SYSTEM_REQUIRED
