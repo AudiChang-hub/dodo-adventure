@@ -128,7 +128,7 @@ export async function writeReport(R: Run, brain: Brain, analystFile: string) {
   const thinkAvg = S.length ? S.reduce((a, s) => a + s.thinkMs, 0) / S.length / 1000 : 0
   const cost = S.reduce((a, s) => a + (s.costUsd ?? 0), 0)
   const issueText = R.issues.length ? R.issues.map((i) => `- [${i.kind}] ${i.title}（第 ${i.steps.join('、')} 步）${i.detail ? `：${i.detail}` : ''}`).join('\n') : '（程式沒抓到 App 錯誤）'
-  if (S.length) {
+  if (S.length && R.analysis === undefined) {
     const analyst = fs.readFileSync(analystFile, 'utf8')
     const text = [
       `課：${R.lesson}（完成的意思：${R.doneMeans}）`,
@@ -150,6 +150,19 @@ export async function writeReport(R: Run, brain: Brain, analystFile: string) {
   const totalCost = cost + (R.analysisCost ?? 0)
   const lastT = S.length ? S[S.length - 1].t : 0
 
+  // 去過哪些畫面（連續同一個畫面合成一段）
+  const LIVE: Record<string, string> = { home: '首頁', 'lesson-english': '英文字母', 'lesson-chinese': '中文課文', 'lesson-math': '數學數字', 'play-d-free': '畫畫', shelf: '故事書架', storybook: '故事書' }
+  const liveName = (l: string | null) => (l ? LIVE[l] ?? (l.startsWith('replay-') ? '聽故事' : l) : '?')
+  const route: { name: string; from: number; to: number }[] = []
+  for (const s of S) {
+    const name = liveName(s.live)
+    const last = route[route.length - 1]
+    if (last?.name === name) last.to = s.n
+    else route.push({ name, from: s.n, to: s.n })
+  }
+  const inLesson = S.filter((s) => liveName(s.live) === R.lesson || (R.lessonId === 'story' && /故事/.test(liveName(s.live)))).length
+  const leftAt = route.find((r, i) => i > 0 && r.name !== route[0].name)
+
   const thumb = (n: number) => `[![第 ${n} 步](縮圖/${pad(n)}.jpg)](截圖/${pad(n)}.jpg)`
   const md: string[] = []
   md.push(`# AI 小男生測試：${R.lesson}（${R.started.slice(0, 10)}）`, '')
@@ -157,6 +170,8 @@ export async function writeReport(R: Run, brain: Brain, analystFile: string) {
   md.push('| 項目 | 結果 |', '|---|---|')
   md.push(`| 完成這一課 | ${R.completed ? `✅ 第 ${R.completed.step} 步（${mmss(R.completed.t)}）${R.completed.what}` : `❌ 沒有（完成的意思：${R.doneMeans}）`} |`)
   md.push(`| 玩了多久 | ${mmss(lastT)}、${S.length} 步；結束原因：${cell(R.endReason)} |`)
+  md.push(`| 去過的畫面 | ${route.map((r) => `${r.name}（${r.from === r.to ? `第 ${r.from} 步` : `${r.from}～${r.to}`}）`).join(' → ')} |`)
+  md.push(`| 在這一課的步數 | ${inLesson}／${S.length}${leftAt ? `；第 ${leftAt.from} 步離開（[第 ${leftAt.from - 1} 步](#s${leftAt.from - 1})想：「${cell(S[leftAt.from - 2]?.think)}」）` : ''} |`)
   md.push(`| 開始不耐煩 | ${firstImpatient ? `[第 ${firstImpatient.n} 步](#s${firstImpatient.n})（${mmss(firstImpatient.t)}）「${cell(firstImpatient.think)}」` : '沒有'}${A.impatient?.why ? `：${cell(A.impatient.why)}` : ''} |`)
   md.push(`| 按返回 | ${backs.length} 次（返回鍵 ${backs.filter((s) => s.action !== 'back').length}、Android 返回 ${backs.filter((s) => s.action === 'back').length}）${backs.length ? `：${stepLinks(backs.map((s) => s.n))}` : ''} |`)
   md.push(`| 不知道要做什麼 | ${confused.length}／${S.length} 步 |`)
