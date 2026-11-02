@@ -9,7 +9,7 @@
 // 執行：npx tsx scripts/check-lessons-teach.ts（npm run verify 的「三堂課不教不考」）
 import { makeQuiz, type Question } from '../src/lessons/english/quiz-plan'
 import { LESSON_LETTERS, ORDER, lessonLetter, wordId } from '../src/lessons/english/data'
-import { LAST, compareQs, countRounds, range, reviewQs, type Lesson, type ReviewQ } from '../src/lessons/math/plan'
+import { FIRM, LAST, compareQs, countRounds, giveRounds, range, reviewQs, type Lesson, type ReviewQ } from '../src/lessons/math/plan'
 import { ZH_TEXTS, questionsOf, type ZhQuestion, type ZhText } from '../src/lessons/chinese/data'
 
 const RUNS = 40
@@ -48,11 +48,12 @@ function checkEnglish(make: EnglishMaker): Report {
 
 type MathMaker = (l: Lesson) => ReviewQ[]
 
-/** 一堂課可能的樣子：新數字（1～10）、同一天再進來複習、1～10 都上完的混合複習 */
+/** 一堂課可能的樣子：新數字（1～10）、同一天再進來複習、1～5 上完還在等熟練的混合複習、1～10 都上完的混合複習 */
 function mathLessons(): Lesson[] {
   return [
     ...range(1, LAST).map((n): Lesson => ({ mode: 'new', n, max: n, part: 0 })),
     ...range(1, LAST).map((n): Lesson => ({ mode: 'review', n, max: n, part: 0 })),
+    ...range(1, FIRM).map((n): Lesson => ({ mode: 'mix', n, max: FIRM, part: 0 })),
     ...range(1, LAST).map((n): Lesson => ({ mode: 'mix', n, max: LAST, part: 0 })),
   ]
 }
@@ -75,10 +76,19 @@ function checkMath(review: MathMaker): Report {
         r.questions++
         if (!taught(c.n)) r.bad.push(`${day}：數數數到 ${c.n}，還沒教`)
       }
+      // 拿給波波：要的數量教過、在 1～5 裡；空的資料庫第一次拿一定先示範
+      for (const g of giveRounds(l)) {
+        r.questions++
+        if (!taught(g.n) || g.n > FIRM) r.bad.push(`${day}：拿給波波要 ${g.n} 個，還沒教或超過 ${FIRM}`)
+        if (!g.demo) r.bad.push(`${day}：第一次拿 ${g.n} 個給波波之前沒有示範`)
+        if (g.supply <= g.n) r.bad.push(`${day}：拿給波波的東西只有 ${g.supply} 個，不夠拿 ${g.n} 個以外的數量`)
+      }
       // 比多少：還沒學過「多」「少」（這裡是空的資料庫）時，第一次問一定先上教學卡
       const seen = new Set<string>()
+      const cap = Math.max(FIRM, l.max)
       for (const c of compareQs(l)) {
         r.questions++
+        if (c.a > cap || c.b > cap) r.bad.push(`${day}：比多少出了 ${c.a} 比 ${c.b}，超過開放的範圍 ${cap}`)
         if (!seen.has(c.ask) && !c.teach) r.bad.push(`${day}：第一次問「${c.ask === 'more' ? '哪邊比較多' : '哪邊比較少'}」之前沒有教學卡`)
         seen.add(c.ask)
       }

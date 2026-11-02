@@ -133,6 +133,84 @@
   box-shadow: 0 0 0 4px var(--card);
 }
 
+/* ── 拿給波波（Give.tsx）──────────────────────────────────── */
+.ma-give {
+  position: absolute;
+  inset: 0;
+}
+/* 波波要幾個：盤子上方的數字和點點（靜態，只在波波說的時候跳一下） */
+.ma-give-want {
+  position: absolute;
+  left: 80%;
+  top: 9%;
+  translate: -50% 0;
+  display: flex;
+  align-items: center;
+  gap: 2cqmin;
+  padding: 1.2cqmin 3cqmin;
+  border-radius: 999px;
+  background: var(--card);
+  box-shadow: 0 6px 0 rgba(46, 42, 37, 0.08);
+}
+.ma-give-num {
+  font-size: 13cqmin;
+  line-height: 1;
+  font-weight: 800;
+  color: var(--ma-ink);
+}
+.ma-give-dots {
+  display: grid;
+  grid-template-columns: repeat(3, 2.6cqmin);
+  gap: 1cqmin;
+}
+.ma-give-dots i {
+  width: 2.6cqmin;
+  aspect-ratio: 1;
+  border-radius: 50%;
+  background: var(--ma-ink);
+}
+/* 波波的盤子：放東西的地方（只是底，不能點；東西本身才能點） */
+.ma-give-plate {
+  position: absolute;
+  width: 34cqw;
+  height: 26cqh;
+  translate: -50% -50%;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--card) 80%, #e8dccb);
+  box-shadow: 0 0 0 1cqmin #e2d4bf inset, 0 8px 0 rgba(46, 42, 37, 0.08);
+  transition: box-shadow 0.3s var(--ease-out);
+}
+.ma-give-plate.glad {
+  box-shadow: 0 0 0 1cqmin var(--good) inset, 0 8px 0 rgba(46, 42, 37, 0.08);
+}
+.ma-give-thing {
+  width: 15cqmin;
+  z-index: 1;
+}
+/* 勾勾：交給波波。盤子裡有東西、可以點的時候變成綠色（靜態，不閃） */
+.ma-give-done {
+  position: absolute;
+  width: max(90px, 15cqmin);
+  aspect-ratio: 1;
+  translate: -50% 0;
+  border: 0;
+  border-radius: 50%;
+  padding: 2.4cqmin;
+  background: var(--card);
+  color: #b9ae9c;
+  box-shadow: 0 6px 0 rgba(46, 42, 37, 0.1), 0 0 0 4px #e2d4bf inset;
+  transition: background 0.25s var(--ease-out), color 0.25s var(--ease-out);
+}
+.ma-give-done.on {
+  background: #e6f3ea;
+  color: var(--good);
+  box-shadow: 0 6px 0 #b9dcc5, 0 0 0 4px var(--good) inset;
+}
+.ma-give-done svg {
+  width: 100%;
+  height: 100%;
+}
+
 /* 紙感螢幕護眼：課裡的圖（恐龍、車子、動物、食物）一律降彩度、偏暖一點，跟紙張的低彩度配色一致 */
 .ma-thing > svg,
 .ma-tile .tile-in svg,
@@ -271,6 +349,15 @@
   left: 50%;
   top: 50%;
   pointer-events: none;
+}
+/* 第二次描：紙的右上角多一隻小雞陪他（看得出這一次跟上一次不一樣；靜態、不能點） */
+.ma-write-friend {
+  position: absolute;
+  right: -6%;
+  top: -4%;
+  width: 22%;
+  pointer-events: none;
+  filter: saturate(0.5) sepia(0.12);
 }
 /* 描第幾次：描好一次亮一顆（在紙的右邊） */
 .ma-reps {

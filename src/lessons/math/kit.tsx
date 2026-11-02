@@ -53,6 +53,11 @@ export interface QuizSpec {
   answer: string
   /** 錯兩次、提示時說的話（This side has more!、This is three.） */
   correction: string[]
+  /**
+   * 錯第一次：說出孩子選的是什麼（This is four.、This side has fewer!），接著再問一次要找的（HOW-5、現況對照 A16）。
+   * 沒給就只說 Try again!
+   */
+  wrong?: (picked: string) => string[]
   /** 題目上方的東西（有幾個的那一堆：要數的圖，不是選項） */
   top?: ReactNode
   /**
@@ -74,7 +79,8 @@ export interface QuizResult {
 
 /**
  * 一題選擇題：念題目時選項上面蓋著擋板（點了只出現「看這裡」，PHASE-2），念完才收。
- * 點錯第一次：再試一次；第二次：答案亮起來、手點一下、說出答案，孩子再點對的（不會卡住）。
+ * 念完、輪到孩子：每張卡外面一圈淡黃框（看得出「現在可以選了」）。
+ * 點錯第一次：說出他選的是什麼、再問一次要找的（spec.wrong），答案外面一圈提示框；第二次：手點一下答案、說出答案，孩子再點對的（不會卡住）。
  * 閒置：15 秒再念一次題目 → 再 15 秒答案亮起來、手點一下（不說話）。
  */
 export function Quiz({ spec, host, onDone }: { spec: QuizSpec; host: PartCtx['host']; onDone: (r: QuizResult) => void }) {
@@ -83,6 +89,8 @@ export function Quiz({ spec, host, onDone }: { spec: QuizSpec; host: PartCtx['ho
   const [hand, setHand] = useState(0)
   const [hold, setHold] = useState(true)
   const [cue, setCue] = useState(0)
+  /** 輪到孩子選：每張卡外面一圈靜態的淡黃框（AI 小男生測試 #5：輪到他時選項要亮起來），點了第一下就收 */
+  const [ready, setReady] = useState(false)
   const live = useLive()
   const busy = useRef(true)
   const taps = useRef<{ pick: string; ms: number }[]>([])
@@ -100,6 +108,7 @@ export function Quiz({ spec, host, onDone }: { spec: QuizSpec; host: PartCtx['ho
     if (!live.current) return
     busy.current = false
     setHold(false)
+    if (!taps.current.length) setReady(true)
     t0.current = performance.now()
     idle.start({ repeat: () => void say(...spec.prompt), hint: show })
   }
@@ -136,6 +145,7 @@ export function Quiz({ spec, host, onDone }: { spec: QuizSpec; host: PartCtx['ho
       return show()
     }
     taps.current.push({ pick: id, ms: Math.round(performance.now() - t0.current) })
+    setReady(false)
     if (id === spec.answer) {
       busy.current = true
       idle.stop()
@@ -151,7 +161,18 @@ export function Quiz({ spec, host, onDone }: { spec: QuizSpec; host: PartCtx['ho
     sfx.gentle()
     setMarks((m) => ({ ...m, [id]: 'wrong' }))
     if (taps.current.length < 2) {
-      await say(retryKey('bobo'))
+      if (!spec.wrong) {
+        await say(retryKey('bobo'))
+        return idle.poke()
+      }
+      // 錯第一次：說出選的是什麼、再問一次要找的；說的時候不收作答，答案外面一圈提示框（不出手，讓孩子自己再點）
+      busy.current = true
+      setHold(true)
+      setHint(true)
+      await say(...spec.wrong(id), ...spec.prompt)
+      if (!live.current) return
+      busy.current = false
+      setHold(false)
       return idle.poke()
     }
     // 錯兩次：答案亮起來、手點一下、說出答案，再讓孩子點
@@ -186,7 +207,7 @@ export function Quiz({ spec, host, onDone }: { spec: QuizSpec; host: PartCtx['ho
             ref={(el: HTMLButtonElement | null) => {
               if (el) tiles.current.set(o.id, el)
             }}
-            className={`tile ma-tile${spec.wide ? ' wide' : ''}${marks[o.id] === 'correct' ? ' correct' : ''}${hint && o.id === spec.answer && marks[o.id] !== 'correct' ? ' hint' : ''}`}
+            className={`tile ma-tile${spec.wide ? ' wide' : ''}${marks[o.id] === 'correct' ? ' correct' : ''}${hint && o.id === spec.answer && marks[o.id] !== 'correct' ? ' hint' : ''}${ready && !hint ? ' cue' : ''}`}
             aria-label={o.label}
             initial={{ y: 24, opacity: 0 }}
             animate={marks[o.id] === 'wrong' ? { x: [0, -10, 10, 0], opacity: 0.45, y: 0 } : { y: 0, opacity: 1 }}

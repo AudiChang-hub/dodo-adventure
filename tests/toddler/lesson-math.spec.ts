@@ -5,7 +5,7 @@ import { Checker, alive, audit, checkDoubleRecords, doorAt, grabDuringTeach, pre
 import type { GameDef } from './catalog'
 
 /**
- * 學校的數學課（src/lessons/math/，波波帶）：開場 → 數數 → 比多少 → 寫數字 → 小複習 → 貼紙。
+ * 學校的數學課（src/lessons/math/，波波帶）：開場 → 數數 → 拿給波波 → 比多少 → 寫數字 → 小複習 → 貼紙。
  * 三歲孩子會做的事：連點門進來、亂點、連點、示範時搶著點和畫、上到一半按返回（返回鍵、Android 返回）再進來、同一天再上一次。
  * 一邊亂玩一邊把課往下上（點東西數、挑一張、沿著跑道描），每一段都要走得到、不卡住、不誤記作答。
  */
@@ -23,9 +23,10 @@ async function setup(page: Page, info: Parameters<Parameters<typeof test>[2]>[1]
   k.where = `數學課／${name}`
   await boot(page, seed, { to: 'home' })
   await k.init()
-  // 今天的數字：每個 seed 不一樣（1～10），10 是兩筆的「10」
+  // 今天的數字：每個 seed 不一樣（1～10），10 是兩筆的「10」。
+  // firm：1～5 已經熟練（不然 6 以上的數字還不會開，會變成 1～5 的混合複習；熟練的判斷在 scripts/test-math-plan.ts 測）
   const n = 1 + (seed % 10)
-  await setMath(page, { next: n })
+  await setMath(page, { next: n, firm: true })
   return { k, c, n }
 }
 
@@ -36,7 +37,7 @@ function finish(k: Toddler, c: Checker, name: string) {
   expect.soft(k.findings.length, `全部問題：${k.findings.map((f) => f.title).join(' | ')}`).toBe(0)
 }
 
-type MathKV = { next: number; day?: string; n?: number; mode?: string; part?: number; asked?: number; missed?: number }
+type MathKV = { next: number; firm?: boolean; day?: string; n?: number; mode?: string; part?: number; asked?: number; missed?: number }
 
 const kvRW = (page: Page, value?: MathKV) =>
   page.evaluate(
@@ -60,7 +61,8 @@ const kvRW = (page: Page, value?: MathKV) =>
 const setMath = (page: Page, v: MathKV) => kvRW(page, v)
 const getMath = (page: Page) => kvRW(page)
 
-/** 課裡現在是哪一段（open、count、compare、write、review、over），不在課裡是 null */
+/** 課裡現在是哪一段（open、count、give、compare、write、review、over），不在課裡是 null */
+const PARTS = ['count', 'give', 'compare', 'write', 'review']
 const partNow = (page: Page) =>
   page.evaluate(() => {
     const s = [...document.querySelectorAll('.scene')].filter((e) => !(e as HTMLElement).inert).pop()
@@ -69,7 +71,7 @@ const partNow = (page: Page) =>
   })
 const stickerUp = (page: Page) => page.evaluate(() => !!document.querySelector('.cheer-scrim .picker'))
 
-/** 把課往下上一步：數下一個、點發光的（沒有就隨便挑一張）、沿著跑道描、點念完的教學卡 */
+/** 把課往下上一步：數下一個、拿給波波（盤子裡不夠就拿、太多就拿回來、剛好就點勾勾）、點發光的（沒有就隨便挑一張）、沿著跑道描、點念完的教學卡 */
 async function solve(k: Toddler) {
   const page = k.page
   const s = await page.evaluate(() => {
@@ -81,7 +83,18 @@ async function solve(k: Toddler) {
       return r.width > 4 ? { x: r.left + r.width / 2, y: r.top + r.height / 2 } : null
     }
     const card = live.querySelector('.teach-card.ready')
-    const thing = [...live.querySelectorAll('.ma-thing:not(.on)')].map(c).filter(Boolean)
+    // 拿給波波：要幾個（大數字）、盤子裡有幾個（拿回…的那幾個）
+    const want = Number(live.querySelector('.ma-give-num')?.textContent ?? 0)
+    const inPlate = [...live.querySelectorAll('.ma-give-thing')].filter((e) => e.getAttribute('aria-label')?.startsWith('拿回'))
+    const inPile = [...live.querySelectorAll('.ma-give-thing')].filter((e) => !e.getAttribute('aria-label')?.startsWith('拿回'))
+    const give = want
+      ? inPlate.length < want
+        ? c(inPile[0])
+        : inPlate.length > want
+          ? c(inPlate[inPlate.length - 1])
+          : c(live.querySelector('.ma-give-done'))
+      : null
+    const thing = [...live.querySelectorAll('.ma-thing:not(.on):not(.ma-give-thing)')].map(c).filter(Boolean)
     const hint = c(live.querySelector('.ma-tile.hint'))
     const tiles = [...live.querySelectorAll('.ma-tile:not(.correct)')].map(c).filter(Boolean)
     // 寫數字：現在這一筆（有進度的那條跑道）的點，換成螢幕座標
@@ -99,10 +112,11 @@ async function solve(k: Toddler) {
         return { x: m.a * q.x + m.e, y: m.d * q.y + m.f }
       })
     }
-    return { card: c(card), thing: thing[0] ?? null, hint, tiles, stroke }
+    return { card: c(card), give, thing: thing[0] ?? null, hint, tiles, stroke }
   })
   if (!s) return
   if (s.card) return k.tap(s.card as Pt, '點教學卡')
+  if (s.give) return k.tap(s.give as Pt, '拿給波波')
   if (s.thing) return k.tap(s.thing as Pt, '數下一個')
   if (s.hint) return k.tap(s.hint as Pt, '點發光的')
   if (s.tiles.length) return k.tap(k.r.pick(s.tiles) as Pt, '挑一張')
@@ -230,10 +244,10 @@ test.describe('數學課', () => {
 
       const seen = new Set<string>()
       const done = await play(k, c, async () => stickerUp(page), { seen })
-      const parts = ['count', 'compare', 'write', 'review'].filter((p) => seen.has(p))
-      c.outcome('四段都走得到', parts.length === 4, `走過：${[...seen].filter((s) => !s.startsWith('grab:')).join(' → ')}`)
+      const parts = PARTS.filter((p) => seen.has(p))
+      c.outcome('五段都走得到', parts.length === PARTS.length, `走過：${[...seen].filter((s) => !s.startsWith('grab:')).join(' → ')}`)
       c.outcome('上完有貼紙', done, done ? '貼紙出現' : '沒有出現')
-      if (done && parts.length < 4) await c.once('skip-part', '困惑', '有一段沒上到就下課了', `走過：${parts.join('、')}`)
+      if (done && parts.length < PARTS.length) await c.once('skip-part', '困惑', '有一段沒上到就下課了', `走過：${parts.join('、')}`)
 
       // 貼紙出來時按 Android 返回：回首頁（貼紙留著下次挑）
       k.behavior = '貼紙時按 Android 返回'
@@ -248,14 +262,14 @@ test.describe('數學課', () => {
       // 進度：上完了；沒錯很多就明天教下一個
       const kv = await getMath(page)
       const again = (kv?.missed ?? 0) >= 3 && (kv?.missed ?? 0) * 2 >= (kv?.asked ?? 0)
-      const nextOk = kv?.part === 4 && kv.n === n && kv.next === (again ? n : Math.min(11, n + 1))
+      const nextOk = kv?.part === PARTS.length && kv.n === n && kv.next === (again ? n : Math.min(11, n + 1))
       c.outcome('進度記下了', !done || nextOk, JSON.stringify(kv))
       if (done && !nextOk) await c.once('progress', '誤記作答', '上完一堂之後進度不對', `今天 ${n}，記成 ${JSON.stringify(kv)}`, false)
 
       // 作答紀錄：每一段都有、連點不重複記
       const rows = (await attempts(page)).filter((a) => a.phase === 'quiz')
       const games = [...new Set(rows.map((a) => a.game))]
-      c.outcome('作答寫進紀錄', !done || ['m-count', 'm-compare', 'd-glyph'].every((g) => games.includes(g)), `${rows.length} 筆：${games.join('、')}`)
+      c.outcome('作答寫進紀錄', !done || ['m-count', 'm-give', 'm-compare', 'd-glyph'].every((g) => games.includes(g)), `${rows.length} 筆：${games.join('、')}`)
       await checkDoubleRecords(k, c)
       await c.flush()
     } finally {
@@ -338,12 +352,12 @@ test.describe('數學課', () => {
     test.setTimeout(6 * 60_000)
     const { k, c, n } = await setup(page, info, '描到一半')
     try {
-      // 今天的數字已經上到寫數字（中途離開過）：一進來就從寫數字開始
+      // 今天的數字已經上到寫數字（中途離開過）：一進來就從寫數字開始。用複習（描兩次）才有第二次可以再描
       const day = await page.evaluate(() => {
         const d = new Date()
         return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
       })
-      await setMath(page, { next: n, day, n, mode: 'new', part: 2, asked: 0, missed: 0 })
+      await setMath(page, { next: n, firm: true, day, n, mode: 'review', part: PARTS.indexOf('write'), asked: 0, missed: 0 })
       if (!(await enter(k, c))) return
       const p = await firstPart(page)
       if (p !== 'write') return void (await c.once('to-write', '困惑', '沒有從寫數字開始', `從 ${p} 開始`))
@@ -355,6 +369,8 @@ test.describe('數學課', () => {
         return false
       }
       for (const how of ['restart', 'continue', 'restart'] as const) {
+        // 兩次都描完、換到小複習了：不是卡住
+        if ((await partNow(page)) !== 'write') break
         k.behavior = how === 'restart' ? '描到一半被打斷，從綠點重描' : '描到一半抬筆，接著描'
         if (!(await ready())) {
           await c.once('write-ready', '卡死', '寫數字一直不能畫', '')

@@ -65,6 +65,8 @@ export function ComparePart({ ctx }: { ctx: PartCtx }) {
             id: String(i),
             prompt: [q.ask === 'more' ? 'm.more' : 'm.less'],
             correction: [q.ask === 'more' ? 'm.this.more' : 'm.this.less'],
+            // 錯第一次：點到的那邊是比較少（多）的那邊：「This side has fewer!」再問一次
+            wrong: () => [q.ask === 'more' ? 'm.this.less' : 'm.this.more'],
             answer: String(q.ask === 'more' ? Math.max(q.a, q.b) : Math.min(q.a, q.b)),
             wide: true,
             ask: (
@@ -80,16 +82,19 @@ export function ComparePart({ ctx }: { ctx: PartCtx }) {
   )
 }
 
-/** 比多少的教學卡：一大堆對一點點，先指問的那一邊（跟 m-compare 的教學卡同一個樣子） */
+/**
+ * 比多少的教學卡：一大堆對一點點（5 對 1，在還沒開 6 的範圍裡）。
+ * 先指問的那一邊、再指另一邊，**最後回到問的那一邊**（AI 小男生測試 #5：手最後停在「少」的那邊，他就去點那邊）。
+ */
 function teachOf(q: CompareQ & { icon: string }): TeachSpec {
   const less = q.ask === 'less'
   return {
     visual: [
-      { t: 'group', icon: q.icon, count: 6 },
-      { t: 'group', icon: q.icon, count: 2 },
+      { t: 'group', icon: q.icon, count: 5 },
+      { t: 'group', icon: q.icon, count: 1 },
     ],
-    focus: less ? [1, 0] : [0, 1],
-    lines: less ? ['teach.fewer', 'teach.more'] : ['teach.more', 'teach.fewer'],
+    focus: less ? [1, 0, 1] : [0, 1, 0],
+    lines: less ? ['teach.fewer', 'teach.more', 'teach.fewer'] : ['teach.more', 'teach.fewer', 'teach.more'],
     cue: { t: 'cue', cue: q.ask, icon: q.icon },
   }
 }
