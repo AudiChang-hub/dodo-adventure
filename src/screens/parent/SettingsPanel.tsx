@@ -1,7 +1,6 @@
-import { THEME_DAYS, bandSetting, followsBand, themeEnds, updateSettings, useSettings, weekTheme, type Settings } from '../../lib/settings'
+import { bandSetting, followsBand, updateSettings, useSettings, type Settings } from '../../lib/settings'
 import { useGrowth } from '../../lib/growth'
 import { BAND_ZH } from '../../content/growth'
-import { today } from '../../lib/db'
 import { useSync, signIn, signOut, syncNow, syncConfigured } from '../../lib/sync'
 import { setVolume } from '../../lib/audio'
 import { useInstall, promptInstall } from '../../lib/install'
@@ -9,7 +8,6 @@ import { useEffect, useState } from 'react'
 import { useUpdateStatus, checkForUpdate, forceUpdate, APP_VERSION, BUILD_TIME, type UpdateStatus } from '../../lib/update'
 import { useAudioCache } from '../../lib/audio-cache'
 import { minutesUsedToday } from '../../lib/session'
-import { THEME_LABEL } from '../../content/vocab'
 import { CHILD_EN, CHILD_ZH } from '../../lib/env'
 import { ResetCard } from './ResetCard'
 
@@ -102,16 +100,6 @@ function VersionCard() {
   )
 }
 
-/** 本週主題的說明：設定了就寫到哪一天自動取消 */
-function themeHint(s: Settings): string {
-  const base = `對應幼兒園聯絡簿這週的主題，動物村會多出這一類的英文詞（主題裡的新詞不佔每週新概念的額度）。${THEME_DAYS} 天後自動取消，下週換主題時再選一次。`
-  const end = weekTheme(s) && themeEnds(s)
-  if (!end) return base
-  const [, m, d] = end.split('-').map(Number)
-  const last = new Date(Number(end.slice(0, 4)), m - 1, d - 1)
-  return `到 ${last.getMonth() + 1}/${last.getDate()}（${'日一二三四五六'[last.getDay()]}）為止。${base}`
-}
-
 export function SettingsPanel({ onChanged }: { onChanged: () => void }) {
   const s = useSettings()
   const sync = useSync()
@@ -119,7 +107,6 @@ export function SettingsPanel({ onChanged }: { onChanged: () => void }) {
   const growth = useGrowth()
   const daily = bandSetting('dailyMinutes', s)
   const eyeBreak = bandSetting('eyeBreakEvery', s)
-  const stations = bandSetting('activitiesPerDay', s)
   const set = (p: Partial<Settings>) => {
     void updateSettings(p)
     onChanged()
@@ -143,36 +130,6 @@ export function SettingsPanel({ onChanged }: { onChanged: () => void }) {
             ))}
           </select>
         </Field>
-        <Field label="今日冒險的站數" hint={`每站約 3–5 分鐘。${followsBand('activitiesPerDay', s) ? `沒改過時跟著年段（${BAND_ZH[growth.band]}預設 ${growth.frame.stationsPerDay[1]} 站）。` : ''}`}>
-          <select value={stations} onChange={(e) => set({ activitiesPerDay: Number(e.target.value) })}>
-            {[3, 4, 5].map((n) => (
-              <option key={n} value={n}>
-                {n} 站
-              </option>
-            ))}
-          </select>
-        </Field>
-        <Field label="自由探索（地圖）" hint="預設要先完成今日冒險才能自己選站點玩。">
-          <select value={s.freePlay} onChange={(e) => set({ freePlay: e.target.value as Settings['freePlay'] })}>
-            <option value="after">完成今日冒險後開放</option>
-            <option value="always">一直開放</option>
-          </select>
-        </Field>
-        <Field label="本週主題" hint={themeHint(s)}>
-          <select value={weekTheme(s) ?? 'all'} onChange={(e) => set({ theme: e.target.value as Settings['theme'] })}>
-            <option value="all">不指定</option>
-            {Object.entries(THEME_LABEL).map(([k, v]) => (
-              <option key={k} value={k}>
-                {v}
-              </option>
-            ))}
-          </select>
-          {weekTheme(s) && s.themeSetAt !== today() && (
-            <button className="btn" style={{ marginLeft: 10 }} onClick={() => set({ themeSetAt: today() })}>
-              再延長一週
-            </button>
-          )}
-        </Field>
         <Field
           label="單字中文提示"
           hint="教學卡教一個英文單字時，接著用中文說一次，再用英文說一次，例如「Apple → 蘋果 → Apple」，字幕也會顯示中文。孩子學會這個字以後就只說英文；在「單字清單」勾了「他不認得」的字，會重新帶回中文。其他語音都是英文。"
@@ -184,20 +141,11 @@ export function SettingsPanel({ onChanged }: { onChanged: () => void }) {
         </Field>
         <Field
           label="故事（試播）"
-          hint="開啟後，每天的冒險是《彩虹蛋之旅》的一章：開場和結尾在魔法屋，每週還有一章莫莫講的故事時間。目前只有示範的第 1 篇和龜兔賽跑。今天的冒險還沒開始走就從今天開始，走了就從明天開始。關閉時冒險和以前一樣。講過的章節都在「魔法屋 → 書架」可以重聽。"
+          hint="開啟後，首頁的「故事」每天先講《彩虹蛋之旅》的下一章（家長在故事審稿通過的才講），每週還有一章莫莫講的故事時間；沒有新的章節時講 12 扇門的通用故事。關閉時只講通用故事。講過的都在書架上，點一本就重聽。"
         >
           <select value={s.story ? 'on' : 'off'} onChange={(e) => set({ story: e.target.value === 'on' })}>
             <option value="off">關閉</option>
             <option value="on">開啟</option>
-          </select>
-        </Field>
-        <Field
-          label="著色：幫忙不塗出線"
-          hint="預設關閉：完全自由塗，手畫到哪裡顏色就到哪裡，從線外畫進來、一筆畫過好幾塊都會有顏色（黑線一直在最上面，塗出線也好看）。開啟後，一筆只會塗在下筆的那一塊：從車子外面開始畫，整筆都塗不到車子上，孩子可能會以為畫了沒有顏色。"
-        >
-          <select value={s.coloringHelp ? 'on' : 'off'} onChange={(e) => set({ coloringHelp: e.target.value === 'on' })}>
-            <option value="on">開啟</option>
-            <option value="off">關閉</option>
           </select>
         </Field>
         <Field label="音量">

@@ -1,0 +1,215 @@
+/* ── 下一步準備度（NextStep.tsx）──────────────────────────────── */
+.parent .next-step {
+  border-left: 5px solid var(--paper-edge);
+}
+.parent .next-step.is-ready {
+  border-left-color: var(--dodo-deep);
+}
+.parent .next-sub {
+  margin-bottom: 14px;
+}
+.parent .next-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 2px;
+}
+.parent .next-list li {
+  display: grid;
+  grid-template-columns: 26px 96px 1fr;
+  align-items: baseline;
+  gap: 8px;
+  padding: 8px 4px;
+  border-bottom: 1px dashed var(--paper-edge);
+  font-size: 14.5px;
+  line-height: 1.55;
+}
+.parent .next-list li:last-child {
+  border-bottom: 0;
+}
+.parent .next-mark {
+  display: inline-grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  font-size: 13px;
+  font-weight: 700;
+  background: var(--paper);
+  color: var(--ink-soft);
+}
+.parent .next-list li.is-ok .next-mark {
+  background: #dcefe3;
+  color: #2f7a52;
+}
+.parent .next-list li.is-warn .next-mark {
+  background: #f6dccf;
+  color: #a4502c;
+}
+.parent .next-area {
+  font-weight: 600;
+}
+.parent .next-detail {
+  color: var(--ink-soft);
+}
+.parent .next-list li.is-ok .next-detail {
+  color: var(--ink);
+}
+.parent .next-advice {
+  margin: 14px 0 0;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: var(--paper);
+  font-size: 15px;
+  line-height: 1.6;
+}
+.parent .next-advice.is-ready {
+  background: #dcefe3;
+}
+
+/* 家長觀察 */
+.parent .next-observe {
+  margin-top: 16px;
+  border-top: 1px solid var(--paper-edge);
+  padding-top: 6px;
+}
+.parent .next-observe summary {
+  cursor: pointer;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 15px;
+  font-weight: 500;
+}
+.parent .next-observe summary small {
+  font-weight: 400;
+  color: var(--ink-soft);
+}
+.parent .next-observe .sub {
+  margin: 4px 0 10px;
+}
+.parent .next-checks {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 8px;
+}
+.parent .next-checks label,
+.parent .next-stress {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 44px;
+  padding: 8px 12px;
+  border-radius: 12px;
+  background: var(--paper);
+  font-size: 14.5px;
+  cursor: pointer;
+}
+.parent .next-checks label.is-on {
+  background: #dcefe3;
+}
+.parent .next-stress {
+  margin-top: 10px;
+}
+.parent .next-stress.is-on {
+  background: #f6dccf;
+}
+.parent .next-checks input,
+.parent .next-stress input {
+  width: 20px;
+  height: 20px;
+  accent-color: var(--dodo-deep);
+}
+.parent .next-save {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 12px;
+}
+.parent .next-saved {
+  color: #2f7a52;
+  font-size: 14px;
+}
+
+/* ── 學習進度：熟練格（Progress.tsx）──────────────────────────── */
+.parent .mrow {
+  margin-bottom: 14px;
+}
+.parent .mrow-title {
+  margin: 0 0 6px;
+  font-size: 14px;
+  color: var(--ink-soft);
+}
+.parent .mrow-title small {
+  margin-left: 10px;
+  font-size: 13px;
+}
+.parent .mcells {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(44px, 1fr));
+  gap: 6px;
+}
+.parent .mcell {
+  display: grid;
+  justify-items: center;
+  gap: 1px;
+  padding: 6px 2px 5px;
+  border-radius: 10px;
+  background: var(--paper);
+  line-height: 1.1;
+}
+.parent .mcell b {
+  font-family: 'Fredoka', sans-serif;
+  font-weight: 500;
+  font-size: 19px;
+}
+.parent .mcell small {
+  font-size: 11.5px;
+  color: var(--ink-soft);
+}
+.parent .mcell.is-ok {
+  background: #dcefe3;
+}
+.parent .mcell.is-ok small {
+  color: #2f7a52;
+  font-weight: 700;
+}
+.parent .mcell.is-learning {
+  background: #f8ecd2;
+}
+.parent .mcell.is-none {
+  opacity: 0.5;
+}
+.parent .mline {
+  margin: 8px 0 0;
+  font-size: 14.5px;
+}
+.parent .mlegend {
+  display: inline-block;
+  margin: 0 8px 0 0;
+  padding: 0 8px;
+  border-radius: 99px;
+  font-size: 12.5px;
+  background: var(--paper);
+}
+.parent .mlegend.is-ok {
+  background: #dcefe3;
+}
+.parent .mlegend.is-learning {
+  background: #f8ecd2;
+}
+.parent .mlegend.is-none {
+  opacity: 0.6;
+}
+
+/* 手機直式（家長遠端看）：只求不壞版 */
+@media (max-width: 600px) {
+  .parent .next-list li {
+    grid-template-columns: 24px 1fr;
+  }
+  .parent .next-detail {
+    grid-column: 2;
+  }
+}
