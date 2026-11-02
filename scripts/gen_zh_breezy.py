@@ -52,6 +52,8 @@ D 組（家長 2026-10-31 選的，試聽在 docs/voice-samples/breezyvoice/）�
   - 語氣：多做幾個版本（通過 2 個或做滿 6 個），挑音高起伏最大、放慢最少的（Praat 量音高，半音的標準差）。
   - 多音字：say 寫明 字[:注音]，不讓模型猜。
   重做和多音字重做的句子都要給家長聽：report.json 標 listen，摘要的 need_review 也列出來。
+  要給家長聽的列都有 why（新句／重做／重做（斷句、語氣、多音字）／多音字重做／多音字重做（和）），
+  多音字重做沒通過、App 還在播舊版本的標 plays_old。--mark-why 只補這兩個欄位（舊版程式寫的報告），不產生。
 
 多音字（FORCE_READ）：「長、背、種、著（ㄓㄠ）……」同一個字不同意思念法不同，Whisper 只比對字抓不到念錯；
 台灣念法（垃圾ㄌㄜˋㄙㄜˋ、骨ㄍㄨˊ、菌ㄐㄩㄣˋ……）也不能讓模型照大陸念。這些字只要 g2pW 判斷的讀音不是字表最常見的讀音，
@@ -123,6 +125,35 @@ def read_index(out: pathlib.Path) -> dict:
         return json.loads((out / "index.json").read_text(encoding="utf-8"))
     except (OSError, ValueError):
         return {}
+
+
+def mark_review(rows, idx: dict):
+    """要給家長聽的列標 why（聽音頁分類用）：新句／重做（斷句、語氣、多音字）／多音字重做（「和」另外標）；
+    重做沒通過、App 還在播舊版本的標 plays_old"""
+    for r in rows:
+        r.pop("why", None)
+        r.pop("plays_old", None)
+        if r.get("redo"):
+            r["why"] = "重做" + (f"（{r['listen']}）" if r.get("listen") not in (None, "重做") else "")
+        elif r.get("listen"):
+            r["why"] = "多音字重做（和）" if "和" in r["text"] else "多音字重做"
+        elif r["status"] == "需確認":
+            r["why"] = "新句"
+        if r.get("listen") and r["status"] == "需確認" and r["file"].split("/")[-1] in idx:
+            r["plays_old"] = True
+    return rows
+
+
+def write_report(out: pathlib.Path, report: dict):
+    """先寫暫存檔再換掉：另一段正在讀 report.json 時換不掉就等一下再換（不會讀到寫一半的檔）"""
+    tmp = out / "report.tmp"
+    tmp.write_text(json.dumps(report, ensure_ascii=False, indent=1), encoding="utf-8")
+    for _ in range(60):
+        try:
+            return tmp.replace(out / "report.json")
+        except PermissionError:
+            time.sleep(0.5)
+    raise SystemExit("report.json 一直被占用，換不掉")
 
 
 # 缺檔檢查只擋「快要上到的課」：今天起 HORIZON_DAYS 天內要上的課文缺聲音才算失敗。
@@ -573,6 +604,7 @@ def main():
     ap.add_argument("--results", nargs="*", default=[], help='家長聽音結果 JSON：{"ok": [key…], "redo": [key…]}，等於 --accept ok… --redo redo…')
     ap.add_argument("--regen-poly", action="store_true", help="多音字重做：之前用的版本沒照現在的注音規則念的，重新產生（家長放行過、這次放行的不動）")
     ap.add_argument("--dry-run", action="store_true", help="只列出會放行／重做哪些句子，不產生")
+    ap.add_argument("--mark-why", action="store_true", help="只在 report.json 補上 why、plays_old（舊版程式寫的報告），不產生")
     args = ap.parse_args()
     out = pathlib.Path(args.out)
     sys.stdout.reconfigure(encoding="utf-8")  # -I 會忽略 PYTHONIOENCODING
@@ -589,6 +621,15 @@ def main():
         for key, text in note["review"][:50]:
             print("REVIEW", key, text, "（3 次都沒通過，等家長聽）")
         sys.exit(1 if bad else 0)
+
+    if args.mark_why:
+        rep = json.loads((out / "report.json").read_text(encoding="utf-8"))
+        mark_review(rep["rows"], read_index(out))
+        rep["summary"]["need_review"] = [f"{r['key']}「{r['text']}」（{r['why']}）" for r in rep["rows"] if r.get("why")]
+        rep["summary"]["plays_old"] = [r["key"] for r in rep["rows"] if r.get("plays_old")]
+        write_report(out, rep)
+        print(f"report.json：{len(rep['summary']['need_review'])} 句要家長聽，{len(rep['summary']['plays_old'])} 句還在播舊版")
+        return
 
     if not args.dry_run:
         queue(CACHE / "run.lock")
@@ -672,18 +713,19 @@ def main():
     files = {r["file"] for r in report}  # 同一個檔在別天的紀錄（舊的）一起換掉
     report += [r for k, r in prev.items() if k not in mine and r["file"] not in files]
     takes = [t for r in report for t in r["takes"]]
+    mark_review(report, idx)
     summary = {
         "sentences": len(report),
         "first_try_ok": sum(r["first_try"] for r in report),
         "regenerated": len(takes) - len(report),
-        "need_review": [f"{r['key']}「{r['text']}」" + (f"（{r['listen']}）" if r.get("listen") else "")
-                        for r in report if r["status"] == "需確認" or r.get("listen")],
+        "need_review": [f"{r['key']}「{r['text']}」（{r['why']}）" for r in report if r.get("why")],
+        "plays_old": [r["key"] for r in report if r.get("plays_old")],
         "parent_approved": [f"{r['key']}「{r['text']}」" for r in report if r["status"] == "家長放行"],
         "synth_seconds": round(sum(t.get("gen_seconds") or 0 for t in takes), 1),
         "wall_seconds_this_run": round(time.time() - t_start, 1),
         "samples": samples,
     }
-    (out / "report.json").write_text(json.dumps({"summary": summary, "rows": report}, ensure_ascii=False, indent=1), encoding="utf-8")
+    write_report(out, {"summary": summary, "rows": report})
     print(json.dumps(summary, ensure_ascii=False))
     if summary["need_review"]:
         print(f"有 {len(summary['need_review'])} 句 3 個版本都不對，放在 {out / '需確認'}，請家長聽過再用 --accept 放行")
