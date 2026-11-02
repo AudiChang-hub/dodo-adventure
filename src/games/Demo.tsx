@@ -1,4 +1,5 @@
 import { motion } from 'motion/react'
+import { useNotYetBeat } from './NotYet'
 import './teach.css'
 
 /**
@@ -54,6 +55,7 @@ interface HandProps {
 
 /** 一隻會移動、會點的手；放在 position: relative/absolute 的容器裡 */
 export function Hand({ x, y, tap = 0, size = '10cqmin', cuff, beckon }: HandProps) {
+  const nod = useNotYetBeat()
   return (
     <motion.div
       className="demo-hand"
@@ -64,17 +66,20 @@ export function Hand({ x, y, tap = 0, size = '10cqmin', cuff, beckon }: HandProp
       transition={{ type: 'spring', stiffness: 190, damping: 24 }}
     >
       {tap > 0 && <motion.span key={`r${tap}`} className="demo-ripple" initial={{ scale: 0.2, opacity: 0.8 }} animate={{ scale: 1.5, opacity: 0 }} transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }} />}
-      <motion.svg
-        key={tap}
-        viewBox="0 0 64 84"
-        width="100%"
-        style={{ display: 'block', overflow: 'visible', transformOrigin: '34% 8%' }}
-        aria-hidden="true"
-        animate={beckon ? { y: ['0%', '9%', '0%', '0%'], scale: [1, 0.9, 1, 1] } : tap ? { y: ['0%', '8%', '0%'], scale: [1, 0.88, 1] } : {}}
-        transition={beckon ? { duration: 1.3, repeat: Infinity, times: [0, 0.18, 0.4, 1], ease: 'easeInOut' } : { duration: 0.34 }}
-      >
-        <HandArt cuff={cuff} />
-      </motion.svg>
+      {/* 還不能動手時被點了：手輕輕搖一下（「先看我做」，games/NotYet 的 useNotYetBeat），一次就停 */}
+      <motion.div key={`n${nod}`} style={{ transformOrigin: '34% 8%' }} animate={nod ? { rotate: [0, -14, 10, 0] } : {}} transition={{ duration: 0.5, ease: 'easeInOut' }}>
+        <motion.svg
+          key={tap}
+          viewBox="0 0 64 84"
+          width="100%"
+          style={{ display: 'block', overflow: 'visible', transformOrigin: '34% 8%' }}
+          aria-hidden="true"
+          animate={beckon ? { y: ['0%', '9%', '0%', '0%'], scale: [1, 0.9, 1, 1] } : tap ? { y: ['0%', '8%', '0%'], scale: [1, 0.88, 1] } : {}}
+          transition={beckon ? { duration: 1.3, repeat: Infinity, times: [0, 0.18, 0.4, 1], ease: 'easeInOut' } : { duration: 0.34 }}
+        >
+          <HandArt cuff={cuff} />
+        </motion.svg>
+      </motion.div>
     </motion.div>
   )
 }

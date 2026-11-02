@@ -1,13 +1,14 @@
-/* 「現在還不能動手」：碰到的地方浮出一圈淡淡的圈圈（只動一次，不循環） */
+/* 「現在還不能動手」：碰到的地方浮出一圈圈圈（只動一次，不循環）。紙感螢幕上淡的看不出來，所以線粗、顏色深一點 */
 .not-yet {
   position: absolute;
-  width: 92px;
-  height: 92px;
-  margin: -46px 0 0 -46px;
+  width: 104px;
+  height: 104px;
+  margin: -52px 0 0 -52px;
   border-radius: 50%;
-  border: 5px solid rgba(46, 42, 37, 0.38);
+  border: 6px solid rgba(46, 42, 37, 0.5);
+  background: rgba(255, 251, 243, 0.55);
   pointer-events: none;
-  animation: not-yet 0.7s var(--ease-out) both;
+  animation: not-yet 0.9s var(--ease-out) both;
 }
 /* 圈圈中間一雙小眼睛：「看這裡」 */
 .not-yet::before,
@@ -15,10 +16,10 @@
   content: '';
   position: absolute;
   top: 40%;
-  width: 11px;
-  height: 15px;
+  width: 12px;
+  height: 16px;
   border-radius: 50%;
-  background: rgba(46, 42, 37, 0.5);
+  background: rgba(46, 42, 37, 0.62);
 }
 .not-yet::before {
   left: 30%;

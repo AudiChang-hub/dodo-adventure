@@ -5,7 +5,7 @@
 // - 1～5 一天一個；5 上完以後要「1～5 的有幾個」熟練（countReady）才開 6，還沒熟練就在 1～5 裡混合複習。不看年齡，看熟練。
 // - 寫數字的結果不算進「錯很多隔天重上」（A5：描得好不好不代表數學會不會）。
 import { db, getKV, phaseOf, setKV, today, type Attempt } from '../../lib/db'
-import { isNew, mastered } from '../../lib/adaptive'
+import { isNew, skill } from '../../lib/adaptive'
 import { pick, rand, shuffle } from '../../lib/random'
 
 export const LAST = 10
@@ -216,8 +216,15 @@ function otherSide(base: number, gap: number, cap: number, easy: boolean, used: 
  * 比多少：三題，數量差距先大後小。先只問「哪邊比較多」；「多」熟了才問「哪邊比較少」，第一次問「少」前先示範「這邊比較少」。
  * 一邊盡量是今天的數字（數過、寫過的那個數量）；數量不超過開放的範圍（還沒開 6 就在 5 以內）。
  */
+/**
+ * 比多少只有左右兩堆（MA-5：各國 3～4 歲都是比兩堆），用猜的也有一半會對；所以「多」熟了沒不用一般的熟練度（3 次就算），
+ * 要連續 6 次第一次就對（猜中的機會不到 2%）才開始問「少」。
+ */
+export const COMPARE_STREAK = 6
+export const moreFirm = () => skill('compare:more').streak >= COMPARE_STREAK
+
 export function compareQs(l: Lesson): CompareQ[] {
-  const moreOk = mastered('compare:more')
+  const moreOk = moreFirm()
   const cap = Math.min(LAST, Math.max(FIRM, l.max))
   const gaps = l.mode === 'mix' ? [3, 2, 1] : [4, 3, 2]
   const asks: CompareQ['ask'][] = moreOk ? ['more', 'less', pick(['more', 'less'] as const)] : ['more', 'more', 'more']
@@ -266,12 +273,16 @@ export function distractors(n: number, k: number, max: number): number[] {
     .slice(0, k)
 }
 
+/** 小複習要教過 3 個數字才出（不然選項湊不到 3 個，又不能用還沒教的數字） */
+export const REVIEW_FROM = 3
+
 /**
- * 小複習：兩題。「Where is N?」（找出今天的數字）和「How many?」（數一數、點數字）。
- * 教過 3 個數字以後一律 3 選 1（AI 小男生測試 #8：2 選 1 用猜的也有一半，會高估程度；熟練只算 3 選 1 以上的題目）。
- * 只教了 1、2 的時候教過的數字不夠，選項就少（見 distractors），這兩天的題目不算進熟練。
+ * 小複習：兩題。「Where is N?」（找出今天的數字）和「How many?」（數一數、點數字）。一律 3 選 1
+ * （AI 小男生測試 #8：2 選 1 用猜的也有一半，會高估程度；熟練只算 3 選 1 以上的題目）。
+ * 只教了 1、2 的那兩天：選項湊不到 3 個（不能用還沒教的數字），不出小複習——那兩天的數字「拿給波波」已經考過（index.tsx 跳過這一段）。
  */
 export function reviewQs(l: Lesson): ReviewQ[] {
+  if (l.max < REVIEW_FROM) return []
   const k = 2
   const [icon] = countIcons(1)
   const pool = l.mode === 'mix' ? mixPool(l) : range(1, l.max)

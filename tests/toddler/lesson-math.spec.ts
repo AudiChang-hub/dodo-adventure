@@ -244,10 +244,13 @@ test.describe('數學課', () => {
 
       const seen = new Set<string>()
       const done = await play(k, c, async () => stickerUp(page), { seen })
-      const parts = PARTS.filter((p) => seen.has(p))
-      c.outcome('五段都走得到', parts.length === PARTS.length, `走過：${[...seen].filter((s) => !s.startsWith('grab:')).join(' → ')}`)
+      // 今天的數字是 1、2：教過的數字湊不到 3 選 1，沒有小複習（plan.ts 的 reviewQs）
+      const want = n < 3 ? PARTS.filter((p) => p !== 'review') : PARTS
+      const parts = want.filter((p) => seen.has(p))
+      c.outcome(`${want.length} 段都走得到`, parts.length === want.length, `走過：${[...seen].filter((s) => !s.startsWith('grab:')).join(' → ')}`)
       c.outcome('上完有貼紙', done, done ? '貼紙出現' : '沒有出現')
-      if (done && parts.length < PARTS.length) await c.once('skip-part', '困惑', '有一段沒上到就下課了', `走過：${parts.join('、')}`)
+      if (n < 3 && seen.has('review')) await c.once('review-1-2', '困惑', '只教了 1、2 卻出了小複習（湊不到 3 選 1）', `今天 ${n}`)
+      if (done && parts.length < want.length) await c.once('skip-part', '困惑', '有一段沒上到就下課了', `走過：${parts.join('、')}`)
 
       // 貼紙出來時按 Android 返回：回首頁（貼紙留著下次挑）
       k.behavior = '貼紙時按 Android 返回'

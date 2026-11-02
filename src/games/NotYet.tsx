@@ -3,8 +3,36 @@ import { sfx } from '../lib/audio'
 import './notyet.css'
 
 /**
+ * 「還不能動手時被點了」的全畫面訊號：畫面上的恐龍（art/Dino）、示範的手（games/Demo 的 Hand）收到就輕輕點一下頭，
+ * 像在說「等一下、先看我」（準則 TOUCH-6：示範的手朝孩子看一下）。一次就停、不說話，不會讓孩子以為做錯。
+ * AI 小男生測試 2026-11-02 數學-2：示範中點了 11 下，只有淡淡的圈圈和很輕的叮，他沒注意到，以為沒反應。
+ */
+const NOT_YET = 'dodo:not-yet'
+/** 點頭最多每 0.8 秒一次（連點、整隻手壓下去時不會一直晃，MOTION-2） */
+const BEAT_MS = 800
+let lastBeat = 0
+function beat() {
+  const now = performance.now()
+  if (now - lastBeat < BEAT_MS) return
+  lastBeat = now
+  window.dispatchEvent(new Event(NOT_YET))
+}
+
+/** 被點了就加一（給要「點一下頭」的東西當 key）；沒被點過是 0 */
+export function useNotYetBeat() {
+  const [n, setN] = useState(0)
+  useEffect(() => {
+    const on = () => setN((k) => k + 1)
+    window.addEventListener(NOT_YET, on)
+    return () => window.removeEventListener(NOT_YET, on)
+  }, [])
+  return n
+}
+
+/**
  * 「現在還不能動手」（示範、說明、念題目、教學卡收起中）的溫和回應（準則 TOUCH-6、PHASE-2）：
- * 手指碰到的地方浮出一圈淡淡的「看這裡」，配一聲很輕的叮。不出墨、不算作答，也不說話（不打斷正在念的句子）。
+ * 手指碰到的地方浮出一圈「看這裡」（圈圈裡一雙小眼睛），配一聲很輕的叮；畫面上的恐龍、示範的手輕輕點一下頭（useNotYetBeat）。
+ * 不出墨、不算作答，也不說話（不打斷正在念的句子）。
  * 孩子知道「有碰到，只是還沒輪到我」，不會以為壞掉、也不會以為自己做錯。
  */
 export function useNotYet() {
@@ -20,8 +48,9 @@ export function useNotYet() {
       lastSound.current = now
       sfx.notYet()
     }
+    beat()
     setRings((r) => [...r.slice(-2), { x, y, k: now }])
-    timers.current.push(window.setTimeout(() => setRings((r) => r.filter((q) => q.k !== now)), 750))
+    timers.current.push(window.setTimeout(() => setRings((r) => r.filter((q) => q.k !== now)), 950))
   }, [])
   const view: ReactNode = rings.map((r) => <span key={r.k} className="not-yet" style={{ left: r.x, top: r.y }} aria-hidden="true" />)
   return { ping, view }
