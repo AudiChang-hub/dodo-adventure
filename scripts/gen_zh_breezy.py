@@ -56,7 +56,7 @@ D 組（家長 2026-10-31 選的，試聽在 docs/voice-samples/breezyvoice/）�
 多音字（FORCE_READ）：「長、背、種、著（ㄓㄠ）……」同一個字不同意思念法不同，Whisper 只比對字抓不到念錯；
 台灣念法（垃圾ㄌㄜˋㄙㄜˋ、骨ㄍㄨˊ、菌ㄐㄩㄣˋ……）也不能讓模型照大陸念。這些字只要 g2pW 判斷的讀音不是字表最常見的讀音，
 每個版本都加注音（不只第 2 個版本）。g2pW 自己判斷錯的（「長呀長」「好重好重」「量了量」「著急」「馬背了」「撒該」），
-在 zh-lessons-say.json 直接寫注音。--regen-poly：之前用的版本沒照這個規則加注音的句子，重新產生一次（家長聽過放行的不動）。
+在 zh-lessons-say.json 直接寫注音。「和」家長要一律念ㄏㄜˊ（READ_AS），每個版本都標。--regen-poly：之前用的版本沒照這個規則加注音的句子，重新產生一次（家長聽過放行的不動）。
 """
 import argparse
 import json
@@ -79,7 +79,9 @@ PROMPT = {"from": 9.05, "to": None, "text": "只有擁有解密方法的對象�
 SEEDS = [7, 1007, 2007]        # 第一個是試聽時用的種子
 REDO_SEEDS = [3007, 4007, 5007, 6007, 8007, 9007]  # 家長說要重做、多音字重做：換這幾個種子（之前的版本都不用），單數位置的全部加注音
 REDO_KEEP = 2                  # 家長說要重做的：通過幾個版本就停，從裡面挑語氣最有起伏的（多音字重做通過 1 個就停）
-FORCE_READ = set("長背種重量著當樂轉倒覺撒好切漂乾骨垃圾夕菌跌悄誰偕薄蝸繃答佛假")
+FORCE_READ = set("長背種重量著當樂轉倒覺撒好切漂乾骨垃圾夕菌跌悄誰偕薄蝸繃答佛假和")
+READ_AS = {"和": {"ㄏㄢ4": "ㄏㄜ2"}}  # 家長 2026-11-02：「和」當連接詞、介詞一律念ㄏㄜˊ（不念口語的ㄏㄢˋ）；暖和、和麵照 g2pW
+ALWAYS_MARK = set("和")         # 就算是字表最常見的讀音也標（不讓模型自己選ㄏㄢˋ）
 KINDS = {"text", "word", "question", "praise"}
 SPEED = {"text": (4.5, 4.0), "word": (3.2, 3.0), "question": (3.2, 3.0), "praise": (3.2, 3.0)}  # 每秒超過幾個字 → 放慢到幾個字
 LINE_GAP_MS = 600              # 試聽全文：課文一行和一行之間
@@ -258,7 +260,7 @@ class Lessons:
     def readings(self, text: str) -> list:
         """g2pW 判斷的每個字的讀音（只回傳中文字的，比對時用；「的、得、地」換成「的」之後再判斷，和 han() 一致）"""
         res = self.bv.g2p(text.translate(VARIANTS))[0]
-        return [r or "" for c, r in zip(text.translate(VARIANTS), res) if "一" <= c <= "鿿"]
+        return [READ_AS.get(c, {}).get(r, r) or "" for c, r in zip(text.translate(VARIANTS), res) if "一" <= c <= "鿿"]
 
     def annotate(self, say: str, every: bool = True) -> str:
         """多音字：g2pW 判斷的讀音和這個字最常見的讀音不同，就在後面加注音（例如 倒[:ㄉㄠ3]）。
@@ -269,7 +271,13 @@ class Lessons:
         out = ""
         for c, r in zip(say, res):
             out += c
-            if not r or c not in char2phn or len(char2phn[c]) < 2 or r == char2phn[c][0]:
+            r = READ_AS.get(c, {}).get(r, r)
+            if not r or c not in char2phn or len(char2phn[c]) < 2:
+                continue
+            if c in ALWAYS_MARK:
+                out += f"[:{r}]"
+                continue
+            if r == char2phn[c][0]:
                 continue
             forced = c in FORCE_READ and not (c == "著" and r == "ㄓㄜ5")  # 著：輕聲的「拿著」交給模型，ㄓㄠ（睡著、著火）要標
             if forced or (every and c not in NO_ANNOTATE):
