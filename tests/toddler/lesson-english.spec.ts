@@ -436,8 +436,10 @@ test.describe('英文字母課', () => {
       if (!(await enter(k, c))) return
       const toTrace = await waitStage(page, 'trace', 60_000)
       if (!toTrace) return void (await c.once('to-trace', '卡死', '沒有走到描字', `停在 ${await stageOf(page)}`))
+      /** 可以畫了 → true；一直不能畫 → false；已經描完、走到下一段了 → null（描字只有大寫、小寫各一次，A5） */
       const ready = async () => {
         for (let i = 0; i < 80; i++) {
+          if ((await stageOf(page)) !== 'trace') return null
           if (await page.evaluate(() => {
             const t = document.querySelector('.en-trace')
             return !!t && t.getAttribute('data-accepting') !== 'false' && !t.hasAttribute('data-demo')
@@ -449,9 +451,9 @@ test.describe('英文字母課', () => {
       }
       for (const how of ['restart', 'continue', 'restart'] as const) {
         k.behavior = how === 'restart' ? '描到一半被打斷，從綠點重描' : '描到一半抬筆，接著描'
-        // 描字只有大寫、小寫各一次（A5），一筆的字母兩次就描完了，已經走到下一段就不用再試
-        if (!(await page.$('.en-trace')) && (await stageOf(page)) !== 'trace') break
-        if (!(await ready())) {
+        const r = await ready()
+        if (r === null) break
+        if (!r) {
           await c.once('trace-ready', '卡死', '描字一直不能畫', `停在 ${await stageOf(page)}`)
           break
         }
