@@ -151,7 +151,7 @@ for (let i = 0; ; i++) {
 }
 // tests/toddler/lib/app.ts 在載入時讀 TODDLER_PORT：設好再載
 process.env.TODDLER_PORT = String(PORT)
-const { boot, settle, snap } = await import('../toddler/lib/app')
+const { boot, settle, snap, attempts } = await import('../toddler/lib/app')
 
 // ── 開平板 ─────────────────────────────────────────────────
 const version = (() => {
@@ -281,6 +281,7 @@ const probe = () =>
       errors: T.errors.splice(0).map((e) => e.msg),
       episodes: T.episodes.splice(0).map((e) => ({ kind: e.kind, frames: e.frames, worst: e.worst, peak: e.peak, key: e.key, route: e.route })),
       taps: T.taps.length,
+      tapList: (T.taps as unknown as { t: number; kind: string | null }[]).map((x) => ({ t: x.t, kind: x.kind })),
       tapsTeaching: T.taps.filter((x) => x.kind).length,
     }
   })
@@ -447,6 +448,14 @@ while (!fatal) {
     const s3 = await snap(page)
     if (s3.live === before.live) issue(n, '無法返回', `${action === 'back' ? 'Android 返回' : '點返回鍵'}之後沒有回上一層（停在 ${s3.live}）`, `點到 ${touch?.got[0] ? `${touch.got[0].x},${touch.got[0].y}` : '—'}；當時 ${s.teaching ?? '沒有在示範'}`)
     else s2 = s3
+  }
+  // 示範中（按下去那一刻探針看到的狀態）點的，1.5 秒內有沒有被寫成作答紀錄
+  const during = after.tapList.slice(p.taps).filter((x) => x.kind)
+  if (during.length) {
+    step.events.push(`示範中點了 ${during.length} 下（${[...new Set(during.map((x) => x.kind))].join('、')}）`)
+    const recs = await attempts(page).catch(() => [])
+    const hit = recs.filter((r) => during.some((x) => r.ts >= x.t - 50 && r.ts - x.t < 1500))
+    if (hit.length) issue(n, '誤記作答', `示範中點的被記成作答（${hit.map((r) => `${r.game}/${r.itemId} ${r.ok ? '對' : '錯'}`).join('、')}）`, `按下去那一刻：${during.map((x) => x.kind).join('、')}`)
   }
   if (action === 'tap' && touch && /^按鈕/.test(touch.hit) && !reacted && !changed && !s.teaching) issue(n, '點了沒反應', `點${touch.hit}沒有任何反應（沒有動畫、聲音、換畫面）`, `當時畫面 ${s.live}`)
   const where = touch?.got[0] ? `手指實際點在 (${touch.got[0].x}, ${touch.got[0].y})` : ''

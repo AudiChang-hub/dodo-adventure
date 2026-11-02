@@ -34,7 +34,7 @@ export interface Step {
 }
 
 export interface AppIssue {
-  kind: '卡住' | '無法返回' | '閃動' | '主控台錯誤' | '點了沒反應'
+  kind: '卡住' | '無法返回' | '誤記作答' | '閃動' | '主控台錯誤' | '點了沒反應'
   title: string
   detail: string
   steps: number[]
@@ -194,7 +194,7 @@ export async function writeReport(R: Run, brain: Brain, analystFile: string) {
   if (R.issues.length) {
     md.push('| 種類 | 內容 | 哪幾步 | 細節 |', '|---|---|---|---|')
     for (const i of R.issues) md.push(`| ${i.kind} | ${cell(i.title)} | ${stepLinks(i.steps)} | ${cell(i.detail)} |`)
-  } else md.push('沒有發現卡住、無法返回、閃動或主控台錯誤。')
+  } else md.push('沒有發現卡住、無法返回、誤記作答、閃動或主控台錯誤。')
   if (R.consoleErrors.length) {
     md.push('', '<details><summary>主控台錯誤（全部）</summary>', '', ...R.consoleErrors.map((e) => `- ${mmss(e.t)} ${cell(e.msg)}`), '', '</details>')
   }
