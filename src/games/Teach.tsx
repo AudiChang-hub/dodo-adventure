@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, type CSSProperties } from 'react'
 import { motion } from 'motion/react'
 import { VisualView } from '../ui/Visual'
 import { Sparkles } from '../ui/Sparkles'
@@ -37,6 +37,9 @@ const fitOf = (vs: Visual[]) => Math.max(0, ...vs.map((v) => (v.t === 'group' ? 
 /**
  * 教學卡（PRD §5.8 我示範）：主持的恐龍把內容大大地拿出來、念教學句。
  * 念完之後出現「點我」的手，孩子點一下內容會再聽一次，然後才繼續——確保孩子真的看過、聽過。
+ * 念完那一刻要看得出「輪到你了」（幼兒設計準則 PHASE-1，T-84：AI 小男生在數學課看不出念的時候和念完有什麼不一樣）：
+ * - 念的時候：講到的那一邊加框、另一邊變淡、手指著；
+ * - 念完：兩邊都全亮、不再只框一邊，依序輕輕往上跳一下（.turn-hop，一次就停），卡片外面一圈靜態的粗外框，招手的手放大。
  */
 export function TeachCard({ spec, short, onDone, camera }: Props) {
   const lines = short ? (spec.short ?? spec.lines.slice(0, 1)) : spec.lines
@@ -133,11 +136,14 @@ export function TeachCard({ spec, short, onDone, camera }: Props) {
         <div className="teach-stage">
           {items.map((v, i) => {
             const on = !duo || i === focus
+            // 念完、等孩子點：兩邊都全亮、依序跳一下（輪到你了）
+            const turn = ready && !tapped
             return (
               <motion.div
                 key={i}
-                className={`teach-item${duo && on && step >= 0 ? ' on' : ''}`}
-                animate={duo ? { opacity: step < 0 || on ? 1 : 0.42 } : { opacity: 1 }}
+                className={`teach-item${duo && on && step >= 0 && !turn ? ' on' : ''}${turn ? ' turn-hop' : ''}`}
+                style={{ '--turn-i': i } as CSSProperties}
+                animate={duo ? { opacity: step < 0 || on || turn ? 1 : 0.42 } : { opacity: 1 }}
                 transition={FADE}
               >
                 <motion.div key={pop.at === i ? pop.n : 0} className="teach-vis" animate={pop.at === i && pop.n ? { scale: [1, 1.05, 1] } : {}} transition={{ duration: 0.45, ease: EASE.out }}>
@@ -172,7 +178,7 @@ export function TeachCard({ spec, short, onDone, camera }: Props) {
           </motion.div>
         )}
 
-        {ready && !tapped && <Hand x={duo ? 50 : 62} y={duo ? 78 : 70} size={duo ? '9cqmin' : '13cqmin'} beckon />}
+        {ready && !tapped && <Hand x={duo ? 50 : 62} y={duo ? 80 : 70} size={duo ? '14cqmin' : '13cqmin'} beckon />}
         {tapped && (
           <div className="teach-burst">
             <Sparkles count={14} />

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, type CSSProperties } from 'react'
 import { motion, useReducedMotion } from 'motion/react'
 import { say, sayClip, sfx } from '../../lib/audio'
 import { logAttempt } from '../../lib/record'
@@ -23,7 +23,7 @@ const HINT_AFTER = 2
 /**
  * 選圖：「哪個是烏龜？」三張圖選一張，手感跟舊的選擇題引擎 ChoiceGame（T-75 拿掉了）一樣——
  * 題目念完才收作答（念的時候點了只出現「看這裡」的圈圈），答對的卡片放大、亮綠框、撒星星，答錯的抖一下變淡；
- * 錯兩次就把答案標出來、手點一下。上面是課文裡那個紅字，點它（或點莫莫）再聽一次題目。
+ * 錯兩次就把答案標出來、手點一下。題目念完、還沒點過時，每張圖一圈淡黃框、依序輕輕跳一下（輪到你了，T-84）。上面是課文裡那個紅字，點它（或點莫莫）再聽一次題目。
  * 題目用中文念（BreezyVoice），稱讚、再試一次照全站慣例用英文（莫莫的 Yes. / Try again.）。
  */
 export function Quiz({ t, q, ready, host, setMood, onNext }: { t: ZhText; q: ZhQuestion; ready: Set<string>; host: HostTap; setMood: (m: Mood) => void; onNext: () => void }) {
@@ -165,7 +165,8 @@ export function Quiz({ t, q, ready, host, setMood, onNext }: { t: ZhText; q: ZhQ
             <motion.button
               key={o.word}
               type="button"
-              className={`tile${m === 'correct' ? ' correct' : ''}${m === 'hint' ? ' hint' : ''}`}
+              className={`tile${m === 'correct' ? ' correct' : ''}${m === 'hint' ? ' hint' : ''}${accepting && !Object.keys(marks).length ? ' cue turn-hop' : ''}`}
+              style={{ '--turn-i': i } as CSSProperties}
               aria-label={`選項 ${i + 1}`}
               data-answer={o.word === q.word ? '1' : undefined}
               initial={quiet || still ? false : { y: 28, scale: 0.94 }}

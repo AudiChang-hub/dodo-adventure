@@ -213,6 +213,19 @@
   animation: hint-in 0.8s var(--ease-out) both;
   pointer-events: none;
 }
+/*
+ * 輪到你了（幼兒設計準則 PHASE-1「三種狀態靜音也分得出來」，T-84）：作答開放的那一刻，選項依序輕輕往上跳一下就停
+ * （一次、不循環、不改透明度；MOTION-2／3），再配合各自的靜態外框（.tile.cue、.en-opt.is-cue、教學卡的 .ready）。
+ * 用 translate，不跟 motion 寫在元素上的 transform 打架；--turn-i 是第幾張（依序跳）。減少動態效果時 global.css 會直接跳到結束。
+ */
+.turn-hop {
+  animation: turn-hop 0.6s var(--ease-out) calc(var(--turn-i, 0) * 110ms) both;
+}
+@keyframes turn-hop {
+  35% {
+    translate: 0 -12px;
+  }
+}
 @keyframes hint-in {
   from {
     opacity: 0;

@@ -298,6 +298,16 @@
   font: 600 min(180px, 20vmin) / 1 'Fredoka', sans-serif;
   color: var(--ink);
 }
+.en-opt.is-cue::after {
+  /* 輪到你了：每張外面一圈靜態的淡黃框（跟數學課的 .tile.cue 一樣），點了第一下就收起來 */
+  content: '';
+  position: absolute;
+  inset: -10px;
+  border-radius: 42px;
+  border: 5px solid rgba(241, 210, 124, 0.85);
+  animation: hint-in 0.8s var(--ease-out) both;
+  pointer-events: none;
+}
 .en-opt.is-no {
   opacity: 0.55;
 }

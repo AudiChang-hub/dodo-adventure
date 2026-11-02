@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, type CSSProperties } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
 import { Emoji } from '../../art/Emoji'
 import { Hand } from '../../games/Demo'
@@ -12,6 +12,7 @@ import { wrongKeys, type Opt, type Question } from './quiz-plan'
 
 /**
  * 選擇（英文課第 4 段）：一題一題問，念完題目才收作答（念的時候點：輕輕一聲，不算）。
+ * 念完題目、開始收作答：每張選項一圈淡黃框、依序輕輕跳一下（輪到你了，靜音也看得出來；點了第一下就收起來）。
  * 答錯：說出點的是什麼、要找的是什麼（That's big B. Find big A!），答案同時亮起來、手指著，點了才往下（一起練，不算答對）。
  * 發呆 15 秒再念一次題目、30 秒手指著答案。
  * 每一題都寫作答紀錄（家長區看得到）。onDone(每一題的種類和第一次有沒有答對)：隔天重不重上只看字母題（plan.ts 的 lessonGood）。
@@ -21,6 +22,8 @@ export function Quiz({ qs, onDone }: { qs: Question[]; onDone: (rs: QuizResult[]
   const [accept, setAccept] = useState(false)
   const [state, setState] = useState<Record<string, 'no' | 'yes'>>({})
   const [hint, setHint] = useState(false)
+  /** 輪到你了：念完題目、這一題還沒點過（T-84） */
+  const [cue, setCue] = useState(false)
   const [bump, setBump] = useState<{ id: string; n: number } | null>(null)
   const live = useRef(true)
   const busy = useRef(true)
@@ -36,6 +39,7 @@ export function Quiz({ qs, onDone }: { qs: Question[]; onDone: (rs: QuizResult[]
     setAccept(false)
     setState({})
     setHint(false)
+    setCue(false)
     tries.current = 0
     taps.current = []
     idle.stop()
@@ -47,6 +51,7 @@ export function Quiz({ qs, onDone }: { qs: Question[]; onDone: (rs: QuizResult[]
     if (!live.current) return
     busy.current = false
     setAccept(true)
+    setCue(true)
     t0.current = performance.now()
     idle.start({ repeat: () => void say(qs[k].prompt), hint: () => setHint(true) })
   }
@@ -66,6 +71,7 @@ export function Quiz({ qs, onDone }: { qs: Question[]; onDone: (rs: QuizResult[]
     setBump((b) => ({ id: o.id, n: (b?.n ?? 0) + 1 }))
     if (busy.current) return void sfx.tap()
     idle.poke()
+    setCue(false)
     const ms = Math.round(performance.now() - t0.current)
     taps.current.push({ pick: o.id, ms })
     if (o.id !== q.answer) {
@@ -128,7 +134,8 @@ export function Quiz({ qs, onDone }: { qs: Question[]; onDone: (rs: QuizResult[]
             <button
               key={o.id}
               type="button"
-              className={`en-opt${state[o.id] === 'yes' ? ' is-yes' : state[o.id] === 'no' ? ' is-no' : ''}${hint && o.id === q.answer ? ' is-hint' : ''}`}
+              className={`en-opt${state[o.id] === 'yes' ? ' is-yes' : state[o.id] === 'no' ? ' is-no' : ''}${hint && o.id === q.answer ? ' is-hint' : ''}${cue ? ' is-cue turn-hop' : ''}`}
+              style={{ '--turn-i': k } as CSSProperties}
               aria-label={o.text ?? o.id}
               onClick={() => void choose(o)}
             >
