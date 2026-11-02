@@ -3,6 +3,7 @@ import { phaseOf, type Attempt, type Skill } from './db'
 /**
  * 學習引擎的純函式（第二批・工作線 A）：孩子端的 adaptive.ts 與家長區共用，
  * 都只從作答紀錄與技能資料推算，所以雲端資料在手機上看也算得出一樣的結果。
+ * 負擔控制、延遲提示只有舊的站點遊戲在用，T-76 第 3 層拿掉了。
  */
 
 // ── 到期複習（benchmark 手法 1）──────────────────────────────
@@ -28,59 +29,12 @@ export const overdueBy = (s: Sched, day: number) => Math.max(0, day - (s.due ?? 
 
 // ── 特殊題目的標記（metrics）─────────────────────────────────
 type M = Pick<Attempt, 'metrics'>
-/** 程度校準的探測題：故意出比較難的，不計入負擔控制 */
+/** 程度校準的探測題（舊的站點遊戲）：故意出比較難的，不計入答對率 */
 export const isProbe = (a: M) => !!a.metrics?.probe
 /** Sam 教豆豆：豆豆故意說錯、孩子糾正 */
 export const isProtege = (a: M) => !!a.metrics?.protege
-/** 功文式小練習 */
-export const FLUENCY_GAME = 'm-quick'
-
-/** 計入「第一次答對率」與負擔控制的作答：自己答，排除探測題與 Sam 教豆豆 */
+/** 計入「第一次答對率」的作答：自己答，排除探測題與 Sam 教豆豆 */
 export const isScored = (a: Pick<Attempt, 'phase' | 'metrics'>) => phaseOf(a) === 'quiz' && !isProbe(a) && !isProtege(a)
-
-// ── 負擔控制（PRD §5.10）────────────────────────────────────
-export const LOAD_LOW = 0.6
-export const LOAD_DAYS = 3
-/** 一天至少答幾題才算數（太少的日子變動太大，不拿來判斷） */
-export const LOAD_MIN_ITEMS = 4
-
-export interface DayRate {
-  date: string
-  n: number
-  ok: number
-}
-
-/** 每天「自己答」第一次答對的比例，由舊到新 */
-export function dailyRates(attempts: readonly Attempt[]): DayRate[] {
-  const m = new Map<string, DayRate>()
-  for (const a of attempts) {
-    if (!isScored(a)) continue
-    const r = m.get(a.date) ?? { date: a.date, n: 0, ok: 0 }
-    r.n++
-    if (a.firstTryCorrect) r.ok++
-    m.set(a.date, r)
-  }
-  return [...m.values()].sort((a, b) => (a.date < b.date ? -1 : 1))
-}
-
-export interface LoadState {
-  /** 最近連續 3 個有玩的日子，第一次答對率都低於 6 成 */
-  overloaded: boolean
-  /** 拿來判斷的那幾天（由舊到新） */
-  days: DayRate[]
-}
-
-/**
- * 只看「今天以前」的完整日子：一整天的結果才穩定，當天中途不會一下開、一下關。
- * 降難度、暫停教新內容從下一個有玩的日子開始生效。
- */
-export function loadCheck(attempts: readonly Attempt[], todayDate: string): LoadState {
-  const days = dailyRates(attempts.filter((a) => a.date < todayDate))
-    .filter((d) => d.n >= LOAD_MIN_ITEMS)
-    .slice(-LOAD_DAYS)
-  const overloaded = days.length === LOAD_DAYS && days.every((d) => d.ok / d.n < LOAD_LOW)
-  return { overloaded, days }
-}
 
 // ── 又對又快才算熟練（功文式）────────────────────────────────
 /** 每一類題目保留最近幾次「第一次就答對」的反應時間 */
@@ -111,30 +65,3 @@ export function median(xs: readonly number[]): number {
 }
 
 export const isSlow = (window: readonly number[], ms: number) => window.length >= SPEED_MIN && ms > median(window) * SLOW_FACTOR
-
-// ── 延遲提示（benchmark 手法 3）──────────────────────────────
-export const HINT_DELAY_START = 4000
-export const HINT_DELAY_STEP = 1000
-/** 最長延到 10 秒：閒置提醒在 15 秒重唸題目，兩個不會同時發生 */
-export const HINT_DELAY_MAX = 10_000
-/** 發光後多久內點下去，算是「在等光」 */
-export const WAIT_WINDOW_MS = 2500
-
-/**
- * 依作答紀錄重播延遲提示的調整：最近 5 次延遲提示題，有 3 次是等光亮了才點，
- * 就把延遲拉長 1 秒。紀錄裡的 metrics.hintDelay／waited 由 ChoiceGame 寫入。
- */
-export function replayHintDelay(attempts: readonly Attempt[]): { ms: number; recent: number[]; raised: { ts: number; ms: number }[] } {
-  let ms = HINT_DELAY_START
-  let recent: number[] = []
-  const raised: { ts: number; ms: number }[] = []
-  for (const a of [...attempts].filter((x) => x.metrics?.hintDelay != null).sort((x, y) => x.ts - y.ts)) {
-    recent = [...recent, a.metrics!.waited ? 1 : 0].slice(-5)
-    if (recent.reduce((s, x) => s + x, 0) >= 3 && ms < HINT_DELAY_MAX) {
-      ms = Math.min(HINT_DELAY_MAX, ms + HINT_DELAY_STEP)
-      raised.push({ ts: a.ts, ms })
-      recent = []
-    }
-  }
-  return { ms, recent, raised }
-}

@@ -1,9 +1,8 @@
 import { useEffect, useRef } from 'react'
-import { idleTimes } from './frame'
 
-/** 小班段：題目唸完後多久沒操作才提醒（其他年段照外框，games/frame.ts 的 idleTimesOf） */
+/** 題目唸完後多久沒操作才提醒（小班段的外框 FRAME-9，content/growth.ts 的 idleSec 第二段） */
 export const IDLE_MS = 15_000
-/** 小班段：兩段提醒都做過、孩子還是沒動，之後每隔這麼久手再安靜地示範一次（不說話） */
+/** 兩段提醒都做過、孩子還是沒動，之後每隔這麼久手再安靜地示範一次（不說話） */
 export const IDLE_AGAIN_MS = 40_000
 
 export interface IdleSteps {
@@ -17,10 +16,10 @@ export interface IdleSteps {
 }
 
 /**
- * 閒置提醒（家長回饋：孩子還沒作答時恐龍一直講話很吵）。所有遊戲共用同一套規則，秒數跟著年段（FRAME-9）：
- * 1. 題目唸完後 15 秒（中班段 20、大班段 25）沒有任何操作 → 用語音再唸一次題目。
- * 2. 到 30 秒（40、45）還是沒操作 → 手再示範一次，不說話。
- * 3. 之後不再說話；每 40 秒（40、45）手再安靜地示範一次（畫畫這種沒有標準答案的，發呆再久也一定有提示，三歲模擬測試 B10）。
+ * 閒置提醒（家長回饋：孩子還沒作答時恐龍一直講話很吵）。所有遊戲共用同一套規則，秒數照小班段的外框（FRAME-9）：
+ * 1. 題目唸完後 15 秒沒有任何操作 → 用語音再唸一次題目。
+ * 2. 到 30 秒還是沒操作 → 手再示範一次，不說話。
+ * 3. 之後不再說話；每 40 秒手再安靜地示範一次（畫畫這種沒有標準答案的，發呆再久也一定有提示，三歲模擬測試 B10）。
  * 任何點擊、畫線都會重新計時。已經做過的步驟不會因為重新計時就重來（題目不會在孩子沒動的時候被唸第二次）；
  * 三段都做完之後孩子又動手了，才從頭再來一輪（那時孩子是玩了一陣子才停下來，不是一直沒反應）。
  * 答錯時的「再試一次」是回饋，不算在閒置提醒裡。
@@ -29,7 +28,7 @@ export function useIdle() {
   const timer = useRef(0)
   const stage = useRef(0)
   const steps = useRef<IdleSteps | null>(null)
-  /** 這一步的秒數：start 時照當下的年段決定 */
+  /** 這一步的秒數：start 時決定 */
   const times = useRef({ repeat: IDLE_MS, hint: IDLE_MS, again: IDLE_AGAIN_MS })
 
   const schedule = () => {
@@ -53,11 +52,11 @@ export function useIdle() {
   return useRef({
     /**
      * 新的題目（或新步驟）唸完了：從頭開始計時。
-     * ms：這一步自己的秒數（例如描字 10 秒沒動就再示範一次，AI #3），沒給的照年段。
+     * ms：這一步自己的秒數（例如描字 10 秒沒動就再示範一次，AI #3），沒給的照上面的秒數。
      */
     start(s: IdleSteps, ms?: Partial<{ repeat: number; hint: number; again: number }>) {
       steps.current = s
-      times.current = { ...idleTimes(), ...ms }
+      times.current = { repeat: IDLE_MS, hint: IDLE_MS, again: IDLE_AGAIN_MS, ...ms }
       stage.current = 0
       schedule()
     },

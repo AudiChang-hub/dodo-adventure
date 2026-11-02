@@ -11,15 +11,14 @@
 // 故事永遠聽排課的：這裡只決定故事和今天走哪一扇門（門只決定題目裡出現什麼東西），不改排了哪些遊戲。
 import { db, getKV, setKV, today, type Chapter as ChapterRow } from './db'
 import { getSettings } from './settings'
-import { getGrowth } from './growth'
 import { fnv1a } from './hash'
 import { warmAudio } from './audio-cache'
 import { playable } from './review'
 import { clipName } from './clip'
 import { line, segments, hasLine } from '../content/lines'
 import { ARCS, CLASSICS, EVERGREEN, arcOf, arcsOfPart, chapterLines, chapterOf, classicDoneKey, classicFor, classicOfChapter, evergreenOf, houseItem, scriptOf, type Arc, type Chapter, type Pic, type Script } from '../content/story'
+import type { Band } from '../content/growth'
 import type { ThemeId } from '../content/themes'
-import type { Plan } from './plan'
 
 /** kv.story（§5.1）：長篇講到哪一篇的第幾章、孩子的選擇、講過的經典、魔法屋多的東西（只會變多） */
 export interface StoryState {
@@ -41,6 +40,12 @@ export async function storyState(): Promise<StoryState> {
 }
 
 export const storyOn = () => getSettings().story
+
+/**
+ * 孩子的年段：只做 3 歲（2026-10-31 家長決定），固定小班段。
+ * 原本照家長設定的生日算（lib/growth.ts，T-76 第 3 層拿掉）；故事時間的「長大版」、雲端的章節紀錄還用這個欄位。
+ */
+const BAND: Band = 'small'
 
 // ── 決定今天播哪一章 ─────────────────────────────────────────
 
@@ -84,7 +89,7 @@ function epicAt(st: StoryState): { arc: Arc; chapter: Chapter } | null {
  * 下一則要講的故事時間（照 CLASSICS 第一輪的順序、孩子的年段挑版本）；講過的不再講，長大之後可以講長大版。
  * 都講過了回傳 null
  */
-export function nextClassic(st: Pick<StoryState, 'classicsDone'>, band = getGrowth().band): Chapter | null {
+export function nextClassic(st: Pick<StoryState, 'classicsDone'>, band: Band = BAND): Chapter | null {
   for (const c of CLASSICS) {
     const ch = classicFor(c, band)
     // 審稿佇列裡的故事時間要家長通過才講（lib/review.ts）
@@ -94,8 +99,8 @@ export function nextClassic(st: Pick<StoryState, 'classicsDone'>, band = getGrow
 }
 
 /**
- * 新排一天的冒險時，今天講哪一章（lib/plan.ts 排好站之後呼叫）。故事沒開回傳 null（冒險照舊用今天的門）。
- * 長篇的章指定今天走哪一扇門；故事時間沒有門（遊戲內容照今天挑到的主題）。
+ * 今天要講的新章節（todaysStory 呼叫；名字是冒險還在時留下來的）。故事沒開回傳 null（講一扇門的通用章節）。
+ * 長篇的章指定今天走哪一扇門；故事時間沒有門。
  */
 export async function chapterForNewPlan(date: string): Promise<Chapter | null> {
   if (!storyOn()) return null
@@ -107,24 +112,10 @@ export async function chapterForNewPlan(date: string): Promise<Chapter | null> {
   return epicAt(st)?.chapter ?? null
 }
 
-/** 今天這一章：plan 記著的章；沒有（故事沒開、舊的存檔）就是今天這扇門的通用章節 */
-export function chapterOfPlan(plan: Plan): Chapter | null {
-  // 排好之後家長才退回的章節（例如今天早上排的，中午在手機上退回）：今天改講門的通用章節
-  const ch = chapterOf(plan.chapter)
-  return (ch && playable(ch) ? ch : null) ?? (plan.theme ? evergreenOf(plan.theme) : null)
-}
-
 /** 今天上場的朋友（孵出來的朋友裡依日期固定挑一位；沒有朋友是 null，朋友的句子換成通用句） */
 export async function friendFor(date: string): Promise<string | null> {
   const fs = (await db.friends.toArray()).map((f) => f.id).sort()
   return fs.length ? fs[parseInt(fnv1a(`friend|${date}`), 36) % fs.length] : null
-}
-
-/** 今天冒險實際要念的句子（舊的冒險用）。沒有主題的舊存檔回傳 null，冒險走舊的站點流程 */
-export function scriptForPlan(plan: Plan, friend: string | null = null): Script | null {
-  const ch = chapterOfPlan(plan)
-  if (!ch) return null
-  return scriptOf(ch, { tracks: plan.items.map((i) => i.track), friend, door: plan.theme as ThemeId | undefined })
 }
 
 // ── 記錄進度 ─────────────────────────────────────────────────
@@ -146,7 +137,10 @@ const toldBeats = (s: Script): ToldBeat[] =>
   [...s.title, ...s.intro, ...s.stops.flat(), ...s.finale, ...s.end].map((x) => (x.pic ? { k: x.key, pic: x.pic } : { k: x.key }))
 
 /** 講故事的那一天：日期（chapters 的 id）和今天的門（通用章節用；以前是冒險的 Plan） */
-export type StoryDay = Pick<Plan, 'date' | 'theme'>
+export interface StoryDay {
+  date: string
+  theme?: ThemeId
+}
 
 /** 開始講今天這一章：記一筆還沒講完的；同一天再進來不重記 */
 export async function startChapter(plan: StoryDay, s: Script): Promise<void> {
@@ -161,7 +155,7 @@ export async function startChapter(plan: StoryDay, s: Script): Promise<void> {
     arc: ch.arc,
     chapter: ch.chapter,
     kind: ch.kind,
-    band: getGrowth().band,
+    band: BAND,
     picks: { words: [], friends: [...new Set(s.intro.concat(...s.stops, s.end).filter((x) => x.who === 'friend').map((x) => x.pic!))], stickers: [], drawings: [] },
     choices: {},
     done: false,
@@ -302,11 +296,6 @@ export async function toldChapters(): Promise<ToldChapter[]> {
     .filter((r) => r.done && Array.isArray(r.script) && r.script.length > 0)
     .sort((a, b) => (a.date < b.date ? 1 : -1))
     .filter((r) => (seen.has(r.ref) ? false : (seen.add(r.ref), true)))
-}
-
-/** 魔法屋裡多出來的東西（照加進來的順序）；最近一次加的那一樣用來在剖面圖上標「新的」 */
-export async function houseItems(): Promise<string[]> {
-  return (await storyState()).house.filter((id) => !!houseItem(id))
 }
 
 // ── 依篇快取 ─────────────────────────────────────────────────

@@ -39,8 +39,6 @@ const unit = (s) => ({ ok: /ALL PASS/.test(s), key: `${oks(s)} 項 ok${/ALL PASS
 const CHECKS = [
   { id: 'tsc', name: '型別檢查（src）', cmd: ['npx', 'tsc', '-p', 'tsconfig.json'], check: (s) => ({ ok: true, key: `${(s.match(/error TS\d+/g) ?? []).length} 個錯誤` }) },
   { id: 'tsc-toddler', name: '型別檢查（三歲測試）', cmd: ['npx', 'tsc', '-p', 'tests/toddler/tsconfig.json'], check: (s) => ({ ok: true, key: `${(s.match(/error TS\d+/g) ?? []).length} 個錯誤` }) },
-  { id: 'test-growth', name: '單元：成長系統', cmd: ['npx', 'tsx', 'scripts/test-growth.ts'], check: unit },
-  { id: 'test-ladder', name: '單元：支線與階梯', cmd: ['npx', 'tsx', 'scripts/test-ladder.ts'], check: unit },
   { id: 'test-reset-cloud', name: '單元：重置的雲端刪除', cmd: ['npx', 'tsx', 'scripts/test-reset-cloud.ts'], check: unit },
   { id: 'test-readiness', name: '單元：下一步準備度', cmd: ['npx', 'tsx', 'scripts/test-readiness.ts'], check: unit },
   { id: 'test-math-plan', name: '單元：數學課出題與熟練', cmd: ['npx', 'tsx', 'scripts/test-math-plan.ts'], check: unit },

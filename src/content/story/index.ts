@@ -4,7 +4,6 @@
 // 第一批正式故事由 G-9、G-11 產生。現在只有示範：第一部第 1 篇〈彩虹蛋滾進來了〉、故事時間 A01 龜兔賽跑、B01 挪亞方舟。
 import type { Speaker } from '../registry'
 import { theme, type ThemeId } from '../themes'
-import type { TrackId } from '../tracks'
 import { EVERGREEN, doorStop, lookOf } from './evergreen'
 import { A01 } from './part1/a01'
 import { RABBIT_TURTLE } from './classics/a01'
@@ -14,7 +13,7 @@ import type { Band } from '../growth'
 import { HOUSE_ITEMS } from './house'
 import { WEEKLY_DRAFTS } from './weekly'
 import { draftChapters, draftId, normalizeDraft, type StoryDraft } from './draft'
-import type { Arc, Beat, Chapter, ChapterLook, Classic, Part, Pic, Who } from './types'
+import type { Arc, Beat, Chapter, ChapterLook, Classic, Part, Pic, TrackId, Who } from './types'
 
 export type * from './types'
 export { EVERGREEN, doorStop, lookOf } from './evergreen'

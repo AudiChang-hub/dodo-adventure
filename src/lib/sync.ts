@@ -4,7 +4,6 @@ import { env } from './env'
 import { achieveForSync, type CardProgress, type Milestone } from './achievements'
 import { wipeCloudLearning, type WipeFs, type WipeResult } from './reset-cloud'
 import { UNKNOWN_KV } from './words'
-import { growthForSync, type GrowthState, type Profile } from './growth'
 import { mergeVerdicts, type Verdict } from './review'
 
 const cfg = {
@@ -152,8 +151,8 @@ async function upload() {
       db.kv.get('story'),
     ])
     // unknownWords：家長在「單字清單」勾的「他不認得」（家長設定，跟 settings 一樣備份；重置學習進度時本機保留，下次同步再寫回來）
-    // profile（生日年月）、growth（年段覆寫、跨段放寬）、story（故事進度）：成長系統 §5.2。
-    // 生日只放在這個私人文件裡，firestore.rules 只允許本人讀寫 users/{uid}
+    // story（故事進度）：成長系統 §5.2。firestore.rules 只允許本人讀寫 users/{uid}。
+    // 以前還放 profile（生日年月）、growth（年段）：年段固定小班段以後（T-76 第 3 層）不再上傳，下一次同步就從雲端蓋掉
     await fs.setDoc(fs.doc(store, 'users', uid, 'meta', 'state'), {
       skills,
       levels,
@@ -161,7 +160,6 @@ async function upload() {
       settings: settings?.value ?? null,
       unknownWords: unknown?.value ?? {},
       achieve: achieveForSync(),
-      ...growthForSync(),
       story: story?.value ?? null,
       updated: Date.now(),
     })
@@ -231,9 +229,6 @@ export interface CloudBundle {
   card: CardProgress | null
   /** 家長勾的「他不認得」：字 → 勾選時間（舊資料沒有） */
   unknownWords: Record<string, number>
-  /** 成長系統：生日年月、年段狀態（v3 之前上傳的資料沒有） */
-  profile: Profile | null
-  growth: GrowthState | null
 }
 
 /** 家長用手機看報告時，從雲端讀回資料 */
@@ -254,8 +249,6 @@ export async function fetchCloud(): Promise<CloudBundle | null> {
     milestones: (meta.data()?.achieve?.log as Milestone[]) ?? [],
     card: (meta.data()?.achieve?.card as CardProgress | undefined) ?? null,
     unknownWords: (meta.data()?.unknownWords as Record<string, number> | undefined) ?? {},
-    profile: (meta.data()?.profile as Profile | undefined) ?? null,
-    growth: (meta.data()?.growth as GrowthState | undefined) ?? null,
   }
 }
 

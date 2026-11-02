@@ -1,5 +1,5 @@
 import { db, getKV, setKV, today, uid, type Attempt } from './db'
-import { isProbing, level, plays } from './adaptive'
+import { level, plays } from './adaptive'
 import { requestSync } from './sync'
 import { rand } from './random'
 import { game as gameDef } from '../content/games'
@@ -190,7 +190,7 @@ export interface Thing {
 interface Round {
   game: string
   startLevel: number
-  /** 第一次玩或正在做程度校準：難度是校準出來的，不算升級 */
+  /** 第一次玩：難度是起點，不算升級 */
   calibrating: boolean
   things: Thing[]
   /** 這一局新教了幾個東西 */
@@ -232,7 +232,7 @@ export const roundGame = () => round?.game ?? null
 
 /** 遊戲一開始（在遊戲自己的 markPlayed 之前）呼叫 */
 export function beginRound(game: string) {
-  round = { game, startLevel: level(game), calibrating: plays(game) === 0 || isProbing(game), things: [], taught: 0, fixes: 0, codeFixes: 0 }
+  round = { game, startLevel: level(game), calibrating: plays(game) === 0, things: [], taught: 0, fixes: 0, codeFixes: 0 }
   // 上一局中途離開時留下的里程碑不帶過來：今日回顧、家長區都看得到
   pending = []
 }

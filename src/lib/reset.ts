@@ -4,7 +4,6 @@ import { RESUME_KEY } from './nav'
 import { startSession, stopSession } from './session'
 import { wipeCloud } from './sync'
 import { UNKNOWN_KV } from './words'
-import { GROWTH_KV, PROFILE_KV } from './growth'
 
 /**
  * kv 裡要保留的 key，其他全部清掉。
@@ -14,7 +13,8 @@ import { GROWTH_KV, PROFILE_KV } from './growth'
  * 目前 kv 的 key（2026-10-28 逐一讀過 src/ 裡每個 getKV／setKV）：
  * - 保留：settings（家長設定：每日時間、站數、自由探索、本週主題、音量、護眼間隔、夜間暖色、著色幫忙不塗出線）、
  *   words:unknown（家長在「單字清單」勾的「他不認得」）、
- *   profile（生日年月）、growth（家長的年段覆寫、支線鎖定，和照生日算的年段、跨段放寬；都跟學習紀錄無關）
+ *   profile（生日年月）、growth（家長的年段覆寫、支線鎖定，和照生日算的年段、跨段放寬；都跟學習紀錄無關。
+ *   年段 T-76 第 3 層起固定小班段，App 不再讀這兩個，舊裝置上的照舊留著）
  * - 清掉（成長系統 v3）：story（故事進度）、houseSeen（魔法屋上次看到幾樣東西）；growthLog、chapters 兩張表整張清掉
  * - 清掉（成長系統 G-2）：ladder（每條支線在第幾階、回補）、engine:transfer（遷移：哪些遊戲第一次就答對過）
  * - 清掉（新增）：words:taught（哪些字在教學卡上教過，lib/words.ts）
@@ -23,7 +23,7 @@ import { GROWTH_KV, PROFILE_KV } from './growth'
  *   outing.ticks（出門任務卡勾選）、outing.recall（回到 App 的回想題紀錄）、phonics:migrated（舊字母熟練度的一次性換算）、
  *   cues:seen（比較題的題目徽章教過了沒）
  */
-export const KEEP_KV = new Set(['settings', UNKNOWN_KV, PROFILE_KV, GROWTH_KV])
+export const KEEP_KV = new Set(['settings', UNKNOWN_KV, 'profile', 'growth'])
 
 /** 只存在這次分頁：重置後重新載入，家長區顯示「已重置」 */
 export const RESET_DONE_KEY = 'dodo.resetDone'

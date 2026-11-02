@@ -3,7 +3,6 @@ import { game } from '../content/games'
 import { Cheering, type GameProps, type GameResult } from './Shell'
 import { Celebrate } from '../ui/Celebrate'
 import { beginRound, endRound, type RoundSummary } from '../lib/achievements'
-import { useThemeScope } from '../lib/theme-play'
 import { useBack } from '../lib/nav'
 import { stopSpeech } from '../lib/audio'
 import { FreeDraw } from './draw/FreeDraw'
@@ -20,8 +19,6 @@ const BY_KIND: Partial<Record<GameKind, (p: GameProps) => ReactElement>> = {
 export function PlayGame(props: GameProps) {
   const g = game(props.gameId)
   const C = BY_KIND[g.kind]
-  // 主題式冒險：遊戲在畫面上的期間，題目產生器都讀得到今天的主題
-  useThemeScope(props.theme)
   // 成就感：在遊戲自己的 markPlayed 之前記下開局的難度；結束時先回顧這一局、慶祝里程碑，再交回去
   useState(() => beginRound(g.id))
   const [cheer, setCheer] = useState<{ r: GameResult; s: RoundSummary } | null>(null)

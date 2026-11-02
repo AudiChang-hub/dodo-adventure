@@ -2,16 +2,11 @@ import { createContext, useContext, useEffect, useState, type CSSProperties, typ
 import { Dino, type Mood } from '../art/Dino'
 import { BackButton } from '../ui/Back'
 import { Scenery } from '../ui/Scenery'
-import { ThemeScenery } from '../ui/ThemeScenery'
-import { themeNow } from '../lib/theme-play'
 import { ProgressStars } from '../ui/ProgressStars'
 import { station as stationDef } from '../content/games'
 import { coplayHint } from '../content/coplay'
 import { useRoute } from '../lib/nav'
 import { holdBedtime } from '../lib/session'
-import { useGrowth } from '../lib/growth'
-import { bandOf } from './frame'
-import { FRAMES } from '../content/growth'
 import type { StationId } from '../lib/db'
 import './coplay.css'
 
@@ -51,8 +46,6 @@ export interface GameProps {
   gameId: string
   onDone: (r: GameResult) => void
   onExit: () => void
-  /** 主題式冒險的主題（content/themes.ts）。PlayGame 會在遊戲期間設成 themeNow()，各遊戲不用自己傳 */
-  theme?: string
 }
 
 export function HomeIcon() {
@@ -80,34 +73,20 @@ interface Props {
   demo?: boolean
 }
 
-/** 小班段的觸控尺寸（準則 TOUCH-1 的 px，跟 styles/global.css 的 --touch-* 一樣）；其他年段照外框的公分數等比例換算 */
-const TOUCH_PX = { min: 90, primary: 112, gap: 28 }
-
 /** 每個遊戲共用的舞台：上方返回鍵（點一下回上一層）與進度、左下角是主持的恐龍（點它會再說一次題目） */
 export function Shell({ station, mood, progress, onExit, onHost, children, hideHost, hint = true, hintText, demo }: Props) {
   const st = stationDef(station)
-  // 主題式冒險：每一站都是同一個故事的場景（公車旅行的街道），不分站點的顏色和背景，孩子不會覺得「現在換到數學了」
-  const [th] = useState(themeNow)
   // 遊戲在畫面上的時候，每日時間到了也先等它玩完（在兩個遊戲之間才去睡覺）
   useEffect(() => holdBedtime(), [])
-  // 年段的操作外框（成長系統 G-3）：觸控尺寸寫成 CSS 變數給共用元件用；data-band 給三歲模擬測試和截圖看是哪個年段的外框
-  const growth = useGrowth()
-  const f = growth.frame
-  const s = FRAMES.small
-  const touch = {
-    '--touch-min': `${Math.round(TOUCH_PX.min * (f.touchCm / s.touchCm))}px`,
-    '--touch-primary': `${Math.round(TOUCH_PX.primary * (f.primaryCm / s.primaryCm))}px`,
-    '--touch-gap': `${Math.round(TOUCH_PX.gap * (f.gapCm / s.gapCm))}px`,
-  }
   const cheering = useContext(Cheering)
   return (
     <div
       className={`stage${cheering ? ' cheering' : ''}`}
       data-demo={demo ? '1' : undefined}
-      data-band={bandOf(growth, 'maxOptions')}
-      style={{ '--stage': th?.tint ?? st.tint, '--deep': th?.deep ?? st.deep, ...touch } as CSSProperties}
+      style={{ '--stage': st.tint, '--deep': st.deep } as CSSProperties}
     >
-      {th ? <ThemeScenery def={th} /> : <Scenery station={station} />}
+      {/* 觸控尺寸（--touch-*）用 styles/global.css 的小班段外框 */}
+      <Scenery station={station} />
       <div className="stage-top">
         {/* 學校的一堂課、首頁的畫畫：返回都回首頁 */}
         <BackButton label="回首頁" onTap={onExit}>

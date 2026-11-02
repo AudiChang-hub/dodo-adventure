@@ -8,7 +8,6 @@
 import type { Speaker } from '../registry'
 import type { Band } from '../growth'
 import type { SceneKind, ThemeId } from '../themes'
-import type { TrackId } from '../tracks'
 
 /**
  * 誰說這一句。三隻恐龍用自己的聲音；其他角色借恐龍的聲音（BEAT_VOICE）：
@@ -162,5 +161,11 @@ export interface Classic {
    */
   grown?: Partial<Record<Exclude<Band, 'small'>, Chapter>>
 }
+
+/**
+ * 四條主線（語言、數字、思考、手）：章節每一站可以照那一站練的主線寫不同的旁白（舊的冒險每站排了哪條線）。
+ * 排課的主線 T-76 第 3 層拿掉了（原本在 content/tracks.ts），故事資料還用這四個代號，型別搬來這裡。
+ */
+export type TrackId = 'lang' | 'num' | 'think' | 'hand'
 
 export const TRACK_IDS: readonly TrackId[] = ['lang', 'num', 'think', 'hand']

@@ -1,6 +1,4 @@
-import { bandSetting, followsBand, updateSettings, useSettings, type Settings } from '../../lib/settings'
-import { useGrowth } from '../../lib/growth'
-import { BAND_ZH } from '../../content/growth'
+import { updateSettings, useSettings, type Settings } from '../../lib/settings'
 import { useSync, signIn, signOut, syncNow, syncConfigured } from '../../lib/sync'
 import { setVolume } from '../../lib/audio'
 import { useInstall, promptInstall } from '../../lib/install'
@@ -103,10 +101,8 @@ function VersionCard() {
 export function SettingsPanel({ onChanged }: { onChanged: () => void }) {
   const s = useSettings()
   const sync = useSync()
-  // 每日上限、護眼休息：家長沒改過就跟著年段（FRAME-6、7），年段換了要重新畫
-  const growth = useGrowth()
-  const daily = bandSetting('dailyMinutes', s)
-  const eyeBreak = bandSetting('eyeBreakEvery', s)
+  const daily = s.dailyMinutes
+  const eyeBreak = s.eyeBreakEvery
   const set = (p: Partial<Settings>) => {
     void updateSettings(p)
     onChanged()
@@ -121,7 +117,7 @@ export function SettingsPanel({ onChanged }: { onChanged: () => void }) {
 
       <div className="card">
         <h3>使用時間與內容</h3>
-        <Field label="每日時間上限" hint={`時間到了豆豆會說晚安，畫面進入休息模式。${!followsBand('dailyMinutes', s) ? '' : `沒改過時跟著年段（${BAND_ZH[growth.band]}預設 ${growth.frame.dailyMinutes} 分鐘）。`}`}>
+        <Field label="每日時間上限" hint="時間到了豆豆會說晚安，畫面進入休息模式。預設 20 分鐘。">
           <select value={daily} onChange={(e) => set({ dailyMinutes: Number(e.target.value) })}>
             {[10, 15, 20, 25, 30, 45, 60, 0].map((m) => (
               <option key={m} value={m}>
@@ -167,7 +163,7 @@ export function SettingsPanel({ onChanged }: { onChanged: () => void }) {
 
       <div className="card">
         <h3>護眼</h3>
-        <Field label="看遠方休息" hint={`連續玩一段時間後，豆豆會請孩子看遠方 20 秒；只會在兩個遊戲之間出現。${followsBand('eyeBreakEvery', s) ? `沒改過時跟著年段（${BAND_ZH[growth.band]}預設每 ${growth.frame.eyeBreakEvery[1]} 分鐘）。` : ''}`}>
+        <Field label="看遠方休息" hint="連續玩一段時間後，豆豆會請孩子看遠方 20 秒；只會在兩個遊戲之間出現。預設每 10 分鐘。">
           <select value={eyeBreak} onChange={(e) => set({ eyeBreakEvery: Number(e.target.value) })}>
             {[5, 10, 15, 0].map((m) => (
               <option key={m} value={m}>

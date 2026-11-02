@@ -5,7 +5,9 @@
 // 數字照設計 v0.3.1 的 §1.2，每一格都對應準則第 3 版（docs/幼兒設計準則.md）第十四章 FRAME-1～11，
 // 括號裡是規則編號。兩邊要改數字時以準則的 FRAME 為準。
 //
-// 遊戲怎麼讀這張表在 games/frame.ts（G-3）。小班段（和沒設生日）也照這張表（家長 2026-10-30 決定）。
+// 只做 3 歲（2026-10-31 家長決定）以後，App 固定用小班段：觸控尺寸在 styles/global.css、閒置提醒在 games/idle.ts、
+// 每日時間和護眼的預設在 lib/settings.ts。由生日算年段、跨段放寬（lib/growth.ts、games/frame.ts）T-76 第 3 層拿掉了。
+// 中班、大班的外框還留著：故事時間有「長大版」，故事的檢查（scripts/check-story*.ts、story-brief.ts）照年段量長度。
 
 /** 年段：名稱跟台灣幼兒園的班別一樣（小班 3–4 歲、中班 4–5 歲、大班 5–6 歲） */
 export type Band = 'small' | 'middle' | 'big'
@@ -13,12 +15,6 @@ export type Band = 'small' | 'middle' | 'big'
 export const BANDS: readonly Band[] = ['small', 'middle', 'big']
 
 export const BAND_ZH: Record<Band, string> = { small: '小班段', middle: '中班段', big: '大班段' }
-
-/** 每個年段從幾個月大開始（外框跟月齡走，D3）；未滿 3 歲也用小班段，滿 6 歲之後停在大班段 */
-export const BAND_FROM_MONTHS: Record<Band, number> = { small: 36, middle: 48, big: 60 }
-
-/** 沒設生日時的年段：App 現在的樣子 */
-export const DEFAULT_BAND: Band = 'small'
 
 /** 一個年段的操作外框（§1.2 的每一列） */
 export interface Frame {
@@ -61,7 +57,7 @@ export interface Frame {
   eyeBreakSec: number
   /** 每條線每週最多幾個新概念（FRAME-8） */
   weeklyConcepts: readonly [min: number, max: number]
-  /** 一回合最多教幾個新概念；三段都是 1（ADAPT-3、FRAME-8；lib/adaptive.ts 的 canIntroduce 照這個擋） */
+  /** 一回合最多教幾個新概念；三段都是 1（ADAPT-3、FRAME-8；三堂課各自照這個教） */
   newPerRound: number
   /** 閒置提示的三段（秒）：安靜的手 → 重說題目、手做一次 → 一起練（PHASE-7、FRAME-9） */
   idleSec: readonly [hand: number, repeat: number, together: number]
@@ -161,41 +157,4 @@ export const FRAMES: Record<Band, Frame> = {
     story: { segment: [5, 8], sentences: [20, 30], words: 200, minutes: [3, 5] },
     storyChoices: 2,
   },
-}
-
-/** 生日跨段時花幾週慢慢放寬（§1.5） */
-export const RAMP_WEEKS = 4
-
-/**
- * 跨段時每一項在第幾週換成新年段的值（§1.5）：
- * - 第 1 週：時間（每天總時間、一回合題數和長度、站數、護眼、閒置提示、延遲提示）
- * - 第 2 週：句長（旁白、故事長度）
- * - 第 3 週：新的操作方式，和跟著它一起來的學習負擔（答錯後的提示、每週和每回合的新內容、故事裡的選擇）
- * - 第 4 週：選項上限、觸控大小
- * 往下換段（家長改了生日、覆寫到期）不慢慢收，當天就全部換掉。
- */
-export const RAMP_WEEK: Record<keyof Frame, 1 | 2 | 3 | 4> = {
-  dailyMinutes: 1,
-  roundItems: 1,
-  roundMinutes: 1,
-  firstRoundMinutes: 1,
-  stationsPerDay: 1,
-  eyeBreakEvery: 1,
-  eyeBreakSec: 1,
-  idleSec: 1,
-  hintDelayMs: 1,
-  maxWords: 2,
-  joinWords: 2,
-  steps: 2,
-  story: 2,
-  drag: 3,
-  afterWrong: 3,
-  weeklyConcepts: 3,
-  newPerRound: 3,
-  storyChoices: 3,
-  maxOptions: 4,
-  newOptions: 4,
-  touchCm: 4,
-  primaryCm: 4,
-  gapCm: 4,
 }

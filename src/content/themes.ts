@@ -2,13 +2,11 @@
 // 孩子看不到「科目」：今天是「莫莫的公車旅行」，每一站都是在幫公車的忙——數公車、聽 bus 的開頭音、
 // 用箭頭卡把公車開到站牌、描 B、把旅行排好順序。主線、雷達圖、額度只出現在家長區。
 //
-// 這個檔案只放資料（沒有執行期相依，只 import 型別與純資料），題目產生器、排課、畫面都從這裡讀。
+// 2026-10-31 起孩子端沒有冒險了（T-75 拿掉畫面，T-76 第 3 層拿掉排課和題目產生器）：
+// 現在用到這裡的是故事（12 扇魔法門的通用章節、故事書的封面顏色）、家長區的出門任務卡、台詞和圖示。
+// 這個檔案只放資料（沒有執行期相依，只 import 型別與純資料）。
 // 加一個新主題：照下面的格式加一筆，台詞在 lines-themes.ts 會自動產生（故事旁白另外寫在 BEATS），
 // 圖示會由 scripts/build-emoji.ts 一起打包（npm run emoji），音檔用 npm run audio 產生。
-//
-// 主題只決定「題目裡出現什麼東西」，不決定「練什麼技能」：
-// 排課照四條主線的需要排（lib/tracks.ts），每個遊戲照常挑到期複習、還不熟的內容；
-// 主題給不出這個技能需要的內容時（例如今天該複習的音不是主題的字），就用一般的題目——學習的正確性比主題純度重要。
 import type { Speaker } from './registry'
 import type { Story } from './code'
 import type { ColorId } from './park'
@@ -16,7 +14,7 @@ import type { Tag, UseTag, VocabTheme } from './vocab'
 
 export type ThemeId = 'bus' | 'dino' | 'farm' | 'fire' | 'ocean' | 'rain' | 'fruit' | 'zoo' | 'build' | 'bedtime' | 'birthday' | 'picnic'
 
-/** 背景的造型（src/ui/ThemeScenery.tsx）：只畫在畫面邊緣的低對比剪影 */
+/** 背景的造型（冒險的主題背景，T-76 第 3 層拿掉了畫面；故事的通用章節還記著這個欄位） */
 export type SceneKind = 'city' | 'valley' | 'farm' | 'sea' | 'rain' | 'market' | 'zoo' | 'site' | 'night' | 'party' | 'park'
 
 /** 箭頭卡開車的目的地（和 code.ts 的 TARGETS 同一個格式；台詞 c.drive.to.<id>） */
@@ -336,34 +334,3 @@ export const THEME_ICONS = [
   ...THEME_STORIES.flatMap((s) => s.icons),
   ...THEME_GOALS.map((g) => g.icon),
 ]
-
-// ── 今天的主題 ─────────────────────────────────────────────────
-/** 幾天內不重複同一個主題（12 個主題，一週內不會撞到） */
-export const THEME_GAP_DAYS = 6
-
-/** 32 位元的 FNV-1a（和 lib/hash.ts 同一個算法；這裡不 import，保持這個檔案沒有執行期相依） */
-function hash(s: string): number {
-  let h = 0x811c9dc5
-  for (let i = 0; i < s.length; i++) {
-    h ^= s.charCodeAt(i)
-    h = Math.imul(h, 0x01000193)
-  }
-  return h >>> 0
-}
-
-/**
- * 挑今天的主題（純函式，同一天、同樣的歷史一定挑到同一個）：
- * 1. 最近 THEME_GAP_DAYS 天出現過的不挑（recent 是那幾天存下來的冒險主題，沒玩的日子沒有）；
- * 2. 家長設了「本週主題」（對應聯絡簿）：只從對得到的主題裡挑，都用過了才放寬；
- * 3. 剩下的依「日期＋主題」的雜湊排序取第一個：每天看起來隨機，但重新整理不會變。
- */
-export function pickTheme(input: { date: string; recent: readonly (string | null | undefined)[]; week?: VocabTheme | null }): ThemeId {
-  const used = new Set(input.recent.filter(Boolean) as string[])
-  let pool = THEMES.filter((t) => !used.has(t.id))
-  if (!pool.length) pool = THEMES.filter((t) => t.id !== input.recent[0])
-  if (input.week) {
-    const fav = pool.filter((t) => t.matches.includes(input.week!))
-    if (fav.length) pool = fav
-  }
-  return [...pool].sort((a, b) => hash(`${input.date}|${a.id}`) - hash(`${input.date}|${b.id}`))[0].id
-}
