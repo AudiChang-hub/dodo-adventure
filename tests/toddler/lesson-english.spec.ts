@@ -229,7 +229,7 @@ test.describe('英文字母課', () => {
       if (!toTrace) await c.once('meet-stuck', '卡死', '認字母念完沒有往下走到描字', `停在 ${await stageOf(page)}`)
       await c.flush()
 
-      // 2. 描字：示範時搶著畫（不能留下墨、不能算描完），之後照筆順描四回合
+      // 2. 描字：示範時搶著畫（不能留下墨、不能算描完），之後照筆順描到下一段（大寫、小寫各一次，A5；以前是四回合）
       k.behavior = '示範時搶著畫'
       await page.waitForSelector('.en-trace', { timeout: 10_000 })
       let grabbed = 0
@@ -247,8 +247,8 @@ test.describe('英文字母課', () => {
       c.outcome('示範時搶著畫', doneEarly === 0, `搶畫 ${grabbed ? '有' : '沒有'}做到；描完的回合 ${doneEarly}`)
       if (doneEarly) await c.once('trace-early', '誤記作答', '示範時亂畫就算描完了', `描完的回合 ${doneEarly}`)
       k.behavior = '描字'
-      for (let r = 0; r < 4; r++) {
-        if (r === 2) await shot(page, '4-描小寫', info)
+      for (let r = 0; r < 4 && (await stageOf(page)) === 'trace'; r++) {
+        if (r === 1) await shot(page, '4-描小寫', info)
         const ok2 = await traceRound(k)
         if (!ok2) {
           await c.once('trace-stuck', '卡死', `描字第 ${r + 1} 回合描不完`, `沿著虛線描了 60 秒`)
@@ -258,7 +258,7 @@ test.describe('英文字母課', () => {
         if (k.r.chance(0.5)) await k.tap({ x: k.r.range(300, 900), y: k.r.range(250, 700) }, '描完亂點')
       }
       const toWords = await waitStage(page, 'words', 30_000)
-      c.outcome('描完四回合到單字', toWords, toWords ? '' : `停在 ${await stageOf(page)}`)
+      c.outcome('描完大小寫到單字', toWords, toWords ? '' : `停在 ${await stageOf(page)}`)
       await c.flush()
 
       // 3. 單字：一直點圖
