@@ -471,12 +471,14 @@ while (!fatal) {
     if (s3.live === before.live) issue(n, '無法返回', `${action === 'back' ? 'Android 返回' : '點返回鍵'}之後沒有回上一層（停在 ${s3.live}）`, `點到 ${touch?.got[0] ? `${touch.got[0].x},${touch.got[0].y}` : '—'}；當時 ${s.teaching ?? '沒有在示範'}`)
     else s2 = s3
   }
-  // 示範中（按下去那一刻探針看到的狀態）點的，1.5 秒內有沒有被寫成作答紀錄
+  // 示範中（按下去那一刻探針看到的狀態）點的，1.5 秒內有沒有被寫成作答紀錄。跟 tests/toddler/lib/flows.ts 的判斷一樣：
+  // 只算示範、教學卡、念題目（指著答案的手是一起練，正常）；只算 quiz 的紀錄（teach 是示範自己寫的，guided 是一起練）
   const during = after.tapList.slice(p.taps).filter((x) => x.kind)
   if (during.length) {
     step.events.push(`示範中點了 ${during.length} 下（${[...new Set(during.map((x) => x.kind))].join('、')}）`)
-    const recs = await attempts(page).catch(() => [])
-    const hit = recs.filter((r) => during.some((x) => r.ts >= x.t - 50 && r.ts - x.t < 1500))
+    const early = during.filter((x) => x.kind === 'teach-card' || x.kind === 'demo' || x.kind === 'wait')
+    const recs = (await attempts(page).catch(() => [])).filter((r) => r.phase === 'quiz')
+    const hit = recs.filter((r) => early.some((x) => r.ts >= x.t - 50 && r.ts - x.t < 1500))
     if (hit.length) issue(n, '誤記作答', `示範中點的被記成作答（${hit.map((r) => `${r.game}/${r.itemId} ${r.ok ? '對' : '錯'}`).join('、')}）`, `按下去那一刻：${during.map((x) => x.kind).join('、')}`)
   }
   if (action === 'tap' && touch && /^按鈕/.test(touch.hit) && !reacted && !changed && !s.teaching) issue(n, '點了沒反應', `點${touch.hit}沒有任何反應（沒有動畫、聲音、換畫面）`, `當時畫面 ${s.live}`)
