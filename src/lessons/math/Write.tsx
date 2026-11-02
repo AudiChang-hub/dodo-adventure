@@ -7,6 +7,7 @@ import { PenArt, easeInOut, tween } from '../../games/Demo'
 import { wait } from '../../games/lines'
 import { useIdle } from '../../games/idle'
 import { Sparkles } from '../../ui/Sparkles'
+import { Emoji } from '../../art/Emoji'
 import { useSwapRef } from '../../ui/Scenes'
 import { isNew } from '../../lib/adaptive'
 import { logAttempt, logTeach } from '../../lib/record'
@@ -28,6 +29,15 @@ function digit(n: number): { w: number; strokes: string[] } {
 }
 const skillOf = (n: number) => `glyph:${n}`
 
+/**
+ * 每一次描的樣子（AI 小男生測試 #2：同一個數字描第二次就無聊）：第二次換跑道顏色、墨水顏色，旁邊多一隻小雞陪他描。
+ * 綠色起點不變（台詞是「Start at the green dot!」）。
+ */
+const LOOKS = [
+  { lane: '#FBF8F2', done: '#9FD0B3', ink: 'rgba(46,42,37,0.6)', friend: null },
+  { lane: '#FDF1E6', done: '#F2C29A', ink: 'rgba(52,96,150,0.7)', friend: 'baby-chick' },
+] as const
+
 function strokeStart(d: string) {
   const s = samplePath(d, 3)
   const a = s[0]
@@ -36,7 +46,8 @@ function strokeStart(d: string) {
 }
 
 /**
- * 寫數字（描字 GlyphGame 的做法）：粗跑道、綠色起點、箭頭，一筆一筆描今天的數字，描 2～3 次。
+ * 寫數字（描字 GlyphGame 的做法）：粗跑道、綠色起點、箭頭，一筆一筆描今天的數字。
+ * 新的數字描一次就慶祝，複習描兩次、第二次換一個樣子（plan.ts 的 writeReps、上面的 LOOKS）；描得好不好不影響明天上什麼。
  * 第一次波波先用筆照筆順描一次（Watch me!），示範中下筆不出墨、只出現「看這裡」（Ink 的 disabled）。
  * 筆要沿著跑道往前推才會前進：點一下、亂畫都不會完成；畫在跑道外的線放開後淡掉。
  */
@@ -45,6 +56,7 @@ export function WritePart({ ctx }: { ctx: PartCtx }) {
   const g = digit(n)
   const reps = writeReps(ctx.lesson)
   const [k, setK] = useState(0)
+  const look = LOOKS[k % LOOKS.length]
   const [stroke, setStroke] = useState(0)
   const [prog, setProg] = useState(0)
   const [done, setDone] = useState(false)
@@ -58,7 +70,6 @@ export function WritePart({ ctx }: { ctx: PartCtx }) {
   const moved = useRef(false)
   const busy = useRef(true)
   const devs = useRef<{ meanDev: number; offRatio: number }[]>([])
-  const missed = useRef(0)
   const t0 = useRef(0)
   const ink = useRef<InkHandle>(null)
   // 畫布在 Fade 裡：舊的一次淡出卸載時不會把 ink 清成 null（跟 GlyphGame 一樣用 useSwapRef）
@@ -177,7 +188,6 @@ export function WritePart({ ctx }: { ctx: PartCtx }) {
     idle.stop()
     const off = devs.current.reduce((a, d) => a + d.offRatio, 0) / devs.current.length
     const good = off < 0.4
-    if (!good) missed.current++
     void logAttempt({
       station: 'math',
       game: 'd-glyph',
@@ -201,7 +211,8 @@ export function WritePart({ ctx }: { ctx: PartCtx }) {
     await wait(500)
     if (!live.current) return
     ctx.mood('idle')
-    if (k + 1 >= reps) return ctx.done(reps, missed.current)
+    // 描得好不好不算進「錯很多隔天重上」（plan.ts 的 partDone 也不算寫數字這一段）
+    if (k + 1 >= reps) return ctx.done(reps, 0)
     setK(k + 1)
     start(k + 1)
   }
@@ -243,12 +254,12 @@ export function WritePart({ ctx }: { ctx: PartCtx }) {
             {g.strokes.map((d, i) => (
               <g key={i}>
                 <path d={d} fill="none" stroke="#D9CFBE" strokeWidth={LANE + 3} strokeLinecap="round" strokeLinejoin="round" />
-                <path d={d} fill="none" stroke={i < stroke || done ? '#9FD0B3' : '#FBF8F2'} strokeWidth={LANE} strokeLinecap="round" strokeLinejoin="round" />
+                <path d={d} fill="none" stroke={i < stroke || done ? look.done : look.lane} strokeWidth={LANE} strokeLinecap="round" strokeLinejoin="round" />
               </g>
             ))}
             {!done && (
               <>
-                <path d={g.strokes[stroke]} fill="none" stroke="#9FD0B3" strokeWidth={LANE} strokeLinecap="round" strokeLinejoin="round" pathLength={total} strokeDasharray={`${prog} ${total + 5}`} />
+                <path d={g.strokes[stroke]} fill="none" stroke={look.done} strokeWidth={LANE} strokeLinecap="round" strokeLinejoin="round" pathLength={total} strokeDasharray={`${prog} ${total + 5}`} />
                 <path d={g.strokes[stroke]} fill="none" stroke="#B9AE9C" strokeWidth={1.2} strokeDasharray="3 3" strokeLinecap="round" />
                 <motion.circle cx={st.x} cy={st.y} r={6} fill="#6FAE86" animate={{ r: prog > 0 ? 4 : [5, 7.5, 5] }} transition={{ duration: 1.2, repeat: prog > 0 ? 0 : Infinity }} />
                 {prog === 0 && (
@@ -271,6 +282,11 @@ export function WritePart({ ctx }: { ctx: PartCtx }) {
               </g>
             )}
           </svg>
+          {look.friend && (
+            <div className="ma-write-friend" aria-hidden="true">
+              <Emoji name={look.friend} />
+            </div>
+          )}
           {done && !demo && (
             <div className="ma-burst">
               <Sparkles count={16} />
@@ -280,7 +296,7 @@ export function WritePart({ ctx }: { ctx: PartCtx }) {
             ref={inkRef}
             w={g.w}
             h={H}
-            color="rgba(46,42,37,0.6)"
+            color={look.ink}
             size={3.2}
             disabled={hold}
             onDown={onDown}
@@ -292,12 +308,14 @@ export function WritePart({ ctx }: { ctx: PartCtx }) {
           />
         </>
       </Fade>
-      {/* 第幾次：描好一次亮一顆 */}
+      {/* 第幾次：描好一次亮一顆（只描一次就不放，AI 小男生測試 #2：他看不懂這是「還剩幾次」） */}
+      {reps > 1 && (
         <div className="ma-reps" aria-hidden="true">
           {Array.from({ length: reps }, (_, i) => (
             <i key={i} className={i < k || (i === k && done && !demo) ? 'on' : ''} />
           ))}
-      </div>
+        </div>
+      )}
     </div>
   )
 }

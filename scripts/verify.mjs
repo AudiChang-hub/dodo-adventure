@@ -42,6 +42,7 @@ const CHECKS = [
   { id: 'test-growth', name: '單元：成長系統', cmd: ['npx', 'tsx', 'scripts/test-growth.ts'], check: unit },
   { id: 'test-ladder', name: '單元：支線與階梯', cmd: ['npx', 'tsx', 'scripts/test-ladder.ts'], check: unit },
   { id: 'test-reset-cloud', name: '單元：重置的雲端刪除', cmd: ['npx', 'tsx', 'scripts/test-reset-cloud.ts'], check: unit },
+  { id: 'test-math-plan', name: '單元：數學課出題與熟練', cmd: ['npx', 'tsx', 'scripts/test-math-plan.ts'], check: unit },
   {
     id: 'lessons-teach',
     name: '三堂課不教不考（check-lessons-teach）',

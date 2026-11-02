@@ -12,17 +12,19 @@ import type { LessonProps } from '../types'
 import { openLesson, partDone, PARTS, type Lesson } from './plan'
 import { Fade, useLive, type PartCtx } from './kit'
 import { CountPart } from './Count'
+import { GivePart } from './Give'
 import { ComparePart } from './Compare'
 import { WritePart } from './Write'
 import { ReviewPart } from './Review'
 import './math.css'
 
-const PART_VIEW = { count: CountPart, compare: ComparePart, write: WritePart, review: ReviewPart }
+const PART_VIEW = { count: CountPart, give: GivePart, compare: ComparePart, write: WritePart, review: ReviewPart }
 
 /** 給大人看的一行陪玩提示（角落小字，孩子看不懂也不需要懂） */
 const HINT: Record<(typeof PARTS)[number] | 'open', (n: number) => string> = {
   open: (n) => `今天的數字是 ${n}`,
   count: (n) => `今天的數字是 ${n}：陪孩子一起數出聲音`,
+  give: () => '讓孩子自己拿，拿好點勾勾；之後在家也玩「拿 3 個給我」',
   compare: () => '問問看：哪邊比較多？讓孩子自己指',
   write: () => '用觸控筆從綠點開始描，描歪了沒關係',
   review: () => '讓孩子自己找，答錯會有提示',
@@ -40,7 +42,7 @@ function Dots({ n }: { n: number }) {
 }
 
 /**
- * 數學課（波波帶，約 5 分鐘）：開場「Today's number is three!」→ 數數 → 比多少 → 寫數字 → 小複習 → 下課（onDone，給貼紙）。
+ * 數學課（波波帶，約 5 分鐘）：開場「Today's number is three!」→ 數數 → 拿給波波 → 比多少 → 寫數字 → 小複習 → 下課（onDone，給貼紙）。
  * 進度（一天一個新數字、同一天再進來複習、錯很多隔天重上）在 ./plan.ts。
  * 每一段原地淡入淡出（不縮放、沒有整頁的段落卡片）；右上角一直掛著「今天的數字」。中途離開，同一天再進來從下一段接著上。
  */

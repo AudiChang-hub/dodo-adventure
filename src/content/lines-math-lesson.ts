@@ -32,6 +32,15 @@ for (const [icon, noun] of Object.entries(COUNT_NOUNS)) def(`ma.count.${icon}`, 
 // 只有一個的時候（今天的數字是 1）不說複數
 def('ma.count', 'bobo', "Let's count!")
 
+// 拿給波波（Give-N）：「Give me three!」、答錯時「There are two. More, please! I want three.」
+for (let n = 1; n <= 5; n++) {
+  def(`ma.give.${n}`, 'bobo', `Give me | ${NUM[n]}!`)
+  def(`ma.want.${n}`, 'bobo', `I want | ${NUM[n]}.`)
+}
+def('ma.give.more', 'bobo', 'More, please!')
+def('ma.give.toomany', 'bobo', 'Too many!')
+def('ma.give.thanks', 'bobo', 'Yum! Thank you!')
+
 // 寫數字
 def('ma.pen', 'bobo', 'Use the pen!')
 def('ma.write.go', 'bobo', 'Start at the green dot!')

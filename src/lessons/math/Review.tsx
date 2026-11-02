@@ -6,7 +6,7 @@ import { Fade, Quiz, type PartCtx, type QuizResult } from './kit'
 
 /**
  * 小複習：兩題。「Where is three?」找出今天的數字（找數字 m-find）、「How many?」數一數上面那一堆、點數字（有幾個 m-match）。
- * 兩題都是剛剛教過、數過、寫過的；新的數字剛教完只有兩個選項。
+ * 兩題都是剛剛教過、數過、寫過的；教過 3 個數字以後一律 3 選 1（plan.ts 的 reviewQs）。
  */
 export function ReviewPart({ ctx }: { ctx: PartCtx }) {
   const [qs] = useState(() => reviewQs(ctx.lesson))
@@ -46,6 +46,8 @@ export function ReviewPart({ ctx }: { ctx: PartCtx }) {
           id: String(i),
           prompt: [q.kind === 'find' ? `m.findnum.${q.n}` : 'm.howmany'],
           correction: [q.kind === 'find' ? `m.thisis.${q.n}` : `m.total.${q.n}`],
+          // 錯第一次：「This is four.」再問一次（Where is three?／How many?）
+          wrong: (picked) => [`m.thisis.${picked}`],
           answer: String(q.n),
           top:
             q.kind === 'howmany' ? (
