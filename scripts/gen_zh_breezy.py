@@ -53,7 +53,8 @@ D 組（家長 2026-10-31 選的，試聽在 docs/voice-samples/breezyvoice/）�
   - 多音字：say 寫明 字[:注音]，不讓模型猜。
   重做和多音字重做的句子都要給家長聽：report.json 標 listen，摘要的 need_review 也列出來。
   要給家長聽的列都有 why（新句／重做／重做（斷句、語氣、多音字）／多音字重做／多音字重做（和）），
-  多音字重做沒通過、App 還在播舊版本的標 plays_old。--mark-why 只補這兩個欄位（舊版程式寫的報告），不產生。
+  多音字重做沒通過、App 還在播舊版本的標 plays_old。課文改寫過的（家長 2026-11-02：「……」不念，數字全部數出來），
+  zh-lessons-say.json 寫 "rewrite"（例如「改寫（數數）」），why 照寫，也要給家長聽。--mark-why 只補這兩個欄位（舊版程式寫的報告），不產生。
 
 多音字（FORCE_READ）：「長、背、種、著（ㄓㄠ）……」同一個字不同意思念法不同，Whisper 只比對字抓不到念錯；
 台灣念法（垃圾ㄌㄜˋㄙㄜˋ、骨ㄍㄨˊ、菌ㄐㄩㄣˋ……）也不能讓模型照大陸念。這些字只要 g2pW 判斷的讀音不是字表最常見的讀音，
@@ -127,13 +128,15 @@ def read_index(out: pathlib.Path) -> dict:
         return {}
 
 
-def mark_review(rows, idx: dict):
-    """要給家長聽的列標 why（聽音頁分類用）：新句／重做（斷句、語氣、多音字）／多音字重做（「和」另外標）；
-    重做沒通過、App 還在播舊版本的標 plays_old"""
+def mark_review(rows, idx: dict, say: dict):
+    """要給家長聽的列標 why（聽音頁分類用）：課文改寫過的照 zh-lessons-say.json 的 rewrite（改寫（數數）……）／
+    新句／重做（斷句、語氣、多音字）／多音字重做（「和」另外標）；重做沒通過、App 還在播舊版本的標 plays_old"""
     for r in rows:
         r.pop("why", None)
         r.pop("plays_old", None)
-        if r.get("redo"):
+        if (rw := (say.get(f"{r['kind']}|{r['text']}") or {}).get("rewrite")):
+            r["why"] = rw
+        elif r.get("redo"):
             r["why"] = "重做" + (f"（{r['listen']}）" if r.get("listen") not in (None, "重做") else "")
         elif r.get("listen"):
             r["why"] = "多音字重做（和）" if "和" in r["text"] else "多音字重做"
@@ -198,6 +201,16 @@ def check_lessons(lines=LIST, out=OUT, today=None):
 WHISPER_SPELLINGS = {"諾亞": "挪亞"}
 
 
+def zh_number(n: int) -> str:
+    """0～99 的阿拉伯數字寫成國字（十、二十一）；更大的照原樣（課文沒有）"""
+    d = "零一二三四五六七八九"
+    if n < 10:
+        return d[n]
+    if n < 100:
+        return ("" if n < 20 else d[n // 10]) + "十" + ("" if n % 10 == 0 else d[n % 10])
+    return str(n)
+
+
 def han(t: str) -> str:
     return "".join(c for c in t.translate(VARIANTS) if "\u4e00" <= c <= "\u9fff")
 
@@ -231,6 +244,7 @@ def judge(ref: str, heard: str, ref_readings: list):
     ref_readings：課文每個中文字的正確讀音（g2pW 依上下文判斷，例如「倒了」是ㄉㄠ3、「睡大覺」是ㄐㄧㄠ4）"""
     for k, v in WHISPER_SPELLINGS.items():
         heard = heard.replace(k, v)
+    heard = re.sub(r"\d+", lambda m: zh_number(int(m.group())), heard)  # 數數的句子 Whisper 常寫成 10、9、8
     r, h = han(ref), han(heard)
     if r == h:
         return "對", 0
@@ -624,7 +638,7 @@ def main():
 
     if args.mark_why:
         rep = json.loads((out / "report.json").read_text(encoding="utf-8"))
-        mark_review(rep["rows"], read_index(out))
+        mark_review(rep["rows"], read_index(out), json.loads(SAY.read_text(encoding="utf-8")))
         rep["summary"]["need_review"] = [f"{r['key']}「{r['text']}」（{r['why']}）" for r in rep["rows"] if r.get("why")]
         rep["summary"]["plays_old"] = [r["key"] for r in rep["rows"] if r.get("plays_old")]
         write_report(out, rep)
@@ -713,7 +727,7 @@ def main():
     files = {r["file"] for r in report}  # 同一個檔在別天的紀錄（舊的）一起換掉
     report += [r for k, r in prev.items() if k not in mine and r["file"] not in files]
     takes = [t for r in report for t in r["takes"]]
-    mark_review(report, idx)
+    mark_review(report, idx, job.say)
     summary = {
         "sentences": len(report),
         "first_try_ok": sum(r["first_try"] for r in report),
