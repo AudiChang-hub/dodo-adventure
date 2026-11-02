@@ -47,11 +47,22 @@ D 組（家長 2026-10-31 選的，試聽在 docs/voice-samples/breezyvoice/）�
 家長聽完「需確認」的句子：--results 家長聽音結果.json（{"ok": [key…], "redo": [key…]}）
 - ok 的照 --accept 放行；redo 的換 REDO_SEEDS 重新產生，電腦檢查通過就直接用，還是沒過的留在「需確認」等家長再聽。
 - key 對應到檔名：同一句話在不同天出現只算一次（例如兩天都有「蠟燭」）。
+- 重做的方式看 scripts/zh-lessons-say.json 記的原因（家長 2026-11-02：「有些是斷句問題，有些是語氣問題，還有是ㄓㄤˇ跟ㄔㄤˊ」）：
+  - 斷句：say 指定實際念的文字，用標點控制停頓；Whisper 聽寫裡多出停頓（標點比念的文字多）的版本不要。
+  - 語氣：多做幾個版本（通過 2 個或做滿 6 個），挑音高起伏最大、放慢最少的（Praat 量音高，半音的標準差）。
+  - 多音字：say 寫明 字[:注音]，不讓模型猜。
+  重做和多音字重做的句子都要給家長聽：report.json 標 listen，摘要的 need_review 也列出來。
+
+多音字（FORCE_READ）：「長、背、種、著（ㄓㄠ）……」同一個字不同意思念法不同，Whisper 只比對字抓不到念錯；
+台灣念法（垃圾ㄌㄜˋㄙㄜˋ、骨ㄍㄨˊ、菌ㄐㄩㄣˋ……）也不能讓模型照大陸念。這些字只要 g2pW 判斷的讀音不是字表最常見的讀音，
+每個版本都加注音（不只第 2 個版本）。g2pW 自己判斷錯的（「長呀長」「好重好重」「量了量」「著急」「馬背了」「撒該」），
+在 zh-lessons-say.json 直接寫注音。--regen-poly：之前用的版本沒照這個規則加注音的句子，重新產生一次（家長聽過放行的不動）。
 """
 import argparse
 import json
 import os
 import pathlib
+import re
 import sys
 import time
 
@@ -59,13 +70,16 @@ ROOT = pathlib.Path(__file__).resolve().parent.parent
 LIST = ROOT / "scripts" / ".cache" / "zh-lessons.json"
 OUT = ROOT / "public" / "audio" / "zh-lesson"
 CACHE = ROOT / "scripts" / ".cache" / "zh-lesson"
+SAY = ROOT / "scripts" / "zh-lessons-say.json"   # 念法：{"<kind>|<text>": {"why": 斷句／語氣／多音字, "say": 實際念的文字, "keys": [...], "note": ...}}
 APPROVED = ROOT / "scripts" / "zh-lessons-approved.json"   # 家長放行清單：{檔名: {key, kind, text, take, input, approved, note}}
 
 VOICE = "breezy|example2nd|v1"
 PROMPT = {"from": 9.05, "to": None, "text": "只有擁有解密方法的對象，經由解密過程，才能將密文還原為正常可讀的內容。",
           "bopomofo": False, "fade": False}
 SEEDS = [7, 1007, 2007]        # 第一個是試聽時用的種子
-REDO_SEEDS = [3007, 4007, 5007, 6007]  # 家長聽過說要重做的句子：換這幾個種子重新產生（之前的版本都不用），單數位置的加注音
+REDO_SEEDS = [3007, 4007, 5007, 6007, 8007, 9007]  # 家長說要重做、多音字重做：換這幾個種子（之前的版本都不用），單數位置的全部加注音
+REDO_KEEP = 2                  # 家長說要重做的：通過幾個版本就停，從裡面挑語氣最有起伏的（多音字重做通過 1 個就停）
+FORCE_READ = set("長背種重量著當樂轉倒覺撒好切漂乾骨垃圾夕菌跌悄誰偕薄蝸繃答佛假")
 KINDS = {"text", "word", "question", "praise"}
 SPEED = {"text": (4.5, 4.0), "word": (3.2, 3.0), "question": (3.2, 3.0), "praise": (3.2, 3.0)}  # 每秒超過幾個字 → 放慢到幾個字
 LINE_GAP_MS = 600              # 試聽全文：課文一行和一行之間
@@ -196,6 +210,13 @@ def judge(ref: str, heard: str, ref_readings: list):
 NO_ANNOTATE = set("一不了的得地著個麼們子頭呀啊喔哦吧呢嗎")
 
 
+def pauses(s: str) -> int:
+    """句子中間停頓幾次（標點、空白；頭尾不算）。斷句檢查：Whisper 聽寫的停頓比念的文字多，就是在詞中間斷開了"""
+    s = re.sub(r"\[:[^\]]*\]", "", s)
+    s = s.strip(" 。.！!？?…—～「」『』,，、")
+    return len(re.findall(r"[，,、。.！!？?；;：:…—\s]+", s))
+
+
 def speak_text(row) -> str:
     t = row["text"].strip()
     if any(c.isdigit() for c in t):
@@ -223,6 +244,10 @@ class Lessons:
             self.approved = json.loads(APPROVED.read_text(encoding="utf-8"))
         except (OSError, ValueError):
             self.approved = {}
+        try:
+            self.say = json.loads(SAY.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            self.say = {}
 
     @property
     def bv(self):
@@ -235,17 +260,50 @@ class Lessons:
         res = self.bv.g2p(text.translate(VARIANTS))[0]
         return [r or "" for c, r in zip(text.translate(VARIANTS), res) if "一" <= c <= "鿿"]
 
-    def annotate(self, say: str) -> str:
+    def annotate(self, say: str, every: bool = True) -> str:
         """多音字：g2pW 判斷的讀音和這個字最常見的讀音不同，就在後面加注音（例如 倒[:ㄉㄠ3]）。
-        官方程式只替罕見字加，「倒」「覺」這種常見字交給模型猜，試跑時「倒了」被念成「到了」"""
+        官方程式只替罕見字加，「倒」「覺」這種常見字交給模型猜，試跑時「倒了」被念成「到了」。
+        every=False：只加 FORCE_READ 的字（每個版本都加）；True：其他多音字也加（第 2 個版本）"""
         res = self.bv.g2p(say)[0]
         from utils.word_utils import char2phn  # BreezyVoice 官方程式裡的字表（Breezy 載入後才在 sys.path 上）
         out = ""
         for c, r in zip(say, res):
             out += c
-            if r and c not in NO_ANNOTATE and len(char2phn[c]) >= 2 and r != char2phn[c][0]:
+            if not r or c not in char2phn or len(char2phn[c]) < 2 or r == char2phn[c][0]:
+                continue
+            forced = c in FORCE_READ and not (c == "著" and r == "ㄓㄜ5")  # 著：輕聲的「拿著」交給模型，ㄓㄠ（睡著、著火）要標
+            if forced or (every and c not in NO_ANNOTATE):
                 out += f"[:{r}]"
         return out
+
+    def spoken(self, row, annotated: bool) -> str:
+        """實際念的文字：zh-lessons-say.json 有寫就照寫（標點、注音都照寫），不然照課文、加注音"""
+        o = self.say.get(f"{row['kind']}|{row['text']}") or {}
+        if o.get("say"):
+            return o["say"]
+        return self.annotate(speak_text(row), every=annotated)
+
+    def why(self, row):
+        return (self.say.get(f"{row['kind']}|{row['text']}") or {}).get("why")
+
+    def needs_regen(self, row, rep_row) -> bool:
+        """多音字重做：之前用的版本念的文字，少了現在規則要加的注音（或 say 指定的念法）"""
+        if not rep_row:
+            return False  # 試跑沿用的句子（家長試聽過）
+        used = self.meta.get(rep_row.get("chosen", ""), {}).get("input", "")
+        want = self.spoken(row, annotated=False)
+        if (self.say.get(f"{row['kind']}|{row['text']}") or {}).get("say"):
+            return used != want
+        return any(m not in used for m in re.findall(r".\[:[^\]]+\]", want))
+
+    def lively(self, mp3) -> float:
+        """語氣有沒有起伏：音高（半音）的標準差（Praat）"""
+        import numpy as np
+        import parselmouth
+        pcm = self.gz.read_audio(mp3)
+        f0 = parselmouth.Sound(pcm.astype(np.float64), self.gz.SR).to_pitch(time_step=0.01, pitch_floor=75, pitch_ceiling=600).selected_array["frequency"]
+        f0 = f0[f0 > 0]
+        return round(float(np.std(12 * np.log2(f0 / 100.0))), 2) if len(f0) > 5 else 0.0
 
     @property
     def asr(self):
@@ -258,7 +316,7 @@ class Lessons:
         tmp.write_text(json.dumps(self.meta, ensure_ascii=False, indent=1), encoding="utf-8")
         tmp.replace(self.meta_path)
 
-    def take(self, row, seed, annotated=False):
+    def take(self, row, seed, annotated=False, say=None):
         """一個版本：合成（或從快取讀）→ 調速 → 後製 → mp3 → Whisper。回傳這個版本的紀錄"""
         import torch
         import torchaudio
@@ -268,7 +326,7 @@ class Lessons:
         m = self.meta.get(tid, {})
         mel_path = CACHE / f"{tid}.pt"
         mp3 = CACHE / f"{tid}.mp3"
-        say = self.annotate(speak_text(row)) if annotated else speak_text(row)
+        say = say or self.spoken(row, annotated)
         if m.get("input") != say:  # 念的文字（含注音）變了：之前的版本作廢
             mel_path.unlink(missing_ok=True)
             mp3.unlink(missing_ok=True)
@@ -319,9 +377,7 @@ class Lessons:
             self.save_approved()
         if appr and appr["text"] == row["text"]:  # 家長放行過：直接用那個版本（快取沒了就用同樣的種子、同樣的文字重做）
             seed = int(appr["take"].rsplit("-", 1)[1])
-            tid, m = self.take(row, seed, annotated=SEEDS.index(seed) == 1)
-            if m.get("input") != appr["input"]:
-                raise SystemExit(f"{row['key']}：放行的版本念的是「{appr['input']}」，現在的規則會念「{m.get('input')}」，請重新請家長聽")
+            tid, m = self.take(row, seed, say=appr["input"])  # 家長聽過的就是這個念法，規則改了也不動
             print(f"  {row['key']} 家長 {appr['approved']} 放行過，用種子 {seed} 的版本", flush=True)
             tried = [(f"{stem}-{x}", self.meta[f"{stem}-{x}"]) for x in SEEDS if f"{stem}-{x}" in self.meta]
             (out / f"{stem}.mp3").write_bytes((CACHE / f"{tid}.mp3").read_bytes())
@@ -330,20 +386,44 @@ class Lessons:
             return {"key": row["key"], "kind": row["kind"], "text": row["text"], "file": row["file"], "chosen": tid,
                     "status": "家長放行", "approved": appr["approved"], "first_try": tried[0][1]["verdict"] != "不對",
                     "takes": [dict(id=t, **x) for t, x in tried]}
-        takes = []
-        for i, seed in enumerate(REDO_SEEDS if redo else SEEDS):
-            tid, m = self.take(row, seed, annotated=i % 2 == 1 if redo else i == 1)
-            takes.append((tid, m))
-            print(f"  {row['key']} 種子 {seed}：{m['verdict']}　聽成「{m['heard']}」　合成 {m.get('gen_seconds')} 秒　"
-                  f"{m['seconds']} 秒長、每秒 {m['cps']} 字" + (f"（放慢 {m['speed']}）" if m["speed"] != 1.0 else ""), flush=True)
-            if m["verdict"] != "不對":
-                break
-        ok = [t for t in takes if t[1]["verdict"] != "不對"]
         accepted = stem in self.args.accept_stems
-        tid, m = ok[0] if ok else min(takes, key=lambda t: (t[1]["tone_dist"], -t[1].get("force", 0)))
+        regen = stem in self.args.regen_stems
+        why = self.why(row) or ("多音字" if regen else None)
+        takes = []
+        if accepted and not redo:  # 家長聽過說可以：用家長聽到的那個版本（念的文字照當時，規則改了也不重做）
+            for x in SEEDS:
+                old = self.meta.get(f"{stem}-{x}")
+                if old and (CACHE / f"{stem}-{x}.mp3").exists():
+                    takes.append(self.take(row, x, say=old["input"]))
+            if not takes:
+                raise SystemExit(f"{row['key']}：家長聽過的版本不在快取裡，不能放行")
+        else:
+            fresh = redo or regen
+            for i, seed in enumerate(REDO_SEEDS if fresh else SEEDS):
+                tid, m = self.take(row, seed, annotated=i % 2 == 1 if fresh else i == 1)
+                m = dict(m)
+                if why == "斷句" and m["verdict"] != "不對" and pauses(m["heard"]) > pauses(m["input"]):
+                    m["verdict"] = "不對"  # 多出停頓：在詞中間斷開了
+                    m["why_bad"] = "斷句"
+                if fresh:
+                    m["lively"] = self.lively(CACHE / f"{tid}.mp3")
+                takes.append((tid, m))
+                print(f"  {row['key']} 種子 {seed}：{m['verdict']}" + (f"（{m['why_bad']}）" if m.get("why_bad") else "") +
+                      f"　聽成「{m['heard']}」　合成 {m.get('gen_seconds')} 秒　{m['seconds']} 秒長、每秒 {m['cps']} 字" +
+                      (f"（放慢 {m['speed']}）" if m["speed"] != 1.0 else "") + (f"　起伏 {m['lively']}" if fresh else ""), flush=True)
+                if sum(t[1]["verdict"] != "不對" for t in takes) >= (REDO_KEEP if redo else 1):
+                    break
+        ok = [t for t in takes if t[1]["verdict"] != "不對"]
+        if ok and (redo or regen):  # 挑語氣最有起伏、放慢最少的
+            tid, m = max(ok, key=lambda t: t[1].get("lively", 0) - 3 * abs(1 - t[1]["speed"]))
+        else:
+            tid, m = ok[0] if ok else min(takes, key=lambda t: (t[1]["tone_dist"], -t[1].get("force", 0)))
         src = (CACHE / f"{tid}.mp3").read_bytes()
         review = out / "需確認" / f"{stem}.mp3"
-        if ok or accepted:
+        if regen and not ok and stem in idx:  # 多音字重做沒通過：舊的照樣播，新的放「需確認」給家長比較
+            review.parent.mkdir(parents=True, exist_ok=True)
+            review.write_bytes(src)
+        elif ok or accepted:
             (out / f"{stem}.mp3").write_bytes(src)
             idx[stem] = row["text"]
             review.unlink(missing_ok=True)
@@ -358,6 +438,7 @@ class Lessons:
                 "status": "通過" if ok else ("家長放行" if accepted else "需確認"), "first_try": takes[0][1]["verdict"] != "不對",
                 **({"approved": self.args.approved_on} if accepted and not ok else {}),
                 **({"redo": self.args.approved_on} if redo else {}),
+                **({"listen": why or "重做", "listen_on": self.args.approved_on} if (redo or regen) else {}),
                 "takes": [dict(id=t, **x) for t, x in takes]}
 
 
@@ -470,7 +551,9 @@ def main():
     ap.add_argument("--stay-awake", action="store_true", help="跑的期間不讓電腦閒置睡眠（Windows 的 SetThreadExecutionState，跑完自動恢復；不改電源設定）")
     ap.add_argument("--days", default="", help="只做這幾天的課文，例如 1-30（清單的 day 欄位；分段產生、每段做完先合併上線）")
     ap.add_argument("--redo", nargs="*", default=[], help="家長聽過說要重做的句子 key：換 REDO_SEEDS 重新產生")
-    ap.add_argument("--results", default="", help='家長聽音結果 JSON：{"ok": [key…], "redo": [key…]}，等於 --accept ok… --redo redo…')
+    ap.add_argument("--results", nargs="*", default=[], help='家長聽音結果 JSON：{"ok": [key…], "redo": [key…]}，等於 --accept ok… --redo redo…')
+    ap.add_argument("--regen-poly", action="store_true", help="多音字重做：之前用的版本沒照現在的注音規則念的，重新產生（家長放行過、這次放行的不動）")
+    ap.add_argument("--dry-run", action="store_true", help="只列出會放行／重做哪些句子，不產生")
     args = ap.parse_args()
     out = pathlib.Path(args.out)
     sys.stdout.reconfigure(encoding="utf-8")  # -I 會忽略 PYTHONIOENCODING
@@ -488,14 +571,15 @@ def main():
             print("REVIEW", key, text, "（3 次都沒通過，等家長聽）")
         sys.exit(1 if bad else 0)
 
-    queue(CACHE / "run.lock")
+    if not args.dry_run:
+        queue(CACHE / "run.lock")
     gentle(args)
     if args.stay_awake and sys.platform == "win32":
         import ctypes
         ctypes.windll.kernel32.SetThreadExecutionState(0x80000000 | 0x00000001)  # ES_CONTINUOUS | ES_SYSTEM_REQUIRED
     rows = load_rows(pathlib.Path(args.lines))
-    if args.results:
-        res = json.loads(pathlib.Path(args.results).read_text(encoding="utf-8"))
+    for f in args.results:
+        res = json.loads(pathlib.Path(f).read_text(encoding="utf-8"))
         args.accept += res.get("ok", [])
         args.redo += res.get("redo", [])
     # key → 檔名：同一句話在不同天出現只有一個檔，放行／重做都照檔名算；兩邊都有的照重做
@@ -505,6 +589,7 @@ def main():
         raise SystemExit(f"清單裡沒有這些 key：{' '.join(unknown)}")
     args.redo_stems = {stem_of[k] for k in args.redo}
     args.accept_stems = {stem_of[k] for k in args.accept} - args.redo_stems
+    args.regen_stems = set()
     if args.accept or args.redo:
         print(f"放行 {len(args.accept_stems)} 個檔、重做 {len(args.redo_stems)} 個檔", flush=True)
     if args.days:
@@ -519,13 +604,38 @@ def main():
         prev = {r["key"]: r for r in json.loads((out / "report.json").read_text(encoding="utf-8"))["rows"]}
     except (OSError, ValueError, KeyError):
         prev = {}
+    if args.regen_poly:
+        by_file = {}
+        for r in prev.values():
+            by_file.setdefault(r["file"], r)
+        done = set()
+        for r in rows:
+            stem = r["file"].split("/")[-1]
+            if stem in done or stem in args.accept_stems or stem in args.redo_stems or stem in job.approved:
+                continue
+            done.add(stem)
+            if stem in idx and job.needs_regen(r, by_file.get(r["file"])):
+                args.regen_stems.add(stem)
+        print(f"多音字重做 {len(args.regen_stems)} 個檔", flush=True)
+    if args.dry_run:
+        seen = set()
+        for r in rows:
+            stem = r["file"].split("/")[-1]
+            if stem in seen:
+                continue
+            seen.add(stem)
+            what = ("重做" if stem in args.redo_stems else "多音字重做" if stem in args.regen_stems
+                    else "放行" if stem in args.accept_stems else None)
+            if what:
+                print(f"PLAN {what}\t{r['key']}\t{r['text']}\t{job.why(r) or ''}\t{job.spoken(r, False)}")
+        return
     report, t_start, seen = [], time.time(), set()
     for i, row in enumerate(rows):
         stem = row["file"].split("/")[-1]
         if stem in seen:  # 同一句話（同 kind、同文字）只做一次
             continue
         seen.add(stem)
-        if stem in idx and (out / f"{stem}.mp3").exists() and stem not in args.accept_stems | args.redo_stems:
+        if stem in idx and (out / f"{stem}.mp3").exists() and stem not in args.accept_stems | args.redo_stems | args.regen_stems:
             if row["key"] in prev:
                 report.append(prev[row["key"]])
             continue
@@ -545,7 +655,8 @@ def main():
         "sentences": len(report),
         "first_try_ok": sum(r["first_try"] for r in report),
         "regenerated": len(takes) - len(report),
-        "need_review": [f"{r['key']}「{r['text']}」" for r in report if r["status"] == "需確認"],
+        "need_review": [f"{r['key']}「{r['text']}」" + (f"（{r['listen']}）" if r.get("listen") else "")
+                        for r in report if r["status"] == "需確認" or r.get("listen")],
         "parent_approved": [f"{r['key']}「{r['text']}」" for r in report if r["status"] == "家長放行"],
         "synth_seconds": round(sum(t.get("gen_seconds") or 0 for t in takes), 1),
         "wall_seconds_this_run": round(time.time() - t_start, 1),
