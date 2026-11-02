@@ -238,14 +238,35 @@ function BookDone({ r, onAgain, onShelf }: { r: ToldChapter; onAgain: () => void
   const ch = chapterOf(r.ref)
   const look = ch ? chapterLook(ch, r.door as ThemeId | undefined) : null
   const c = coverOf(r)
+  const [badge, bounce] = useAnimate<HTMLSpanElement>()
+  const [again, spin] = useAnimate<HTMLSpanElement>()
+  // 停著沒動作（AI 小男生 T-77：不知道下一步點哪裡）：8 秒、20 秒時「再聽一次」的箭頭轉一圈，告訴他這個可以點
+  useEffect(() => {
+    const ts = [8000, 20000].map((ms) => window.setTimeout(() => again.current && void spin(again.current, { rotate: [0, 360] }, { duration: 0.9, ease: 'easeInOut' }), ms))
+    return () => ts.forEach(clearTimeout)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
   return (
     <div className="book-replay book-done" style={{ background: look?.tint }}>
       <BookBack onClose={onShelf} />
       <div className="story-home-card" style={{ '--deep': look?.deep } as CSSProperties}>
         <StoryPic pic={c.pic} />
         {/* 跟書架上「聽過」的星星同一顆：這本書得到一顆星 */}
-        <motion.span className="book-done-badge" aria-hidden="true" initial={{ scale: 0, rotate: -30 }} animate={{ scale: 1, rotate: 0 }} transition={{ type: 'spring', stiffness: 260, damping: 14, delay: 0.35 }}>
-          <Emoji name="glowing-star" />
+        {/* 最亮的東西一定有回應：點星星，星星跳一下（AI 小男生 T-77 第 2 步） */}
+        <motion.span
+          className="book-done-badge"
+          aria-hidden="true"
+          initial={{ scale: 0, rotate: -30 }}
+          animate={{ scale: 1, rotate: 0 }}
+          transition={{ type: 'spring', stiffness: 260, damping: 14, delay: 0.35 }}
+          onPointerDown={() => {
+            sfx.pop()
+            if (badge.current) void bounce(badge.current, { y: [0, -18, 0], scale: [1, 1.15, 1] }, { duration: 0.45 })
+          }}
+        >
+          <span ref={badge} style={{ display: 'block' }}>
+            <Emoji name="glowing-star" />
+          </span>
         </motion.span>
         <div className="book-done-stars" aria-hidden="true">
           <Sparkles count={14} />
@@ -264,10 +285,12 @@ function BookDone({ r, onAgain, onShelf }: { r: ToldChapter; onAgain: () => void
       </div>
       <div className="book-done-actions">
         <button className="round-btn book-again" aria-label="再聽一次" onClick={onAgain}>
-          <svg viewBox="0 0 48 48" width={46} aria-hidden="true">
-            <path d="M36 16 A14 14 0 1 0 38 28" fill="none" stroke="#2E2A25" strokeWidth={5} strokeLinecap="round" />
-            <path d="M37 7 L37 17 L27 17" fill="none" stroke="#2E2A25" strokeWidth={5} strokeLinecap="round" strokeLinejoin="round" />
-          </svg>
+          <span ref={again} style={{ display: 'grid' }}>
+            <svg viewBox="0 0 48 48" width={46} aria-hidden="true">
+              <path d="M36 16 A14 14 0 1 0 38 28" fill="none" stroke="#2E2A25" strokeWidth={5} strokeLinecap="round" />
+              <path d="M37 7 L37 17 L27 17" fill="none" stroke="#2E2A25" strokeWidth={5} strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          </span>
         </button>
         <button className="round-btn book-to-shelf" aria-label="回書架" onClick={onShelf}>
           <ShelfIcon />

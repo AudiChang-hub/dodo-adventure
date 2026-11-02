@@ -17,7 +17,7 @@ export const LESSONS: Record<string, LessonDef> = {
   zh: { id: 'zh', name: '中文課文', door: 'chinese', isIn: (l) => l === 'lesson-chinese', intro: '媽媽說：「我們來聽中文課喔！」', doneMeans: '上完一堂、出現挑貼紙' },
   math: { id: 'math', name: '數學數字', door: 'math', isIn: (l) => l === 'lesson-math', intro: '媽媽說：「我們來玩數字喔！」', doneMeans: '上完一堂、出現挑貼紙' },
   draw: { id: 'draw', name: '畫畫', door: 'draw', isIn: (l) => l === 'play-d-free', intro: '媽媽說：「去畫畫吧！」', doneMeans: '在畫布上畫了 3 筆以上' },
-  story: { id: 'story', name: '故事', door: 'story', isIn: (l) => l === 'shelf' || l === 'storybook' || !!l?.startsWith('replay-'), intro: '媽媽說：「我們來看故事書！」', doneMeans: '一本書聽到最後一頁' },
+  story: { id: 'story', name: '故事', door: 'story', isIn: (l) => l === 'shelf' || l === 'storybook' || !!l?.startsWith('replay-') || !!l?.startsWith('done-'), intro: '媽媽說：「我們來看故事書！」', doneMeans: '一本書聽到最後一頁' },
 }
 
 export const ALIASES: Record<string, string> = { english: 'en', chinese: 'zh', 中文: 'zh', 英文: 'en', 數學: 'math', 畫畫: 'draw', 故事: 'story' }
@@ -95,7 +95,8 @@ export const doneNow = (page: Page) =>
       const live = [...document.querySelectorAll<HTMLElement>('.scene')].filter((e) => !e.inert).pop()
       const picker = !!document.querySelector('.picker')
       const dots = live ? [...live.querySelectorAll('.book-progress i')] : []
-      const lastPage = dots.length > 1 && dots.every((d) => d.classList.contains('is-done'))
+      // 聽到最後一頁：小點全亮，或已經換到「讀完了」（T-77：講完會出現讀完了的畫面）
+      const lastPage = (dots.length > 1 && dots.every((d) => d.classList.contains('is-done'))) || !!live?.dataset.scene?.startsWith('done-')
       return { picker, lastPage }
     })
     .catch(() => ({ picker: false, lastPage: false }))

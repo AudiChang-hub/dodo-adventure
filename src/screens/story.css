@@ -203,6 +203,14 @@
   width: clamp(88px, 13vmin, 112px);
   height: clamp(88px, 13vmin, 112px);
 }
+/* 再聽一次用暖黃色，跟回書架分得出來 */
+.book-done-actions .book-again {
+  background: #f6dc8f;
+  box-shadow: 0 4px 0 #d9b85a;
+}
+.book-done-badge {
+  pointer-events: auto;
+}
 
 /* 講一章（新章節、重聽）：大大的圖、下面是說故事的恐龍；上面一排小點是講到第幾句 */
 .book-replay {
