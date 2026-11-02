@@ -40,13 +40,15 @@ export const flipId = (X: string, big: boolean) => `${X}:${big ? 'little' : 'big
 /**
  * 字母題的干擾選項：只用教過的字母（之前的字母和今天的字母），不夠時用今天這個字母的另一種寫法
  * （問大寫 A 就放小寫 a），再不夠就少一個選項。
+ * 大小寫只差大小的字母（S、s）平常不拿另一種寫法當陪襯；但一個陪襯都沒有的時候（名字的字母先上，第一天就是 S，A12）
+ * 還是放：問的是「大的」還是「小的」，畫面上大小看得出來，總比只有一個選項好。
  */
 function letterOptions(X: string, big: boolean, taught: string[], learned: string[], n: number): Opt[] {
   const show = (c: string) => (big ? c : c.toLowerCase())
   // X 看起來像「打叉」，不拿來當陪襯
   const ok = (c: string) => c !== X && !like(c, X) && (c !== 'X' || learned.includes('X'))
   const others = shuffle(taught.filter(ok)).slice(0, n).map((c) => ({ id: c, text: show(c) }))
-  if (others.length < n && !SAME_SHAPE.includes(X)) others.push({ id: flipId(X, big), text: big ? X.toLowerCase() : X })
+  if (others.length < n && (!SAME_SHAPE.includes(X) || !others.length)) others.push({ id: flipId(X, big), text: big ? X.toLowerCase() : X })
   return shuffle([{ id: X, text: show(X) }, ...others])
 }
 

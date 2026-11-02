@@ -449,6 +449,8 @@ test.describe('英文字母課', () => {
       }
       for (const how of ['restart', 'continue', 'restart'] as const) {
         k.behavior = how === 'restart' ? '描到一半被打斷，從綠點重描' : '描到一半抬筆，接著描'
+        // 描字只有大寫、小寫各一次（A5），一筆的字母兩次就描完了，已經走到下一段就不用再試
+        if (!(await page.$('.en-trace')) && (await stageOf(page)) !== 'trace') break
         if (!(await ready())) {
           await c.once('trace-ready', '卡死', '描字一直不能畫', `停在 ${await stageOf(page)}`)
           break

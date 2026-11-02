@@ -62,6 +62,12 @@ for (const seq of [ORDER, ben]) {
 }
 ok('A12 A→Z 和 BEN 開頭兩種順序，26 天的題目都不教不考')
 
+for (const first of 'CKOPSUVWXZ') {
+  const seq = orderFor(first)
+  for (let k = 0; k < 5; k++) for (const q of makeQuiz(lessonLetter(0, seq), 0, seq)) assert.ok(q.options.length >= 2, `第一天是 ${first}：${q.kind} 題只有 ${q.options.length} 個選項`)
+}
+ok('A12 名字從大小寫同形的字母（S、C、O…）開始：第一天每一題也至少 2 個選項')
+
 // ── A16 ───────────────────────────────────────────────────
 let checked = 0
 for (const seq of [ORDER, ben]) {
