@@ -19,6 +19,9 @@
 //   --fresh           故事：新裝置（書架上什麼都沒有）；預設是已經聽過 8 本的舊裝置
 //   --zh-run N        中文課：今天是同一篇的第幾次（1～3，預設 1；2 是念到框起來的紅字前停下來讓孩子接）
 //                     中文課是親子共讀（App 不出聲）：每一步之前「媽媽」先做她的部分（念一行、按下一行、問聊一聊、念題目），見 mom()
+//   --external LABEL  不自己打包、不開 vite：用已經開在 AI_TODDLER_PORT 的打包版（例如在主 checkout 自己 build + vite preview），
+//                     報告的版本寫 LABEL 和網頁上的 index-*.js（盲測用：測試員不看那個資料夾的 git）
+//   --back-at N       第 N 步不問大腦，直接用 Android 返回（「上到一半按返回」），之後照常讓小男生玩
 //   環境變數 AI_TODDLER_PORT：預設 4537
 import { chromium, type Page } from '@playwright/test'
 import { spawn, spawnSync, type ChildProcess } from 'node:child_process'
@@ -55,6 +58,7 @@ const MODEL = opt('model', 'claude-sonnet-5-5')!
 const BRAIN = opt('brain', 'auto') as 'auto' | BrainKind
 const PORT = Number(process.env.AI_TODDLER_PORT || 4537)
 const VP = { width: 1280, height: 800 }
+const BACK_AT = Number(opt('back-at', '0'))
 
 // 報告寫到主 repo（不是 worktree）：worktree 只有 gitignored 的檔案時會被自動刪掉
 function mainRepo() {
@@ -125,7 +129,8 @@ function rmrf(p: string) {
   } else fs.unlinkSync(p)
 }
 const dev = flag('dev')
-if (!dev && (flag('build') || !fs.existsSync(path.join(root, 'dist', 'index.html')))) {
+const external = opt('external')
+if (!external && !dev && (flag('build') || !fs.existsSync(path.join(root, 'dist', 'index.html')))) {
   if (!fs.existsSync(path.join(root, '.env.local'))) console.log('⚠ 這個資料夾沒有 .env.local：孩子的名字會變成 buddy、那幾句沒有音檔。從主 repo 複製一份（不進 git）。')
   rmrf(path.join(root, 'dist'))
   if (run('npm', ['run', 'build']) !== 0) {
@@ -133,8 +138,9 @@ if (!dev && (flag('build') || !fs.existsSync(path.join(root, 'dist', 'index.html
     process.exit(1)
   }
 }
-const server: ChildProcess = spawn(dev ? `npx vite --port ${PORT} --strictPort` : `npx vite preview --port ${PORT} --strictPort`, { cwd: root, shell: true, stdio: 'ignore', windowsHide: true })
+const server: ChildProcess | null = external ? null : spawn(dev ? `npx vite --port ${PORT} --strictPort` : `npx vite preview --port ${PORT} --strictPort`, { cwd: root, shell: true, stdio: 'ignore', windowsHide: true })
 const killServer = () => {
+  if (!server) return
   if (server.pid && process.platform === 'win32') spawnSync('taskkill', ['/pid', String(server.pid), '/T', '/F'], { stdio: 'ignore' })
   else server.kill()
 }
@@ -157,7 +163,11 @@ process.env.TODDLER_PORT = String(PORT)
 const { boot, settle, snap, attempts } = await import('../toddler/lib/app')
 
 // ── 開平板 ─────────────────────────────────────────────────
-const version = (() => {
+const version = await (async () => {
+  if (external) {
+    const js = (await (await fetch(BASE)).text()).match(/index-[\w-]+\.js/)?.[0]
+    return `${external}（${js ?? '找不到 index-*.js'}）`
+  }
   const head = spawnSync('git', ['log', '-1', '--format=%h %s'], { cwd: root, encoding: 'utf8' }).stdout.trim()
   const dirty = spawnSync('git', ['status', '--porcelain', '--', 'src'], { cwd: root, encoding: 'utf8' }).stdout.trim()
   return head + (dirty ? '（src 有未提交的改動）' : '')
@@ -475,7 +485,10 @@ while (!fatal) {
     .filter(Boolean)
     .join('\n')
 
-  let a: Answer = await brain.ask({ id: pad(n), system: SYSTEM, systemFile, text, image: forBrain })
+  const forcedBack = n === BACK_AT
+  let a: Answer = forcedBack
+    ? { json: { see: '', think: '（測試指定：上到一半按返回）', feeling: '', understood: true, action: 'back' }, raw: '', ms: 0, brain: brain.kind }
+    : await brain.ask({ id: pad(n), system: SYSTEM, systemFile, text, image: forBrain })
   if (!a.json && !a.error) a = await brain.ask({ id: `${pad(n)}b`, system: SYSTEM, systemFile, text: `${text}\n\n（上一次的回答不是 JSON，請只回一個 JSON 物件。）`, image: forBrain })
   const j = (a.json ?? {}) as Record<string, any>
   const action = ['tap', 'drag', 'wait', 'back', 'quit'].includes(j.action) ? (j.action as Step['action']) : 'wait'

@@ -27,6 +27,8 @@ npm run test:ai-toddler -- --lesson zh --minutes 8 --seed 1
 - `--headed` 開看得到的瀏覽器（會出聲）。預設不開視窗；聲音照常播放，探針記下每一句的字幕交給小男生。
 - `--out DIR`：報告放別的地方。`--no-lock`：不排隊。
 - 環境變數 `AI_TODDLER_PORT`（預設 4537）。
+- `--external LABEL`：盲測用。不自己打包、不開 vite，直接測已經開在 `AI_TODDLER_PORT` 的打包版（例如在主 checkout 自己 `npm run build` 再 `npx vite preview --port 4537`）；報告的版本寫 LABEL 和網頁上的 `index-*.js`。
+- `--back-at N`：第 N 步不問大腦，直接用 Android 返回（測「上到一半按返回」），之後照常讓小男生玩。
 
 worktree 裡跑要先有 `node_modules`、`public/audio`、`.env.local`（都不進 git）：從主 repo 複製，或用 junction 連過去（PowerShell：`New-Item -ItemType Junction -Path node_modules -Target <主 repo>\node_modules`）。**用 junction 的話，清 worktree 前要先拆掉連結**（`[System.IO.Directory]::Delete((Resolve-Path node_modules).Path)`，只拆連結、不碰內容），不然遞迴刪除 worktree 時會刪到主 repo 的 `node_modules`、`public/audio`。
 
