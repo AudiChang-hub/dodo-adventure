@@ -362,7 +362,8 @@ test.describe('數學課', () => {
     // 今天的新數字（3～6）：數數第一回合波波先示範，手指一個一個點、邊點邊數
     const n = 3 + (seedN % 4)
     await setMath(page, { next: n, firm: true })
-    const NUM = /^(One|Two|Three|Four|Five|Six|Seven|Eight|Nine|Ten)!$|^There (are|is)/
+    // 字幕會留著上一句（「One! Two!」），所以看結尾：波波數的數字（大寫開頭）、或「There are four!」
+    const NUM = /\b(One|Two|Three|Four|Five|Six|Seven|Eight|Nine|Ten)!$|There (are|is)/
     try {
       if (!(await enter(k, c))) return
       // 舊畫面淡出要一下子才卸載：剛數完一個數字、下一個還沒開始（波波的手指移到下一個）時按 Android 返回最容易出事
@@ -378,7 +379,7 @@ test.describe('數學課', () => {
                 const vs = window.__toddler.voices
                 const last = vs[vs.length - 1]
                 const over = last ? (last.stopped ?? last.end) : Infinity
-                if (last?.text && re.test(last.text) && !/^There/.test(last.text) && over <= now && now - over < 80) {
+                if (last?.text && re.test(last.text) && !/There (are|is)/.test(last.text) && over <= now && now - over < 80) {
                   history.back()
                   return res(performance.now())
                 }
@@ -389,7 +390,8 @@ test.describe('數學課', () => {
             }),
           NUM.source,
         )
-        c.outcome('等到波波數數', back != null, back == null ? '30 秒內沒聽到數字' : '')
+        const heard = back == null ? await page.evaluate(() => window.__toddler.voices.slice(-12).map((v) => v.text ?? '（沒有字幕）').join('、')) : ''
+        c.outcome('等到波波數數', back != null, back == null ? `30 秒內沒聽到數字：${heard}` : '')
         if (back == null) break
         const live = await waitLive(page, (l) => l === 'home', 4000)
         c.outcome('數數中 Android 返回 → 首頁', live === 'home', `到 ${live}`)
