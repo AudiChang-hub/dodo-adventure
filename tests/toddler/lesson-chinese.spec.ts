@@ -4,7 +4,7 @@ import { Toddler, hashSeed, type Pt } from './lib/toddler'
 import { Checker, alive, checkDoubleRecords, doorAt, pressBack, toHome, toddlerStep, waitLive } from './lib/flows'
 
 /**
- * 中文課（src/lessons/chinese/）：念課文（紅字可以點）→ 選圖（三選一）→ 貼紙。
+ * 中文課（src/lessons/chinese/）：念課文（紅字可以點）→ 選圖（三選一）→ 貼紙。每篇連上 3 次（course.ts），第 2 次第二遍挖空讓孩子接。
  * 三歲孩子會做的事：念的時候亂點、連點紅字、連點「去選圖」和選項、兩根手指一起按、一進來就想回去、
  * 上到一半回首頁再進來（同一天要是同一篇、從頭念）。也跑一篇還沒有聲音的課文：不出聲、不用平板內建語音，課照樣上得完。
  */
@@ -32,19 +32,17 @@ function finish(k: Toddler, c: Checker, name: string) {
   expect.soft(k.findings.length, `全部問題：${k.findings.map((f) => f.title).join(' | ')}`).toBe(0)
 }
 
-/** 家長區「今天上這篇」（src/lessons/chinese/progress.ts 的 zhLesson:pick），只在今天有效 */
-const pickDay = (page: Page, day: number) =>
+/** 寫一筆 kv（App 下次讀的時候就看得到） */
+const putKV = (page: Page, key: string, value: unknown) =>
   page.evaluate(
-    (day) =>
+    ({ key, value }) =>
       new Promise<void>((res, rej) => {
-        const d = new Date()
-        const date = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
         const rq = indexedDB.open('dodo-adventure')
         rq.onerror = () => rej(rq.error)
         rq.onsuccess = () => {
           const db = rq.result
           const tx = db.transaction('kv', 'readwrite')
-          tx.objectStore('kv').put({ key: 'zhLesson:pick', value: { date, day } })
+          tx.objectStore('kv').put({ key, value })
           tx.oncomplete = () => {
             db.close()
             res()
@@ -52,8 +50,16 @@ const pickDay = (page: Page, day: number) =>
           tx.onerror = () => rej(tx.error)
         }
       }),
-    day,
+    { key, value },
   )
+
+const todayStr = () => {
+  const d = new Date()
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
+
+/** 家長區「今天上這篇」（src/lessons/chinese/progress.ts 的 zhLesson:pick）：那篇從第 1 次開始 */
+const pickDay = (page: Page, day: number) => putKV(page, 'zhLesson:pick', { date: todayStr(), day })
 
 /** 中文課現在的狀態 */
 const state = (page: Page) =>
@@ -66,6 +72,7 @@ const state = (page: Page) =>
       free: !!root.querySelector('.zh-controls.on'),
       quiz: top?.classList.contains('zh-quiz') ?? false,
       ask: top?.querySelector('.zh-ask-word')?.textContent ?? null,
+      run: Number(root.querySelector('.zh-read')?.getAttribute('data-run') ?? 0),
       accepting: top?.querySelector('.wait-shield')?.getAttribute('data-accepting') === 'true',
       cheer: !!document.querySelector('.cheer-scrim'),
     }
@@ -338,6 +345,86 @@ test.describe('中文課', () => {
       await c.flush()
     } finally {
       finish(k, c, '中途返回')
+    }
+  })
+  test('第 2 次上同一篇：念到紅字前停下來挖空，沒人接也自己念下去；點空格馬上揭曉', async ({ page }, info) => {
+    test.skip(!want('lesson-chinese-gap'))
+    test.setTimeout(6 * 60_000)
+    const { k, c } = await setup(page, info, '第2次挖空')
+    try {
+      // 第 1 篇上過 1 次（很久以前）→ 今天是第 1 篇第 2 次（course.ts 的 Course）
+      await putKV(page, 'zhLesson:course', { day: 1, runs: ['2026-01-01'] })
+      if (!(await enter(k, c))) return
+      const s0 = await state(page)
+      c.outcome('第 2 次', s0.run === 2, `data-run=${s0.run}`)
+      if (s0.run !== 2) return void (await c.once('run2', '困惑', '排了第 2 次，課本卻不是第 2 次', `data-run=${s0.run}`))
+
+      // 在頁面裡記下每個空格「等孩子接」的開始、結束（每 50 毫秒看一次）
+      await page.evaluate(() => {
+        const w = window as unknown as { __gaps: { word: string; on: number; off: number }[] }
+        w.__gaps = []
+        let cur: { word: string; on: number; off: number } | null = null
+        setInterval(() => {
+          const b = document.querySelector<HTMLElement>('.zh-red.blank[data-wait]')
+          const word = b?.dataset.word ?? null
+          if (word && (!cur || cur.word !== word || cur.off)) w.__gaps.push((cur = { word, on: performance.now(), off: 0 }))
+          if (!word && cur && !cur.off) cur.off = performance.now()
+        }, 50)
+      })
+
+      // 第一遍照念（A17）：不挖空
+      k.behavior = '第一遍靜靜聽'
+      const blankEarly = await page.evaluate(() => !!document.querySelector('.zh-red.blank'))
+      c.outcome('第一遍不挖空', !blankEarly, blankEarly ? '一開始就有空格' : '照念')
+
+      // 第二遍：第一個空格出現 → 不動手，看它停多久、會不會自己念下去
+      k.behavior = '第二遍不接話'
+      const end = Date.now() + 90_000
+      let gaps: { word: string; on: number; off: number }[] = []
+      while (Date.now() < end) {
+        gaps = await page.evaluate(() => (window as unknown as { __gaps: { word: string; on: number; off: number }[] }).__gaps)
+        if (gaps.some((g) => g.off)) break
+        await k.wait(300)
+      }
+      const g1 = gaps.find((g) => g.off)
+      const held = g1 ? g1.off - g1.on : 0
+      c.outcome('念到紅字前停 ≥ 1.5 秒（挖空）', !!g1 && held >= 1500, g1 ? `「${g1.word}」停了 ${(held / 1000).toFixed(1)} 秒` : '沒有出現空格')
+      if (!g1) return void (await c.once('nogap', '卡死', '第 2 次的第二遍沒有挖空等孩子接', ''))
+      if (held < 1500) await c.once('short', '困惑', '挖空等孩子接的時間不到 1.5 秒', `${held} 毫秒`)
+      const shown = await page.evaluate((w) => !document.querySelector(`.zh-red.blank[data-word="${w}"]`), g1.word)
+      c.outcome('沒人接：自己揭曉', shown, shown ? '空格不見、字出來了' : '還是空格')
+
+      // 下一個空格：點空格 → 1 秒內揭曉
+      k.behavior = '點空格'
+      let tapped = false
+      for (let i = 0; i < 60 && !tapped; i++) {
+        const b = await page.evaluate(() => {
+          const e = document.querySelector<HTMLElement>('.zh-red.blank[data-wait]')
+          if (!e) return null
+          const r = e.getBoundingClientRect()
+          return { x: r.left + r.width / 2, y: r.top + r.height / 2, word: e.dataset.word ?? '' }
+        })
+        if (b) {
+          await k.tap(b, `空格 ${b.word}`)
+          await k.wait(1000)
+          const still = await page.evaluate((w) => !!document.querySelector(`.zh-red.blank[data-word="${w}"]`), b.word)
+          c.outcome('點空格馬上揭曉', !still, still ? '點了還是空格' : `「${b.word}」揭曉`)
+          if (still) await c.once('tapgap', '困惑', '點挖空的紅字沒有反應', b.word)
+          tapped = true
+        } else await k.wait(300)
+      }
+
+      // 之後不動手：課文照樣念完，出現「去選圖」或自己去選圖
+      k.behavior = '等它念完'
+      const s = await waitFor(k, (s) => s.free || s.quiz, 120_000)
+      c.outcome('第 2 次沒人接也念得完', !!s, s ? (s.quiz ? '自己去選圖' : '出現去選圖') : '一直沒念完')
+      if (!s) await c.once('gap-stuck', '卡死', '第 2 次挖空之後課文停住不念了', '')
+      const n = (await quizRows(page)).length
+      c.outcome('挖空、點空格不記作答', n === 0, `作答 ${n} 筆`)
+      if (n) await c.once('gap-rows', '誤記作答', '第 2 次念課文時記了選圖的作答', `${n} 筆`)
+      await c.flush()
+    } finally {
+      finish(k, c, '第2次挖空')
     }
   })
 })

@@ -42,6 +42,7 @@ const CHECKS = [
   { id: 'test-reset-cloud', name: '單元：重置的雲端刪除', cmd: ['npx', 'tsx', 'scripts/test-reset-cloud.ts'], check: unit },
   { id: 'test-readiness', name: '單元：下一步準備度', cmd: ['npx', 'tsx', 'scripts/test-readiness.ts'], check: unit },
   { id: 'test-math-plan', name: '單元：數學課出題與熟練', cmd: ['npx', 'tsx', 'scripts/test-math-plan.ts'], check: unit },
+  { id: 'test-zh-course', name: '單元：中文課文每篇 3 次（跳過的日子不往前、第 2 次挖空）', cmd: ['npx', 'tsx', 'scripts/test-zh-course.ts'], check: unit },
   { id: 'test-english', name: '單元：英文課（開頭音不算重上、名字的字母先、答錯的說明）', cmd: ['npx', 'tsx', 'scripts/test-english.ts'], check: unit },
   {
     id: 'lessons-teach',

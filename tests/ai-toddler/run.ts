@@ -17,6 +17,7 @@
 //   --out DIR         報告放這裡（預設主 repo 的 docs/AI小男生測試/<日期>-<課>/）
 //   --no-lock         不跟 test:toddler 排隊（預設同一台機器同時只跑一個）
 //   --fresh           故事：新裝置（書架上什麼都沒有）；預設是已經聽過 8 本的舊裝置
+//   --zh-run N        中文課：今天是同一篇的第幾次（1～3，預設 1；2 是念到紅字前停下來讓孩子接）
 //   環境變數 AI_TODDLER_PORT：預設 4537
 import { chromium, type Page } from '@playwright/test'
 import { spawn, spawnSync, type ChildProcess } from 'node:child_process'
@@ -223,6 +224,24 @@ try {
   await boot(page, SEED, { to: 'home', settings: lesson.id === 'story' ? { story: true } : {} })
   // 故事：預設是舊裝置（書架上已經有 8 本講過的書，今天的新章節照樣先講）；--fresh 是新裝置（什麼都沒有）
   if (lesson.id === 'story' && !flag('fresh')) await seedStory(page)
+  // 中文課：第 1 篇已經上過 N-1 次（很久以前），今天是第 N 次（src/lessons/chinese/course.ts 的 Course）
+  const zhRun = Number(opt('zh-run', '1'))
+  if (lesson.id === 'zh' && zhRun > 1)
+    await page.evaluate(
+      (runs) =>
+        new Promise<void>((res, rej) => {
+          const rq = indexedDB.open('dodo-adventure')
+          rq.onerror = () => rej(rq.error)
+          rq.onsuccess = () => {
+            const tx = rq.result.transaction('kv', 'readwrite')
+            tx.objectStore('kv').put({ key: 'zhLesson:course', value: { day: 1, runs } })
+            tx.objectStore('kv').put({ key: 'zhLesson:done', value: [1] })
+            tx.oncomplete = () => (rq.result.close(), res())
+            tx.onerror = () => rej(tx.error)
+          }
+        }),
+      ['2026-01-01', '2026-01-02'].slice(0, Math.min(2, zhRun - 1)),
+    )
   await settle(page)
   finger = new Finger(page, SEED, VP)
   await finger.init()

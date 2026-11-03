@@ -6,8 +6,8 @@ import { logTeach } from '../../lib/record'
 import type { Mood } from '../../art/Dino'
 import { leaveLesson } from '../LessonScreen'
 import type { LessonProps } from '../types'
-import { questionsOf, zhReady, type ZhQuestion, type ZhText } from './data'
-import { doneDays, markDone, todays } from './progress'
+import { STORY_RUN, questionsOf, storyQuestionsOf, zhReady, type ZhQuestion, type ZhText } from './data'
+import { doneDays, lessonToday, markDone } from './progress'
 import { Reader } from './Reader'
 import { Quiz } from './Quiz'
 import './chinese.css'
@@ -15,15 +15,22 @@ import './chinese.css'
 /** 作答紀錄（家長區）用的遊戲 id；技能是 zhtext:<字詞> */
 export const ZH_GAME = 'zh-lesson'
 
+/** 第 2 次上同一篇：給陪的大人看的一句（Shell 角落的小字） */
+const GAP_TIP = '今天第 2 次：第二遍念到紅字前會停一下、字變成空格，等他說出來再一起念。'
+
 /** 主持的恐龍被點了：交給現在這一段（念課文：再念一次；選圖：再問一次） */
 export type HostTap = { current: (() => void) | null }
 
 /**
  * 中文課的一堂：念課文 → 選圖（每個紅字一題）→ 上完叫 onDone（LessonScreen 給貼紙、回首頁）。
+ * 同一篇連上 3 次（progress.ts）：第 1 次照念兩遍；第 2 次第二遍念到紅字前停下來等孩子接（Reader 的 gap）；
+ * 第 3 次再加故事題（STORY_RUN，現況對照 A8，題目還沒做）。
  * 兩段之間、每一題之間都是原地淡入淡出（ui/Scenes 的 Swap），沒有打斷課程的整頁卡片。
  */
 export function ChineseLessonBody({ onDone }: LessonProps) {
   const [t, setT] = useState<ZhText | null>(null)
+  /** 這一篇第幾次上 */
+  const [run, setRun] = useState(1)
   const [ready, setReady] = useState<Set<string> | null>(null)
   const [qs, setQs] = useState<ZhQuestion[]>([])
   const [scene, setScene] = useState<'read' | number>('read')
@@ -34,11 +41,12 @@ export function ChineseLessonBody({ onDone }: LessonProps) {
 
   useEffect(() => {
     let off = false
-    void Promise.all([todays(), zhReady(), doneDays()]).then(([x, r, done]) => {
+    void Promise.all([lessonToday(), zhReady(), doneDays()]).then(([{ t: x, n }, r, done]) => {
       if (off) return
       setT(x)
+      setRun(n)
       setReady(r)
-      setQs(questionsOf(x, done))
+      setQs([...questionsOf(x, done), ...(n >= STORY_RUN ? storyQuestionsOf(x) : [])])
     })
     return () => {
       off = true
@@ -78,12 +86,12 @@ export function ChineseLessonBody({ onDone }: LessonProps) {
       progress={qs.length ? { total: qs.length, done: answered } : undefined}
       onExit={leaveLesson}
       onHost={() => host.current?.()}
-      hintText={t?.parentTip}
+      hintText={t ? (run === 2 ? `${GAP_TIP}${t.parentTip}` : t.parentTip) : undefined}
     >
       {t && ready && (
         <Swap id={scene === 'read' ? 'read' : `q${scene}`}>
           {scene === 'read' ? (
-            <Reader t={t} ready={ready} host={host} onNext={toQuiz} />
+            <Reader t={t} run={run} ready={ready} host={host} onNext={toQuiz} />
           ) : (
             <Quiz key={scene} t={t} q={qs[scene]} ready={ready} host={host} setMood={setMood} onNext={next} />
           )}

@@ -5,6 +5,7 @@ import { wait } from '../../games/lines'
 import { firstFinger } from '../../games/NotYet'
 import { EASE } from '../../ui/motion'
 import { hasClip, pieces, plain, zhClip, type ZhText } from './data'
+import { CLOZE_WAIT_MS, beforeShare, cutAt, gapOf, passesOf, type Pass } from './cloze'
 import { Pic } from './Pic'
 import type { HostTap } from './Lesson'
 
@@ -28,19 +29,26 @@ type Mode = 'reading' | 'free'
  *   第一遍念課文的時候不插話（A17：故事念到一半的熱點會讓孩子分心、理解變差）：只有圖輕輕跳一下，課文照常念下去；
  *   第二遍和念完以後才單獨念那個詞。
  * - 一開始念兩次；之後出現「再聽一次」和「去選圖」，孩子沒動作也會自己去選圖。
+ * - 同一篇的第 2 次（run = 2，現況對照 A3）：第二遍念到每一行的最後一個紅字前停下來，字幕那個詞挖空、圖還在（提示），
+ *   等 CLOZE_WAIT_MS（2 秒）讓孩子接；點空格或圖就馬上揭曉；沒人接莫莫就自己念出那個詞，再把整行念一次，接著念下去。
  * - 沒有聲音的句子不出聲（不用平板內建語音），帶子照樣走，課文照樣看得到。
  */
-export function Reader({ t, ready, host, onNext }: { t: ZhText; ready: Set<string>; host: HostTap; onNext: (ms: number) => void }) {
+export function Reader({ t, run: times = 1, ready, host, onNext }: { t: ZhText; run?: number; ready: Set<string>; host: HostTap; onNext: (ms: number) => void }) {
   const still = useReducedMotion()
   const [mode, setMode] = useState<Mode>('reading')
   const [cur, setCur] = useState(-1)
   const [seen, setSeen] = useState<Set<number>>(() => new Set())
-  const [sweep, setSweep] = useState({ k: 0, dur: 1 })
+  const [sweep, setSweep] = useState({ k: 0, dur: 1, to: 1 })
+  /** 挖空的那一行、那個詞；wait：念到空格前了，正在等孩子接 */
+  const [gap, setGapState] = useState<{ line: number; word: string; wait: boolean } | null>(null)
+  const gapRef = useRef<typeof gap>(null)
+  /** 這一次已經揭曉的行（點了空格、或莫莫念出來了）：之後照念 */
+  const revealed = useRef(new Set<number>())
   const [pop, setPop] = useState<{ w: string; k: number } | null>(null)
   /** 正在單獨念的紅字（點了它）：那個詞底下亮起來，課文的帶子先停在行首 */
   const [wordOn, setWordOn] = useState<string | null>(null)
   const run = useRef(0)
-  const pos = useRef({ line: 0, passes: 2 })
+  const pos = useRef<{ line: number; left: Pass[] }>({ line: 0, left: passesOf(times) })
   const modeRef = useRef<Mode>('reading')
   const auto = useRef(0)
   const startedAt = useRef(performance.now())
@@ -49,6 +57,10 @@ export function Reader({ t, ready, host, onNext }: { t: ZhText; ready: Set<strin
   const setM = (m: Mode) => {
     modeRef.current = m
     setMode(m)
+  }
+  const setGap = (g: typeof gap) => {
+    gapRef.current = g
+    setGapState(g)
   }
 
   const go = () => {
@@ -73,31 +85,89 @@ export function Reader({ t, ready, host, onNext }: { t: ZhText; ready: Set<strin
     let played = false
     if (hasClip(ready, 'text', text))
       played = await sayClip(zhClip('text', text), 'momo', (dur) => {
-        setSweep({ k: performance.now(), dur })
+        setSweep({ k: performance.now(), dur, to: 1 })
       })
     if (my !== run.current) return
     if (!played) {
       const dur = silentSec(text)
-      setSweep({ k: performance.now(), dur })
+      setSweep({ k: performance.now(), dur, to: 1 })
       await wait(dur * 1000)
     }
   }
 
-  /** 從第 from 行念到最後，總共念 passes 次（第二次從第一行開始） */
-  const read = async (from: number, passes: number) => {
+  /** 第 i 行的空格左邊在帶子的多少（0～1） */
+  const bandTo = (i: number) => {
+    const row = document.querySelector(`.zh-read .zh-line[data-line="${i}"]`)
+    const band = row?.querySelector('.zh-band')?.getBoundingClientRect()
+    const blank = row?.querySelector('.zh-red.blank')?.getBoundingClientRect()
+    return band && blank && band.width ? Math.min(1, Math.max(0, (blank.left - band.left) / band.width)) : null
+  }
+
+  /** 挖空的一行：念到紅字前停 → 等孩子接 → 莫莫念出那個詞 → 整行再念一次。沒有紅字、已經揭曉的行照念 */
+  const readGap = async (i: number, my: number) => {
+    const line = t.lines[i]
+    const g = gapOf(line)
+    if (!g || revealed.current.has(i)) return readLine(i, my)
+    setCur(i)
+    setSeen((s) => (s.has(i) ? s : new Set(s).add(i)))
+    setGap({ line: i, word: g.word, wait: false })
+    // 帶子走到空格的左邊停（量畫面上的位置；量不到就照字數估）
+    await new Promise<void>((r) => requestAnimationFrame(() => r()))
+    const share = bandTo(i) ?? beforeShare(line)
+    if (beforeShare(line) > 0) {
+      const text = plain(line)
+      let played = false
+      if (hasClip(ready, 'text', text))
+        played = await sayClip(
+          zhClip('text', text),
+          'momo',
+          (dur) => setSweep({ k: performance.now(), dur, to: share }),
+          (buf, dur) => cutAt(line, buf.getChannelData(0), buf.sampleRate, dur),
+        )
+      if (my !== run.current) return
+      if (!played) {
+        const dur = silentSec(g.before)
+        setSweep({ k: performance.now(), dur, to: share })
+        await wait(dur * 1000)
+      }
+    } else setSweep({ k: performance.now(), dur: 0, to: 0 })
+    if (my !== run.current) return
+    setGap({ line: i, word: g.word, wait: true })
+    await wait(CLOZE_WAIT_MS)
+    if (my !== run.current) return
+    // 沒人接（或接了、我們聽不到）：莫莫自己念出來，孩子對一下答案
+    revealed.current.add(i)
+    setGap(null)
+    setPop({ w: g.word, k: performance.now() })
+    setWordOn(g.word)
+    let said = false
+    if (hasClip(ready, 'word', g.word)) said = await sayClip(zhClip('word', g.word), 'momo')
+    else sfx.pop()
+    if (my !== run.current) return
+    if (!said) await wait(700)
+    if (my !== run.current) return
+    setWordOn(null)
+    await wait(350)
+    if (my !== run.current) return
+    await readLine(i, my)
+  }
+
+  /** 從第 from 行念到最後，照 passes 念幾遍（第二遍從第一行開始） */
+  const read = async (from: number, passes: Pass[]) => {
     const my = ++run.current
     clearTimeout(auto.current)
     setWordOn(null)
+    setGap(null)
     setM('reading')
-    for (let p = 0; p < passes; p++) {
+    for (let p = 0; p < passes.length; p++) {
       for (let i = p === 0 ? from : 0; i < t.lines.length; i++) {
         if (my !== run.current) return
-        pos.current = { line: i, passes: passes - p }
-        await readLine(i, my)
+        pos.current = { line: i, left: passes.slice(p) }
+        await (passes[p] === 'gap' ? readGap(i, my) : readLine(i, my))
         if (my !== run.current) return
         if (i < t.lines.length - 1) await wait(LINE_GAP_MS)
       }
-      if (p < passes - 1) {
+      if (p < passes.length - 1) {
         setCur(-1)
         await wait(PASS_GAP_MS)
       }
@@ -111,7 +181,7 @@ export function Reader({ t, ready, host, onNext }: { t: ZhText; ready: Set<strin
   useEffect(() => {
     const my = run.current
     const k = window.setTimeout(() => {
-      if (my === run.current) void read(0, 2)
+      if (my === run.current) void read(0, passesOf(times))
     }, START_MS)
     return () => {
       clearTimeout(k)
@@ -126,16 +196,19 @@ export function Reader({ t, ready, host, onNext }: { t: ZhText; ready: Set<strin
   const tapWord = async (w: string, line: number) => {
     if (left.current) return
     // 第一遍（還沒開始念也算）：圖跳一下就好，不打斷課文
-    if (modeRef.current === 'reading' && pos.current.passes >= 2) {
+    if (modeRef.current === 'reading' && pos.current.left.length >= 2) {
       setPop({ w, k: performance.now() })
       return
     }
     const resume = modeRef.current === 'reading' ? { ...pos.current } : null
+    // 點了挖空的那個詞（或它的圖）：揭曉，這一行之後照念
+    if (gapRef.current?.line === line) revealed.current.add(line)
+    setGap(null)
     const my = ++run.current
     clearTimeout(auto.current)
     setPop({ w, k: performance.now() })
     setWordOn(w)
-    setSweep({ k: performance.now(), dur: -1 })
+    setSweep({ k: performance.now(), dur: -1, to: 1 })
     setSeen((s) => (s.has(line) ? s : new Set(s).add(line)))
     let played = false
     if (hasClip(ready, 'word', w)) played = await sayClip(zhClip('word', w), 'momo')
@@ -146,20 +219,20 @@ export function Reader({ t, ready, host, onNext }: { t: ZhText; ready: Set<strin
     setWordOn(null)
     if (resume) {
       await wait(350)
-      if (my === run.current) void read(resume.line, resume.passes)
+      if (my === run.current) void read(resume.line, resume.left)
     } else armAuto()
   }
 
   /** 念完以後點一行（紅字以外的地方）：從那一行念到最後一次 */
   const tapLine = (i: number) => {
     if (modeRef.current !== 'free' || left.current) return
-    void read(i, 1)
+    void read(i, ['plain'])
   }
 
   const again = () => {
     if (left.current) return
     sfx.tap()
-    void read(0, 1)
+    void read(0, ['plain'])
   }
 
   // 點莫莫：念完以後再念一次；正在念就不打斷
@@ -175,7 +248,7 @@ export function Reader({ t, ready, host, onNext }: { t: ZhText; ready: Set<strin
   const chars = Math.max(...t.lines.map((l) => plain(l).length))
   const reds = (l: string) => pieces(l).filter((p) => p.red && t.emoji[p.text])
   return (
-    <div className="zh-read" style={{ '--chars': chars } as CSSProperties}>
+    <div className="zh-read" data-run={times} style={{ '--chars': chars } as CSSProperties}>
       <motion.article className="zh-page" initial={still ? false : { y: 14 }} animate={{ y: 0 }} transition={{ duration: 0.5, ease: EASE.out }}>
         <h2 className="zh-title">{t.title}</h2>
         <div className="zh-lines">
@@ -185,7 +258,7 @@ export function Reader({ t, ready, host, onNext }: { t: ZhText; ready: Set<strin
               <div key={i} className={`zh-line${on ? ' on' : ''}${seen.has(i) ? ' seen' : ''}`} data-line={i} onPointerDown={() => tapLine(i)}>
                 {on && (
                   <motion.span className="zh-band" layoutId={still ? undefined : 'zh-band'} transition={{ duration: 0.35, ease: EASE.inOut }} aria-hidden="true">
-                    <motion.i key={sweep.k} className="zh-sweep" initial={{ scaleX: 0 }} animate={{ scaleX: sweep.dur < 0 ? 0 : 1 }} transition={{ duration: still || sweep.dur < 0 ? 0 : sweep.dur, ease: 'linear' }} />
+                    <motion.i key={sweep.k} className="zh-sweep" initial={{ scaleX: 0 }} animate={{ scaleX: sweep.dur < 0 ? 0 : sweep.to }} transition={{ duration: still || sweep.dur <= 0 ? 0 : sweep.dur, ease: 'linear' }} />
                   </motion.span>
                 )}
                 <span className="zh-text">
@@ -194,8 +267,9 @@ export function Reader({ t, ready, host, onNext }: { t: ZhText; ready: Set<strin
                       <button
                         key={j}
                         type="button"
-                        className={`zh-red${pop?.w === p.text ? ' pop' : ''}${wordOn === p.text ? ' on' : ''}`}
+                        className={`zh-red${pop?.w === p.text ? ' pop' : ''}${wordOn === p.text ? ' on' : ''}${gap?.line === i && gap.word === p.text ? ' blank' : ''}`}
                         data-word={p.text}
+                        data-wait={gap?.line === i && gap.word === p.text && gap.wait ? 'true' : undefined}
                         onPointerDown={(e) => {
                           e.stopPropagation()
                           if (firstFinger(e.nativeEvent)) void tapWord(p.text, i)

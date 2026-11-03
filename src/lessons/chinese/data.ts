@@ -97,6 +97,17 @@ export function questionsOf(t: ZhText, done: ReadonlySet<number> = new Set()): Z
   return out
 }
 
+/** 同一篇上到第幾次才問故事題（現況對照 A8：第一次聽的那天不考理解） */
+export const STORY_RUN = 3
+
+/**
+ * 故事題（「誰先到？」「小豬的房子用什麼蓋的？」，現況對照 A8）：每篇的題目要家長審、也要產生語音，還沒做，先回傳空的。
+ * 之後在 texts.json 加 story 欄位，這裡轉成題目；Lesson.tsx 在第 STORY_RUN 次接在紅字題後面。
+ */
+export function storyQuestionsOf(_t: ZhText): ZhQuestion[] {
+  return []
+}
+
 /** 選圖題念的那一句 */
 export const questionText = (w: string) => `哪個是${w}？`
 

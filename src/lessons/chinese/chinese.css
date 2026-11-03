@@ -145,6 +145,32 @@
   }
 }
 
+/* 第 2 次上同一篇：挖空的紅字（Reader 的 gap）。字藏起來、留一格同樣寬的空格；等孩子接的時候空格輕輕呼吸 */
+.zh-red.blank {
+  color: transparent;
+  text-decoration: none;
+}
+.zh-red.blank::before {
+  inset: 0.02em -0.06em -0.06em;
+  border: 4px dashed color-mix(in srgb, var(--zh-red) 70%, transparent);
+  background: color-mix(in srgb, var(--zh-red) 7%, #fffdf8);
+  opacity: 1;
+}
+.zh-red.blank[data-wait]::before {
+  animation: zh-gap 1.1s var(--ease-in-out, ease-in-out) infinite;
+}
+@keyframes zh-gap {
+  50% {
+    transform: scale(1.06);
+    background: color-mix(in srgb, var(--zh-red) 16%, #fffdf8);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .zh-red.blank[data-wait]::before {
+    animation: none;
+  }
+}
+
 /* 這一行紅字的圖：唸過才淡入，一直留著 */
 .zh-pics {
   position: relative;

@@ -213,7 +213,7 @@ export async function say(...keys: string[]): Promise<void> {
  * 和 say 共用打斷的規則（新的 say、stopSpeech 會停掉它；它也會停掉正在說的話），恐龍嘴巴照樣跟著動，不出字幕。
  * onStart 拿到這段聲音的長度（秒）。回傳有沒有播出來（沒有音檔、被打斷都是 false）；絕不退回平板內建語音。
  */
-export async function sayClip(name: string, speaker: Speaker, onStart?: (dur: number) => void): Promise<boolean> {
+export async function sayClip(name: string, speaker: Speaker, onStart?: (dur: number) => void, until?: (buf: AudioBuffer, dur: number) => number): Promise<boolean> {
   halt()
   emit({ type: 'stop' })
   const my = token
@@ -221,7 +221,9 @@ export async function sayClip(name: string, speaker: Speaker, onStart?: (dur: nu
   try {
     const buf = await load(name)
     if (!buf || my !== token) return false
-    const dur = audibleDuration(buf, null)
+    // until：只播前面一段（中文課第 2 次念到紅字前停下來，chinese/cloze.ts 算停在哪裡）
+    const full = audibleDuration(buf, null)
+    const dur = until ? Math.max(0.05, Math.min(full, until(buf, full))) : full
     let started = false
     await playBuffer(buf, speaker, dur, () => {
       started = true

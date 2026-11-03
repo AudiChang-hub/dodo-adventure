@@ -14,6 +14,8 @@
   font-size: 22px;
 }
 .zh-now-title small {
+  display: inline-block;
+  white-space: nowrap;
   margin-left: 10px;
   font-size: 13px;
   color: var(--ink-faint);
@@ -109,4 +111,7 @@
   font-family: 'Noto Sans TC', sans-serif;
   font-size: 14px;
   color: var(--ink-soft);
+}
+.zh-state.some {
+  color: #6f9cc8;
 }
