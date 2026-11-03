@@ -7,6 +7,7 @@ import { useIdle } from '../../games/idle'
 import { PACE } from '../../games/pace'
 import { say, sfx } from '../../lib/audio'
 import { useRoute } from '../../lib/nav'
+import { needsDemo, noteFormat, rotate, type Format } from '../formats'
 import { DUR, EASE, FADE } from '../../ui/motion'
 import type { Mood } from '../../art/Dino'
 import type { Lesson } from './plan'
@@ -74,6 +75,8 @@ export interface QuizSpec {
   ask?: ReactNode
   /** 選項是寬的（比多少的兩堆） */
   wide?: boolean
+  /** 題型（../formats.ts）：孩子還不會這種題型，手先做一次（T-96） */
+  format?: Format
 }
 
 export interface QuizResult {
@@ -82,6 +85,8 @@ export interface QuizResult {
   ms: number
   /** 錯兩次之後才答對（手指出答案） */
   hinted: boolean
+  /** 這一題手先示範過（算一起練） */
+  shown: boolean
 }
 
 /**
@@ -89,8 +94,10 @@ export interface QuizResult {
  * 念完、輪到孩子：每張卡外面一圈淡黃框（看得出「現在可以選了」）。
  * 點錯第一次：說出他選的是什麼、再問一次要找的（spec.wrong），答案外面一圈提示框；第二次：手點一下答案、說出答案，孩子再點對的（不會卡住）。
  * 閒置：15 秒再念一次題目 → 再 15 秒答案亮起來、手點一下（不說話）。
+ * 題型還不會（spec.format，../formats.ts）：先示範——Watch me! → 手指泡泡（要找的樣子）、念題目 → 手點答案、說出答案 → 選項換位置 → Your turn!
+ * （T-96：盲測裡題目全是英文，他等到手出來才知道要做什麼）。
  */
-export function Quiz({ spec, host, onDone }: { spec: QuizSpec; host: PartCtx['host']; onDone: (r: QuizResult) => void }) {
+export function Quiz({ spec, host, onDone, showing }: { spec: QuizSpec; host: PartCtx['host']; onDone: (r: QuizResult) => void; showing?: PartCtx['demo'] }) {
   const [marks, setMarks] = useState<Record<string, 'wrong' | 'correct'>>({})
   const [hint, setHint] = useState(false)
   const [hand, setHand] = useState(0)
@@ -98,6 +105,14 @@ export function Quiz({ spec, host, onDone }: { spec: QuizSpec; host: PartCtx['ho
   const [cue, setCue] = useState(0)
   /** 輪到孩子選：每張卡外面一圈靜態的淡黃框（AI 小男生測試 #5：輪到他時選項要亮起來），點了第一下就收 */
   const [ready, setReady] = useState(false)
+  /** 選項的順序（示範完轉一格） */
+  const [order, setOrder] = useState(spec.options)
+  /** 示範中：手在泡泡（或上面那一堆）上、或在答案上 */
+  const [teach, setTeach] = useState<'ask' | 'answer' | null>(null)
+  const [press, setPress] = useState(0)
+  const shown = useRef(!!spec.format && needsDemo(spec.format))
+  const bubble = useRef<HTMLDivElement | null>(null)
+  const pile = useRef<HTMLDivElement | null>(null)
   const live = useLive()
   const busy = useRef(true)
   const taps = useRef<{ pick: string; ms: number }[]>([])
@@ -111,7 +126,31 @@ export function Quiz({ spec, host, onDone }: { spec: QuizSpec; host: PartCtx['ho
     busy.current = true
     setHold(true)
     setCue((c) => c + 1)
-    await say(...spec.prompt)
+    if (shown.current) {
+      showing?.(true)
+      await say('teach.watch.bobo')
+      if (!live.current) return
+      setTeach('ask')
+      await say(...spec.prompt)
+      if (!live.current) return
+      setTeach('answer')
+      await wait(650)
+      if (!live.current) return
+      setPress((p) => p + 1)
+      setMarks({ [spec.answer]: 'correct' })
+      sfx.pop()
+      await say(...spec.correction)
+      await wait(500)
+      if (!live.current) return
+      // 你做：選項換位置（看的是樣子，不是位置），手收起來
+      setTeach(null)
+      setMarks({})
+      setOrder((o) => rotate(o))
+      showing?.(false)
+      await wait(600)
+      if (!live.current) return
+      await say('teach.turn.bobo')
+    } else await say(...spec.prompt)
     if (!live.current) return
     busy.current = false
     setHold(false)
@@ -137,6 +176,7 @@ export function Quiz({ spec, host, onDone }: { spec: QuizSpec; host: PartCtx['ho
     return () => {
       clearTimeout(boot)
       idle.stop()
+      if (shown.current) showing?.(false)
       // 淡出中的上一題比下一題晚卸載：只收自己的
       if (host.current === mine) host.current = null
     }
@@ -159,7 +199,8 @@ export function Quiz({ spec, host, onDone }: { spec: QuizSpec; host: PartCtx['ho
       setMarks((m) => ({ ...m, [id]: 'correct' }))
       setHint(false)
       sfx.correct()
-      const r = { firstTry: taps.current.length === 1, taps: taps.current, ms: Math.round(performance.now() - t0.current), hinted: hinted.current }
+      const r = { firstTry: taps.current.length === 1, taps: taps.current, ms: Math.round(performance.now() - t0.current), hinted: hinted.current, shown: shown.current }
+      if (spec.format) noteFormat(spec.format, r.firstTry)
       await say(praiseKey('bobo'))
       await wait(r.firstTry ? PACE.NEXT_REVIEW : PACE.NEXT_NEW)
       if (live.current) onDone(r)
@@ -194,39 +235,45 @@ export function Quiz({ spec, host, onDone }: { spec: QuizSpec; host: PartCtx['ho
     idle.poke()
   }
 
-  const at = hint && hand > 0 ? pointIn(tiles.current.get(spec.answer), layer.current) : null
+  const at =
+    teach === 'ask'
+      ? pointIn(bubble.current ?? pile.current, layer.current, 0.5, 0.62)
+      : teach === 'answer' || (hint && hand > 0)
+        ? pointIn(tiles.current.get(spec.answer), layer.current)
+        : null
   return (
     <div className={`ma-quiz${spec.top ? ' has-top' : ''}`} ref={layer}>
       {spec.top && (
-        <div className="ma-quiz-top" key={cue}>
+        <div className="ma-quiz-top" key={cue} ref={pile}>
           {spec.top}
         </div>
       )}
       {spec.ask && (
-        <div className="ma-ask" key={`ask${cue}`} aria-hidden="true">
+        <div className="ma-ask" key={`ask${cue}`} ref={bubble} aria-hidden="true">
           {spec.ask}
         </div>
       )}
-      <div className={`ma-options${spec.wide ? ' wide' : ''}`}>
-        {spec.options.map((o, i) => (
+      <div className={`ma-options${spec.wide ? ' wide' : ''}${teach ? ' is-demo' : ''}`} data-dim={teach ? 'true' : undefined}>
+        {order.map((o, i) => (
           <motion.button
             key={o.id}
+            layout
             ref={(el: HTMLButtonElement | null) => {
               if (el) tiles.current.set(o.id, el)
             }}
-            className={`tile ma-tile${spec.wide ? ' wide' : ''}${marks[o.id] === 'correct' ? ' correct' : ''}${hint && o.id === spec.answer && marks[o.id] !== 'correct' ? ' hint' : ''}${ready && !hint ? ' cue turn-hop' : ''}`}
+            className={`tile ma-tile${spec.wide ? ' wide' : ''}${teach && o.id === spec.answer ? ' is-shown' : ''}${marks[o.id] === 'correct' ? ' correct' : ''}${hint && o.id === spec.answer && marks[o.id] !== 'correct' ? ' hint' : ''}${ready && !hint ? ' cue turn-hop' : ''}`}
             style={{ '--turn-i': i } as CSSProperties}
             aria-label={o.label}
             initial={{ y: 24, opacity: 0 }}
             animate={marks[o.id] === 'wrong' ? { x: [0, -10, 10, 0], opacity: 0.45, y: 0 } : { y: 0, opacity: 1 }}
-            transition={marks[o.id] === 'wrong' ? { duration: 0.4 } : { ...FADE, delay: i * 0.06 }}
+            transition={marks[o.id] === 'wrong' ? { duration: 0.4 } : { ...FADE, delay: i * 0.06, layout: { duration: 0.5, ease: EASE.out } }}
             onPointerDown={(e) => firstFinger(e.nativeEvent) && tap(o.id)}
           >
             <div className="tile-in">{o.view}</div>
           </motion.button>
         ))}
       </div>
-      <AnimatePresence>{at && <Hand key="hint" x={at.x} y={at.y} tap={hand} size="10cqmin" cuff="#F0B088" />}</AnimatePresence>
+      <AnimatePresence>{at && <Hand key="hint" x={at.x} y={at.y} tap={teach ? press : hand} size="10cqmin" cuff="#F0B088" />}</AnimatePresence>
       <WaitShield on={hold} />
     </div>
   )

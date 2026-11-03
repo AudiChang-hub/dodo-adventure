@@ -299,6 +299,33 @@
   display: grid;
   place-items: center;
 }
+/* 示範中（我做，PHASE-1）：作答區淡一點，只有手要點的那一張是全亮的 */
+.ma-options.is-demo .ma-tile:not(.is-shown) {
+  opacity: 0.5 !important;
+}
+/* 小複習的泡泡（T-96）：找數字＝那個數字；有幾個＝點點 → 空的數字卡 */
+.ma-ask-num {
+  font-size: 70cqmin;
+  line-height: 1;
+  color: var(--ink);
+}
+.ma-ask-many {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8cqmin;
+}
+.ma-ask-many .ma-dots {
+  --dot: 13cqmin;
+  --gap: 5cqmin;
+}
+.ma-ask-card {
+  width: 34cqmin;
+  height: 40cqmin;
+  border-radius: 9cqmin;
+  border: 4px dashed color-mix(in srgb, var(--ink) 45%, transparent);
+  background: var(--card);
+}
 /* 有幾個：上面那一堆（要數的圖，平平地放在紙上，不做成卡片的樣子，看起來不像可以點的選項） */
 .ma-pile {
   height: 100%;
