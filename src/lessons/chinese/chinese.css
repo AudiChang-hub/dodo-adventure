@@ -437,6 +437,34 @@
 .zh-options .tile-in {
   inset: 13%;
 }
+/* 答對（T-97）：右上角一個綠色大打勾——不用聽懂話也看得出「對了」；顏色跟 .tile.correct 的綠框、挑貼紙的打勾一樣 */
+.zh-yes {
+  position: absolute;
+  top: -14%;
+  right: -14%;
+  z-index: 2;
+  width: 42%;
+  aspect-ratio: 1;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--good);
+  box-shadow:
+    0 5px 0 color-mix(in srgb, var(--good) 70%, #2e2a25),
+    0 0 0 6px #fbf8f2;
+  pointer-events: none;
+}
+/* 答對的那張外面一圈暖暖的光暈（靜態，跟著放大） */
+.zh-options.is-solved .tile.correct::before {
+  content: '';
+  position: absolute;
+  inset: -18%;
+  z-index: -1;
+  border-radius: 50%;
+  background: radial-gradient(closest-side, rgba(143, 203, 170, 0.55), rgba(241, 210, 124, 0.25) 60%, transparent);
+  animation: hint-in 0.5s var(--ease-out) both;
+  pointer-events: none;
+}
 
 /* 手機直式（家長遠端看）：不壞版就好——課本佔滿寬度，按鈕排到下面 */
 @media (orientation: portrait) {
