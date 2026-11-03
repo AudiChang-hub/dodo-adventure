@@ -189,6 +189,27 @@
   -webkit-tap-highlight-color: transparent;
   touch-action: manipulation;
 }
+/* 亮的那一行的圖（T-90）：放大（motion 的 scale）、一圈淡黃框＝「點這個」，跟選圖的 .tile.cue 同一個樣子；點過就收起來 */
+.zh-pic {
+  position: relative;
+}
+.zh-pic.big {
+  box-shadow: 0 6px 0 rgba(46, 42, 37, 0.1);
+}
+/* 放大 1.25 倍（Reader 的 BIG）：圖和圖、圖和字之間多留放大出去的那一圈，不會疊在一起、蓋到標點。只改 gap、padding，行高不變，版面不跳 */
+.zh-line.on .zh-pics {
+  gap: calc(var(--zh-lh) * 0.86 * 0.25 + 0.9cqw);
+  padding-left: calc(var(--zh-lh) * 0.86 * 0.125 + 1.4cqw);
+}
+.zh-pic.cue::after {
+  content: '';
+  position: absolute;
+  inset: -7px;
+  border-radius: 30%;
+  border: 4px solid rgba(241, 210, 124, 0.9);
+  animation: hint-in 0.8s var(--ease-out) both;
+  pointer-events: none;
+}
 .zh-pic-in {
   display: block;
   width: 100%;

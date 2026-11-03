@@ -335,3 +335,65 @@
     0 18px 0 10px rgba(46, 42, 37, 0.06),
     0 40px 70px -30px rgba(46, 42, 37, 0.35);
 }
+
+/* 收進貼紙本以後的房子（T-90）：跟下課畫面的 .lb-home 一樣的樣子，放在貼紙本右下，不擋住新的那一張 */
+.pk-home {
+  position: absolute;
+  right: max(3vw, 24px);
+  bottom: max(11vh, 84px);
+  z-index: 4;
+  width: clamp(120px, 19vmin, 170px);
+  aspect-ratio: 1;
+  border: 0;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: var(--card);
+  box-shadow:
+    0 7px 0 var(--paper-edge),
+    0 0 0 10px rgba(241, 210, 124, 0.45),
+    0 22px 34px -20px rgba(46, 42, 37, 0.35);
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+.pk-home > svg {
+  width: 58%;
+  height: auto;
+}
+.pk-home:active {
+  box-shadow:
+    0 2px 0 var(--paper-edge),
+    0 0 0 10px rgba(241, 210, 124, 0.45);
+}
+.pk-home-hand {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+/*
+ * 收進貼紙本以後停在這一頁（T-90）：新的那一張一圈靜態的暖光（看得出「放進去的是這張」），貼上去之後再輕輕跳一下（一次就停，MOTION-2）；
+ * 貼紙本往左讓一點，房子放在本子右邊，不壓到本子
+ */
+.pk-book .al-item.is-new::before {
+  content: '';
+  position: absolute;
+  inset: -16%;
+  border-radius: 50%;
+  background: radial-gradient(closest-side, rgba(241, 210, 124, 0.6), rgba(241, 210, 124, 0));
+  animation: hint-in 0.8s var(--ease-out) 0.9s both;
+  pointer-events: none;
+}
+.picker.is-done .pk-book .al-item.is-new {
+  animation: turn-hop 0.6s var(--ease-out) 0.3s both;
+}
+.pk-book {
+  transition: translate 0.6s var(--ease-out);
+}
+.picker.is-done .pk-book {
+  translate: -8vw 0;
+}
+@media (orientation: portrait) {
+  .picker.is-done .pk-book {
+    translate: 0 -6vh;
+  }
+}

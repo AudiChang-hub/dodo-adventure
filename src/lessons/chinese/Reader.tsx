@@ -11,12 +11,17 @@ import type { HostTap } from './Lesson'
 /** 大人的按鈕：同一顆連點時，每兩下之間不到這麼久就不算（孩子連點、手掌壓到，連點再久也只走一行）；每顆按鈕各自算，換一顆按照樣有反應 */
 const NEXT_LOCK_MS = 900
 
+/** 亮的那一行，紅字的圖放大到幾倍（孩子的眼睛跟著大人念到哪裡，圖是他看得懂的東西） */
+const BIG = 1.25
+
 /**
  * 親子共讀（2026-11-03 家長決定：拿掉全部中文語音，App 不出聲，大人念給孩子聽）。
  * - 課本一頁，一次亮一行：亮的那一行底下一條淡藍帶子，念過的行是墨色、還沒念的行很淡；紅字的圖跟著那一行跳出來一下（只一次），孩子的眼睛跟著走。
  * - 大人念完這一行，按右下的「下一行」往下走（大人的按鈕：低調、不跳動，放在孩子常點的課文和圖以外；連點只算一下）；
  *   孩子不小心按到了，上面有一顆更小的「上一行」可以退回去。
- * - 孩子點紅字（或它的圖）：圖放大跳一下、有一聲輕的音效，讓他看清楚那是什麼；不出聲念、不打斷大人。
+ * - 孩子的眼睛和手（T-90，AI 小男生：「整面都是字，不知道要做什麼」）：亮的那一行，紅字的圖放大、一圈淡黃框、
+ *   依序輕輕跳一下（跟選圖、教學卡的「輪到你了」同一套）——大人念到那個詞，孩子看圖、點圖。
+ *   點紅字（或它的圖）：圖再放大跳一下、有一聲輕的音效，外框收起來；不出聲念、不打斷大人。
  * - 第 2 次上同一篇（run = 2，現況對照 A3）：每一行最後一個紅字框起來、上面一個「停」字，提醒大人念到這裡停一下，讓他接。
  * - 最後一行念完按「念完了」：「聊一聊」卡片（parentTip 的開放問題放大，對話式共讀），大人問完按「去選圖」。
  */
@@ -41,6 +46,8 @@ export function Reader({
   const [cur, setCur] = useState(0)
   const [talk, setTalk] = useState(false)
   const [pop, setPop] = useState<{ w: string; k: number } | null>(null)
+  /** 孩子點過的圖（第幾行:哪個詞）：點過就收起「點我」的外框 */
+  const [touched, setTouched] = useState<Set<string>>(() => new Set())
   const lockUntil = useRef(new Map<string, number>())
   const startedAt = useRef(performance.now())
   const left = useRef(false)
@@ -90,6 +97,7 @@ export function Reader({
     if ((line > cur && !talk) || left.current) return
     sfx.pop()
     setPop({ w, k: performance.now() })
+    setTouched((s) => (s.has(`${line}:${w}`) ? s : new Set(s).add(`${line}:${w}`)))
   }
 
   // 點莫莫：輕輕一聲（不說話，大人在念）
@@ -141,24 +149,25 @@ export function Reader({
                   )}
                 </span>
                 <span className="zh-pics">
-                  {reds(l).map((p) => (
+                  {reds(l).map((p, j) => (
                     <motion.button
                       key={p.text}
                       type="button"
-                      className="zh-pic"
+                      // 亮的那一行：圖放大、一圈淡黃框、依序輕輕跳一下（點我，T-84 同一套）；點過就收起外框
+                      className={`zh-pic${on ? ' big' : ''}${on && !touched.has(`${i}:${p.text}`) ? ' cue turn-hop' : ''}`}
+                      style={{ '--turn-i': j, pointerEvents: seen ? 'auto' : 'none', zIndex: on || pop?.w === p.text ? 2 : undefined } as CSSProperties}
                       aria-label={p.text}
                       initial={false}
                       animate={
                         !seen
                           ? { opacity: 0, scale: 0.7, y: 6 }
                           : pop?.w === p.text
-                            ? { opacity: 1, scale: [1, 1.4, 1.12], y: 0 }
-                            : on && !still
-                              ? { opacity: 1, scale: [0.7, 1.12, 1], y: [6, -6, 0] }
+                            ? { opacity: 1, scale: on ? [BIG, BIG * 1.22, BIG] : [1, 1.4, 1.12], y: 0 }
+                            : on
+                              ? { opacity: 1, scale: BIG, y: 0 }
                               : { opacity: 1, scale: 1, y: 0 }
                       }
-                      transition={{ duration: still ? 0 : pop?.w === p.text ? 0.6 : 0.55, ease: EASE.out }}
-                      style={{ pointerEvents: seen ? 'auto' : 'none', zIndex: pop?.w === p.text ? 2 : undefined }}
+                      transition={{ duration: still ? 0 : pop?.w === p.text ? 0.6 : 0.45, ease: EASE.out }}
                       onPointerDown={(e) => {
                         e.stopPropagation()
                         if (firstFinger(e.nativeEvent)) tapWord(p.text, i)
