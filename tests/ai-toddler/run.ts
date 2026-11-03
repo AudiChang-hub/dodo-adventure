@@ -21,7 +21,7 @@
 //                     中文課是親子共讀（App 不出聲）：每一步之前「媽媽」先做她的部分（念一行、按下一行、問聊一聊、念題目），見 mom()
 //   --external LABEL  不自己打包、不開 vite：用已經開在 AI_TODDLER_PORT 的打包版（例如在主 checkout 自己 build + vite preview），
 //                     報告的版本寫 LABEL 和網頁上的 index-*.js（盲測用：測試員不看那個資料夾的 git）
-//   --back-at N       第 N 步不問大腦，直接用 Android 返回（「上到一半按返回」），之後照常讓小男生玩
+//   --back-at N       第 N 步（那時不在課裡就等他回到課裡）不問大腦，直接用 Android 返回（「上到一半按返回」），之後照常讓小男生玩
 //   環境變數 AI_TODDLER_PORT：預設 4537
 import { chromium, type Page } from '@playwright/test'
 import { spawn, spawnSync, type ChildProcess } from 'node:child_process'
@@ -59,6 +59,7 @@ const BRAIN = opt('brain', 'auto') as 'auto' | BrainKind
 const PORT = Number(process.env.AI_TODDLER_PORT || 4537)
 const VP = { width: 1280, height: 800 }
 const BACK_AT = Number(opt('back-at', '0'))
+let backDone = false
 
 // 報告寫到主 repo（不是 worktree）：worktree 只有 gitignored 的檔案時會被自動刪掉
 function mainRepo() {
@@ -210,7 +211,10 @@ const R: Run = {
 // Node 這邊用 public/audio 的 timings.json（英文逐字）、zh/index.json（單字三明治的中文）對照成文字。中文課文 2026-11-03 起不出聲。
 await page.addInitScript({ path: path.join(here, 'heard.js') })
 const clipText = (() => {
-  const dir = path.join(root, 'public', 'audio')
+  // worktree 沒有 public/audio（不進 git）時用主 repo 的；沒有它小男生只會聽到「一段聲音」，聽不到 App 念什麼
+  const own = path.join(root, 'public', 'audio')
+  const dir = fs.existsSync(path.join(own, 'timings.json')) ? own : path.join(mainRepo(), 'public', 'audio')
+  if (!fs.existsSync(path.join(dir, 'timings.json'))) console.log(`⚠ 找不到 ${path.join(dir, 'timings.json')}：小男生聽不到 App 念的句子（只會寫「一段聲音」）`)
   const read = (f: string) => {
     try {
       return JSON.parse(fs.readFileSync(path.join(dir, f), 'utf8'))
@@ -485,7 +489,9 @@ while (!fatal) {
     .filter(Boolean)
     .join('\n')
 
-  const forcedBack = n === BACK_AT
+  // 指定的返回要在課裡按：孩子自己先回到首頁的話，等他回到課裡再按
+  const forcedBack = BACK_AT > 0 && !backDone && n >= BACK_AT && lesson.isIn(s.live)
+  if (forcedBack) backDone = true
   let a: Answer = forcedBack
     ? { json: { see: '', think: '（測試指定：上到一半按返回）', feeling: '', understood: true, action: 'back' }, raw: '', ms: 0, brain: brain.kind }
     : await brain.ask({ id: pad(n), system: SYSTEM, systemFile, text, image: forBrain })
