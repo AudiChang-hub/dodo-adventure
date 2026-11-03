@@ -22,7 +22,7 @@ export function EnglishLesson({ onDone }: LessonProps) {
 }
 ```
 
-- **`onDone()`**：上完一堂就叫一次。`LessonScreen.tsx` 會給一張貼紙、讓孩子挑，然後回首頁。叫第二次不會再給。
+- **`onDone()`**：上完一堂就叫一次。`LessonScreen.tsx` 接著放下課畫面（平均每 3～4 堂有一次是挑貼紙、不固定、事先不說，其他是安靜的下課畫面，見 `src/lib/lesson-sticker.ts`），然後回首頁。叫第二次不會再算一堂。課自己的稱讚、再見照常說，不要提到貼紙。
 - **返回**：畫面左上角放返回鍵，點一下回首頁（照路由回上一層，不用自己處理）：
   ```tsx
   import { BackButton } from '../../ui/Back'

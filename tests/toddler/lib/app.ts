@@ -7,8 +7,11 @@ export const PORT = Number(process.env.TODDLER_PORT || 4527)
 export const BASE = `http://localhost:${PORT}/dodo-adventure/`
 const PROBE = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'probe.js')
 
-/** 開 App、寫好測試用的設定，進到首頁 */
-export async function boot(page: Page, seed: number, opts: { to?: 'home'; settings?: Record<string, unknown> } = {}) {
+/**
+ * 開 App、寫好測試用的設定，進到首頁。
+ * lessonSticker：下一堂上完有沒有挑貼紙（平時平均每 3～4 堂一次、不固定，src/lib/lesson-sticker.ts）；沒給就照 App 自己抽
+ */
+export async function boot(page: Page, seed: number, opts: { to?: 'home'; settings?: Record<string, unknown>; lessonSticker?: boolean } = {}) {
   await page.addInitScript((seed) => {
     if (!sessionStorage.getItem('toddler.seed')) sessionStorage.setItem('toddler.seed', String(seed))
   }, seed)
@@ -19,7 +22,7 @@ export async function boot(page: Page, seed: number, opts: { to?: 'home'; settin
   const port = await page.evaluate(() => location.port)
   expect(port).toBe(String(PORT))
   await page.evaluate(
-    async ({ extra, to }) => {
+    async ({ extra, to, sticker }) => {
       await new Promise<void>((res, rej) => {
         const rq = indexedDB.open('dodo-adventure')
         rq.onerror = () => rej(rq.error)
@@ -29,6 +32,11 @@ export async function boot(page: Page, seed: number, opts: { to?: 'home'; settin
           const st = tx.objectStore('kv')
           const g = st.get('settings')
           g.onsuccess = () => st.put({ key: 'settings', value: { ...(g.result?.value ?? {}), freePlay: 'always', eyeBreakEvery: 60, dailyMinutes: 120, ...extra } })
+          if (sticker != null) {
+            // 這一輪第 1 堂就出現（有貼紙），或第 3 堂才出現（下一堂沒有）
+            const a = st.get('achieve')
+            a.onsuccess = () => st.put({ key: 'achieve', value: { ...(a.result?.value ?? { v: 2 }), gap: { since: 0, next: sticker ? 1 : 3 } } })
+          }
           tx.oncomplete = () => {
             db.close()
             res()
@@ -38,7 +46,7 @@ export async function boot(page: Page, seed: number, opts: { to?: 'home'; settin
       })
       sessionStorage.setItem('dodo.resume', to)
     },
-    { extra: opts.settings ?? {}, to: 'home' },
+    { extra: opts.settings ?? {}, to: 'home', sticker: opts.lessonSticker ?? null },
   )
   await page.reload()
   await page.waitForSelector('.screen.home', { timeout: 20_000 })

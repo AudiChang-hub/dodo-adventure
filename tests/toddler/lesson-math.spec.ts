@@ -16,12 +16,12 @@ const want = () => !only.length || only.some((s) => s === 'screens' || s === 'le
 /** grabDuringTeach 只用到 id（記錄用） */
 const LESSON = { id: 'lesson-math', station: 'math', kind: 'lesson', title: '數學課' } as unknown as GameDef
 
-async function setup(page: Page, info: Parameters<Parameters<typeof test>[2]>[1], name: string) {
+async function setup(page: Page, info: Parameters<Parameters<typeof test>[2]>[1], name: string, lessonSticker?: boolean) {
   const seed = hashSeed(BASE_SEED, 'lesson-math', name, info.project.name)
   const k = new Toddler(page, info, seed, info.project.name)
   const c = new Checker(k, page)
   k.where = `數學課／${name}`
-  await boot(page, seed, { to: 'home' })
+  await boot(page, seed, { to: 'home', lessonSticker })
   await k.init()
   // 今天的數字：每個 seed 不一樣（1～10），10 是兩筆的「10」。
   // firm：1～5 已經熟練（不然 6 以上的數字還不會開，會變成 1～5 的混合複習；熟練的判斷在 scripts/test-math-plan.ts 測）
@@ -69,6 +69,8 @@ const partNow = (page: Page) =>
     const l = [...(s?.querySelectorAll('[data-lesson-part]') ?? [])].pop()
     return l?.getAttribute('data-lesson-part') ?? null
   })
+/** 下課畫面出來了（挑貼紙，或沒有貼紙的那堂的 LessonBye：貼紙平均每 3～4 堂一次、不固定） */
+const lessonEnd = (page: Page) => page.evaluate(() => !!document.querySelector('.cheer-scrim'))
 const stickerUp = (page: Page) => page.evaluate(() => !!document.querySelector('.cheer-scrim .picker'))
 
 /** 把課往下上一步：數下一個、拿給波波（盤子裡不夠就拿、太多就拿回來、剛好就點勾勾）、點發光的（沒有就隨便挑一張）、沿著跑道描、點念完的教學卡 */
@@ -233,7 +235,8 @@ test.describe('數學課', () => {
   test('上完一堂：連點門、亂點、連點、示範時搶著點和畫', async ({ page }, info) => {
     test.skip(!want())
     test.setTimeout(12 * 60_000)
-    const { k, c, n } = await setup(page, info, '上完一堂')
+    // 這一堂指定有貼紙：要測挑貼紙時按返回（沒有貼紙的下課畫面在英文課測）
+    const { k, c, n } = await setup(page, info, '上完一堂', true)
     try {
       k.behavior = '連點「數學數字」'
       if (!(await enter(k, c, true))) return
@@ -243,12 +246,13 @@ test.describe('數學課', () => {
       await grabDuringTeach(k, c, LESSON)
 
       const seen = new Set<string>()
-      const done = await play(k, c, async () => stickerUp(page), { seen })
+      const done = await play(k, c, async () => lessonEnd(page), { seen })
       // 今天的數字是 1、2：教過的數字湊不到 3 選 1，沒有小複習（plan.ts 的 reviewQs）
       const want = n < 3 ? PARTS.filter((p) => p !== 'review') : PARTS
       const parts = want.filter((p) => seen.has(p))
       c.outcome(`${want.length} 段都走得到`, parts.length === want.length, `走過：${[...seen].filter((s) => !s.startsWith('grab:')).join(' → ')}`)
-      c.outcome('上完有貼紙', done, done ? '貼紙出現' : '沒有出現')
+      const pick = done && (await stickerUp(page))
+      c.outcome('上完有貼紙', pick, pick ? '貼紙出現' : done ? '出現的是沒有貼紙的下課畫面' : '沒有走到下課')
       if (n < 3 && seen.has('review')) await c.once('review-1-2', '困惑', '只教了 1、2 卻出了小複習（湊不到 3 選 1）', `今天 ${n}`)
       if (done && parts.length < want.length) await c.once('skip-part', '困惑', '有一段沒上到就下課了', `走過：${parts.join('、')}`)
 
@@ -319,7 +323,7 @@ test.describe('數學課', () => {
       p = await firstPart(page)
       c.outcome('再進來接著上（寫數字）', p === 'write', `從 ${p} 開始`)
       if (p !== 'write') await c.once('resume2', '困惑', '寫數字到一半離開，再進來沒有接著上', `應該從寫數字開始，實際是 ${p}`)
-      const done = await play(k, c, async () => stickerUp(page), { mess: 0.2, seen, budget: 4 * 60_000 })
+      const done = await play(k, c, async () => lessonEnd(page), { mess: 0.2, seen, budget: 4 * 60_000 })
       if (done) {
         await k.wait(1000)
         await page.evaluate(() => history.back())

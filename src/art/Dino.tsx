@@ -70,8 +70,9 @@ export function DodoArt({ mood }: { mood: Mood }) {
         <ellipse cx={114} cy={148} rx={56} ry={46} fill={p.body} {...s} />
         <ellipse cx={132} cy={158} rx={29} ry={31} fill={p.belly} />
       </g>
+      {/* 原點是整張圖的座標：transformBox 要是 view-box（motion 對 SVG 預設 fill-box，原點會變成相對手臂自己的框，歡呼時手臂飛到身體外面） */}
       <motion.g
-        style={{ originX: '150px', originY: '140px' }}
+        style={{ originX: '150px', originY: '140px', transformBox: 'view-box' }}
         animate={{ rotate: mood === 'cheer' ? -70 : 0 }}
         transition={{ type: 'spring', stiffness: 260, damping: 12 }}
       >
@@ -139,7 +140,7 @@ export function MomoArt({ mood }: { mood: Mood }) {
         <circle cx={72} cy={192} r={5} fill={p.accent} />
       </g>
       <motion.g
-        style={{ originX: '146px', originY: '170px' }}
+        style={{ originX: '146px', originY: '170px', transformBox: 'view-box' }}
         animate={{ rotate: mood === 'peek' ? [0, -4, 0] : mood === 'cheer' ? [0, 5, -3, 0] : 0 }}
         // 探頭：歪一下頭就停（不一直晃）
         transition={{ duration: mood === 'peek' ? 3 : 0.8, ease: 'easeInOut' }}

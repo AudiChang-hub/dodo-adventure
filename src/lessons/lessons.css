@@ -1,4 +1,4 @@
-/* 上完一堂、挑貼紙時給大人的「現在去做」：疊在挑貼紙畫面上面（.picker 是 z-index 60）。
+/* 上完一堂、下課畫面（挑貼紙或 LessonBye）給大人的「現在去做」：疊在挑貼紙畫面上面（.picker 是 z-index 60）。
    右上角已經有挑貼紙自己的陪玩小字，這一句放在下方中間（貼紙和恐龍之間的空白），樣子跟陪玩小字一樣 */
 .lesson-next {
   position: fixed;
@@ -20,5 +20,57 @@
     translate: none;
     width: auto;
     max-width: none;
+  }
+}
+
+/* 沒有挑貼紙的那堂的下課（LessonBye）：主持的恐龍和一顆大大的房子並排在中間，
+   底下留給「現在去做」那一句。房子跟挑貼紙右邊的按鈕同一種圓鈕，只是更大 */
+.lesson-bye {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: clamp(24px, 6vw, 80px);
+  padding: 16px 16px 96px;
+}
+.lb-host {
+  width: clamp(180px, 30vmin, 320px);
+  cursor: pointer;
+}
+.lb-home {
+  position: relative;
+  flex: none;
+  width: clamp(140px, 22vmin, 200px);
+  aspect-ratio: 1;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: var(--card);
+  box-shadow:
+    0 7px 0 var(--paper-edge),
+    0 0 0 10px rgba(241, 210, 124, 0.45),
+    0 22px 34px -20px rgba(46, 42, 37, 0.35);
+  transition: box-shadow 0.18s var(--ease-out);
+}
+.lb-home > svg {
+  width: 58%;
+  height: auto;
+}
+.lb-home:active {
+  box-shadow:
+    0 2px 0 var(--paper-edge),
+    0 0 0 10px rgba(241, 210, 124, 0.45);
+}
+.lb-hand {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+@media (orientation: portrait) {
+  .lesson-bye {
+    flex-direction: column;
+    gap: 20px;
+    padding-bottom: 140px;
   }
 }
