@@ -225,7 +225,6 @@ export function WritePart({ ctx }: { ctx: PartCtx }) {
     // 接著描，或描到一半又從綠點重新開始（這一筆從頭再描，track.ts 的 penDown）
     const how = tracker.current.penDown(p)
     drawing.current = !!how
-    if (how === 'again') setProg(0)
   }
   const onMove = (p: { x: number; y: number }) => {
     const t = tracker.current

@@ -260,7 +260,6 @@ export function Trace({ letter, onDone }: { letter: LessonLetter; onDone: (good:
     // 接著描、描到一半又從起點重新開始、或起點附近吸過去（track.ts 的 penDown）
     const how = t.penDown(p, snapUnits())
     drawing.current = !!how
-    if (how === 'again') setProg(0)
     if (how === 'snap') {
       setSnapFx({ from: p, n: ++fx.current })
       misses.current = 0
