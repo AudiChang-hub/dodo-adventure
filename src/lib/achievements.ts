@@ -7,6 +7,7 @@ import { FIX_STEPS, artSticker, fixSticker, stickerFor, thingPic, type Pic, type
 import { ACH_COUNT } from '../content/lines-achieve'
 import type { Speaker } from '../content/registry'
 import { featureFor, recommend, type Stk } from './sticker-pick'
+import { afterLesson, type LessonGap } from './lesson-sticker'
 
 /**
  * 成就感強化：孩子看得見、會一直累積的進步（不是分數、不會被拿走）。
@@ -75,6 +76,8 @@ interface Store {
    * 照樣放在貼紙本裡（舊貼紙不會消失）；這之後的里程碑改成給加速的星星，不再自動變成貼紙。
    */
   since: number
+  /** 學校的課：上次挑貼紙之後上了幾堂、這一輪第幾堂出現（lib/lesson-sticker.ts）。舊資料沒有，第一次上完課再抽 */
+  gap?: LessonGap
 }
 
 const KEY = 'achieve'
@@ -283,12 +286,16 @@ function addStars(gained: StarWhy[]): CardGain {
 }
 
 /**
- * 上完學校的一堂課（src/lessons/ 的 onDone）：直接給一張待挑的貼紙（不用集滿貼紙卡）。
- * 貼紙卡上已經集的星星不動；挑貼紙用的是同一個 StickerPicker。
+ * 上完學校的一堂課（src/lessons/ 的 onDone）：這一堂有沒有挑貼紙。
+ * 不是每堂都有（A7）：平均每 3～4 堂一次、間隔不固定、事先不說（規則在 lib/lesson-sticker.ts）。
+ * 有的話給一張待挑的貼紙（不用集滿貼紙卡）；上次說「等一下再選」或按返回留著的那張還沒挑，這次就挑那一張，不再多給。
  */
-export function grantPick() {
-  store.picks = [...store.picks, { ts: Date.now(), why: { ...noWhy(), round: 1 }, feature: featureFor(history()) }]
+export function lessonDone(): boolean {
+  const { sticker, gap } = afterLesson(store.gap)
+  store.gap = gap
+  if (sticker && !store.picks.length) store.picks = [{ ts: Date.now(), why: { ...noWhy(), round: 1 }, feature: featureFor(history()) }]
   save()
+  return sticker
 }
 
 function addMilestone(m: Milestone) {

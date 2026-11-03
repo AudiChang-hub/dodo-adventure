@@ -1,10 +1,10 @@
 import { useMemo } from 'react'
 import { today } from '../../lib/db'
-import { CARD_BONUS_MAX, CARD_GOAL, isSelfFix, type Milestone, type Why } from '../../lib/achievements'
+import { isSelfFix, type Milestone, type Why } from '../../lib/achievements'
 import { game } from '../../content/games'
 import { stickerFor } from '../../content/stickers'
 import { artOf } from '../../content/sticker-art'
-import { ArtSticker, StarShape } from '../../ui/StickerArt'
+import { ArtSticker } from '../../ui/StickerArt'
 import { lastDays, skillLabel, type ParentData } from './data'
 import './highlights.css'
 
@@ -23,8 +23,9 @@ function describe(ms: Milestone[]): string[] {
   return out
 }
 
-/** 這張貼紙的 5 顆星怎麼來的 */
+/** 這張貼紙怎麼來的：上完一堂課跳出來的（只有 round 1），或以前集滿貼紙卡的 5 顆星 */
 function whyText(w: Why): string {
+  if (w.round === 1 && !w.learn && !w.fix && !w.level) return '上完一堂課'
   return [w.round && `玩完 ${w.round} 關`, w.learn && `學會新東西 ${w.learn} 次`, w.fix && `自己改對 ${w.fix} 次`, w.level && `升級 ${w.level} 次`].filter(Boolean).join('、')
 }
 
@@ -40,7 +41,7 @@ const RECENT = 12
 
 /**
  * 今日亮點（成就感強化）：最近 7 天孩子學會、升級的東西、挑的貼紙，和「錯了自己改對」的次數。
- * 下面是「貼紙怎麼拿」：規則、現在的貼紙卡、最近拿到的貼紙和拿到的原因。雲端資料在手機上看也一樣。
+ * 下面是「貼紙怎麼拿」：規則（上完一堂不定時跳出，A7）、還沒挑的張數、最近拿到的貼紙和拿到的原因。雲端資料在手機上看也一樣。
  */
 export function Highlights({ d }: { d: ParentData }) {
   const days = useMemo(() => {
@@ -88,35 +89,19 @@ export function Highlights({ d }: { d: ParentData }) {
       <div className="card stk-rules">
         <ol>
           <li>
-            <b>每玩完一關，貼紙卡多 1 顆星。</b>要真的有作答、玩到最後；中途按返回離開的那一關不算。
+            <b>上完一堂課，有時候會跳出貼紙。</b>平均每 3～4 堂一次，間隔不固定、事先不說；不會連著兩堂都有，也不會連著 5 堂都沒有。中途按返回離開的那一堂不算。
           </li>
           <li>
-            <b>那一關有特別的事，再多 1 顆：</b>學會新東西、錯了自己改對、升級，各 1 顆（一關最多多 {CARD_BONUS_MAX} 顆，所以一關 1–{1 + CARD_BONUS_MAX} 顆）。
+            <b>為什麼不是每堂都給：</b>研究發現，事先知道「做完就有」的獎品，會讓孩子之後比較不想自己主動去做；不固定的小驚喜、說出他做了什麼的讚美，沒有這個問題（全球幼教指引 HOW-7）。
           </li>
           <li>
-            <b>集滿 {CARD_GOAL} 顆星，換一張貼紙。</b>
-            {'那一關的回顧結束後，會跳出 6 張隨機的貼紙讓他自己挑一張，貼進「我的朋友」旁邊的貼紙本。同一個圖案換了外框、配色、花紋就是新的一張，可以一直選喜歡的。'}
+            <b>沒有貼紙的那堂</b>照樣有恐龍的稱讚和再見，畫面上是開心的恐龍和一顆回首頁的房子。請不要跟他說「上完課就有貼紙」。
           </li>
           <li>
-            <b>不想選也沒關係。</b>挑選畫面有「再看別的」和「等一下再選」；沒挑的貼紙會留在貼紙本和今日冒險的回顧裡，點那張發光的卡片就能再挑。
+            <b>不想選也沒關係。</b>挑選畫面有「再看別的」和「等一下再選」；沒挑的那張留到下一次跳出貼紙時再挑。
           </li>
         </ol>
-        <p className="stk-pace">一天的冒險約 4 站，通常可以拿到 1–2 張。每關回顧時孩子會看到卡片上的星星飛進去，並聽到「再幾顆星就有貼紙」。</p>
-        {card && (
-          <div className="stk-now">
-            <span className="stk-now-label">現在的貼紙卡</span>
-            <span className="stk-now-stars" aria-label={`${card.stars} / ${card.goal} 顆星`}>
-              {Array.from({ length: card.goal }, (_, i) => (
-                <span key={i}>
-                  <StarShape on={i < card.stars} />
-                </span>
-              ))}
-            </span>
-            <span className="stk-now-text">
-              {card.stars} / {card.goal} 顆{card.pending > 0 ? `，另外有 ${card.pending} 張集滿了還沒挑` : ''}
-            </span>
-          </div>
-        )}
+        {card && card.pending > 0 && <p className="stk-pace">現在有 {card.pending} 張還沒挑。</p>}
       </div>
 
       <h2>最近拿到的貼紙</h2>

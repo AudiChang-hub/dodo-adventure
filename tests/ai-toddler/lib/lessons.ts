@@ -13,9 +13,9 @@ export interface LessonDef {
 }
 
 export const LESSONS: Record<string, LessonDef> = {
-  en: { id: 'en', name: '英文字母', door: 'english', isIn: (l) => l === 'lesson-english', intro: '媽媽說：「我們來上英文課喔！」', doneMeans: '上完一堂、出現挑貼紙' },
-  zh: { id: 'zh', name: '中文課文', door: 'chinese', isIn: (l) => l === 'lesson-chinese', intro: '媽媽說：「我們來聽中文課喔！」', doneMeans: '上完一堂、出現挑貼紙' },
-  math: { id: 'math', name: '數學數字', door: 'math', isIn: (l) => l === 'lesson-math', intro: '媽媽說：「我們來玩數字喔！」', doneMeans: '上完一堂、出現挑貼紙' },
+  en: { id: 'en', name: '英文字母', door: 'english', isIn: (l) => l === 'lesson-english', intro: '媽媽說：「我們來上英文課喔！」', doneMeans: '上完一堂、出現下課畫面' },
+  zh: { id: 'zh', name: '中文課文', door: 'chinese', isIn: (l) => l === 'lesson-chinese', intro: '媽媽說：「我們來聽中文課喔！」', doneMeans: '上完一堂、出現下課畫面' },
+  math: { id: 'math', name: '數學數字', door: 'math', isIn: (l) => l === 'lesson-math', intro: '媽媽說：「我們來玩數字喔！」', doneMeans: '上完一堂、出現下課畫面' },
   draw: { id: 'draw', name: '畫畫', door: 'draw', isIn: (l) => l === 'play-d-free', intro: '媽媽說：「去畫畫吧！」', doneMeans: '在畫布上畫了 3 筆以上' },
   story: { id: 'story', name: '故事', door: 'story', isIn: (l) => l === 'shelf' || l === 'storybook' || !!l?.startsWith('replay-') || !!l?.startsWith('done-'), intro: '媽媽說：「我們來看故事書！」', doneMeans: '一本書聽到最後一頁' },
 }
@@ -93,10 +93,13 @@ export const doneNow = (page: Page) =>
   page
     .evaluate(() => {
       const live = [...document.querySelectorAll<HTMLElement>('.scene')].filter((e) => !e.inert).pop()
-      const picker = !!document.querySelector('.picker')
+      // 下課畫面：挑貼紙，或沒有貼紙的那堂的 LessonBye（貼紙平均每 3～4 堂一次、不固定，T-87）
+      const end = document.querySelector('.cheer-scrim')
+      const lessonEnd = !!end
+      const picker = !!end?.querySelector('.picker')
       const dots = live ? [...live.querySelectorAll('.book-progress i')] : []
       // 聽到最後一頁：小點全亮，或已經換到「讀完了」（T-77：講完會出現讀完了的畫面）
       const lastPage = (dots.length > 1 && dots.every((d) => d.classList.contains('is-done'))) || !!live?.dataset.scene?.startsWith('done-')
-      return { picker, lastPage }
+      return { lessonEnd, picker, lastPage }
     })
-    .catch(() => ({ picker: false, lastPage: false }))
+    .catch(() => ({ lessonEnd: false, picker: false, lastPage: false }))

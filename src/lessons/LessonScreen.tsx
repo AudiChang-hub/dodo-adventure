@@ -3,25 +3,29 @@ import { AnimatePresence, motion } from 'motion/react'
 import { StickerPicker } from '../ui/StickerPicker'
 import { overlay } from '../ui/motion'
 import { go, useBack } from '../lib/nav'
-import { grantPick } from '../lib/achievements'
+import { lessonDone } from '../lib/achievements'
 import { LESSONS } from '.'
 import type { Subject } from './types'
 import { extensionFor } from './extension'
+import { LessonBye } from './LessonBye'
 import { finishRun, startRun } from '../lib/lesson-log'
 import '../ui/celebrate.css'
 import '../games/coplay.css'
 import './lessons.css'
 
 /**
- * App 的 lesson 路由：把一堂課放上來。課叫 onDone（上完了）→ 給一張貼紙、讓孩子挑 → 回首頁。
- * 挑貼紙時右上角給大人一句「現在去做」（lessons/extension.ts：跟今天內容有關、離開螢幕去做的事）。
+ * App 的 lesson 路由：把一堂課放上來。課叫 onDone（上完了）→ 有時候挑一張貼紙、大部分是安靜的下課畫面 → 回首頁。
+ * 貼紙不是每堂都有（A7，2026-11-03 家長決定）：平均每 3～4 堂一次、不固定、事先不說（lib/lesson-sticker.ts）；
+ * 沒有貼紙的那堂是 LessonBye（恐龍、一顆回首頁的房子）。課自己的稱讚、再見兩種都一樣。
+ * 兩種下課畫面都給大人一句「現在去做」（lessons/extension.ts：跟今天內容有關、離開螢幕去做的事）。
  * 每一堂記開始、上完（lib/lesson-log.ts），家長區的下一步準備度算中途離開用。
- * 挑貼紙時按返回（Android 的返回手勢）也回首頁，貼紙留著下次再挑（StickerPicker 的「等一下再選」一樣）。
+ * 下課畫面按返回（Android 的返回手勢）也回首頁；挑貼紙時按返回，貼紙留著下次有貼紙時再挑（StickerPicker 的「等一下再選」一樣）。
  * 課自己的返回鍵照路由回上一層（首頁），不用另外處理。
  */
 export function LessonScreen({ subject }: { subject: Subject }) {
-  const { Lesson } = LESSONS[subject]
-  const [pick, setPick] = useState(false)
+  const { Lesson, host } = LESSONS[subject]
+  /** 下課：挑貼紙（pick）或安靜的下課畫面（bye） */
+  const [end, setEnd] = useState<'pick' | 'bye' | null>(null)
   const [next, setNext] = useState<string | null>(null)
   const done = useRef(false)
   const run = useRef<Promise<number> | null>(null)
@@ -34,8 +38,7 @@ export function LessonScreen({ subject }: { subject: Subject }) {
   const onDone = () => {
     if (done.current) return
     done.current = true
-    grantPick()
-    setPick(true)
+    setEnd(lessonDone() ? 'pick' : 'bye')
     void run.current?.then((start) => {
       if (start) void finishRun(start)
     })
@@ -43,7 +46,7 @@ export function LessonScreen({ subject }: { subject: Subject }) {
   }
 
   useBack(() => {
-    if (!pick) return false
+    if (!end) return false
     home()
   })
 
@@ -51,9 +54,9 @@ export function LessonScreen({ subject }: { subject: Subject }) {
     <>
       <Lesson onDone={onDone} />
       <AnimatePresence>
-        {pick && (
-          <motion.div key="pick" className="cheer-scrim" variants={overlay} initial="initial" animate="enter">
-            <StickerPicker onDone={home} />
+        {end && (
+          <motion.div key="end" className="cheer-scrim" variants={overlay} initial="initial" animate="enter">
+            {end === 'pick' ? <StickerPicker onDone={home} /> : <LessonBye host={host} onDone={home} />}
             {next && (
               // 給大人看的一句：跟陪玩小字同一個位置、同一種樣子（孩子不識字，不搶眼、不接收點擊）
               <p className="coplay-hint lesson-next" aria-hidden="true">

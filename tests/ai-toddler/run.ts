@@ -500,7 +500,7 @@ while (!fatal) {
   // ── 完成了嗎 ──
   const d = await doneNow(page)
   if (!R.completed) {
-    if (d.picker) R.completed = { step: n, t: el, what: '出現挑貼紙（上完一堂）' }
+    if (d.lessonEnd) R.completed = { step: n, t: el, what: d.picker ? '出現挑貼紙（上完一堂）' : '出現下課畫面（上完一堂，這堂沒有貼紙）' }
     else if (d.lastPage) R.completed = { step: n, t: el, what: '故事聽到最後一頁' }
     else if (lesson.id === 'draw') {
       const strokes = steps.filter((x) => x.touch?.kind === 'drag' && x.touch.hit === '畫布').length
@@ -511,7 +511,7 @@ while (!fatal) {
       console.log(`  ✓ 完成：${R.completed.what}`)
     }
   }
-  // 上完一堂之後再看 3 步（挑貼紙、回首頁），就收
+  // 上完一堂之後再看 3 步（挑貼紙或下課畫面、回首頁），就收
   if (doneAt && lesson.id !== 'draw' && n - doneAt >= 3) {
     R.endReason = `完成了（${R.completed!.what}），再玩 3 步後結束`
     break

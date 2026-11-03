@@ -43,6 +43,7 @@ const CHECKS = [
   { id: 'test-readiness', name: '單元：下一步準備度', cmd: ['npx', 'tsx', 'scripts/test-readiness.ts'], check: unit },
   { id: 'test-math-plan', name: '單元：數學課出題與熟練', cmd: ['npx', 'tsx', 'scripts/test-math-plan.ts'], check: unit },
   { id: 'test-english', name: '單元：英文課（開頭音不算重上、名字的字母先、答錯的說明）', cmd: ['npx', 'tsx', 'scripts/test-english.ts'], check: unit },
+  { id: 'test-lesson-sticker', name: '單元：上完一堂不定時挑貼紙（40 堂 8～14 次、間隔 ≤ 6）', cmd: ['npx', 'tsx', 'scripts/test-lesson-sticker.ts'], check: unit },
   {
     id: 'lessons-teach',
     name: '三堂課不教不考（check-lessons-teach）',

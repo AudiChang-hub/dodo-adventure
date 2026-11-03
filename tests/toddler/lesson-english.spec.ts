@@ -17,12 +17,12 @@ const want = (name: string) => !only.length || only.some((s) => s === 'lesson-en
 const LIVE = 'lesson-english'
 const SHOTS = process.env.TODDLER_SHOTS
 
-async function setup(page: Page, info: Parameters<Parameters<typeof test>[2]>[1], name: string) {
+async function setup(page: Page, info: Parameters<Parameters<typeof test>[2]>[1], name: string, lessonSticker?: boolean) {
   const seed = hashSeed(BASE_SEED, 'lesson-english', name, info.project.name)
   const k = new Toddler(page, info, seed, info.project.name)
   const c = new Checker(k, page)
   k.where = `英文課／${name}`
-  await boot(page, seed, { to: 'home' })
+  await boot(page, seed, { to: 'home', lessonSticker })
   await k.init()
   return { k, c, seed }
 }
@@ -198,7 +198,8 @@ test.describe('英文字母課', () => {
   test('走完一課：念的時候一直點、示範時搶著畫、點錯、連點答案', async ({ page }, info) => {
     test.skip(!want('lesson-english'))
     test.setTimeout(10 * 60_000)
-    const { k, c } = await setup(page, info, '走完一課')
+    // 這一堂指定沒有貼紙（貼紙平均每 3～4 堂一次、不固定）：測沒有貼紙的下課畫面；挑貼紙在數學課測
+    const { k, c } = await setup(page, info, '走完一課', false)
     try {
       k.behavior = '連點門進課'
       const ok = await enter(k, c, true)
@@ -299,10 +300,13 @@ test.describe('英文字母課', () => {
       c.outcome('作答紀錄', rows.length >= 4 && !dup, `${rows.length} 筆（${keys.join('、')}），重複 ${dup}`)
       if (dup) await c.once('dup', '誤記作答', `選擇題連點答案被記了兩次（${dup} 筆）`, keys.join('、'))
       if (rows.length < 4) await c.once('rows', '誤記作答', `選擇題的作答紀錄少了（${rows.length} 筆）`, keys.join('、'))
-      // 上完：貼紙（LessonScreen 給）→ 回首頁
-      const sticker = await page.waitForSelector('.cheer-scrim', { timeout: 10_000 }).catch(() => null)
-      c.outcome('上完給貼紙', !!sticker, sticker ? '' : '沒有出現貼紙')
-      await shot(page, '8-貼紙', info)
+      // 上完：這一堂沒有貼紙 → 安靜的下課畫面（恐龍、回首頁的房子、大人的「現在去做」），不會出現挑貼紙
+      const bye = await page.waitForSelector('.cheer-scrim .lesson-bye', { timeout: 10_000 }).catch(() => null)
+      const picker = await page.evaluate(() => !!document.querySelector('.picker'))
+      c.outcome('沒有貼紙的那堂：下課畫面', !!bye && !picker, bye ? (picker ? '卻出現挑貼紙' : '') : '沒有出現下課畫面')
+      if (!bye) await c.once('bye', '卡死', '上完一堂沒有出現下課畫面', `停在 ${await stageOf(page)}`)
+      await page.waitForTimeout(1500)
+      await shot(page, '8-下課', info)
       const prog = await page.evaluate(
         () =>
           new Promise<unknown>((res) => {
@@ -317,6 +321,29 @@ test.describe('英文字母課', () => {
       c.outcome('進度記成上完', !!p?.done, JSON.stringify(p))
       if (!p?.done) await c.once('prog', '誤記作答', '上完了進度沒有記成上完', JSON.stringify(p))
       c.outcome('今天的字母', true, `${L}`)
+
+      // 下課畫面：大人的「現在去做」在；亂點恐龍沒事，點房子回首頁
+      if (bye) {
+        const hint = await page.evaluate(() => document.querySelector('.lesson-next')?.textContent ?? '')
+        c.outcome('下課畫面有「現在去做」', /現在去做/.test(hint), hint.slice(0, 40))
+        k.behavior = '下課畫面亂點恐龍'
+        const at = (sel: string) =>
+          page.evaluate((sel) => {
+            const r = document.querySelector(sel)?.getBoundingClientRect()
+            return r ? { x: r.left + r.width / 2, y: r.top + r.height / 2 } : null
+          }, sel)
+        const dino = await at('.lb-host')
+        if (dino) await k.spam(dino, 3, '恐龍')
+        await k.wait(800)
+        const still = await page.evaluate(() => !!document.querySelector('.lesson-bye'))
+        c.outcome('亂點恐龍不會跳走', still, still ? '' : '點恐龍就離開了')
+        k.behavior = '下課畫面點房子'
+        const house = await at('.lb-home')
+        if (house) await k.tap(house, '房子')
+        const home = await waitLive(page, (l) => l === 'home', 4000)
+        c.outcome('點房子 → 首頁', home === 'home', `到 ${home}`)
+        if (home !== 'home') await c.once('bye-home', '卡死', '下課畫面點房子沒有回首頁', `停在 ${home}`)
+      }
     } finally {
       await c.flush().catch(() => {})
       finish(k, c, '走完一課')

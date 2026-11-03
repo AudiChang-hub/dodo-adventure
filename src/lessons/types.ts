@@ -14,7 +14,7 @@ export const INFO: Record<Subject, { title: string; host: Speaker }> = {
 }
 
 export interface LessonProps {
-  /** 上完一堂：回首頁，路上給一張貼紙（App 的 LessonScreen 處理）。只叫一次；叫第二次不會再給 */
+  /** 上完一堂：下課畫面（有時候挑貼紙）再回首頁（App 的 LessonScreen 處理）。只叫一次；叫第二次不會再算一堂 */
   onDone: () => void
 }
 
