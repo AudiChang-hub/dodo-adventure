@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState, type CSSProperties } from 'react'
 import { motion, useReducedMotion } from 'motion/react'
-import { say, sayClip, sfx } from '../../lib/audio'
+import { sfx } from '../../lib/audio'
 import { logAttempt } from '../../lib/record'
-import { praiseKey, retryKey, wait } from '../../games/lines'
+import { wait } from '../../games/lines'
 import { WaitShield, firstFinger } from '../../games/NotYet'
 import { Hand } from '../../games/Demo'
 import { useIdle } from '../../games/idle'
@@ -11,7 +11,7 @@ import { FADE, REVEAL_MS } from '../../ui/motion'
 import { useSwapQuiet } from '../../ui/Scenes'
 import { shuffle } from '../../lib/random'
 import type { Mood } from '../../art/Dino'
-import { hasClip, questionText, zhClip, type ZhQuestion, type ZhText } from './data'
+import { type ZhQuestion, type ZhText } from './data'
 import { Pic } from './Pic'
 import { ZH_GAME, type HostTap } from './Lesson'
 
@@ -20,13 +20,17 @@ type Mark = 'wrong' | 'correct' | 'hint'
 /** 答錯幾次以後把答案標出來（手點一下） */
 const HINT_AFTER = 2
 
+/** 題目卡出來以後，等這麼久才收作答：給大人時間把題目念出來（念的時候孩子點了只出現「看這裡」的圈圈） */
+const READ_MS = 1600
+
 /**
- * 選圖：「哪個是烏龜？」三張圖選一張，手感跟舊的選擇題引擎 ChoiceGame（T-75 拿掉了）一樣——
- * 題目念完才收作答（念的時候點了只出現「看這裡」的圈圈），答對的卡片放大、亮綠框、撒星星，答錯的抖一下變淡；
- * 錯兩次就把答案標出來、手點一下。題目念完、還沒點過時，每張圖一圈淡黃框、依序輕輕跳一下（輪到你了，T-84）。上面是課文裡那個紅字，點它（或點莫莫）再聽一次題目。
- * 題目用中文念（BreezyVoice），稱讚、再試一次照全站慣例用英文（莫莫的 Yes. / Try again.）。
+ * 選圖：「哪個是烏龜？」三張圖選一張（親子共讀：App 不出聲，2026-11-03）。
+ * - 上面的題目卡字很大：「哪個是」小一點、紅字大，大人照著念給孩子聽。
+ * - 題目卡出來一下子（READ_MS）才收作答；答對的卡片放大、亮綠框、撒星星、叮一聲，答錯的抖一下變淡、輕輕一聲；
+ *   錯兩次就把答案標出來、手點一下。收作答以後、還沒點過時，每張圖一圈淡黃框、依序輕輕跳一下（輪到你了，T-84）。
+ * - 回饋只有畫面和音效，不說話（中文、英文都不說）。孩子一直沒動：題目卡輕輕跳一下提醒大人再問一次，再久一點手就示範。
  */
-export function Quiz({ t, q, ready, host, setMood, onNext }: { t: ZhText; q: ZhQuestion; ready: Set<string>; host: HostTap; setMood: (m: Mood) => void; onNext: () => void }) {
+export function Quiz({ t, q, host, setMood, onNext }: { t: ZhText; q: ZhQuestion; host: HostTap; setMood: (m: Mood) => void; onNext: () => void }) {
   const still = useReducedMotion()
   const quiet = useSwapQuiet()
   const [opts] = useState(() => shuffle(q.options))
@@ -40,6 +44,8 @@ export function Quiz({ t, q, ready, host, setMood, onNext }: { t: ZhText; q: ZhQ
   }
   const [handTap, setHandTap] = useState(0)
   const [burst, setBurst] = useState(0)
+  /** 題目卡輕輕跳一下（提醒大人再問一次） */
+  const [nudge, setNudge] = useState(0)
   const idle = useIdle()
   const live = useRef(true)
   const locked = useRef(false)
@@ -48,12 +54,8 @@ export function Quiz({ t, q, ready, host, setMood, onNext }: { t: ZhText; q: ZhQ
   const wrongs = useRef(0)
   const hintUsed = useRef(false)
 
-  /** 問題：「哪個是烏龜？」。沒有聲音就停一下（題目卡上看得到那個紅字） */
-  const ask = async () => {
-    const text = questionText(q.word)
-    const ok = hasClip(ready, 'question', text) && (await sayClip(zhClip('question', text), 'momo'))
-    if (!ok && live.current) await wait(900)
-  }
+  /** 再問一次：題目卡跳一下（大人看到就再念一次） */
+  const ask = () => setNudge((n) => n + 1)
 
   const showHint = () => {
     hintUsed.current = true
@@ -65,15 +67,14 @@ export function Quiz({ t, q, ready, host, setMood, onNext }: { t: ZhText; q: ZhQ
     if (!live.current || locked.current) return
     setAccepting(true)
     if (!shownAt.current) shownAt.current = performance.now()
-    idle.start({ repeat: () => void ask(), hint: showHint })
+    idle.start({ repeat: ask, hint: showHint })
   }
 
   useEffect(() => {
     live.current = true
     void (async () => {
-      await wait(REVEAL_MS)
+      await wait(REVEAL_MS + READ_MS)
       if (!live.current) return
-      await ask()
       open()
     })()
     return () => {
@@ -88,7 +89,7 @@ export function Quiz({ t, q, ready, host, setMood, onNext }: { t: ZhText; q: ZhQ
     host.current = () => {
       if (locked.current) return
       idle.poke()
-      void ask()
+      ask()
     }
     return () => {
       host.current = null
@@ -121,12 +122,8 @@ export function Quiz({ t, q, ready, host, setMood, onNext }: { t: ZhText; q: ZhQ
         responseMs: taps.current[0].ms,
         hintUsed: hintUsed.current,
       })
-      await say(praiseKey('momo'))
-      if (!live.current) return
-      // 答對了再念一次這個詞（圖和字連在一起）
-      if (hasClip(ready, 'word', q.word)) await sayClip(zhClip('word', q.word), 'momo')
-      if (!live.current) return
-      await wait(500)
+      // 答對了：星星撒完、看一下自己選對的圖，再換下一題
+      await wait(1400)
       if (live.current) onNext()
       return
     }
@@ -134,10 +131,10 @@ export function Quiz({ t, q, ready, host, setMood, onNext }: { t: ZhText; q: ZhQ
     setMarks((m) => ({ ...m, [id]: 'wrong' }))
     sfx.gentle()
     setAccepting(false)
-    await say(retryKey('momo'))
+    // 抖一下、變淡的動畫走完再收下一次
+    await wait(700)
     if (!live.current) return
     if (wrongs.current >= HINT_AFTER) showHint()
-    await ask()
     open()
   }
 
@@ -146,17 +143,20 @@ export function Quiz({ t, q, ready, host, setMood, onNext }: { t: ZhText; q: ZhQ
       <motion.button
         type="button"
         className="zh-ask"
-        aria-label="再聽一次題目"
-        initial={quiet || still ? false : { y: -18 }}
-        animate={{ y: 0 }}
-        transition={{ type: 'spring', stiffness: 300, damping: 22 }}
+        aria-label={`哪個是${q.word}？`}
+        initial={nudge || quiet || still ? false : { y: -18 }}
+        animate={nudge && !still ? { y: [0, -10, 0] } : { y: 0 }}
+        transition={nudge ? { duration: 0.5, ease: 'easeOut' } : { type: 'spring', stiffness: 300, damping: 22 }}
+        key={`ask${nudge}`}
         onPointerDown={() => {
-          if (!acceptRef.current || locked.current) return
+          if (locked.current) return
           idle.poke()
-          void ask()
+          ask()
         }}
       >
+        <span className="zh-ask-lead">哪個是</span>
         <span className="zh-ask-word">{q.word}</span>
+        <span className="zh-ask-lead">？</span>
       </motion.button>
       <div className="options with-stim zh-options">
         {opts.map((o, i) => {

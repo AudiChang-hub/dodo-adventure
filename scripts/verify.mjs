@@ -42,7 +42,7 @@ const CHECKS = [
   { id: 'test-reset-cloud', name: '單元：重置的雲端刪除', cmd: ['npx', 'tsx', 'scripts/test-reset-cloud.ts'], check: unit },
   { id: 'test-readiness', name: '單元：下一步準備度', cmd: ['npx', 'tsx', 'scripts/test-readiness.ts'], check: unit },
   { id: 'test-math-plan', name: '單元：數學課出題與熟練', cmd: ['npx', 'tsx', 'scripts/test-math-plan.ts'], check: unit },
-  { id: 'test-zh-course', name: '單元：中文課文每篇 3 次（跳過的日子不往前、第 2 次挖空）', cmd: ['npx', 'tsx', 'scripts/test-zh-course.ts'], check: unit },
+  { id: 'test-zh-course', name: '單元：中文課文每篇 3 次、聊一聊、沒有中文音檔', cmd: ['npx', 'tsx', 'scripts/test-zh-course.ts'], check: unit },
   { id: 'test-english', name: '單元：英文課（開頭音不算重上、名字的字母先、答錯的說明）', cmd: ['npx', 'tsx', 'scripts/test-english.ts'], check: unit },
   { id: 'test-lesson-sticker', name: '單元：上完一堂不定時挑貼紙（40 堂 8～14 次、間隔 ≤ 6）', cmd: ['npx', 'tsx', 'scripts/test-lesson-sticker.ts'], check: unit },
   {
@@ -78,7 +78,12 @@ const CHECKS = [
       const m = /missing (\d+), untimed (\d+), stale (\d+)/.exec(s)
       // worktree 沒有 .env.local：孩子的名字變成預設的 buddy，台詞跟音檔對不上（從主 repo 複製一份，不進 git）
       const env = fs.existsSync(path.join(root, '.env.local')) ? '' : '；這個資料夾沒有 .env.local，名字變成 buddy，從主 repo 複製一份'
-      return { ok: !!m && m[1] === '0' && m[2] === '0', key: m ? `缺 ${m[1]}、沒時間軸 ${m[2]}（多出來的舊檔 ${m[3]}）${m[1] !== '0' ? env : ''}` : '沒有結果' }
+      // 中文音檔 2026-11-03 全部拿掉：public/audio 底下不能再有 zh 開頭的資料夾
+      const zh = /zh dirs: (\d+)/.exec(s)?.[1]
+      return {
+        ok: !!m && m[1] === '0' && m[2] === '0' && zh === '0',
+        key: m ? `缺 ${m[1]}、沒時間軸 ${m[2]}（多出來的舊檔 ${m[3]}）、中文音檔資料夾 ${zh ?? '?'}${m[1] !== '0' ? env : ''}` : '沒有結果',
+      }
     },
   },
 ]

@@ -1,6 +1,5 @@
-// 中文課文的資料：180 篇課文（texts.json，家長審過，從 docs/中文課文/課文.json 複製進來）、今天上哪一篇、聲音檔名、上過哪幾篇。
-// 只放資料和規則，畫面在 ./Lesson.tsx。scripts/extract-phrases.ts 也讀這裡，產生聲音的清單（scripts/.cache/zh-lessons.json）。
-import { fnv1a } from '../../lib/hash'
+// 中文課文的資料：180 篇課文（texts.json，家長審過，從 docs/中文課文/課文.json 複製進來）、選圖題、聊一聊的問題。
+// 只放資料和規則，畫面在 ./Lesson.tsx。2026-11-03 起中文課是親子共讀：App 不出聲，沒有任何中文音檔。
 import TEXTS from './texts.json'
 
 export interface ZhText {
@@ -52,7 +51,7 @@ export interface ZhQuestion {
 const iconOf = (t: ZhText, w: string) => t.emoji[w] ?? null
 
 /**
- * 一篇要考哪些字詞（也決定要產生哪些「哪個是〇〇？」的聲音，scripts/extract-phrases.ts 經 clipRows 讀）：
+ * 一篇要考哪些字詞：
  * 家長定的那一題（quiz）先考，其他紅字詞各一題；還沒有圖的字詞先不考（總表「需要新畫的圖」）。
  * 這一篇自己的字詞裡找不到兩張不一樣的圖可以當陪襯的（一把筷子：全是筷子）也不考。
  */
@@ -111,36 +110,17 @@ export function storyQuestionsOf(_t: ZhText): ZhQuestion[] {
 /** 選圖題念的那一句 */
 export const questionText = (w: string) => `哪個是${w}？`
 
-// ── 聲音（BreezyVoice D 組，scripts/gen_zh_breezy.py 預先產生）────────────
-/** 檔名的算法和 gen_zh_breezy.py 的 clip_name 一樣：同一句話在不同篇只產生一次 */
-const VOICE = 'breezy|example2nd|v1'
-export type ClipKind = 'text' | 'word' | 'question'
-export const zhClip = (kind: ClipKind, text: string) => `zh-lesson/${fnv1a(`${VOICE}|${kind}|${text}`)}`
-
-let ready: Promise<Set<string>> | null = null
-
 /**
- * 通過檢查的聲音（public/audio/zh-lesson/index.json 的檔名）。不在裡面的句子不出聲（課文照樣顯示），
- * 絕不退回平板內建語音（家長很討厭機器聲）。
+ * 聊一聊（對話式共讀）：parentTip 裡「」括起來的問句放大給大人問，其他的（動一動、生活延伸）小字放在下面。
+ * 沒有問句的篇（例如「一起找家裡哪裡紅紅的」）整句放大。
  */
-export function zhReady(): Promise<Set<string>> {
-  ready ??= fetch(`${import.meta.env.BASE_URL}audio/zh-lesson/index.json`)
-    .then((r) => (r.ok ? r.json() : {}))
-    .then((j: Record<string, string>) => new Set(Object.keys(j)))
-    .catch(() => new Set<string>())
-  return ready
-}
-
-/** 這一句有沒有可以播的聲音（ready 是 zhReady 的結果） */
-export const hasClip = (ready: Set<string>, kind: ClipKind, text: string) => ready.has(zhClip(kind, text).slice('zh-lesson/'.length))
-
-/** 一篇要產生的所有句子（scripts/extract-phrases.ts 寫成 scripts/.cache/zh-lessons.json 給 gen_zh_breezy.py） */
-export function clipRows(t: ZhText) {
-  const d = String(t.day).padStart(3, '0')
-  const lesson = `${d}${t.title}`
-  return [
-    ...t.lines.map((l, i) => ({ key: `d${d}.text.${i + 1}`, lesson, day: t.day, kind: 'text' as const, text: plain(l) })),
-    ...t.redWords.map((w) => ({ key: `d${d}.word.${w}`, lesson, day: t.day, kind: 'word' as const, text: w })),
-    ...quizWords(t).map((w) => ({ key: `d${d}.q.${w}`, lesson, day: t.day, kind: 'question' as const, text: questionText(w) })),
-  ]
+export function talkOf(tip: string): { questions: string[]; rest: string } {
+  const questions = [...tip.matchAll(/「([^」]*[？?])」/g)].map((m) => m[1])
+  const rest = questions.length
+    ? tip
+        .replace(/(問(孩子)?[：:]?)?「[^」]*[？?]」[；;，,。]?/g, '')
+        .replace(/^[；;，,。\s]+|[；;，,\s]+$/g, '')
+        .trim()
+    : tip
+  return { questions, rest }
 }

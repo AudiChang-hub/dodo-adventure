@@ -208,41 +208,14 @@ export async function say(...keys: string[]): Promise<void> {
   }
 }
 
-/**
- * 直接播一個預先產生的音檔（public/audio/<name>.mp3），不經過台詞登記（中文課文：BreezyVoice，src/lessons/chinese/）。
- * 和 say 共用打斷的規則（新的 say、stopSpeech 會停掉它；它也會停掉正在說的話），恐龍嘴巴照樣跟著動，不出字幕。
- * onStart 拿到這段聲音的長度（秒）。回傳有沒有播出來（沒有音檔、被打斷都是 false）；絕不退回平板內建語音。
- */
-export async function sayClip(name: string, speaker: Speaker, onStart?: (dur: number) => void, until?: (buf: AudioBuffer, dur: number) => number): Promise<boolean> {
-  halt()
-  emit({ type: 'stop' })
-  const my = token
-  busy = my
-  try {
-    const buf = await load(name)
-    if (!buf || my !== token) return false
-    // until：只播前面一段（中文課第 2 次念到紅字前停下來，chinese/cloze.ts 算停在哪裡）
-    const full = audibleDuration(buf, null)
-    const dur = until ? Math.max(0.05, Math.min(full, until(buf, full))) : full
-    let started = false
-    await playBuffer(buf, speaker, dur, () => {
-      started = true
-      onStart?.(dur)
-    })
-    return started && my === token
-  } finally {
-    if (busy === my) busy = 0
-  }
-}
-
 /** 一句台詞可能分成幾段（感嘆詞、鋪陳段、加重的目標字），段與段之間停一下（長度見 clip.ts 的 segmentGap） */
 async function playLine(key: string, l: Line, my: number) {
   const segs = segments(l)
   const names = segs.map((s) => clipName(l, s))
   const [bufs, times] = await Promise.all([Promise.all(names.map(load)), loadTimings()])
   if (my !== token) return
-  // 中文三明治的中文（BreezyVoice）是額外的：音檔還沒產生或載入失敗就跳過，只唸英文；英文缺檔才退回平板內建語音
-  if (bufs.some((b, i) => !b && segs[i].role !== 'zh')) return speakFallback(key, l, my)
+  // 缺檔才退回平板內建語音（全部是英文台詞）
+  if (bufs.some((b) => !b)) return speakFallback(key, l, my)
   let played = 0
   for (let i = 0; i < bufs.length; i++) {
     if (my !== token) return

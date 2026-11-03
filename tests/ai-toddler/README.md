@@ -40,7 +40,7 @@ worktree 裡跑要先有 `node_modules`、`public/audio`、`.env.local`（都不
 
 - 一次只開一個瀏覽器；程式自己降成低優先權（之後開的 vite、瀏覽器也是）。
 - 跟 `test:toddler` 共用同一把鎖（`%TEMP%\dodo-toddler`）：兩種測試不會同時跑，後來的排隊。
-- 中文課文語音批次（`scripts/zh_batch_guard.py`）在跑時可以跑這個（只有一個瀏覽器），但不要同時跑完整版 test:toddler。
+- 中文課（`--lesson zh`）是親子共讀（2026-11-03 起 App 不出聲）：每一步之前由程式扮演的「媽媽」念一行、按「下一行」、問聊一聊、念題目（run.ts 的 mom()），小男生聽到的是媽媽念的話。
 
 ## 大腦：怎麼叫 Claude
 

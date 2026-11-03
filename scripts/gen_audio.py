@@ -410,17 +410,10 @@ def check(args):
         print("MISSING", r["key"], r["text"])
     for r in untimed[:50]:
         print("UNTIMED", r["key"], r["text"])
-    # 中文課文的語音不是這支產生的（scripts/gen_zh_breezy.py，BreezyVoice），缺檔檢查一起做：有清單才檢查
-    from gen_zh_breezy import check_lessons
-
-    zh = check_lessons(out=out / "zh-lesson")
-    if zh is not None:
-        print(f"zh-lesson check: total {zh[0]}, problems {len(zh[1])}, later {zh[2]['later']}, review {len(zh[2]['review'])}（scripts/gen_zh_breezy.py；{zh[2]['horizon']} 以前要上的課缺聲音才算問題）")
-        for key, text, why in zh[1][:50]:
-            print("ZH-LESSON", key, text, why)
-        for key, text in zh[2]["review"][:50]:
-            print("ZH-LESSON-REVIEW", key, text, "（3 次都沒通過，等家長聽）")
-    if missing or untimed or (zh and zh[1]):
+    # 中文音檔（2026-11-03 全部拿掉）：public/audio 底下不能再有 zh 開頭的資料夾，打包才不會帶出去
+    zh_dirs = [p.name for p in out.glob("zh*") if p.is_dir()] if out.exists() else []
+    print(f"zh dirs: {len(zh_dirs)}{'（' + '、'.join(zh_dirs) + '）' if zh_dirs else ''}")
+    if missing or untimed or zh_dirs:
         sys.exit(1)
 
 

@@ -2,11 +2,7 @@ import { fnv1a } from './hash'
 import { segments, type Line, type Segment } from '../content/lines'
 import { E4, SEGMENT_GAP_MS, VOICES, adjust, emphasis, type VoiceSpec } from '../content/voices'
 import { INTERJ } from '../content/interjections'
-import { zhClip } from '../content/zh-words'
 import { CUE, cueOf, cueParts } from '../content/phonics-cue'
-
-/** 中文三明治：英文和中文之間的停頓（毫秒），前後一樣 */
-export const BRIDGE_GAP_MS = 400
 
 export function segmentVoice(l: Line, s: Segment): VoiceSpec {
   const v = VOICES[l.speaker]
@@ -54,8 +50,6 @@ export function segmentFx(l: Line): ClipFx | null {
 
 /** 音檔檔名同時包含聲線設定與後製版本，調整語速、音高或放大參數後會自動重新產生 */
 export function clipName(l: Line, s: Segment): string {
-  // 中文三明治的中文：BreezyVoice 預先產生（scripts/gen_zh_words.py），不經過 edge-tts
-  if (s.role === 'zh') return zhClip(s.text)
   const v = segmentVoice(l, s)
   const fx = segmentFx(l)
   // 字母音台詞（S, S, S… s, s, s… snake!）是一段一段組出來的，組合方式也要算進檔名
@@ -71,7 +65,6 @@ export function segmentGap(l: Line, i: number): number {
   if (l.demo) return SEGMENT_GAP_MS
   const segs = segments(l)
   const prev = segs[i - 1]
-  if (prev.role === 'zh') return BRIDGE_GAP_MS
   if (prev.role === 'interj') return INTERJ[prev.text]?.gap ?? 240
   const cur = segs[i]
   if (cur.role === 'emph') return /\?\s*$/.test(cur.text) ? E4.gapEmphQuestion : E4.gapEmph

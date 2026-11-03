@@ -1,10 +1,12 @@
-// 中文課文的排課（src/lessons/chinese/course.ts）和第 2 次的挖空（cloze.ts）：每篇剛好上 3 次才換、跳過的日子不往前、
+// 中文課文的排課（src/lessons/chinese/course.ts）、第 2 次停一下的提示（cloze.ts）、聊一聊（data.ts 的 talkOf）、沒有中文音檔：每篇剛好上 3 次才換、跳過的日子不往前、
 // 同一天再進來還是同一次、家長挑的那篇從第 1 次開始、舊版（照日期）的進度接得上。對照 docs/全球幼教指引-現況對照.md A3。
 // 執行：npx tsx scripts/test-zh-course.ts（npm run verify 的「單元：中文課文每篇 3 次」）
 import assert from 'node:assert/strict'
 import { LEGACY, RUNS_PER_TEXT, applyPick, current, finishRun, migrate, nextDay, undoPick, type Course } from '../src/lessons/chinese/course'
-import { CLOZE_WAIT_MS, beforeShare, cutAt, gapOf, passesOf } from '../src/lessons/chinese/cloze'
-import { ZH_TEXTS } from '../src/lessons/chinese/data'
+import { readFileSync, readdirSync, statSync } from 'node:fs'
+import { join } from 'node:path'
+import { gapOf } from '../src/lessons/chinese/cloze'
+import { ZH_TEXTS, talkOf } from '../src/lessons/chinese/data'
 
 const D = (i: number) => {
   const d = new Date(Date.UTC(2026, 10, 3 + i))
@@ -140,16 +142,11 @@ function main() {
     assert.deepEqual(c, { day: first, runs: [D(3)] })
     console.log('ok 7 180 篇上完從第 1 篇再來')
   }
-  // ── 第 2 次：念到紅字前停、挖空、自己念下去 ─────────────
+  // ── 第 2 次：念到框起來的紅字前停一下（親子共讀：提示大人） ─────────────
   {
-    assert.deepEqual(passesOf(1), ['plain', 'plain'])
-    assert.deepEqual(passesOf(2), ['plain', 'gap'], '第 2 次：第一遍照念（A17 不插話），第二遍挖空')
-    assert.deepEqual(passesOf(3), ['plain', 'plain'])
-    assert.ok(CLOZE_WAIT_MS >= 1500, '停 ≥ 1.5 秒')
-    assert.deepEqual(gapOf('三隻【小豬】蓋【房子】，'), { word: '房子', before: '三隻小豬蓋', after: '，' }, '一行兩個紅字挖後面那個')
+    assert.deepEqual(gapOf('三隻【小豬】蓋【房子】，'), { word: '房子', before: '三隻小豬蓋', after: '，' }, '一行兩個紅字框後面那個')
     assert.equal(gapOf('沒有紅字。'), null)
-    assert.equal(beforeShare('【小豬】說：'), 0)
-    // 180 篇每一行：挖空的詞是紅字、前後接起來是原句
+    // 180 篇每一行：框起來的詞是紅字、前後接起來是原句
     let gaps = 0
     for (const t of ZH_TEXTS)
       for (const l of t.lines) {
@@ -159,49 +156,36 @@ function main() {
         assert.ok(t.redWords.includes(g.word), `〈${t.title}〉${l}`)
         assert.equal(g.before + g.word + g.after, l.replace(/[【】]/g, ''))
       }
-    console.log(`ok 8 第 2 次第二遍挖空、停 ${CLOZE_WAIT_MS / 1000} 秒；180 篇共 ${gaps} 行有空格可以接`)
+    console.log(`ok 8 第 2 次：每行最後一個紅字框起來提示大人停一下；180 篇共 ${gaps} 行`)
   }
+  // ── 聊一聊（對話式共讀）：parentTip 的問句放大 ─────────────
   {
-    // 停在哪裡：做一段假的聲音（前面 0.15 秒靜音，每個字 0.24 秒、字和字之間 0.04 秒小停頓，逗號停 0.35 秒），
-    // 「三隻小豬蓋【房子】，」要停在「蓋」和「房」之間的停頓裡
-    const rate = 16000
-    const chars = '三隻小豬蓋房子'
-    const seg: number[] = []
-    const push = (sec: number, amp: number) => {
-      for (let i = 0; i < Math.round(sec * rate); i++) seg.push(amp ? amp * Math.sin(i / 3) : 0)
+    assert.deepEqual(talkOf('「兔子跑得比較快，為什麼烏龜先到？」讓孩子學烏龜在地上慢慢爬。'), { questions: ['兔子跑得比較快，為什麼烏龜先到？'], rest: '讓孩子學烏龜在地上慢慢爬。' })
+    assert.deepEqual(talkOf('第二次念時，讓孩子接「吹倒了／吹不倒」；問「哪一間房子最堅固？」').questions, ['哪一間房子最堅固？'], '「吹倒了／吹不倒」不是問句')
+    assert.deepEqual(talkOf('一起找家裡哪裡紅紅的。'), { questions: [], rest: '一起找家裡哪裡紅紅的。' }, '沒有問句：整句放大')
+    const withQ = ZH_TEXTS.filter((t) => talkOf(t.parentTip).questions.length).length
+    for (const t of ZH_TEXTS) {
+      const k = talkOf(t.parentTip)
+      assert.ok(k.questions.length || k.rest, `〈${t.title}〉聊一聊是空的`)
     }
-    push(0.15, 0)
-    const bounds: number[] = []
-    for (let k = 0; k < chars.length; k++) {
-      push(0.24, 0.5)
-      bounds.push(seg.length / rate)
-      push(0.04, 0.003)
+    console.log(`ok 9 聊一聊：180 篇都有內容，${withQ} 篇有明確的問句放大給大人問`)
+  }
+  // ── 中文語音全部拿掉（2026-11-03）：src 不能有任何會去要中文音檔、或用平板內建語音念中文的程式 ─────────────
+  {
+    const bad: string[] = []
+    const walk = (dir: string) => {
+      for (const f of readdirSync(dir)) {
+        const p = join(dir, f)
+        if (statSync(p).isDirectory()) walk(p)
+        else if (/\.(ts|tsx)$/.test(f)) {
+          const src = readFileSync(p, 'utf8')
+          for (const re of [/audio\/zh/, /zh-lesson\//, /zh-math/, /zhClip/, /sayClip/, /BreezyVoice|breezy/i, /lang\s*=\s*['"]zh/]) if (re.test(src)) bad.push(`${p}：${re}`)
+        }
+      }
     }
-    push(0.35, 0)
-    const data = Float32Array.from(seg)
-    const dur = bounds[bounds.length - 1] + 0.08
-    const at = cutAt('三隻小豬蓋【房子】，', data, rate, dur)
-    const gapStart = bounds[4]
-    assert.ok(at >= gapStart - 0.005 && at <= gapStart + 0.045, `停在 ${at.toFixed(3)} 秒，停頓在 ${gapStart.toFixed(3)}～${(gapStart + 0.04).toFixed(3)}`)
-    assert.equal(cutAt('【小豬】蓋房子，', data, rate, dur), 0, '紅字在行首：不播，直接等')
-    // 字有長有短（前面念得慢、後面快）：照字數估會停錯，數得出每個字的高峰就照高峰停
-    const lens = [0.4, 0.4, 0.4, 0.4, 0.4, 0.2, 0.2]
-    const seg2: number[] = []
-    // 每個字的音量中間大、兩頭小（像真的字）
-    const push2 = (sec: number, amp: number) => {
-      const n = Math.round(sec * rate)
-      for (let i = 0; i < n; i++) seg2.push(amp ? amp * (0.2 + 0.8 * Math.sin((Math.PI * i) / n)) * Math.sin(i / 3) : 0)
-    }
-    push2(0.15, 0)
-    const b2: number[] = []
-    for (const len of lens) {
-      push2(len, 0.5)
-      b2.push(seg2.length / rate)
-      push2(0.05, 0.003)
-    }
-    const at2 = cutAt('三隻小豬蓋【房子】，', Float32Array.from(seg2), rate, b2[6] + 0.08)
-    assert.ok(at2 >= b2[4] - 0.01 && at2 <= b2[4] + 0.06, `快慢不一：停在 ${at2.toFixed(3)} 秒，停頓在 ${b2[4].toFixed(3)}～${(b2[4] + 0.05).toFixed(3)}`)
-    console.log(`ok 9 念到紅字前停的位置對齊到字和字之間的停頓（${at.toFixed(2)} 秒；字有快有慢時照每個字的高峰 ${at2.toFixed(2)} 秒）`)
+    walk('src')
+    assert.deepEqual(bad, [], '有程式還會去要中文音檔')
+    console.log('ok 10 src 裡沒有任何程式會去要中文音檔（audio/zh、zh-lesson、zh-math、zhClip、sayClip、BreezyVoice、中文 TTS）')
   }
   console.log('ALL PASS')
 }

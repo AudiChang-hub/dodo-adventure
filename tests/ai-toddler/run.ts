@@ -17,7 +17,8 @@
 //   --out DIR         報告放這裡（預設主 repo 的 docs/AI小男生測試/<日期>-<課>/）
 //   --no-lock         不跟 test:toddler 排隊（預設同一台機器同時只跑一個）
 //   --fresh           故事：新裝置（書架上什麼都沒有）；預設是已經聽過 8 本的舊裝置
-//   --zh-run N        中文課：今天是同一篇的第幾次（1～3，預設 1；2 是念到紅字前停下來讓孩子接）
+//   --zh-run N        中文課：今天是同一篇的第幾次（1～3，預設 1；2 是念到框起來的紅字前停下來讓孩子接）
+//                     中文課是親子共讀（App 不出聲）：每一步之前「媽媽」先做她的部分（念一行、按下一行、問聊一聊、念題目），見 mom()
 //   環境變數 AI_TODDLER_PORT：預設 4537
 import { chromium, type Page } from '@playwright/test'
 import { spawn, spawnSync, type ChildProcess } from 'node:child_process'
@@ -196,7 +197,7 @@ const R: Run = {
 }
 
 // ── 聽到的話：哪一個音檔開始播（heard.js）→ 對照文字 ─────────────────────
-// Node 這邊用 public/audio 的 timings.json（英文逐字）、zh/index.json、zh-lesson/index.json 對照成文字。
+// Node 這邊用 public/audio 的 timings.json（英文逐字）對照成文字（2026-11-03 起沒有中文音檔）。
 await page.addInitScript({ path: path.join(here, 'heard.js') })
 const clipText = (() => {
   const dir = path.join(root, 'public', 'audio')
@@ -208,14 +209,7 @@ const clipText = (() => {
     }
   }
   const en = read('timings.json') as Record<string, [number, number, string][]>
-  const zh = read('zh/index.json') as Record<string, string>
-  const lesson = read('zh-lesson/index.json') as Record<string, string>
-  return (name: string) => {
-    const [folder, file] = name.includes('/') ? [name.slice(0, name.lastIndexOf('/')), name.slice(name.lastIndexOf('/') + 1)] : ['', name]
-    if (folder === 'zh-lesson') return lesson[file] ?? null
-    if (folder === 'zh') return zh[file] ?? null
-    return en[file]?.map((x) => x[2]).join(' ') ?? null
-  }
+  return (name: string) => en[name.slice(name.lastIndexOf('/') + 1)]?.map((x) => x[2]).join(' ') ?? null
 })()
 
 let finger!: Finger
@@ -364,8 +358,71 @@ function describeHeard(p: Probe) {
   return fresh.filter((t, i) => t !== fresh[i - 1])
 }
 
+// ── 中文課（親子共讀）：媽媽坐在旁邊念 ─────────────────────────
+// 每一步之前媽媽做一件事：說明卡按「開始念」、念亮的那一行（下一步再按「下一行」）、聊一聊問卡片上的問題（下一步按「去選圖」）、
+// 念選圖的題目。她念的話寫進小男生「聽到的」，小男生自己決定要不要點。
+const momDone = new Set<string>()
+async function mom(): Promise<string> {
+  // 這段在瀏覽器裡跑：不能在裡面宣告具名的函式（tsx 會加 __name，瀏覽器裡沒有）
+  const st = await page.evaluate(() => {
+    const root = [...document.querySelectorAll<HTMLElement>('.scene')].filter((e) => !e.inert).pop() ?? document
+    const pt: Record<string, { x: number; y: number } | null> = {}
+    for (const [k, sel] of [['intro', '.zh-intro .zh-go'], ['talk', '.zh-talk .zh-go'], ['next', '.zh-controls.on .zh-next']]) {
+      const r = root.querySelector<HTMLElement>(sel)?.getBoundingClientRect()
+      pt[k] = r && r.width && r.height ? { x: r.left + r.width / 2, y: r.top + r.height / 2 } : null
+    }
+    const read = root.querySelector<HTMLElement>('.zh-read')
+    return {
+      intro: pt.intro,
+      talk: pt.talk,
+      talkQ: [...root.querySelectorAll('.zh-talk-q')].map((e) => e.textContent ?? '').join(''),
+      next: pt.next,
+      at: read?.dataset.at ?? null,
+      line: root.querySelector('.zh-line.on .zh-text')?.textContent ?? '',
+      gap: root.querySelector('.zh-line.on .zh-red.gap')?.getAttribute('data-word') ?? null,
+      ask: root.querySelector('.zh-ask-word')?.textContent ?? null,
+    }
+  })
+  const click = async (pt: { x: number; y: number }) => {
+    await page.mouse.click(pt.x, pt.y)
+    await page.waitForTimeout(900)
+  }
+  if (st.intro) {
+    await click(st.intro)
+    return '媽媽看完大人的說明，說：「我念故事給你聽喔！」'
+  }
+  if (st.talk) {
+    if (!momDone.has(`talk:${st.talkQ}`)) {
+      momDone.add(`talk:${st.talkQ}`)
+      return `媽媽問你：「${st.talkQ}」，然後看著你等你回答。`
+    }
+    await click(st.talk)
+    return '媽媽說：「我們來選圖！」按了「去選圖」。'
+  }
+  if (st.ask) {
+    if (momDone.has(`ask:${st.ask}`)) return ''
+    momDone.add(`ask:${st.ask}`)
+    return `媽媽念題目：「哪個是${st.ask}？」`
+  }
+  if (st.next && st.at != null) {
+    const key = `line:${st.at}:${st.line}`
+    if (momDone.has(key)) {
+      await click(st.next)
+      const after = await page.evaluate(() => document.querySelector('.zh-line.on .zh-text')?.textContent ?? '')
+      if (!after) return '媽媽念完了，按了「念完了」。'
+      momDone.add(`line:${await page.evaluate(() => document.querySelector<HTMLElement>('.zh-read')?.dataset.at ?? '')}:${after}`)
+      const gap = await page.evaluate(() => document.querySelector('.zh-line.on .zh-red.gap')?.getAttribute('data-word') ?? null)
+      return gap ? `媽媽按了「下一行」，念：「${after.split(gap)[0]}……」念到這裡停下來，看著你等你說。` : `媽媽按了「下一行」，念：「${after}」`
+    }
+    momDone.add(key)
+    return st.gap ? `媽媽指著字念：「${st.line.split(st.gap)[0]}……」念到這裡停下來，看著你等你說。` : `媽媽指著字念：「${st.line}」`
+  }
+  return ''
+}
+
 while (!fatal) {
   const n = steps.length + 1
+  const momSaid = lesson.id === 'zh' ? await mom().catch((e) => (console.log(`  媽媽出錯：${(e as Error).message}`), '')) : ''
   if (n > MAX_STEPS) {
     R.endReason = `到了步數上限 ${MAX_STEPS}`
     break
@@ -400,7 +457,8 @@ while (!fatal) {
   const el = Math.round((Date.now() - t0) / 1000)
   const text = [
     `第 ${n} 步｜你已經玩了 ${Math.floor(el / 60)} 分 ${el % 60} 秒（大概玩 ${MINUTES} 分鐘就要收起來了）。`,
-    n === 1 ? `剛剛：${lesson.intro}媽媽幫你打開以後就去忙了。` : '',
+    n === 1 ? `剛剛：${lesson.intro}${lesson.id === 'zh' ? '媽媽坐在你旁邊，平板不會出聲，是媽媽念給你聽。' : '媽媽幫你打開以後就去忙了。'}` : '',
+    momSaid,
     heard.length ? `你剛剛聽到：${heard.map((h) => `「${h}」`).join(' ')}` : '你剛剛沒有聽到說話的聲音。',
     p.speaking ? '（現在還在說話）' : '',
     lastTouch ? `你上一步：${lastResult}` : '',
@@ -439,7 +497,7 @@ while (!fatal) {
     tokens: a.inTokens != null ? { in: a.inTokens, out: a.outTokens ?? 0 } : undefined,
     brainError: a.error,
     result: '',
-    events: [],
+    events: momSaid ? [`（${momSaid}）`] : [],
   }
   steps.push(step)
   if (a.error) {

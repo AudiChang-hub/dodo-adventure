@@ -74,13 +74,6 @@
   font-family: 'Huninn', sans-serif;
   font-size: 18px;
 }
-.zh-voice {
-  font-size: 12px;
-  color: var(--ink-faint);
-}
-.zh-voice.full {
-  color: var(--good);
-}
 .zh-state {
   font-size: 13px;
   color: #b0603f;
@@ -114,4 +107,9 @@
 }
 .zh-state.some {
   color: #6f9cc8;
+}
+.zh-detail .zh-ask-q {
+  margin-top: 8px;
+  font-size: 17px;
+  color: #3d6f9e;
 }
