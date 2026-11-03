@@ -1,3 +1,5 @@
+import path from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { test, expect, type Page } from '@playwright/test'
 import { attempts, boot, homeButton, settle, snap } from './lib/app'
 import { Toddler, hashSeed, type Pt } from './lib/toddler'
@@ -97,12 +99,13 @@ const points = (page: Page, sel: string) =>
       .filter((p) => p.w > 0)
   }, sel)
 
-/** 在頁面裡記下有沒有要中文音檔、有沒有用平板內建語音（speechSynthesis） */
+/**
+ * 中文課裡有沒有「播」任何中文（中文課文、中文數數、單字三明治的中文 mp3）、有沒有用平板內建語音（speechSynthesis）。
+ * 看的是真的開始播的音檔（tests/ai-toddler/heard.js 記在 window.__heard），不是網路請求：
+ * App 會在背景把全部語音補進離線快取（lib/audio-cache.ts，含單字三明治的中文），那不是播放。heard.js 要在 boot 之前注入。
+ */
 async function watchVoice(page: Page) {
-  const zh: string[] = []
-  page.on('request', (r) => {
-    if (/audio\/zh|zh-lesson|zh-math/.test(r.url())) zh.push(r.url())
-  })
+  const t0 = await page.evaluate(() => performance.now())
   await page.evaluate(() => {
     const w = window as unknown as { __tts: number }
     w.__tts = 0
@@ -114,7 +117,11 @@ async function watchVoice(page: Page) {
       }
     }
   })
-  return async () => ({ zh, tts: await page.evaluate(() => (window as unknown as { __tts: number }).__tts) })
+  return () =>
+    page.evaluate((t0) => {
+      const w = window as unknown as { __tts: number; __heard?: { t: number; name: string }[] }
+      return { zh: (w.__heard ?? []).filter((h) => h.t >= t0 && /^zh/.test(h.name)).map((h) => h.name), tts: w.__tts, hooked: !!w.__heard }
+    }, t0)
 }
 
 const quizRows = async (page: Page) => (await attempts(page)).filter((a) => a.game === 'zh-lesson' && a.phase === 'quiz')
@@ -189,6 +196,8 @@ test.describe('中文課', () => {
   test('親子共讀走完一堂：說明卡、大人還沒按下一行時亂點、連點下一行、聊一聊、連點選項，下課', async ({ page }, info) => {
     test.skip(!want('lesson-chinese-play'))
     test.setTimeout(8 * 60_000)
+    // 記下開始播的音檔（要在 boot 之前注入）
+    await page.addInitScript({ path: path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'ai-toddler', 'heard.js') })
     const { k, c } = await setup(page, info, '共讀走完')
     try {
       const voice = await watchVoice(page)
@@ -263,7 +272,7 @@ test.describe('中文課', () => {
       const d = await checkDoubleRecords(k, c)
       c.outcome('連點不重複記作答', d.dup === 0, `作答 ${d.rows} 筆、重複 ${d.dup}`)
       const v = await voice()
-      c.outcome('沒有中文聲音', !v.zh.length && !v.tts, `中文音檔 ${v.zh.length} 個、平板內建語音 ${v.tts} 次`)
+      c.outcome('沒有中文聲音', v.hooked && !v.zh.length && !v.tts, `${v.hooked ? '' : '（沒有記到播放，heard.js 沒注入）'}播了中文音檔 ${v.zh.length} 段、平板內建語音 ${v.tts} 次`)
       if (v.zh.length || v.tts) await c.once('zh-voice', '困惑', '中文課還在要中文音檔或用平板內建語音', `${v.zh.slice(0, 3).join('、')}；內建語音 ${v.tts} 次`)
       await c.flush()
     } finally {

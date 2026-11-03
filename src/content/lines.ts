@@ -7,6 +7,7 @@ import './lines-eyebreak'
 import './lines-dots'
 import './lines-stickers'
 import './lines-crayon'
+import './lines-zh'
 import './lines-praise'
 import './lines-frame'
 import './lines-math-lesson'
@@ -22,7 +23,7 @@ import './lines-worksheet'
 // 三堂課的台詞（各課自己的檔，這裡只負責 import，npm run audio 才找得到）
 import '../lessons/english/lines'
 
-export { def, line, hasLine, allLines, segments, plainText, type Speaker, type Line, type Segment } from './registry'
+export { def, defBridge, isBridge, line, hasLine, allLines, segments, plainText, type Speaker, type Line, type Segment } from './registry'
 
 // 新功能的大量台詞請放在自己的 lines-*.ts（用 registry 的 def），再到這裡 import 一行
 // （例如 import './lines-phonics'），避免多人同時改這個檔案

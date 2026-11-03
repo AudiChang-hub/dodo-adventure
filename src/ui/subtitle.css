@@ -187,6 +187,27 @@ body:has(.stage-top):not(:has(.stage-host)) .sub-pill {
   color: var(--ink-soft);
 }
 
+/* ── 中文三明治：Apple — 蘋果 — Apple. ───────────────────────────
+   三個字都是目標字，但一起放到 1.6 倍會太寬（Fire truck — 消防車 — Fire truck.），收小一點；
+   中文用圓體（Huninn，和家長區一樣），破折號淡淡的，只是把三段隔開 */
+.sub-pill.is-bridge .sub-w.is-key {
+  font-size: 1.34em;
+}
+.sub-w.is-zh {
+  font-family: 'Huninn', 'Noto Sans TC', 'PingFang TC', 'Microsoft JhengHei', sans-serif;
+  font-weight: 400;
+  letter-spacing: 0.06em;
+}
+.sub-w.is-sep,
+.sub-w.is-sep.is-said,
+.sub-w.is-sep.is-now {
+  color: var(--ink-faint);
+  font-weight: 400;
+}
+.sub-w.is-sep::before {
+  display: none;
+}
+
 /* ── 空格：寬度等於答案字，答對或提示後補上答案 ───────────────── */
 .sub-blank {
   position: relative;

@@ -1,8 +1,10 @@
 // 英文字母課的台詞（豆豆）。content/lines.ts import 這個檔，npm run audio 才會產生音檔。
 // 字母和例字的念法（A, A, A… a, a… apple!）沿用字母森林的 ph.<字母>.says（lines-phonics.ts）；字母森林沒有的字母在這裡補。
 // key 用 ph. 開頭的字幕會把今天的字母上色、念法分三種樣子（content/subtitles.ts）；問「哪一個是 A」的用 en.where. 開頭，字幕會挖空答案。
-import { def, hasLine } from '../../content/registry'
+import { def, defBridge, hasLine } from '../../content/registry'
 import { cueText } from '../../content/phonics-cue'
+import { lexWord, wordKey } from '../../content/lexicon'
+import { bridgeKey } from '../../content/zh-words'
 import { LESSON_LETTERS, wordId } from './data'
 import { EXTRA_PHONICS } from './letters-extra'
 
@@ -52,5 +54,9 @@ for (const x of LESSON_LETTERS) {
   for (const { w } of x.words) {
     // 點名一個字：Apple.（字母森林有的就沿用同一句、同一個音檔）
     if (!hasLine(`ph.word.${wordId(w)}`)) def(`ph.word.${wordId(w)}`, 'dodo', `${cap(w)}.`)
+    // 中文三明治：蘋果 → Apple.。單字表有中文、豆豆還沒有這一句的才補（中文音檔沒產生就自動只念英文）
+    const key = wordKey(w)
+    const zh = lexWord(key)?.zh?.replace(/\s+/g, '')
+    if (zh && !hasLine(bridgeKey(key, 'dodo'))) defBridge(bridgeKey(key, 'dodo'), 'dodo', zh, `${cap(w)}.`)
   }
 }

@@ -4,7 +4,7 @@
 //
 // 這個檔案只放資料（沒有執行期相依）。顏色、形狀、數字是「概念」，用技能代碼記錄（color:red…），不在這張表裡。
 //
-// zh 是給家長看的中文（App 不唸中文：2026-11-03 拿掉了中文三明治和全部中文語音）。
+// 單字的中文三明治（教學卡教一個字時唸「Apple — 蘋果 — Apple」）：zh 就是要唸的中文（content/zh-words.ts、lib/words.ts 的 bridgeLines）。
 import { VOCAB } from './vocab'
 import { PHONICS, wordId } from './letters'
 import { CATEGORIES, SHEET_NAMES, PLURAL_NAMES } from './worksheet-data'
@@ -73,3 +73,4 @@ export function thisIsText(w: Pick<Word, 'key' | 'en'>): string {
   return isPlural(w.key) ? `These are | ${w.en}.` : `This is ${articleOf(w.en)} | ${w.en}.`
 }
 
+// 教一個字的台詞順序（中文三明治）在 lib/words.ts 的 bridgeLines：要看孩子學會了沒、家長的設定。

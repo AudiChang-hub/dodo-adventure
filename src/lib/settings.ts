@@ -29,6 +29,8 @@ export interface Settings {
    * 舊裝置存著的 false 只會是當時的預設，讀進來時改成開一次；之後家長在家長區關掉就照家長的。
    */
   defaultsV?: number
+  /** 單字中文提示：教學卡教還沒學會的字時唸「Apple → 蘋果 → Apple」（lib/words.ts 的 bridgeLines）；關掉就全英文 */
+  zhBridge: boolean
   /**
    * 故事（G-8，試播）：開啟時首頁的「故事」每天先講《彩虹蛋之旅》的下一章，每週一章故事時間（lib/story.ts 的 todaysStory）。
    * 家長 2026-10-30 確認故事世界的語氣，預設開啟。家長關掉時只講 12 扇魔法門的通用章節。
@@ -38,7 +40,7 @@ export interface Settings {
 
 const DEFAULTS_V = 3
 /** 每日 20 分鐘、護眼每 10 分鐘是小班段的外框（準則 FRAME-6、7）；家長在家長區改的優先（TIME-1） */
-const DEFAULTS: Settings = { dailyMinutes: 20, freePlay: 'after', volume: 0.9, theme: 'all', activitiesPerDay: 4, eyeBreakEvery: 10, nightWarm: true, coloringHelp: false, story: true, defaultsV: DEFAULTS_V }
+const DEFAULTS: Settings = { dailyMinutes: 20, freePlay: 'after', volume: 0.9, theme: 'all', activitiesPerDay: 4, eyeBreakEvery: 10, nightWarm: true, coloringHelp: false, zhBridge: true, story: true, defaultsV: DEFAULTS_V }
 
 let state: Settings = DEFAULTS
 const subs = new Set<() => void>()
@@ -55,8 +57,6 @@ export function migrateSettings(saved: Partial<Settings>): { s: Partial<Settings
 
 export async function loadSettings() {
   const { s: saved, changed } = migrateSettings(await getKV<Partial<Settings>>('settings', {}))
-  // 已經拿掉的設定：舊裝置存著也不讀進來（下次存設定時就消失了）。zhBridge：單字中文提示，2026-11-03 中文語音全部拿掉
-  delete (saved as Record<string, unknown>).zhBridge
   state = { ...DEFAULTS, ...saved }
   if (changed) await setKV('settings', state)
   // 本週主題：舊資料沒有設定日期，從今天開始算 7 天；過期就自動取消

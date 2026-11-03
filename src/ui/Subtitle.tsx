@@ -16,6 +16,9 @@ interface Tok {
   key: boolean
   /** 長句裡的次要字：字小一點、淡一點，讓目標字跳出來 */
   minor: boolean
+  /** 中文三明治：中文字（用中文字型）、中英之間的破折號 */
+  zh?: boolean
+  sep?: boolean
   /** 相對於該段音檔開頭的毫秒 */
   start: number
   end: number
@@ -57,8 +60,24 @@ const LONG_CHARS = 40
  */
 const MAX_WORDS = 6
 
+/**
+ * 中文三明治（蘋果 → Apple.）：字幕顯示成「Apple — 蘋果 — Apple.」。最前面的 Apple 是上一句已經唸過的英文，
+ * 中文一開始唸就跟著亮過去；中文沒有逐字時間，整個詞亮到後面的英文開始。
+ */
+function bridgeToks(line: Line): Tok[] {
+  const at = (seg: number, text: string, extra: Partial<Tok>, end = 0): Tok => ({ text, seg, key: false, minor: false, start: 0, end, ...extra })
+  return [
+    at(0, line.lead ?? '', { key: true }),
+    at(0, '—', { sep: true }),
+    at(0, line.zh ?? '', { key: true, zh: true }, Infinity),
+    at(1, '—', { sep: true }),
+    { text: line.text, seg: 1, key: true, minor: false, start: NaN, end: NaN },
+  ]
+}
+
 function makeLive(key: string, line: Line): Live {
   const blank = isBlankQuestion(key)
+  if (line.zh != null) return { id: nextId++, key, line, toks: bridgeToks(line), segAt: [], ended: false, whole: false, blank: false }
   const toks: Tok[] = []
   segments(line).forEach((s, seg) => {
     if (!s.text) return
@@ -319,7 +338,7 @@ function Pill({ v, onTap }: { v: View; onTap: () => void }) {
     <motion.div
       data-line={live.id}
       data-gone={present ? undefined : ''}
-      className={`sub-pill${mode === 'reveal' ? ' is-reveal' : ''}${done ? ' is-done' : ''}${plainText(live.line).length > LONG_CHARS ? ' is-long' : ''}`}
+      className={`sub-pill${live.line.zh != null ? ' is-bridge' : ''}${mode === 'reveal' ? ' is-reveal' : ''}${done ? ' is-done' : ''}${plainText(live.line).length > LONG_CHARS ? ' is-long' : ''}`}
       style={{ '--who': `var(--${live.line.speaker}-deep)`, pointerEvents: present ? undefined : 'none' } as CSSProperties}
       variants={swap}
       initial="initial"
@@ -343,7 +362,7 @@ function Pill({ v, onTap }: { v: View; onTap: () => void }) {
       </span>
       <span className="sub-text">
         {live.toks.map((t, i) => (
-          <span key={i} data-i={i} className={`sub-w${t.key ? ' is-key' : ''}${t.minor ? ' is-minor' : ''}${mode !== 'live' || done ? ' is-said' : ''}`}>
+          <span key={i} data-i={i} className={`sub-w${t.key ? ' is-key' : ''}${t.minor ? ' is-minor' : ''}${t.zh ? ' is-zh' : ''}${t.sep ? ' is-sep' : ''}${mode !== 'live' || done ? ' is-said' : ''}`}>
             {t.blank ? (
               <>
                 {t.blank.pre}

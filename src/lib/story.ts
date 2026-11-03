@@ -303,7 +303,9 @@ export async function toldChapters(): Promise<ToldChapter[]> {
 const filesOf = (keys: string[]) =>
   keys.filter(hasLine).flatMap((k) => {
     const l = line(k)
-    return segments(l).map((x) => `${clipName(l, x)}.mp3`)
+    return segments(l)
+      .filter((x) => x.role !== 'zh')
+      .map((x) => `${clipName(l, x)}.mp3`)
   })
 
 /**

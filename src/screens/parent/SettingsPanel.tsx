@@ -127,6 +127,15 @@ export function SettingsPanel({ onChanged }: { onChanged: () => void }) {
           </select>
         </Field>
         <Field
+          label="單字中文提示"
+          hint="教學卡教一個英文單字時，接著用中文說一次，再用英文說一次，例如「Apple → 蘋果 → Apple」，字幕也會顯示中文。孩子學會這個字以後就只說英文；在「單字清單」勾了「他不認得」的字，會重新帶回中文。其他語音都是英文。"
+        >
+          <select value={s.zhBridge ? 'on' : 'off'} onChange={(e) => set({ zhBridge: e.target.value === 'on' })}>
+            <option value="on">開</option>
+            <option value="off">關</option>
+          </select>
+        </Field>
+        <Field
           label="故事（試播）"
           hint="開啟後，首頁的「故事」每天先講《彩虹蛋之旅》的下一章（家長在故事審稿通過的才講），每週還有一章莫莫講的故事時間；沒有新的章節時講 12 扇門的通用故事。關閉時只講通用故事。講過的都在書架上，點一本就重聽。"
         >

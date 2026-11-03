@@ -56,7 +56,7 @@ export default defineConfig({
         // 音檔檔名包含內容與後製版本（lib/clip.ts），內容改了檔名就會變，CacheFirst 不會拿到舊的聲音
         // 故事（G-8）：劇本是 content/story 的程式碼，跟著 JS 一起 precache；故事的語音一樣走 dodo-audio，
         // 冒險一開始講就先把這一篇剩下的章、下一篇的語音補進來（lib/story.ts 的 warmStory，依篇快取），沒網路也講得完
-        globPatterns: ['**/*.{js,css,html,svg,png,woff2}', 'audio/timings.json', 'audio/files.json'],
+        globPatterns: ['**/*.{js,css,html,svg,png,woff2}', 'audio/timings.json', 'audio/zh/index.json', 'audio/files.json'],
         maximumFileSizeToCacheInBytes: 8 * 1024 * 1024,
         navigateFallback: 'index.html',
         runtimeCaching: [

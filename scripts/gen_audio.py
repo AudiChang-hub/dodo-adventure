@@ -410,8 +410,9 @@ def check(args):
         print("MISSING", r["key"], r["text"])
     for r in untimed[:50]:
         print("UNTIMED", r["key"], r["text"])
-    # 中文音檔（2026-11-03 全部拿掉）：public/audio 底下不能再有 zh 開頭的資料夾，打包才不會帶出去
-    zh_dirs = [p.name for p in out.glob("zh*") if p.is_dir()] if out.exists() else []
+    # 中文課文的朗讀（zh-lesson）、中文數數（zh-math）2026-11-03 拿掉了：public/audio 底下不能再有這些資料夾，打包才不會帶出去。
+    # 英文單字三明治的中文（zh/，家長要保留）不算，那一份用 scripts/check-zh.ts 檢查缺漏
+    zh_dirs = [p.name for p in out.glob("zh-*") if p.is_dir()] if out.exists() else []
     print(f"zh dirs: {len(zh_dirs)}{'（' + '、'.join(zh_dirs) + '）' if zh_dirs else ''}")
     if missing or untimed or zh_dirs:
         sys.exit(1)

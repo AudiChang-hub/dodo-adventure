@@ -214,8 +214,8 @@ async function playLine(key: string, l: Line, my: number) {
   const names = segs.map((s) => clipName(l, s))
   const [bufs, times] = await Promise.all([Promise.all(names.map(load)), loadTimings()])
   if (my !== token) return
-  // 缺檔才退回平板內建語音（全部是英文台詞）
-  if (bufs.some((b) => !b)) return speakFallback(key, l, my)
+  // 中文三明治的中文（BreezyVoice）是額外的：音檔還沒產生或載入失敗就跳過，只唸英文；英文缺檔才退回平板內建語音
+  if (bufs.some((b, i) => !b && segs[i].role !== 'zh')) return speakFallback(key, l, my)
   let played = 0
   for (let i = 0; i < bufs.length; i++) {
     if (my !== token) return

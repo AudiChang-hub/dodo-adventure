@@ -11,11 +11,14 @@
 // 不夠的時候選項變少（最少 2 個），再不夠就在教學卡上多教一個字，不補沒教過的字。
 import { useSyncExternalStore } from 'react'
 import { getKV, setKV } from './db'
-import { skill, skillsVersion } from './adaptive'
+import { mastered, skill, skillsVersion } from './adaptive'
+import { getSettings } from './settings'
 import { VOCAB, CAT_EXAMPLES } from '../content/vocab'
 import { PHONICS, NEW_KEY_WORDS, LETTERS, wordId } from '../content/letters'
 import { CATEGORIES } from '../content/worksheet-data'
-import { keyOfIcon, keyOfVocab, wordKey } from '../content/lexicon'
+import { keyOfIcon, keyOfVocab, thisIs, wordKey } from '../content/lexicon'
+import { hasLine, line } from '../content/lines'
+import { bridgeKey, zhClip, zhWord } from '../content/zh-words'
 
 export const TAUGHT_KV = 'words:taught'
 /** 家長設定：reset.ts 的 KEEP_KV 要保留，sync.ts 會上傳 */
@@ -120,6 +123,55 @@ export function useUnknownWords(): ReadonlyMap<string, number> {
     },
     () => snapshot,
   )
+}
+
+// ── 中文三明治（2026-10-29）─────────────────────────────────
+// 教學卡教一個字時唸「Apple — 蘋果 — Apple」（中文是 BreezyVoice 預先產生的音檔，content/zh-words.ts），其他語音全英文。
+// 什麼時候唸中文：
+// - 家長在「設定與同步」開著「單字中文提示」（預設開）；
+// - 這個字的中文音檔已經產生（public/audio/zh/index.json 裡有；還沒產生的字只唸英文）；
+// - 孩子還沒學會這個字：有「聽名字找圖」技能的字（動物村 vocab:dog、顏色 color:red、形狀 shape:circle）看那個技能熟了沒（adaptive 的 mastered，3 格以上）；
+//   其他字（字母森林的關鍵字和複習字、學習單的圖）沒有自己的技能，教學卡只在第一次教的時候出現，所以「還沒教過」就唸中文；
+// - 家長勾了「他不認得」的字：不管熟練度，一律重新帶回中文，直到家長取消勾選。
+
+/** 有自己「聽名字找圖」技能的字：單字 key → 技能代碼 */
+const NAME_SKILL = new Map<string, string>(VOCAB.map((v) => [keyOfVocab(v.id), `vocab:${v.id}`]))
+const conceptSkill = (key: string) => (key.startsWith('color.') || key.startsWith('shape.') ? key.replace('.', ':') : null)
+
+/** 孩子學會這個字了沒（中文三明治用）：顏色、形狀、動物村的字看技能熟了沒；其他字教過就算 */
+export function learned(key: string): boolean {
+  const s = conceptSkill(key) ?? NAME_SKILL.get(key)
+  return s ? mastered(s) : !needsTeach(key)
+}
+
+/** 已經產生好的中文音檔（public/audio/zh/index.json 的檔名） */
+let zhReady = new Set<string>()
+
+export async function loadZhAudio() {
+  try {
+    const r = await fetch(`${import.meta.env.BASE_URL}audio/zh/index.json`)
+    if (r.ok) zhReady = new Set(Object.keys(await r.json()).map((f) => `zh/${f}`))
+  } catch {
+    /* 離線又沒有快取：只唸英文 */
+  }
+}
+
+/** 這個字這次教的時候要不要唸中文 */
+export function wantsZh(key: string): boolean {
+  if (getSettings().zhBridge === false) return false
+  const w = zhWord(key)
+  if (!w || !zhReady.has(zhClip(w.zh))) return false
+  return isUnknown(key) || !learned(key)
+}
+
+/**
+ * 教一個字的台詞順序（教學卡、找出全部的例子）：要唸中文時是 [英文那一句, 中文三明治]，
+ * 例如 [teach.vocab.apple（This is an | apple.）, zh.momo.apple（蘋果 → Apple.）]；不唸中文時只有英文那一句。
+ * key 是單字 key（顏色 color.red、形狀 shape.circle）；後面那一次英文用唸第一句的那隻恐龍的聲音。
+ */
+export function bridgeLines(key: string, english: string = thisIs(key)): string[] {
+  const b = bridgeKey(key, line(english).speaker)
+  return hasLine(b) && wantsZh(key) ? [english, b] : [english]
 }
 
 /** 自動檢查（scripts/sim-teach.ts）用：模擬家長勾選 */

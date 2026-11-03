@@ -1,4 +1,4 @@
-// 中文課文的排課（src/lessons/chinese/course.ts）、第 2 次停一下的提示（cloze.ts）、聊一聊（data.ts 的 talkOf）、沒有中文音檔：每篇剛好上 3 次才換、跳過的日子不往前、
+// 中文課文的排課（src/lessons/chinese/course.ts）、第 2 次停一下的提示（cloze.ts）、聊一聊（data.ts 的 talkOf）、中文課不出聲：每篇剛好上 3 次才換、跳過的日子不往前、
 // 同一天再進來還是同一次、家長挑的那篇從第 1 次開始、舊版（照日期）的進度接得上。對照 docs/全球幼教指引-現況對照.md A3。
 // 執行：npx tsx scripts/test-zh-course.ts（npm run verify 的「單元：中文課文每篇 3 次」）
 import assert from 'node:assert/strict'
@@ -170,7 +170,8 @@ function main() {
     }
     console.log(`ok 9 聊一聊：180 篇都有內容，${withQ} 篇有明確的問句放大給大人問`)
   }
-  // ── 中文語音全部拿掉（2026-11-03）：src 不能有任何會去要中文音檔、或用平板內建語音念中文的程式 ─────────────
+  // ── 中文課文不出聲（2026-11-03）：沒有程式會去要中文課文、中文數數的音檔；中文課裡不說話、不用平板內建語音 ─────────────
+  // （英文單字三明治的中文 audio/zh/ 家長要保留，不在這裡擋）
   {
     const bad: string[] = []
     const walk = (dir: string) => {
@@ -179,13 +180,14 @@ function main() {
         if (statSync(p).isDirectory()) walk(p)
         else if (/\.(ts|tsx)$/.test(f)) {
           const src = readFileSync(p, 'utf8')
-          for (const re of [/audio\/zh/, /zh-lesson\//, /zh-math/, /zhClip/, /sayClip/, /BreezyVoice|breezy/i, /lang\s*=\s*['"]zh/]) if (re.test(src)) bad.push(`${p}：${re}`)
+          for (const re of [/zh-lesson\//, /zh-math/, /sayClip/]) if (re.test(src)) bad.push(`${p}：${re}`)
+          if (/[\/]lessons[\/]chinese[\/]/.test(p)) for (const re of [/\bsay\(/, /speechSynthesis/, /audio\//, /zhClip/]) if (re.test(src)) bad.push(`${p}：${re}`)
         }
       }
     }
     walk('src')
-    assert.deepEqual(bad, [], '有程式還會去要中文音檔')
-    console.log('ok 10 src 裡沒有任何程式會去要中文音檔（audio/zh、zh-lesson、zh-math、zhClip、sayClip、BreezyVoice、中文 TTS）')
+    assert.deepEqual(bad, [], '中文課文還有會出聲、會去要中文課文音檔的程式')
+    console.log('ok 10 中文課文不出聲：src 沒有 zh-lesson、zh-math、sayClip；中文課裡沒有 say、平板內建語音、音檔路徑')
   }
   console.log('ALL PASS')
 }

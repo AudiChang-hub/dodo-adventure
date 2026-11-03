@@ -47,7 +47,7 @@ export function EnglishLesson({ onDone }: LessonProps) {
 | 選擇題、數數 | 舊的站點遊戲（ChoiceGame、CountGame…）T-75 已經拿掉，各課自己組（中文課的 `Quiz.tsx`、數學課的 `kit.tsx` 的 `Quiz`、`Count.tsx`） | `src/lessons/<科>/` | 互動做法照抄現有的課 |
 | 教學卡（恐龍拿出來念、孩子點一下再聽一次） | `TeachCard`，內容是 `TeachSpec` | `src/games/Teach.tsx`、型別在 `src/content/games.ts` | `<TeachCard spec={…} onDone={(ms) => …} />` |
 | 說話、音效 | `say(...keys)`（依序念、會被新的 say 打斷）、`stopSpeech()`、`sfx.pop()` 等 | `src/lib/audio.ts` | 台詞要先登記：`def(key, 'dodo', 'text')`（`src/content/lines.ts` 或自己檔案再 import 進 `lines.ts`），再 `npm run phrases && python scripts/gen_audio.py --only <key 前綴>` 產生音檔 |
-| 中文 | App 不說中文（2026-11-03 家長決定拿掉全部中文語音：單字三明治、中文課文的朗讀） | — | 中文只出現在畫面上給大人念，不能加任何中文音檔或用平板內建語音念中文（`scripts/test-zh-course.ts` 會檢查） |
+| 中文的詞 | 中文三明治（中文 → 停一下 → 英文）`ZH_WORDS`、`bridgeKey` | `src/content/zh-words.ts`、`src/content/lines-zh.ts` | 中文語音是另一套（BreezyVoice，`scripts/gen_zh_words.py`）；`scripts/check-zh.ts` 檢查缺漏。中文課文 2026-11-03 起是親子共讀，App 不念課文和題目（`scripts/test-zh-course.ts` 會檢查） |
 | 字幕 | 跟著語音自動出現（App 最上層的 `Subtitle`），重點字上色 `tintTarget`、`tintWord` | `src/ui/Subtitle.tsx`、`src/content/subtitles.ts` | 不用自己放；say 了就有 |
 | 恐龍 | `<Dino who="dodo" mood="happy" size="100%" onTap={…} />`（說話時嘴巴會動） | `src/art/Dino.tsx` | |
 | 圖 | `<Emoji name="red-apple" />`（Fluent Emoji，名字在 `src/art/emoji.generated.ts`） | `src/art/Emoji.tsx` | 沒有的圖：`npm run emoji` |

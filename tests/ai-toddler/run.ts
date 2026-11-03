@@ -197,7 +197,7 @@ const R: Run = {
 }
 
 // ── 聽到的話：哪一個音檔開始播（heard.js）→ 對照文字 ─────────────────────
-// Node 這邊用 public/audio 的 timings.json（英文逐字）對照成文字（2026-11-03 起沒有中文音檔）。
+// Node 這邊用 public/audio 的 timings.json（英文逐字）、zh/index.json（單字三明治的中文）對照成文字。中文課文 2026-11-03 起不出聲。
 await page.addInitScript({ path: path.join(here, 'heard.js') })
 const clipText = (() => {
   const dir = path.join(root, 'public', 'audio')
@@ -209,7 +209,12 @@ const clipText = (() => {
     }
   }
   const en = read('timings.json') as Record<string, [number, number, string][]>
-  return (name: string) => en[name.slice(name.lastIndexOf('/') + 1)]?.map((x) => x[2]).join(' ') ?? null
+  const zh = read('zh/index.json') as Record<string, string>
+  return (name: string) => {
+    const [folder, file] = name.includes('/') ? [name.slice(0, name.lastIndexOf('/')), name.slice(name.lastIndexOf('/') + 1)] : ['', name]
+    if (folder === 'zh') return zh[file] ?? null
+    return en[file]?.map((x) => x[2]).join(' ') ?? null
+  }
 })()
 
 let finger!: Finger
