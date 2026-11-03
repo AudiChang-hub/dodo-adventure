@@ -6,6 +6,7 @@ import { praiseKey, retryKey, wait } from '../../games/lines'
 import { useIdle } from '../../games/idle'
 import { PACE } from '../../games/pace'
 import { say, sfx } from '../../lib/audio'
+import { useRoute } from '../../lib/nav'
 import { DUR, EASE, FADE } from '../../ui/motion'
 import type { Mood } from '../../art/Dino'
 import type { Lesson } from './plan'
@@ -36,12 +37,18 @@ export function pointIn(el: HTMLElement | null | undefined, layer: HTMLElement |
 /** 這一段還在畫面上（離開課、換到下一段就停下所有流程） */
 export function useLive() {
   const live = useRef(true)
+  // 按返回離開時，舊畫面要淡出一下才卸載：路由一換就算離開，不再開始說新的話（T-92：波波數到一半按返回，回到首頁還在數）
+  const route = useRoute().name
+  const at = useRef(route)
   useEffect(() => {
     live.current = true
     return () => {
       live.current = false
     }
   }, [])
+  useEffect(() => {
+    if (route !== at.current) live.current = false
+  }, [route])
   return live
 }
 

@@ -354,6 +354,64 @@ test.describe('數學課', () => {
       finish(k, c, '中途返回')
     }
   })
+
+  test('波波數到一半按返回：回到首頁就不再數（T-92）', async ({ page }, info) => {
+    test.skip(!want())
+    test.setTimeout(4 * 60_000)
+    const { k, c, n: seedN } = await setup(page, info, '數到一半返回')
+    // 今天的新數字（3～6）：數數第一回合波波先示範，手指一個一個點、邊點邊數
+    const n = 3 + (seedN % 4)
+    await setMath(page, { next: n, firm: true })
+    // 字幕會留著上一句（「One! Two!」），所以看結尾：波波數的數字（大寫開頭）、或「There are four!」
+    const NUM = /\b(One|Two|Three|Four|Five|Six|Seven|Eight|Nine|Ten)!$|There (are|is)/
+    try {
+      if (!(await enter(k, c))) return
+      // 舊畫面淡出要一下子才卸載：剛數完一個數字、下一個還沒開始（波波的手指移到下一個）時按 Android 返回最容易出事
+      for (let round = 0; round < 2; round++) {
+        k.behavior = `示範數數中按 Android 返回（第 ${round + 1} 次）`
+        const back = await page.evaluate(
+          (src) =>
+            new Promise<number | null>((res) => {
+              const re = new RegExp(src)
+              const end = performance.now() + 30_000
+              const tick = () => {
+                const now = performance.now()
+                const vs = window.__toddler.voices
+                const last = vs[vs.length - 1]
+                const over = last ? (last.stopped ?? last.end) : Infinity
+                if (last?.text && re.test(last.text) && !/There (are|is)/.test(last.text) && over <= now && now - over < 80) {
+                  history.back()
+                  return res(performance.now())
+                }
+                if (now > end) return res(null)
+                setTimeout(tick, 15)
+              }
+              tick()
+            }),
+          NUM.source,
+        )
+        const heard = back == null ? await page.evaluate(() => window.__toddler.voices.slice(-12).map((v) => v.text ?? '（沒有字幕）').join('、')) : ''
+        c.outcome('等到波波數數', back != null, back == null ? `30 秒內沒聽到數字：${heard}` : '')
+        if (back == null) break
+        const live = await waitLive(page, (l) => l === 'home', 4000)
+        c.outcome('數數中 Android 返回 → 首頁', live === 'home', `到 ${live}`)
+        if (live !== 'home') await c.once('count-back', '無法返回', '波波數數時按 Android 返回沒有回首頁', `停在 ${live}`)
+        await k.wait(2500)
+        const late = await page.evaluate(
+          ({ t, src }) => window.__toddler.voices.filter((v) => v.t > t + 30 && v.text && new RegExp(src).test(v.text)).map((v) => `${Math.round(v.t - t)}ms ${v.text}`),
+          { t: back, src: NUM.source },
+        )
+        c.outcome('返回後波波不再數', !late.length, late.join('、'))
+        if (late.length) await c.once('count-after-back', '困惑', '波波數數時按返回，回到首頁還在數', late.join('、'))
+        await c.flush()
+        // 再進來一次（同一天、同一個數字），再試一次
+        if (round === 0 && !(await enter(k, c))) return
+      }
+    } finally {
+      finish(k, c, '數到一半返回')
+    }
+  })
+
   test('寫數字：描到一半抬筆，再從綠點重描', async ({ page }, info) => {
     test.skip(!want())
     test.setTimeout(6 * 60_000)
