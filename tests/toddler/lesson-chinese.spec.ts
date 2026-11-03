@@ -18,12 +18,12 @@ const LIVE = 'lesson-chinese'
 /** 後面的一篇（家長挑「今天上這篇」）：跟第 1 篇不一樣的課文長度、紅字 */
 const LATE_DAY = 170
 
-async function setup(page: Page, info: Parameters<Parameters<typeof test>[2]>[1], name: string) {
+async function setup(page: Page, info: Parameters<Parameters<typeof test>[2]>[1], name: string, lessonSticker?: boolean) {
   const seed = hashSeed(BASE_SEED, 'lesson-chinese', name, info.project.name)
   const k = new Toddler(page, info, seed, info.project.name)
   const c = new Checker(k, page)
   k.where = `中文課／${name}`
-  await boot(page, seed, { to: 'home' })
+  await boot(page, seed, { to: 'home', lessonSticker })
   await k.init()
   return { k, c }
 }
@@ -428,6 +428,72 @@ test.describe('中文課', () => {
       await c.flush()
     } finally {
       finish(k, c, '第2次停一下')
+    }
+  })
+  test('下課挑貼紙（T-90）：點一下手馬上示範「再點一下」；收進貼紙本後停在那一頁，點房子才回首頁', async ({ page }, info) => {
+    test.skip(!want('lesson-chinese-sticker'))
+    test.setTimeout(6 * 60_000)
+    const { k, c } = await setup(page, info, '挑貼紙', true)
+    try {
+      await putKV(page, 'zhLesson:introSeen', true)
+      if (!(await enter(k, c))) return
+      if (!(await readAll(k, c))) return
+      k.behavior = '答完選圖'
+      const done = await answerAll(k, c, 1)
+      if (!done) return void (await c.once('st-end', '卡死', '選圖答完沒有走到下課', ''))
+      const pk = async () =>
+        page.evaluate(() => ({
+          picker: !!document.querySelector('.picker'),
+          opts: document.querySelectorAll('.pk-opt').length,
+          choose: !!document.querySelector('.pk-side'),
+          hand: [...document.querySelectorAll('.pk-opt')].findIndex((e) => !!e.querySelector('.pk-hand')),
+          sel: [...document.querySelectorAll('.pk-opt')].findIndex((e) => e.classList.contains('is-sel')),
+          book: !!document.querySelector('.pk-book'),
+          home: !!document.querySelector('.pk-home'),
+          homeHand: !!document.querySelector('.pk-home-hand'),
+        }))
+      const until = async (pred: (s: Awaited<ReturnType<typeof pk>>) => boolean, ms: number) => {
+        const end = Date.now() + ms
+        while (Date.now() < end) {
+          const s = await pk()
+          if (pred(s)) return s
+          await k.wait(150)
+        }
+        return null
+      }
+      let s = await until((s) => s.choose && s.opts >= 6, 12_000)
+      c.outcome('下課出現挑貼紙', !!s, s ? `${s.opts} 張` : '沒有出現')
+      if (!s) return void (await c.once('st-none', '困惑', '這一堂指定有貼紙，卻沒有出現挑貼紙', ''))
+      // 等攤開時的示範手做完，點第 3 張一下
+      await k.wait(3500)
+      const opt = (await points(page, '.pk-opt'))[2]
+      await k.tap(opt, '點一張貼紙')
+      const t0 = Date.now()
+      s = await until((s) => s.hand === 2, 2500)
+      const ms = Date.now() - t0
+      c.outcome('點一下：手馬上在那一張示範再點一下', !!s, s ? `${(ms / 1000).toFixed(1)} 秒內出現` : '2.5 秒內沒有出現')
+      if (!s) await c.once('st-hand', '困惑', '點了一張貼紙，手沒有馬上示範「再點一下」', '')
+      // 再點同一張：收下 → 貼紙本那一頁 → 房子
+      await k.wait(1200)
+      await k.tap(opt, '再點同一張')
+      s = await until((s) => s.home, 10_000)
+      c.outcome('收進貼紙本以後出現房子', !!s, s ? '房子' : '10 秒內沒有出現')
+      if (!s) return void (await c.once('st-home', '卡死', '貼紙收進本子以後沒有出現回首頁的房子', ''))
+      await k.wait(2000)
+      let live = (await snap(page)).live
+      s = await pk()
+      c.outcome('停在貼紙本那一頁，沒有自己跑回首頁', live !== 'home' && s.book, `在 ${live}、${s.book ? '看得到貼紙本' : '貼紙本不見了'}`)
+      if (live === 'home') await c.once('st-fast', '困惑', '貼紙收進本子以後很快就自己回首頁', '')
+      s = await until((s) => s.homeHand, 4000)
+      c.outcome('沒點房子：手在房子上示範', !!s, s ? '手出現' : '沒有出現')
+      const h = (await points(page, '.pk-home'))[0]
+      if (h) await k.tap(h, '房子')
+      live = await waitLive(page, (l) => l === 'home', 4000)
+      c.outcome('點房子 → 首頁', live === 'home', `到 ${live}`)
+      if (live !== 'home') await c.once('st-home-tap', '無法返回', '點貼紙本旁邊的房子沒有回首頁', `停在 ${live}`)
+      await c.flush()
+    } finally {
+      finish(k, c, '挑貼紙')
     }
   })
 })

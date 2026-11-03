@@ -3,6 +3,7 @@ import { AnimatePresence, motion } from 'motion/react'
 import { Dino } from '../art/Dino'
 import { Emoji } from '../art/Emoji'
 import { Hand } from '../games/Demo'
+import { HomeIcon } from '../games/Shell'
 import { ArtSticker } from './StickerArt'
 import { AlbumPage, PER_PAGE } from './Album'
 import { album, nextPick, pickOptions, placeSticker, type OwnedSticker } from '../lib/achievements'
@@ -21,7 +22,10 @@ import './sticker-ui.css'
  * - 「等一下再選」：留著這一張，貼紙本、今日回顧都可以再挑；不會卡住流程。
  * - 很久沒選：20 秒、40 秒豆豆溫和地鼓勵，**不會替他選**；90 秒都沒碰畫面（可能走開了）才安靜地收起來，留到下次再選。
  * - 示範的手（AI 小男生測試 #5：說明是英文句子，孩子只能猜）：攤開後手在一張貼紙上「點一下、再點一下」（只是示範，不會選）；
- *   點了一張、4 秒沒再點，手在那一張上再點一下給他看；很久沒選時鼓勵的同時也再示範一次。
+ *   點了一張：豆豆說名字和「Tap it again!」的同時，手馬上在那一張上再點一下給他看（T-90，家長選 1A：聽不懂英文也看得懂）；
+ *   4 秒沒再點，手再示範一次；很久沒選時鼓勵的同時也再示範一次。
+ * - 收進貼紙本以後（T-90，家長選 2A）：本子停在那一頁，新的那張貼上去；旁邊長出一顆房子（跟沒有貼紙那堂的下課畫面 LessonBye 一樣），
+ *   孩子點房子才回首頁。3 秒沒點，手在房子上點一下給他看；20 秒都沒碰畫面就自己回首頁（NAV-5）。
  * - 貼紙和右邊的按鈕跟首頁的門一樣（ui/tap.ts）：手指按下、放開就算，不等瀏覽器產生 click。
  *   三歲常常按住半秒多才放開，觸控按超過約 0.5 秒瀏覽器當成長按、不產生 click，以前就是「第一下沒反應、要連點」（T-84）。
  *   發牌時一張一出現就可以點，不用等「Pick a sticker you like」念完（挑貼紙不是教學示範，沒有要等的答案）。
@@ -34,8 +38,14 @@ const IDLE_CLOSE_MS = 90_000
 const AGAIN_HAND_MS = 4000
 /** 一張張攤開的間隔 */
 const DEAL_S = 0.07
+/** 點了一張以後，手多久出現在那一張上示範「再點一下」（跟豆豆說話同時） */
+const FIRST_AGAIN_HAND_MS = 450
+/** 收進貼紙本以後：多久沒點房子，手在房子上點一下；多久都沒碰畫面就自己回首頁 */
+const HOME_HAND_MS = 3000
+const HOME_AUTO_MS = 20_000
 
-type Phase = 'reveal' | 'choose' | 'place'
+/** done：最後一張收進貼紙本了，停在那一頁，等孩子點房子回首頁 */
+type Phase = 'reveal' | 'choose' | 'place' | 'done'
 
 const keyOf = (s: Stk) => `${s.art}:${s.seed}`
 /** 每個位置固定一點點歪，像攤在桌上 */
@@ -49,6 +59,8 @@ export function StickerPicker({ onDone }: { onDone: () => void }) {
   const [sel, setSel] = useState<number | null>(null)
   const [placed, setPlaced] = useState<{ stk: Stk; page: OwnedSticker[]; key: string } | null>(null)
   const [nudge, setNudge] = useState(0)
+  /** 房子上的示範手：0 沒有，1 出現，2 點一下 */
+  const [homeHand, setHomeHand] = useState(0)
   /** 示範的手：在第幾張、點了幾下（點一下、再點一下） */
   const [hand, setHand] = useState<{ i: number; tap: number } | null>(null)
   const handRun = useRef(0)
@@ -173,6 +185,8 @@ export function StickerPicker({ onDone }: { onDone: () => void }) {
     hushSpeech()
     const name = `stk.art.${batch[i].art}`
     void say(...(toldAgain.current ? [name] : [name, 'stk.pick.again']))
+    // 第一次選：說「Tap it again!」的同時，手馬上在這一張上再點一下（不等 4 秒）
+    if (!toldAgain.current) void showHand(i, 1, FIRST_AGAIN_HAND_MS)
     toldAgain.current = true
   }
 
@@ -219,14 +233,34 @@ export function StickerPicker({ onDone }: { onDone: () => void }) {
       setPhase('reveal')
       return
     }
-    finish()
+    // 最後一張：停在貼紙本這一頁，等他點房子
+    setPhase('done')
   }
+
+  // 收進貼紙本以後：3 秒沒點房子，手示範一次；20 秒都沒碰畫面就自己回首頁
+  useEffect(() => {
+    if (phase !== 'done') return
+    lastTouch.current = performance.now()
+    const h = window.setTimeout(() => setHomeHand(1), HOME_HAND_MS)
+    const ht = window.setTimeout(() => setHomeHand(2), HOME_HAND_MS + 700)
+    const hh = window.setTimeout(() => setHomeHand(0), HOME_HAND_MS + 1700)
+    const idle = window.setInterval(() => {
+      if (performance.now() - lastTouch.current > HOME_AUTO_MS) finish()
+    }, 1000)
+    return () => {
+      clearTimeout(h)
+      clearTimeout(ht)
+      clearTimeout(hh)
+      clearInterval(idle)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [phase])
 
   if (!pick) return null
   return (
     // 疊加層：整個挑貼紙的畫面一次淡入、一次淡出（ui/motion.ts 的 overlay）
     <motion.div
-      className="picker"
+      className={`picker${phase === 'done' ? ' is-done' : ''}`}
       variants={overlay}
       initial="initial"
       animate="enter"
@@ -234,6 +268,7 @@ export function StickerPicker({ onDone }: { onDone: () => void }) {
       onPointerDown={() => {
         lastTouch.current = performance.now()
         if (hand) hideHand()
+        if (homeHand) setHomeHand(0)
       }}
     >
       <div className="pk-glow" aria-hidden="true" />
@@ -256,7 +291,7 @@ export function StickerPicker({ onDone }: { onDone: () => void }) {
 
       {/* 2. 攤開的 6 張 */}
       {batch.length > 0 && (
-        <div className={`pk-grid${sel != null ? ' has-sel' : ''}${phase === 'place' ? ' is-placing' : ''}`}>
+        <div className={`pk-grid${sel != null ? ' has-sel' : ''}${phase === 'place' || phase === 'done' ? ' is-placing' : ''}`}>
           <AnimatePresence mode="popLayout">
             {batch.map((s, i) => (
               <motion.button
@@ -266,7 +301,7 @@ export function StickerPicker({ onDone }: { onDone: () => void }) {
                 style={{ '--tilt': `${TILT[i]}deg` } as CSSProperties}
                 initial={{ scale: 0.3, opacity: 0, y: 40, rotate: TILT[i] * 4 }}
                 animate={
-                  phase === 'place'
+                  phase === 'place' || phase === 'done'
                     ? sel === i
                       ? { scale: 0, opacity: 0, transition: { duration: 0.25 } }
                       : { scale: 0.8, opacity: 0, transition: { duration: 0.25 } }
@@ -305,6 +340,35 @@ export function StickerPicker({ onDone }: { onDone: () => void }) {
         )}
       </AnimatePresence>
 
+      {/* 收進貼紙本以後：房子（回首頁），跟沒有貼紙那堂的下課畫面一樣；「輪到你了」的跳一下等房子長出來以後才跳 */}
+      <AnimatePresence>
+        {phase === 'done' && (
+          <motion.button
+            key="home"
+            className="pk-home turn-hop"
+            aria-label="回首頁"
+            style={{ animationDelay: '1.1s' }}
+            initial={{ scale: 0.6, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            transition={{ type: 'spring', stiffness: 260, damping: 20, delay: 0.35 }}
+            whileTap={{ scale: 0.92 }}
+            {...tap('home', () => {
+              sfx.tap()
+              finish()
+            })}
+          >
+            <HomeIcon />
+            <AnimatePresence>
+              {homeHand > 0 && (
+                <span className="pk-home-hand" aria-hidden="true">
+                  <Hand x={58} y={56} tap={homeHand - 1} size="52%" cuff="#F2C9A8" />
+                </span>
+              )}
+            </AnimatePresence>
+          </motion.button>
+        )}
+      </AnimatePresence>
+
       {/* 右邊一排按鈕：收下（選了才出現）、再看別的、等一下再選 */}
       {phase === 'choose' && (
         <div className="pk-side">
@@ -331,11 +395,11 @@ export function StickerPicker({ onDone }: { onDone: () => void }) {
       )}
 
       <div className="pk-host">
-        <Dino who="dodo" mood={phase === 'place' ? 'cheer' : 'happy'} size="100%" />
+        <Dino who="dodo" mood={phase === 'place' || phase === 'done' ? 'cheer' : 'happy'} size="100%" />
       </div>
       <p className="coplay-hint pk-hint" aria-hidden="true">
         <span className="coplay-tag">陪玩</span>
-        讓他自己挑：點一下聽名字，再點一下（或按打勾）就收進貼紙本。繞圈的箭頭換一批；最下面的箭頭是等一下再選（貼紙會留著）。
+        {phase === 'done' ? '跟他一起看貼紙本裡新的那一張，說說它是什麼；看完讓他點房子回首頁。' : '讓他自己挑：點一下聽名字，再點一下（或按打勾）就收進貼紙本。繞圈的箭頭換一批；最下面的箭頭是等一下再選（貼紙會留著）。'}
       </p>
     </motion.div>
   )

@@ -34,7 +34,7 @@ function Item({ s, i, landing }: { s: OwnedSticker; i: number; landing: boolean 
   const st = slotStyle(i, s.key)
   return (
     <motion.button
-      className={`al-item${s.fresh ? ' is-fresh' : ''}`}
+      className={`al-item${s.fresh ? ' is-fresh' : ''}${landing ? ' is-new' : ''}`}
       style={st}
       aria-label={s.def.zh}
       initial={landing ? { scale: 1.8, opacity: 0, y: -40 } : { scale: 0.6, opacity: 0 }}

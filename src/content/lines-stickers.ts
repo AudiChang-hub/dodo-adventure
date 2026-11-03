@@ -19,7 +19,8 @@ for (const s of SPEAKERS) {
 
 // ── 挑貼紙（豆豆陪他挑，貼紙本也是豆豆在介紹）────────────────────
 def('stk.pick.hi', 'dodo', 'Ooh! || Pick a sticker you like!')
-def('stk.pick.again', 'dodo', 'Tap it again to keep it!')
+// 3 歲聽得懂的短句（PHASE-6 ≤ 6 字；T-90：「Tap it again to keep it」聽不懂），說的同時手在那張貼紙上再點一下
+def('stk.pick.again', 'dodo', 'Tap it again!')
 def('stk.pick.more', 'dodo', 'Look! || New stickers!')
 def('stk.pick.keep', 'dodo', 'Hooray! || Into your sticker book!')
 def('stk.pick.another', 'dodo', 'Ooh! || One more sticker for you!')
