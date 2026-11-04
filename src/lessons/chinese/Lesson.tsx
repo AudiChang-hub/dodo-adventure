@@ -27,13 +27,20 @@ export type HostTap = { current: (() => void) | null }
 type Scene = 'intro' | 'read' | number
 
 /** 角落的陪玩小字：大人每一步要做什麼（PARENT-1） */
-function hintOf(scene: Scene, run: number, talk: boolean): string {
+/** 選圖的張數寫成國字（畫面上有幾張就寫幾張：教過的字詞不夠時只有兩張） */
+const COUNT = ['零', '一', '兩', '三', '四']
+
+/**
+ * 角落的陪玩小字。孩子在大人念的時候最常沒事做（AI 小男生盲測 f7c3119：不到 1 分鐘就說好久了），
+ * 所以念課文的每一句都先寫「念到紅字，指著放大的圖讓他點」。opts 是這一題選圖有幾張。
+ */
+function hintOf(scene: Scene, run: number, talk: boolean, opts = 3): string {
   if (scene === 'intro') return '先看一下怎麼上，看完按「開始念」。'
-  if (scene !== 'read') return '念題目給他聽：「哪個是〇〇？」再指著三張有黃框的圖說「點一下」。點錯會有提示，不用幫他點。'
+  if (scene !== 'read') return `念題目給他聽：「哪個是〇〇？」再指著${COUNT[opts] ?? opts}張有黃框的圖說「點一下」。點錯會有提示，不用幫他點。`
   if (talk) return '照卡片問他、等他回答；他說一兩個字，你幫他說成完整的一句。問完按「去選圖」。'
-  if (run === 2) return '今天第 2 次：念到框起來、標「停」的詞前停一下，等他說出來再一起念。念完一行按右下「下一行」。'
-  if (run >= 3) return '今天第 3 次：念到紅字時讓他點那張大圖、跟著說一次。念完一行按右下「下一行」。'
-  return '指著字一行一行念；念到紅字時指著那張放大的圖，讓他點一下。念完一行按右下「下一行」。'
+  if (run === 2) return '念到紅字，指著放大的圖讓他點。今天第 2 次：框起來、標「停」的詞先停一下，等他說出來。念完一行按右下「下一行」。'
+  if (run >= 3) return '念到紅字，指著放大的圖讓他點，再請他跟著說一次。念完一行按右下「下一行」。'
+  return '念到紅字，指著放大的圖讓他點。指著字一行一行念，念完一行按右下「下一行」。'
 }
 
 /**
@@ -107,7 +114,7 @@ export function ChineseLessonBody({ onDone }: LessonProps) {
       progress={qs.length && typeof scene === 'number' ? { total: qs.length, done: answered } : undefined}
       onExit={leaveLesson}
       onHost={() => host.current?.()}
-      hintText={scene == null ? undefined : hintOf(scene, run, talk)}
+      hintText={scene == null ? undefined : hintOf(scene, run, talk, typeof scene === 'number' ? qs[scene]?.options.length : undefined)}
     >
       {t && scene != null && (
         <Swap id={typeof scene === 'number' ? `q${scene}` : scene}>
@@ -138,10 +145,11 @@ function Intro({ onStart }: { onStart: () => void }) {
         transition={{ duration: 0.5, ease: EASE.out }}
       >
         <div className="zh-talk-tag">給大人・只看這一次</div>
-        <h2>中文課是親子共讀，App 不出聲，由你念給他聽</h2>
+        <h2>念到紅字時，指著放大的圖讓他點一下</h2>
+        <p className="zh-intro-lead">中文課是親子共讀：App 不出聲，由你念給他聽。他聽你念的時候，點圖就是他的事。</p>
         <ol>
           <li>
-            <b>一行一行念</b>：畫面一次亮一行，你指著字念，念完按右下「下一行」。念到紅字時，那張圖會放大、加一圈黃框，讓他點那張圖。
+            <b>一行一行念</b>：畫面一次亮一行，你指著字念，念完按右下「下一行」。紅字的圖會放大、加一圈黃框。
           </li>
           <li>
             <b>同一篇上 3 次</b>：第 2 次念到框起來、標「停」的詞前停一下，等他說出來。
