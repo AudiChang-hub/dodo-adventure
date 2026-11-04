@@ -94,7 +94,7 @@ export interface QuizResult {
  * 念完、輪到孩子：每張卡外面一圈淡黃框（看得出「現在可以選了」）。
  * 點錯第一次：說出他選的是什麼、再問一次要找的（spec.wrong），答案外面一圈提示框；第二次：手點一下答案、說出答案，孩子再點對的（不會卡住）。
  * 閒置：15 秒再念一次題目 → 再 15 秒答案亮起來、手點一下（不說話）。
- * 題型還不會（spec.format，../formats.ts）：先示範——Watch me! → 手指泡泡（要找的樣子）、念題目 → 手點答案、說出答案 → 選項換位置 → Your turn!
+ * 題型還不會（spec.format，../formats.ts）：先示範——Watch me! → 手指泡泡（要找的樣子；How many? 指要數的那一堆）、念題目 → 手點答案、說出答案 → 選項換位置 → Your turn!
  * （T-96：盲測裡題目全是英文，他等到手出來才知道要做什麼）。
  */
 export function Quiz({ spec, host, onDone, showing }: { spec: QuizSpec; host: PartCtx['host']; onDone: (r: QuizResult) => void; showing?: PartCtx['demo'] }) {
@@ -107,7 +107,7 @@ export function Quiz({ spec, host, onDone, showing }: { spec: QuizSpec; host: Pa
   const [ready, setReady] = useState(false)
   /** 選項的順序（示範完轉一格） */
   const [order, setOrder] = useState(spec.options)
-  /** 示範中：手在泡泡（或上面那一堆）上、或在答案上 */
+  /** 示範中：手在泡泡（有要數的那一堆就指那一堆）上、或在答案上 */
   const [teach, setTeach] = useState<'ask' | 'answer' | null>(null)
   const [press, setPress] = useState(0)
   const shown = useRef(!!spec.format && needsDemo(spec.format))
@@ -237,7 +237,10 @@ export function Quiz({ spec, host, onDone, showing }: { spec: QuizSpec; host: Pa
 
   const at =
     teach === 'ask'
-      ? pointIn(bubble.current ?? pile.current, layer.current, 0.5, 0.62)
+      ? // 有要數的那一堆（How many?）：手先指那一堆（數這些 → 點數字），沒有就指泡泡（要找的樣子）
+        pile.current
+        ? pointIn(pile.current, layer.current, 0.5, 0.7)
+        : pointIn(bubble.current, layer.current, 0.5, 0.62)
       : teach === 'answer' || (hint && hand > 0)
         ? pointIn(tiles.current.get(spec.answer), layer.current)
         : null

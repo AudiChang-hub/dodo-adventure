@@ -304,7 +304,7 @@
   opacity: 0.5 !important;
 }
 /* 小複習的泡泡（T-96）：找數字＝那個數字；有幾個＝點點 → 空的數字卡 */
-.ma-ask-num {
+.ma-ask .glyph.ma-ask-num {
   font-size: 70cqmin;
   line-height: 1;
   color: var(--ink);
@@ -313,17 +313,17 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 8cqmin;
+  gap: 7cqmin;
 }
-.ma-ask-many .ma-dots {
-  --dot: 13cqmin;
-  --gap: 5cqmin;
+.ma-ask .ma-ask-many .ma-dots {
+  --dot: 20cqmin;
+  --gap: 6cqmin;
 }
 .ma-ask-card {
-  width: 34cqmin;
-  height: 40cqmin;
-  border-radius: 9cqmin;
-  border: 4px dashed color-mix(in srgb, var(--ink) 45%, transparent);
+  width: 38cqmin;
+  height: 44cqmin;
+  border-radius: 10cqmin;
+  border: 4px dashed color-mix(in srgb, var(--ink) 50%, transparent);
   background: var(--card);
 }
 /* 有幾個：上面那一堆（要數的圖，平平地放在紙上，不做成卡片的樣子，看起來不像可以點的選項） */
