@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 import { motion } from 'motion/react'
 import { Ink, type InkHandle } from '../../games/draw/Ink'
-import { PathTracker, samplePath } from '../../games/draw/track'
+import { HELP_MS, PathTracker, PX_PER_MM, SNAP_MM, samplePath } from '../../games/draw/track'
+import { RainbowDef, ResumeDot } from '../../games/draw/TraceFx'
 import { GLYPHS } from '../../games/draw/glyphs'
 import { PenArt, easeInOut, tween } from '../../games/Demo'
 import { wait } from '../../games/lines'
@@ -50,12 +51,18 @@ function strokeStart(d: string) {
  * 新的數字描一次就慶祝，複習描兩次、第二次換一個樣子（plan.ts 的 writeReps、上面的 LOOKS）；描得好不好不影響明天上什麼。
  * 第一次波波先用筆照筆順描一次（Watch me!），示範中下筆不出墨、只出現「看這裡」（Ink 的 disabled）。
  * 筆要沿著跑道往前推才會前進：點一下、亂畫都不會完成；畫在跑道外的線放開後淡掉。
+ * T-95（AI 小男生盲測：描 1 畫了 4 次，看不出畫對了沒、什麼時候算畫完）：
+ * - 起點、斷掉的地方附近按下去都吸過去（track.ts 的 SNAP_MM）；放手不歸零，綠點移到斷掉的地方（TraceFx 的 ResumeDot）；
+ * - 畫完：數字變彩虹色、跳一下、星星，不靠語言；
+ * - 輪到他描 45 秒還沒描完（HELP_MS）：筆帶著把剩下的描完、照樣慶祝（不算自己描好）。
  */
 export function WritePart({ ctx }: { ctx: PartCtx }) {
   const n = ctx.lesson.n
   const g = digit(n)
   const reps = writeReps(ctx.lesson)
   const [k, setK] = useState(0)
+  /** 第幾次（計時器裡的帶著描完讀得到最新的） */
+  const kRef = useRef(0)
   const look = LOOKS[k % LOOKS.length]
   const [stroke, setStroke] = useState(0)
   const [prog, setProg] = useState(0)
@@ -65,6 +72,10 @@ export function WritePart({ ctx }: { ctx: PartCtx }) {
   /** 閒置提示：筆在這一筆上的位置（取樣點） */
   const [again, setAgain] = useState<number | null>(null)
   const tracker = useRef<PathTracker | null>(null)
+  const lane = useRef<SVGSVGElement | null>(null)
+  const helpTimer = useRef(0)
+  /** 這一次是筆帶著描完的 */
+  const helped = useRef(false)
   const strokeRef = useRef(0)
   const drawing = useRef(false)
   const moved = useRef(false)
@@ -130,7 +141,40 @@ export function WritePart({ ctx }: { ctx: PartCtx }) {
     setAgain(same() ? t.progress : null)
   }
 
+  /** 吸附範圍換成描字板的座標（板子多大照實際畫面量） */
+  const snapUnits = () => {
+    const h = lane.current?.getBoundingClientRect().height ?? 0
+    return h > 0 ? (SNAP_MM * PX_PER_MM * H) / h : 0
+  }
+
+  /** 描太久（HELP_MS）：筆從孩子描到的地方把剩下的描完，跑道一樣填滿，然後照樣慶祝 */
+  const helpFinish = async () => {
+    if (!tracker.current || busy.current || !live.current) return
+    busy.current = true
+    drawing.current = false
+    setHold(true)
+    setAgain(null)
+    idle.stop()
+    helped.current = true
+    setDemo(true)
+    for (let s = strokeRef.current; s < g.strokes.length; s++) {
+      if (s > strokeRef.current) begin(s)
+      const t = tracker.current!
+      const at = t.progress
+      const total = t.samples.length - 1
+      await tween(Math.max(700, (total - at) * 24), (f) => setProg(Math.round(at + (total - at) * f)), () => live.current, easeInOut)
+      if (!live.current) return
+      t.progress = total
+      devs.current.push(t.metrics())
+      sfx.correct()
+    }
+    setDemo(false)
+    void finishOne()
+  }
+
   const start = async (i: number) => {
+    clearTimeout(helpTimer.current)
+    helped.current = false
     busy.current = true
     setHold(true)
     setDone(false)
@@ -153,6 +197,7 @@ export function WritePart({ ctx }: { ctx: PartCtx }) {
     setHold(false)
     t0.current = performance.now()
     idle.start({ repeat: () => void say('ma.write.go'), hint: () => void showAgain() })
+    helpTimer.current = window.setTimeout(() => void helpFinish(), HELP_MS)
   }
 
   useEffect(() => {
@@ -166,6 +211,7 @@ export function WritePart({ ctx }: { ctx: PartCtx }) {
     ctx.host.current = mine
     return () => {
       clearTimeout(boot)
+      clearTimeout(helpTimer.current)
       idle.stop()
       // 淡出中的這一段比下一段晚卸載：只收自己的，不要清掉下一段的
       if (ctx.host.current === mine) ctx.host.current = null
@@ -182,12 +228,18 @@ export function WritePart({ ctx }: { ctx: PartCtx }) {
       begin(s)
       return void say('ma.write.next')
     }
+    void finishOne()
+  }
+
+  /** 這一次描完（自己描完，或筆帶著描完）：記一筆、慶祝，往下一次 */
+  const finishOne = async () => {
+    clearTimeout(helpTimer.current)
     setDone(true)
     busy.current = true
     setHold(true)
     idle.stop()
     const off = devs.current.reduce((a, d) => a + d.offRatio, 0) / devs.current.length
-    const good = off < 0.4
+    const good = off < 0.4 && !helped.current
     void logAttempt({
       station: 'math',
       game: 'd-glyph',
@@ -201,8 +253,14 @@ export function WritePart({ ctx }: { ctx: PartCtx }) {
       firstTryCorrect: good,
       attempts: 1,
       responseMs: Math.round(performance.now() - t0.current),
-      hintUsed: false,
-      metrics: { strokes: g.strokes.length, offRatio: Math.round(off * 100) / 100, meanDev: Math.round((devs.current.reduce((a, d) => a + d.meanDev, 0) / devs.current.length) * 10) / 10, lesson: n },
+      hintUsed: helped.current,
+      metrics: {
+        strokes: g.strokes.length,
+        offRatio: Math.round(off * 100) / 100,
+        meanDev: Math.round((devs.current.reduce((a, d) => a + d.meanDev, 0) / devs.current.length) * 10) / 10,
+        lesson: n,
+        ...(helped.current ? { helped: 1 } : {}),
+      },
     })
     sfx.done()
     ctx.ping()
@@ -212,9 +270,11 @@ export function WritePart({ ctx }: { ctx: PartCtx }) {
     if (!live.current) return
     ctx.mood('idle')
     // 描得好不好不算進「錯很多隔天重上」（plan.ts 的 partDone 也不算寫數字這一段）
-    if (k + 1 >= reps) return ctx.done(reps, 0)
-    setK(k + 1)
-    start(k + 1)
+    const next = kRef.current + 1
+    if (next >= reps) return ctx.done(reps, 0)
+    kRef.current = next
+    setK(next)
+    start(next)
   }
 
   const onDown = (p: { x: number; y: number }) => {
@@ -222,10 +282,9 @@ export function WritePart({ ctx }: { ctx: PartCtx }) {
     idle.poke()
     setAgain(null)
     moved.current = false
-    // 接著描，或描到一半又從綠點重新開始（這一筆從頭再描，track.ts 的 penDown）
-    const how = tracker.current.penDown(p)
+    // 接著描、從起點沿著描好的部分走回來、或起點和斷掉的地方附近吸過去（track.ts 的 penDown）
+    const how = tracker.current.penDown(p, snapUnits())
     drawing.current = !!how
-    if (how === 'again') setProg(0)
   }
   const onMove = (p: { x: number; y: number }) => {
     const t = tracker.current
@@ -250,18 +309,38 @@ export function WritePart({ ctx }: { ctx: PartCtx }) {
     <div className={`ma-write${g.w > 100 ? ' wide' : ''}`}>
       <Fade id={k} className="ma-paper">
         <>
-          <svg viewBox={`0 0 ${g.w} ${H}`} className="ma-lane" aria-hidden="true">
-            {g.strokes.map((d, i) => (
-              <g key={i}>
-                <path d={d} fill="none" stroke="#D9CFBE" strokeWidth={LANE + 3} strokeLinecap="round" strokeLinejoin="round" />
-                <path d={d} fill="none" stroke={i < stroke || done ? look.done : look.lane} strokeWidth={LANE} strokeLinecap="round" strokeLinejoin="round" />
-              </g>
-            ))}
+          <svg
+            viewBox={`0 0 ${g.w} ${H}`}
+            className="ma-lane"
+            aria-hidden="true"
+            ref={(v) => {
+              if (v) lane.current = v
+            }}
+          >
+            <RainbowDef id={`ma-rainbow-${k}`} w={g.w} h={H} />
+            {/* 畫完（不是示範）：整個數字變彩虹色、跳一下 */}
+            <g className={done && !demo ? 'trace-pop' : undefined} data-trace-finished={done && !demo ? '' : undefined}>
+              {g.strokes.map((d, i) => (
+                <g key={i}>
+                  <path d={d} fill="none" stroke="#D9CFBE" strokeWidth={LANE + 3} strokeLinecap="round" strokeLinejoin="round" />
+                  <path
+                    d={d}
+                    fill="none"
+                    stroke={done && !demo ? `url(#ma-rainbow-${k})` : i < stroke || done ? look.done : look.lane}
+                    strokeWidth={LANE}
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                </g>
+              ))}
+            </g>
             {!done && (
               <>
                 <path d={g.strokes[stroke]} fill="none" stroke={look.done} strokeWidth={LANE} strokeLinecap="round" strokeLinejoin="round" pathLength={total} strokeDasharray={`${prog} ${total + 5}`} />
                 <path d={g.strokes[stroke]} fill="none" stroke="#B9AE9C" strokeWidth={1.2} strokeDasharray="3 3" strokeLinecap="round" />
-                <motion.circle cx={st.x} cy={st.y} r={6} fill="#6FAE86" animate={{ r: prog > 0 ? 4 : [5, 7.5, 5] }} transition={{ duration: 1.2, repeat: prog > 0 ? 0 : Infinity }} />
+                {/* 起點：描到一半就淡掉，綠點換到要接著描的地方（ResumeDot） */}
+                <motion.circle cx={st.x} cy={st.y} r={6} fill="#6FAE86" animate={{ r: prog > 0 ? 4 : [5, 7.5, 5], opacity: prog > 0 && !demo ? 0.35 : 1 }} transition={{ duration: 1.2, repeat: prog > 0 ? 0 : Infinity }} />
+                {prog > 0 && !demo && !hold && <ResumeDot at={tip} color="#6FAE86" />}
                 {prog === 0 && (
                   <g transform={`translate(${st.x} ${st.y}) rotate(${st.ang}) translate(13 0)`}>
                     <path d="M-4 -5 L4 0 L-4 5" fill="none" stroke="#6FAE86" strokeWidth={2.4} strokeLinecap="round" strokeLinejoin="round" />

@@ -9,7 +9,7 @@ import { wait } from '../../games/lines'
 import type { LessonProps } from '../types'
 import { lexWord, wordKey } from '../../content/lexicon'
 import { lessonLetter, type LessonLetter } from './data'
-import { lessonGood, loadProgress, markDone, markStarted, planFor, type QuizResult, type TodayPlan } from './plan'
+import { lessonGood, loadProgress, markDone, markStage, markStarted, planFor, type QuizResult, type TodayPlan } from './plan'
 import { Meet } from './Meet'
 import { Trace } from './Trace'
 import { Words } from './Words'
@@ -45,10 +45,13 @@ function hintOf(stage: Stage, x: LessonLetter) {
  * 一天一個新字母（名字的字母先、再 A→Z），同一天再進來複習今天的字母；字母題錯很多就隔天重上（./plan.ts）。
  * 右上角一行給大人的陪玩小字（hintOf）。
  * 段落之間在原地淡入淡出，不縮放、不跳整頁卡片；上面四顆小石頭是進度。左上角返回鍵回首頁（中途離開隔天重上同一個字母）。
+ * 同一天中途離開又回來：從離開的那一段接著上，做過的段落石頭已經亮著，描字大寫描過了就只描小寫（T-95；./plan.ts 的 markStage）。
  */
 export function EnglishLesson({ onDone }: LessonProps) {
   const [plan, setPlan] = useState<TodayPlan | null>(null)
   const [stage, setStage] = useState<Stage>('meet')
+  /** 描字從第幾輪開始（同一天回來接著上） */
+  const [traceFrom, setTraceFrom] = useState(0)
   const qs = useRef<Question[]>([])
   const live = useRef(true)
 
@@ -58,13 +61,24 @@ export function EnglishLesson({ onDone }: LessonProps) {
       const pl = planFor(p)
       qs.current = makeQuiz(lessonLetter(pl.idx, pl.seq), pl.idx, pl.seq)
       await markStarted(pl)
-      if (live.current) setPlan(pl)
+      if (!live.current) return
+      if (pl.resume) {
+        setStage(pl.resume.stage)
+        setTraceFrom(pl.resume.round)
+      }
+      setPlan(pl)
     })
     return () => {
       live.current = false
       stopSpeech()
     }
   }, [])
+
+  /** 往下一段，並記下來（中途離開，同一天回來從這裡接著上） */
+  const next = (s: Exclude<Stage, 'end'>) => {
+    setStage(s)
+    if (plan) void markStage(plan, s)
+  }
 
   const finish = async (rs: QuizResult[]) => {
     if (!plan) return
@@ -115,9 +129,9 @@ export function EnglishLesson({ onDone }: LessonProps) {
               animate={{ opacity: 1, transition: { duration: 0.45, ease: [0.22, 1, 0.36, 1] } }}
               exit={{ opacity: 0, transition: { duration: 0.3 } }}
             >
-              {stage === 'meet' && <Meet letter={letter} review={plan!.review} onDone={() => setStage('trace')} />}
-              {stage === 'trace' && <Trace letter={letter} onDone={() => setStage('words')} />}
-              {stage === 'words' && <Words letter={letter} onDone={() => setStage('quiz')} />}
+              {stage === 'meet' && <Meet letter={letter} review={plan!.review} onDone={() => next('trace')} />}
+              {stage === 'trace' && <Trace letter={letter} from={traceFrom} onRound={(i) => i > 0 && void markStage(plan!, 'trace', i)} onDone={() => next('words')} />}
+              {stage === 'words' && <Words letter={letter} onDone={() => next('quiz')} />}
               {stage === 'quiz' && <Quiz qs={qs.current} onDone={(rs) => void finish(rs)} />}
               {stage === 'end' && (
                 <div className="en-end">

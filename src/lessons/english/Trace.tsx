@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState, type CSSProperties } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
 import { Ink, type InkHandle } from '../../games/draw/Ink'
-import { PathTracker, PX_PER_MM, SNAP_MM, samplePath, type P2 } from '../../games/draw/track'
+import { HELP_MS, PathTracker, PX_PER_MM, SNAP_MM, samplePath, type P2 } from '../../games/draw/track'
+import { RainbowDef, ResumeDot } from '../../games/draw/TraceFx'
 import { HandArt, PenArt, easeInOut, tween } from '../../games/Demo'
 import { Sparkles } from '../../ui/Sparkles'
 import { useIdle } from '../../games/idle'
@@ -9,6 +10,7 @@ import { wait } from '../../games/lines'
 import { logAttempt, logTeach } from '../../lib/record'
 import { say, sfx, stopSpeech } from '../../lib/audio'
 import { LINES, type LessonLetter } from './data'
+import '../../games/draw/glyph.css'
 
 const LANE = 20
 /** 描字板的邏輯座標（跟 SVG viewBox、Ink 一樣） */
@@ -52,13 +54,18 @@ function strokeStart(d: string) {
  * - 要沿著跑道一路描到底才算描完一筆：點一下、亂畫都不會自動完成。沒描到的線放開後淡掉。
  * - 回饋（AI 小男生測試 #3）：
  *   - 起點附近按下去吸到起點（SNAP_MM，3 歲手指的偏差），圓點那邊亮一圈、有一條虛線從手指連過去；
- *   - 描到一半放手、或一直偏離跑道：圓點彈一下，豆豆說一句鼓勵的話（最少隔 5 秒）；
+ *   - 描到一半放手：綠點移到斷掉的地方、一圈光往外擴（TraceFx 的 ResumeDot），從那裡（或從起點沿著描好的部分）接著描，進度不歸零；
+ *     不說話（盲測：Keep going! 他聽不懂，T-95）；
+ *   - 一直偏離跑道：圓點彈一下，豆豆說一句（最少隔 5 秒）；
  *   - 按得太遠（吸不到）：圓點彈一下；連兩次再說一次「從綠點開始」；
  *   - 下一筆的起點有一圈光往外擴，看得出要從哪裡開始；
- *   - 10 秒沒動：筆把這一筆從頭再描一次（不出墨、不說話）；再 15 秒說一次「從綠點開始」。
+ *   - 10 秒沒動：筆從現在描到的地方往後描一次（不出墨、不說話）；再 15 秒說一次「從綠點開始」；
+ *   - 畫完：字變彩虹色、跳一下、星星（TraceFx 的 RainbowDef），不靠語言就看得出「好了」，然後自己往下走；
+ *   - 輪到他描 45 秒還沒描完（HELP_MS）：筆帶著把剩下的描完、照樣慶祝（不算自己描好）。
+ * from：同一天回來接著上時，從第幾輪開始（大寫描過了就只描小寫）；onRound 每一輪開始時告訴外面（記下接續點）。
  */
-export function Trace({ letter, onDone }: { letter: LessonLetter; onDone: (good: number) => void }) {
-  const [r, setR] = useState(0)
+export function Trace({ letter, from = 0, onRound, onDone }: { letter: LessonLetter; from?: number; onRound?: (round: number) => void; onDone: (good: number) => void }) {
+  const [r, setR] = useState(from)
   const round = ROUNDS[r]
   const look = LOOKS[round.look]
   const strokes = round.big ? letter.upper : letter.lower
@@ -88,7 +95,10 @@ export function Trace({ letter, onDone }: { letter: LessonLetter; onDone: (good:
   const fx = useRef(0)
   const ink = useRef<InkHandle>(null)
   const idle = useIdle()
-  const cur = useRef({ r: 0, strokes, stroke: 0 })
+  const helpTimer = useRef(0)
+  /** 這一輪是筆帶著描完的 */
+  const helped = useRef(false)
+  const cur = useRef({ r: from, strokes, stroke: 0 })
   cur.current = { r, strokes, stroke }
 
   const nameKey = (big: boolean) => (big ? `ph.${letter.l}.big` : `ph.${letter.l}.little`)
@@ -147,20 +157,50 @@ export function Trace({ letter, onDone }: { letter: LessonLetter; onDone: (good:
     await say('d.intro.glyph', 'teach.turn.dodo')
   }
 
-  /** 沒動 10 秒：筆把這一筆從頭描一次（不出墨），停在孩子該接著描的地方 */
+  /** 沒動 10 秒：筆從現在描到的地方往後描一次（不出墨），再停回孩子該接著描的地方 */
   const showAgain = async () => {
     const t = tracker.current
     if (!t || t.done) return
+    const at = t.progress
     const to = t.samples.length - 1
     const same = () => live.current && tracker.current === t
-    await tween(Math.max(1200, to * 22), (f) => setAgain(Math.round(to * f)), same, easeInOut)
+    await tween(Math.max(1200, (to - at) * 22), (f) => setAgain(Math.round(at + (to - at) * f)), same, easeInOut)
     if (!same()) return setAgain(null)
     await wait(300)
     setAgain(same() ? t.progress : null)
   }
 
+  /** 描太久（HELP_MS）：筆從孩子描到的地方把剩下的描完，跑道一樣填滿，然後照樣慶祝 */
+  const helpFinish = async () => {
+    if (!tracker.current || busy.current || !live.current) return
+    busy.current = true
+    drawing.current = false
+    setHold(true)
+    setAgain(null)
+    idle.stop()
+    helped.current = true
+    const { strokes: ss } = cur.current
+    setDemo(true)
+    for (let k = cur.current.stroke; k < ss.length; k++) {
+      if (k > cur.current.stroke) begin(ss, k)
+      const t = tracker.current!
+      const at = t.progress
+      const total = t.samples.length - 1
+      await tween(Math.max(700, (total - at) * 24), (f) => setProg(Math.round(at + (total - at) * f)), () => live.current, easeInOut)
+      if (!live.current) return
+      t.progress = total
+      devs.current.push(t.metrics())
+      sfx.correct()
+    }
+    setDemo(false)
+    void finishRound()
+  }
+
   const start = async (i: number) => {
     const rd = ROUNDS[i]
+    clearTimeout(helpTimer.current)
+    helped.current = false
+    onRound?.(i)
     const ss = rd.big ? letter.upper : letter.lower
     devs.current = []
     setDone(false)
@@ -172,7 +212,7 @@ export function Trace({ letter, onDone }: { letter: LessonLetter; onDone: (good:
     setHold(true)
     idle.stop()
     ink.current?.clear()
-    if (i === 0) await say('le.en.write')
+    if (i === from) await say('le.en.write')
     if (!live.current) return
     if (rd.demo) await showMe(ss, rd.big)
     else await say(nameKey(rd.big), 'd.intro.glyph')
@@ -193,14 +233,16 @@ export function Trace({ letter, onDone }: { letter: LessonLetter; onDone: (good:
       },
       { repeat: 10_000, hint: 15_000 },
     )
+    helpTimer.current = window.setTimeout(() => void helpFinish(), HELP_MS)
   }
 
   useEffect(() => {
     live.current = true
-    const boot = window.setTimeout(() => void start(0), 0)
+    const boot = window.setTimeout(() => void start(from), 0)
     return () => {
       live.current = false
       clearTimeout(boot)
+      clearTimeout(helpTimer.current)
       idle.stop()
       stopSpeech()
     }
@@ -208,7 +250,7 @@ export function Trace({ letter, onDone }: { letter: LessonLetter; onDone: (good:
   }, [])
 
   const strokeDone = async () => {
-    const { r: i, strokes: ss } = cur.current
+    const { strokes: ss } = cur.current
     devs.current.push(tracker.current!.metrics())
     sfx.correct()
     const k = cur.current.stroke + 1
@@ -216,13 +258,20 @@ export function Trace({ letter, onDone }: { letter: LessonLetter; onDone: (good:
       begin(ss, k)
       return void say('d.glyph.next')
     }
+    void finishRound()
+  }
+
+  /** 這一輪描完（自己描完，或筆帶著描完）：記一筆、慶祝，往下一輪 */
+  const finishRound = async () => {
+    const { r: i } = cur.current
+    clearTimeout(helpTimer.current)
     setDone(true)
     busy.current = true
     setHold(true)
     idle.stop()
     const g = glyphOf(ROUNDS[i].big)
     const off = devs.current.reduce((a, d) => a + d.offRatio, 0) / devs.current.length
-    const ok = off < 0.4
+    const ok = off < 0.4 && !helped.current
     if (ok) good.current++
     void logAttempt({
       station: 'english',
@@ -237,10 +286,10 @@ export function Trace({ letter, onDone }: { letter: LessonLetter; onDone: (good:
       firstTryCorrect: ok,
       attempts: 1,
       responseMs: Math.round(performance.now() - t0.current),
-      hintUsed: false,
-      metrics: { strokes: ss.length, offRatio: Math.round(off * 100) / 100 },
+      hintUsed: helped.current,
+      metrics: { strokes: cur.current.strokes.length, offRatio: Math.round(off * 100) / 100, ...(helped.current ? { helped: 1 } : {}) },
     })
-    // 描完一次就慶祝（A5）
+    // 描完一次就慶祝（A5）：字變彩虹色、跳一下、星星（畫面在下面），加上完成的音效
     sfx.done()
     await say('d.glyph.done')
     await wait(450)
@@ -260,7 +309,6 @@ export function Trace({ letter, onDone }: { letter: LessonLetter; onDone: (good:
     // 接著描、描到一半又從起點重新開始、或起點附近吸過去（track.ts 的 penDown）
     const how = t.penDown(p, snapUnits())
     drawing.current = !!how
-    if (how === 'again') setProg(0)
     if (how === 'snap') {
       setSnapFx({ from: p, n: ++fx.current })
       misses.current = 0
@@ -295,11 +343,8 @@ export function Trace({ letter, onDone }: { letter: LessonLetter; onDone: (good:
   }
   const onUp = () => {
     const t = tracker.current
-    // 描到一半放手：圓點在停下來的地方彈一下，鼓勵他接著描
-    if (drawing.current && t && !t.done && t.progress > 0 && !busy.current) {
-      bump()
-      cheer('d.glyph.keep')
-    }
+    // 描到一半放手：圓點在停下來的地方彈一下（之後綠點一直在那裡閃，ResumeDot），不說話
+    if (drawing.current && t && !t.done && t.progress > 0 && !busy.current) bump()
     drawing.current = false
     if (!moved.current) ink.current?.fadeLast()
     moved.current = false
@@ -325,6 +370,7 @@ export function Trace({ letter, onDone }: { letter: LessonLetter; onDone: (good:
         <AnimatePresence initial={false}>
           <motion.div key={r} className="en-trace-board" initial={{ opacity: 0 }} animate={{ opacity: 1, transition: { duration: 0.45 } }} exit={{ opacity: 0, transition: { duration: 0.25 } }}>
             <svg viewBox={`0 0 100 ${VIEW_H}`} className="en-trace-svg" aria-hidden="true">
+              <RainbowDef id={`en-rainbow-${r}`} w={100} h={VIEW_H} />
               {/* 小寫的四條線（學校的作業簿）：中線虛線 */}
               {!round.big && (
                 <g className="en-trace-lines">
@@ -334,12 +380,22 @@ export function Trace({ letter, onDone }: { letter: LessonLetter; onDone: (good:
                   <line x1="2" x2="98" y1={LINES.bottom} y2={LINES.bottom} />
                 </g>
               )}
-              {strokes.map((d, i) => (
-                <g key={i}>
-                  <path d={d} fill="none" stroke={look.rim} strokeWidth={LANE + 3} strokeLinecap="round" strokeLinejoin="round" />
-                  <path d={d} fill="none" stroke={i < stroke || done ? look.lane : '#FBF8F2'} strokeWidth={LANE} strokeLinecap="round" strokeLinejoin="round" />
-                </g>
-              ))}
+              {/* 畫完（不是示範）：整個字變彩虹色、跳一下 */}
+              <g className={done && !demo ? 'trace-pop' : undefined} data-trace-finished={done && !demo ? '' : undefined}>
+                {strokes.map((d, i) => (
+                  <g key={i}>
+                    <path d={d} fill="none" stroke={look.rim} strokeWidth={LANE + 3} strokeLinecap="round" strokeLinejoin="round" />
+                    <path
+                      d={d}
+                      fill="none"
+                      stroke={done && !demo ? `url(#en-rainbow-${r})` : i < stroke || done ? look.lane : '#FBF8F2'}
+                      strokeWidth={LANE}
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                  </g>
+                ))}
+              </g>
               {!done && (
                 <>
                   <path d={strokes[stroke]} fill="none" stroke={look.lane} strokeWidth={LANE} strokeLinecap="round" strokeLinejoin="round" pathLength={total} strokeDasharray={`${prog} ${total + 5}`} />
@@ -359,7 +415,9 @@ export function Trace({ letter, onDone }: { letter: LessonLetter; onDone: (good:
                       transition={{ duration: 1.1, repeat: 2, ease: 'easeOut' }}
                     />
                   )}
-                  <motion.circle cx={st.x} cy={st.y} r={6} fill={look.dot} animate={{ r: prog > 0 ? 4 : [5.5, 8, 5.5] }} transition={{ duration: 1.2, repeat: prog > 0 || hold ? 0 : Infinity }} />
+                  {/* 起點：描到一半就淡掉，綠點換到要接著描的地方（ResumeDot） */}
+                  <motion.circle cx={st.x} cy={st.y} r={6} fill={look.dot} animate={{ r: prog > 0 ? 4 : [5.5, 8, 5.5], opacity: prog > 0 && !demo ? 0.35 : 1 }} transition={{ duration: 1.2, repeat: prog > 0 || hold ? 0 : Infinity }} />
+                  {prog > 0 && !demo && !hold && <ResumeDot at={tip} color={look.dot} />}
                   {prog === 0 && (
                     <g transform={`translate(${st.x} ${st.y}) rotate(${st.ang}) translate(13 0)`}>
                       <path d="M-4 -5 L4 0 L-4 5" fill="none" stroke={look.dot} strokeWidth={2.4} strokeLinecap="round" strokeLinejoin="round" />
