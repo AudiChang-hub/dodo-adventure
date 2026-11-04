@@ -91,4 +91,18 @@ const flip = { id: `${big.answer}:little`, text: big.answer.toLowerCase() }
 assert.deepEqual(wrongKeys(big, flip), [`en.that.little.${big.answer.toLowerCase()}`, `en.find.big.${big.answer}`])
 ok('A16 問大寫、點了同一個字母的小寫：That\'s little f. → Find big F!')
 
+{
+  const d = '2026-11-03'
+  const left = planFor({ idx: 4, seq: ORDER, date: d, done: false, good: false, stage: 'trace', round: 1 }, d)
+  assert.deepEqual(left.resume, { stage: 'trace', round: 1 })
+  assert.equal(left.review, false)
+  assert.equal(left.idx, 4)
+  assert.equal(planFor({ idx: 4, seq: ORDER, date: d, done: false, good: false, stage: 'meet' }, d).resume, undefined)
+  assert.equal(planFor({ idx: 4, seq: ORDER, date: d, done: true, good: true, stage: 'quiz' }, d).resume, undefined)
+  const tomorrow = planFor({ idx: 4, seq: ORDER, date: d, done: false, good: false, stage: 'quiz' }, '2026-11-04')
+  assert.equal(tomorrow.resume, undefined)
+  assert.equal(tomorrow.repeat, true)
+}
+ok('T-95 同一天中途離開又回來：從離開的那一段（描字第幾輪）接著上；上完了是複習、隔天照原本的排課（重上，從頭）')
+
 console.log('ALL PASS')
