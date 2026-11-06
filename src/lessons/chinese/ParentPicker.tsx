@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { ZH_TEXTS, pieces, talkOf, type ZhText } from './data'
+import { ZH_TEXTS, pieces, talkFor, type ZhText } from './data'
 import { RUNS_PER_TEXT } from './course'
 import { doneDays, pickToday, timesByDay, todayRun } from './progress'
 import './parent-picker.css'
@@ -77,7 +77,7 @@ export function ZhParent() {
 }
 
 function Row({ t, times, now, open, onOpen, onPick }: { t: ZhText; times: number; now: number; open: boolean; onOpen: () => void; onPick: () => void }) {
-  const tk = talkOf(t.parentTip)
+  const tk = talkFor(t)
   return (
     <li className={`zh-row${now ? ' now' : ''}`}>
       <button type="button" className="zh-row-head" onClick={onOpen} aria-expanded={open}>
@@ -97,11 +97,9 @@ function Row({ t, times, now, open, onOpen, onPick }: { t: ZhText; times: number
           {t.lines.map((l, i) => (
             <p key={i}>{pieces(l).map((p, j) => (p.red ? <b key={j}>{p.text}</b> : <span key={j}>{p.text}</span>))}</p>
           ))}
-          {tk.questions.map((q, i) => (
-            <p key={i} className="zh-ask-q">
-              聊一聊：{q}
-            </p>
-          ))}
+          <p className="zh-ask-q">
+            聊一聊：{tk.q}（答不出來時：「{tk.a}」）
+          </p>
           <p className="zh-tip">{t.parentTip}</p>
         </div>
       )}
