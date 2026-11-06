@@ -232,6 +232,66 @@ async function halfThenAgain(k: Toddler, how: 'restart' | 'continue', sel: { boa
 
 test.describe('數學課', () => {
 
+  // T-104（第一、四次盲測）：拿給波波按完打勾，同一個位置馬上冒出別的功能（下一段的教學卡「再聽一次」），他一直點、聽到重播，看不懂。
+  // 按完打勾後在同一個位置連點：不能觸發別的功能（教學卡要停在「等他點」）；停一下再點一次，教學卡才重播、往下走
+  test('拿給波波：按完打勾連點同一個位置，不會觸發別的功能', async ({ page }, info) => {
+    test.skip(!want())
+    test.setTimeout(3 * 60_000)
+    const { k, c } = await setup(page, info, '打勾後連點')
+    try {
+      const day = await page.evaluate(() => {
+        const d = new Date()
+        return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+      })
+      // 同一天從「拿給波波」接著上，今天的數字 1（新的：比多少會先出教學卡）
+      await setMath(page, { next: 2, firm: false, day, n: 1, mode: 'new', part: 1, asked: 0, missed: 0 })
+      if (!(await enter(k, c))) return
+      const ready = await page
+        .waitForFunction(() => !!document.querySelector('.ma-give') && !document.querySelector('.ma-give [data-accepting="false"]') && !document.querySelector('[data-demo="1"]'), null, { timeout: 60_000 })
+        .then(() => true)
+        .catch(() => false)
+      if (!ready) return void (await c.once('no-give', '卡死', '沒有走到拿給波波（或一直不能拿）', `停在 ${await partNow(page)}`))
+      await k.wait(500)
+      const at = (sel: string) =>
+        page.evaluate((sel) => {
+          const r = document.querySelector(sel)?.getBoundingClientRect()
+          return r ? { x: r.left + r.width / 2, y: r.top + r.height / 2 } : null
+        }, sel)
+      k.behavior = '拿一個給波波、按打勾'
+      await k.tap((await at('.ma-give-thing'))!, '拿一個')
+      await k.wait(700)
+      const ok = (await at('.ma-give-done'))!
+      await k.tap(ok, '打勾')
+      // 按完打勾，在同一個位置一直點（三歲：按了好像就好了，再點點看）
+      k.behavior = '打勾後連點同一個位置'
+      // 22 秒：蓋過下一段教學卡念完、變成「等他點」的時間（三句，大約按完打勾後 17 秒）
+      const end = Date.now() + 22_000
+      while (Date.now() < end) {
+        await k.tap(ok, '同一個位置')
+        await k.wait(300)
+      }
+      const st = await page.evaluate(() => ({ part: [...document.querySelectorAll('[data-lesson-part]')].pop()?.getAttribute('data-lesson-part') ?? null, card: !!document.querySelector('.teach-card'), ready: !!document.querySelector('.teach-card.ready') }))
+      const held = st.part === 'compare' && st.card
+      c.outcome('連點不會觸發別的功能（教學卡還在等他點）', held, `${st.part}，教學卡${st.card ? (st.ready ? '在等他點' : '還在') : '已經被點掉了'}`)
+      if (!held) await c.once('carry-tap', '困惑', '按完打勾後連點同一個位置，觸發了下一段教學卡的重播、往下走', `停在 ${st.part}`)
+      // 停一下、再點一次教學卡：重播、往下走（原本的功能還在）
+      if (held) {
+        k.behavior = '停一下再點教學卡'
+        await k.wait(1500)
+        await k.tap((await at('.teach-card'))!, '教學卡')
+        const gone = await page
+          .waitForFunction(() => !document.querySelector('.teach-card'), null, { timeout: 10_000 })
+          .then(() => true)
+          .catch(() => false)
+        c.outcome('停一下再點教學卡：重播、往下走', gone, gone ? '' : '教學卡沒有反應')
+        if (!gone) await c.once('card-dead', '卡死', '停一下再點教學卡沒有反應', '')
+      }
+    } finally {
+      await c.flush().catch(() => {})
+      finish(k, c, '打勾後連點')
+    }
+  })
+
   // T-99（盲測三次都碰到）：下課畫面剛出來時，左上角的房子還看得到，點下去卻沒反應。
   // 同一天停在最後一段（小複習），只教過 1 的那一天沒有小複習：開場說完就直接下課，很快就走到下課畫面。
   for (const sticker of [false, true]) {

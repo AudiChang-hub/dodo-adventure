@@ -277,7 +277,8 @@ export function GivePart({ ctx }: { ctx: PartCtx }) {
           </motion.button>
         )
       })}
-      <button type="button" className={`ma-give-done${!hold && plate.length > 0 ? ' on' : ''}`} style={{ left: `${DONE.x}%`, top: `${DONE.y}%` }} aria-label="好了，交給波波" onPointerDown={(e) => firstFinger(e.nativeEvent) && check()}>
+      {/* 答對：勾勾變成實心綠色、跳一下，在波波道謝的這段時間佔住這個位置（不能按，下一段的東西也還沒來；T-104） */}
+      <button type="button" className={`ma-give-done${glad ? ' is-done' : !hold && plate.length > 0 ? ' on' : ''}`} style={{ left: `${DONE.x}%`, top: `${DONE.y}%` }} aria-label="好了，交給波波" onPointerDown={(e) => firstFinger(e.nativeEvent) && check()}>
         <svg viewBox="0 0 48 48" aria-hidden="true">
           <path d="M12 25 L21 34 L37 15" fill="none" stroke="currentColor" strokeWidth={6} strokeLinecap="round" strokeLinejoin="round" />
         </svg>
