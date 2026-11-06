@@ -109,6 +109,44 @@ def f0(pcm: np.ndarray, floor: float, ceil: float):
     return p.selected_array["frequency"]
 
 
+TAIL_FLOOR_MS = 100  # 字尾連續這麼久都壓在軟地板以下，才保留原本的起伏（keep_tail_motion）
+TAIL_BELOW_ST = 1.0  # 保留起伏時最低可以到硬地板下面幾個半音
+
+
+def keep_tail_motion(pt, raw: list, med: float, kd: float, fs: float, fh: float):
+    """字尾壓在地板上會變成一條平的「嗯——」（2026-11-04 T-98，家長：「七有個奇怪的尾聲」）。
+
+    往下放大（kDown）把句尾的低音再往下推，碰到軟地板、硬地板又被壓回 190～200Hz，原本 1.5～2 個半音的下降
+    只剩 0.2～0.8 個半音。seven、eleven 的 -ven 是一長段低音的 /n/（約 0.2 秒），整段變成固定音高的哼聲；
+    其他字的低音尾巴短，聽不出來。實測（原始 edge-tts vs 後製）：seven 的「平的結尾」從 0～20ms 變成 110～220ms。
+    做法：句尾連續 TAIL_FLOOR_MS 以上都在軟地板以下時，這一段改成照原本的音高起伏走，以進到這一段那一點放大後的音高為起點
+    （接得上、不跳），最低到硬地板下面 TAIL_BELOW_ST 半音。沒有這種長尾巴的台詞，輸出跟以前完全一樣。
+    """
+    from parselmouth.praat import call
+
+    n = call(pt, "Get number of points")
+    if n < 3 or len(raw) != n:
+        return
+    ts = [call(pt, "Get time from index", i) for i in range(1, n + 1)]
+    vs = [call(pt, "Get value at index", i) for i in range(1, n + 1)]
+    pushed = lambda r: r if r > med else med * (r / med) ** kd  # 套地板之前（往下放大後）的音高
+    k = n - 1
+    while k > 0 and ts[k] - ts[k - 1] < 0.015 and pushed(raw[k - 1]) < fs:
+        k -= 1
+    if pushed(raw[n - 1]) >= fs or ts[n - 1] - ts[k] < TAIL_FLOOR_MS / 1000:
+        return
+    low = fh * 2 ** (-TAIL_BELOW_ST / 12)
+    # 原本降得比可用的範圍多：起伏照比例縮小（半音尺度乘 a），形狀不變、也不會撞到下限又變平
+    rmin = min(raw[i] / raw[k] for i in range(k, n))
+    a = 1.0
+    if rmin < 1 and vs[k] * rmin < low:
+        a = max(0.0, np.log(low / vs[k]) / np.log(rmin)) if vs[k] > low else 0.0
+    new = [max(low, vs[k] * (raw[i] / raw[k]) ** a) for i in range(k, n)]
+    call(pt, "Remove points between", ts[k] - 1e-4, ts[n - 1] + 1e-4)
+    for t, v in zip(ts[k:], new):
+        call(pt, "Add point", t, v)
+
+
 def expand_asym(pcm: np.ndarray, fx: dict) -> np.ndarray:
     """docs/voice-samples/prosody/_scripts/gen_e4.py 的 expand_asym，參數改由 fx 傳入"""
     import parselmouth
@@ -124,6 +162,7 @@ def expand_asym(pcm: np.ndarray, fx: dict) -> np.ndarray:
     snd = parselmouth.Sound(pcm.astype(np.float64), SR)
     manip = call(snd, "To Manipulation", 0.01, max(50, q1 * 0.75), q3 * 1.5)
     pt = call(manip, "Extract pitch tier")
+    raw = [call(pt, "Get value at index", i) for i in range(1, call(pt, "Get number of points") + 1)]
     ku, kd = fx["kUp"], fx["kDown"]
     call(pt, "Formula", f"if self > {med} then {med} * (self / {med}) ^ {ku} else {med} * (self / {med}) ^ {kd} fi")
     cap = fx["cap"]
@@ -131,6 +170,7 @@ def expand_asym(pcm: np.ndarray, fx: dict) -> np.ndarray:
     call(pt, "Formula", f"if self > {th} then min({cap}, {th} + (self - {th}) * {fx['keep']}) else self fi")
     fs, fh = fx["floorSoft"], fx["floorHard"]
     call(pt, "Formula", f"if self < {fs} then max({fh}, {fs} - ({fs} - self) * {fx['floorKeep']}) else self fi")
+    keep_tail_motion(pt, raw, med, kd, fs, fh)
     call([pt, manip], "Replace pitch tier")
     y = call(manip, "Get resynthesis (overlap-add)").values[0].astype(np.float32)
     if len(y) < len(pcm):
