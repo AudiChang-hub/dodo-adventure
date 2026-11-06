@@ -298,6 +298,29 @@
   font: 600 min(180px, 20vmin) / 1 'Fredoka', sans-serif;
   color: var(--ink);
 }
+/* 大寫、小寫：大 S 在大卡、小 s 在小卡（T-100：聽不懂 big／little 也看得出哪個大、哪個小）；底對齊，像並排站著比高矮 */
+.en-options.is-big,
+.en-options.is-little {
+  align-items: flex-end;
+  padding-bottom: 6%;
+}
+.en-opt.is-upper {
+  width: min(280px, 31vmin);
+  border-radius: 36px;
+}
+.en-opt.is-upper .en-opt-letter {
+  font-size: min(210px, 23vmin);
+}
+.en-opt.is-lower {
+  width: min(150px, 17vmin);
+  border-radius: 24px;
+}
+.en-opt.is-lower .en-opt-letter {
+  font-size: min(110px, 12vmin);
+}
+.en-opt.is-lower.is-cue::after {
+  border-radius: 32px;
+}
 .en-opt.is-cue::after {
   /* 輪到你了：每張外面一圈靜態的淡黃框（跟數學課的 .tile.cue 一樣），點了第一下就收起來 */
   content: '';

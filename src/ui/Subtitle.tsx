@@ -148,7 +148,7 @@ function align(toks: Tok[], words: WordTiming[] | null, durMs: number) {
 /**
  * 說話時在上方中央顯示的英文字幕：逐字亮起，問題句的答案處是空格，作答後補上答案。
  * 一句唸完後留在畫面上（「唸完」的樣式），直到下一句來取代；換畫面、離開遊戲（stopSpeech）才收起。
- * 換句是原地換（ui/motion.ts 的 swap）：新的一句蓋上來淡入，舊的等一下才淡掉，中間不會先變空白。
+ * 換句是原地換（ui/motion.ts 的 swap）：新的一句淡入，舊的一句立刻收掉（兩句不疊在一起）。
  * 點一下字幕：沒在說話時把這一句再唸一次（不算作答、不影響遊戲的計時）。
  */
 export function Subtitle({ hidden }: { hidden: boolean }) {
@@ -326,7 +326,10 @@ export function Subtitle({ hidden }: { hidden: boolean }) {
   return (
     <div className="subtitle" ref={root} aria-live="polite">
       {/* 原地換：新的一句蓋上來淡入，舊的等新的差不多蓋好才淡掉（兩個膠囊疊在同一格），不會先淡成空白再出現 */}
-      <AnimatePresence initial={false}>{v && <Pill key={v.live.id} v={v} onTap={() => replay.current()} />}</AnimatePresence>
+      {/* custom：舊的一句立刻收掉（swap 的 still），新的照樣淡入。兩句的寬度不一樣，疊著淡入淡出時字會糊成一團（T-100：Let's write it! 和 Watch me!） */}
+      <AnimatePresence initial={false} custom>
+        {v && <Pill key={v.live.id} v={v} onTap={() => replay.current()} />}
+      </AnimatePresence>
     </div>
   )
 }
