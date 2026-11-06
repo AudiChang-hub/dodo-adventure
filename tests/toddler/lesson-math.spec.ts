@@ -380,6 +380,121 @@ test.describe('數學課', () => {
     }
   })
 
+  // T-106（第六次盲測第 7、8 步，報告標「要再確認」）：按完打勾（手多點一下），下一個動作是從恐龍拖到盤子，程式記到的卻是「再聽一次」。
+  // 重現：按完打勾後 0.3～2 秒內點同一個位置、點附近、從恐龍拖到盤子 → 不能觸發「再聽一次」（下一段的教學卡要停在等他點），每一下都有「等一下」的回應。
+  // 再照盲測的時間點（AI 小男生的大腦想了 11 秒：截圖在打勾後 2 秒，拖的時候已經是打勾後約 13 秒）拖一次，記下那時候手指落在什麼上面。
+  test('拿給波波：按完打勾 0.3～2 秒內再點、再拖，不會觸發再聽一次', async ({ page }, info) => {
+    test.skip(!want())
+    test.setTimeout(3 * 60_000)
+    const { k, c } = await setup(page, info, '打勾後馬上再點')
+    try {
+      const day = await page.evaluate(() => {
+        const d = new Date()
+        return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+      })
+      // 跟盲測一樣：同一天從「拿給波波」接著上，今天的數字 1（新的：比多少會先出教學卡）
+      await setMath(page, { next: 2, firm: false, day, n: 1, mode: 'new', part: 1, asked: 0, missed: 0 })
+      if (!(await enter(k, c))) return
+      const ready = await page
+        .waitForFunction(() => !!document.querySelector('.ma-give') && !document.querySelector('.ma-give [data-accepting="false"]') && !document.querySelector('[data-demo="1"]'), null, { timeout: 60_000 })
+        .then(() => true)
+        .catch(() => false)
+      if (!ready) return void (await c.once('no-give', '卡死', '沒有走到拿給波波（或一直不能拿）', `停在 ${await partNow(page)}`))
+      await k.wait(500)
+      const at = (sel: string) =>
+        page.evaluate((sel) => {
+          const r = document.querySelector(sel)?.getBoundingClientRect()
+          return r ? { x: r.left + r.width / 2, y: r.top + r.height / 2 } : null
+        }, sel)
+      /** 這一點現在是什麼（aria-label 或 class） */
+      const what = (p: Pt) =>
+        page.evaluate(({ x, y }) => {
+          const e = document.elementFromPoint(x, y)?.closest('[aria-label],button,[class]')
+          return e?.getAttribute('aria-label') ?? e?.getAttribute('class')?.split(' ')[0] ?? '?'
+        }, p)
+      k.behavior = '拿一個給波波、按打勾（手多點一下）'
+      await k.tap((await at('.ma-give-thing'))!, '拿一個')
+      await k.wait(700)
+      const ok = (await at('.ma-give-done'))!
+      // 盲測他想再拿的那一隻：盤子外面還沒拿的第二個
+      const pile = await page.evaluate(() => {
+        const r = [...document.querySelectorAll('.ma-give-thing')].filter((e) => !e.getAttribute('aria-label')?.startsWith('拿回'))[1]?.getBoundingClientRect()
+        return r ? { x: r.left + r.width / 2, y: r.top + r.height / 2 } : null
+      })
+      const plate = await page.evaluate(() => {
+        const r = document.querySelector('.ma-give-plate')!.getBoundingClientRect()
+        return { x: r.left + r.width / 2, y: r.top + r.height / 2 }
+      })
+      const t0 = await page.evaluate(() => performance.now())
+      await k.tap(ok, '打勾')
+      await k.wait(60)
+      await k.tap(ok, '手多點一下')
+      // 0.3～2 秒內：點同一個位置、點附近、從恐龍拖到盤子
+      k.behavior = '按完打勾 0.3～2 秒內再點、再拖'
+      const plan: { ms: number; how: string; p: Pt; drag?: Pt[] }[] = [
+        { ms: 300, how: '點同一個位置', p: ok },
+        { ms: 650, how: '點附近（右下 30 px）', p: { x: ok.x + 30, y: ok.y + 30 } },
+        { ms: 1000, how: '點同一個位置', p: ok },
+        { ms: 1300, how: '點附近（上面 40 px）', p: { x: ok.x, y: ok.y - 40 } },
+        // 拖一次要 1 秒多，放最後：2 秒內按下去
+        { ms: 1700, how: '從恐龍拖到盤子', p: pile!, drag: [pile!, plate] },
+      ]
+      const early: string[] = []
+      let answered = 0
+      for (const s of plan) {
+        const now = await page.evaluate(() => performance.now())
+        if (now - t0 < s.ms) await k.wait(s.ms - (now - t0))
+        const t = await page.evaluate(() => performance.now())
+        const hit = await what(s.p)
+        // 先開始看有沒有「等一下」的圈圈（拖的時候圈圈在按下去那一刻出來，拖完可能已經淡掉）
+        await page.evaluate(() => document.querySelectorAll('.not-yet').forEach((e) => e.setAttribute('data-seen', '')))
+        const watch = page
+          .waitForFunction(() => !!document.querySelector('.not-yet:not([data-seen])'), null, { timeout: 2500, polling: 30 })
+          .then(() => true)
+          .catch(() => false)
+        if (s.drag) await k.drag(s.drag, { stepMs: 8, label: s.how })
+        else await k.tap(s.p, s.how)
+        const ring = await watch
+        if (ring) answered++
+        early.push(`${((t - t0) / 1000).toFixed(1)}s ${s.how}→${hit}${ring ? '（等一下的圈圈）' : ''}`)
+      }
+      // 等教學卡念完、等他點：早先那幾下不能被算成點教學卡（教學卡要還在、還在等他點），也不能有重播
+      const cardReady = await page
+        .waitForFunction(() => (document.querySelector('.teach-card.ready') ? performance.now() : false), null, { timeout: 25_000, polling: 50 })
+        .then((h) => h.jsonValue() as Promise<number>)
+        .catch(() => null)
+      const voices = () => page.evaluate((t) => window.__toddler.voices.filter((v) => v.t >= t && v.text).map((v) => `${((v.t - t) / 1000).toFixed(1)}s ${v.text}`), t0)
+      if (!cardReady) {
+        const st = await page.evaluate(() => ({ part: [...document.querySelectorAll('[data-lesson-part]')].pop()?.getAttribute('data-lesson-part'), card: !!document.querySelector('.teach-card') }))
+        c.outcome('0.3～2 秒內的點擊不會觸發再聽一次（教學卡念完還在等他點）', false, `${early.join('、')}；之後 ${st.part}，教學卡${st.card ? '還在' : '已經被點掉了'}；聽到：${(await voices()).join('、')}`)
+        await c.once('give-early-replay', '困惑', '按完打勾 0.3～2 秒內的點擊，觸發了下一段教學卡的再聽一次', early.join('、'))
+        return
+      }
+      await k.wait(800)
+      const held = await page.evaluate(() => !!document.querySelector('.teach-card.ready'))
+      const heard = await voices()
+      c.outcome('0.3～2 秒內的點擊不會觸發再聽一次（教學卡念完還在等他點）', held, `${early.join('、')}；教學卡念完是打勾後 ${((cardReady - t0) / 1000).toFixed(1)} 秒；聽到：${heard.join('、')}`)
+      if (!held) await c.once('give-early-replay', '困惑', '按完打勾 0.3～2 秒內的點擊，觸發了下一段教學卡的再聽一次', early.join('、'))
+      c.outcome('0.3～2 秒內每一下都有「等一下」的回應', answered === plan.length, `${answered}/${plan.length}`)
+      if (answered < plan.length) await c.once('give-early-silent', '困惑', '按完打勾 0.3～2 秒內點畫面，看不出要等一下', `${answered}/${plan.length}：${early.join('、')}`)
+      // 盲測的時間點：打勾後約 13 秒，從那隻恐龍原本的位置拖到盤子（記錄那時候手指落在什麼上面，不判對錯）
+      if (held) {
+        const now = await page.evaluate(() => performance.now())
+        if (now - t0 < 13_200) await k.wait(13_200 - (now - t0))
+        const hit = await what(pile!)
+        const t13 = await page.evaluate(() => performance.now())
+        k.behavior = '照盲測的時間點（打勾後 13 秒）從恐龍原本的位置拖到盤子'
+        await k.drag([pile!, plate], { stepMs: 16, label: '打勾後 13 秒拖' })
+        await k.wait(1500)
+        const after = await page.evaluate((t) => window.__toddler.voices.filter((v) => v.t >= t && v.text).map((v) => v.text), t13)
+        c.outcome('盲測的時間點（打勾後 13 秒）：手指落在念完的教學卡上，算點教學卡（重播一次、往下走）', true, `落在：${hit}；之後聽到：${after.join('、')}`)
+      }
+    } finally {
+      await c.flush().catch(() => {})
+      finish(k, c, '打勾後馬上再點')
+    }
+  })
+
   // T-99（盲測三次都碰到）：下課畫面剛出來時，左上角的房子還看得到，點下去卻沒反應。
   // 同一天停在最後一段（小複習），只教過 1 的那一天沒有小複習：開場說完就直接下課，很快就走到下課畫面。
   for (const sticker of [false, true]) {
@@ -593,6 +708,69 @@ test.describe('數學課', () => {
       }
     } finally {
       finish(k, c, '數到一半返回')
+    }
+  })
+
+  // T-106（第六次盲測描小 s 快描完還說「不知道對不對」）：寫數字跟英文描字一樣——
+  // 描到四成放手：剩下的那一段有會動的引導、終點有星星；接著描到 66%（盲測小 s 放手的地方）放手：帶著描完
+  test('寫數字：描到一半看得到還剩哪一段，描過六成多放手就帶著描完', async ({ page }, info) => {
+    test.skip(!want())
+    test.setTimeout(3 * 60_000)
+    const { k, c } = await setup(page, info, '描數字快完')
+    try {
+      const day = await page.evaluate(() => {
+        const d = new Date()
+        return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+      })
+      // 今天的數字 2（一筆、起點終點不在同一個地方），同一天從寫數字接著上
+      await setMath(page, { next: 2, firm: true, day, n: 2, mode: 'review', part: PARTS.indexOf('write'), asked: 0, missed: 0 })
+      if (!(await enter(k, c))) return
+      const p = await firstPart(page)
+      if (p !== 'write') return void (await c.once('to-write', '困惑', '沒有從寫數字開始', `從 ${p} 開始`))
+      const ready = await page
+        .waitForFunction(() => !![...document.querySelectorAll('.ma-paper canvas[data-accepting="true"]')].length, null, { timeout: 30_000 })
+        .then(() => true)
+        .catch(() => false)
+      if (!ready) return void (await c.once('write-ready', '卡死', '寫數字一直不能畫', ''))
+      await k.wait(400)
+      const along = (from: number, to: number, n = 12) =>
+        page.evaluate(
+          ({ from, to, n }) => {
+            const p = [...document.querySelectorAll('.ma-paper')].pop()!.querySelector<SVGPathElement>('path[stroke-dasharray="3 3"]')!
+            const m = p.getScreenCTM()!
+            const len = p.getTotalLength()
+            return Array.from({ length: n + 1 }, (_, i) => {
+              const q = p.getPointAtLength(len * (from + ((to - from) * i) / n))
+              return new DOMPoint(q.x, q.y).matrixTransform(m)
+            }).map((s) => ({ x: s.x, y: s.y }))
+          },
+          { from, to, n },
+        )
+      k.behavior = '寫 2 描到四成放手'
+      await k.drag(await along(0, 0.4), { stepMs: 16, label: '描 2 到四成' })
+      await k.wait(900)
+      const guide = await page.evaluate(() => {
+        const b = [...document.querySelectorAll('.ma-paper')].pop()
+        const box = (e: Element | null | undefined) => {
+          const r = e?.getBoundingClientRect()
+          return !!r && r.width > 2 && r.height > 2
+        }
+        return { rest: box(b?.querySelector('[data-trace-rest]')), goal: box(b?.querySelector('[data-trace-goal]')) }
+      })
+      if (process.env.TODDLER_SHOTS && info.project.name === 'tab1280') await page.screenshot({ path: `${process.env.TODDLER_SHOTS}/寫數字描到四成放手.png` })
+      c.outcome('描到四成放手：看得到剩下的那一段（會動的引導）和終點', guide.rest && guide.goal, `引導${guide.rest ? '有' : '沒有'}、終點記號${guide.goal ? '有' : '沒有'}`)
+      if (!(guide.rest && guide.goal)) await c.once('write-rest', '困惑', '寫數字描到一半放手，剩下的那一段看不出還要描哪裡、描到哪裡算好', `引導${guide.rest ? '有' : '沒有'}、終點記號${guide.goal ? '有' : '沒有'}`)
+      k.behavior = '從斷掉的地方接著描到 66% 放手'
+      await k.drag(await along(0.38, 0.66, 8), { stepMs: 16, label: '接著描到 66%' })
+      const ok = await page
+        .waitForFunction(() => !!document.querySelector('.ma-paper [data-trace-finished]'), null, { timeout: 2500 })
+        .then(() => true)
+        .catch(() => false)
+      c.outcome('描過六成多放手：帶著描完', ok, ok ? '' : '還在等他描剩下的')
+      if (!ok) await c.once('write-almost', '困惑', '寫數字描過六成多放手，沒有帶著描完，還要他自己描剩下的', '')
+    } finally {
+      await c.flush().catch(() => {})
+      finish(k, c, '描數字快完')
     }
   })
 

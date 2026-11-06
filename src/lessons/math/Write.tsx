@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { motion } from 'motion/react'
 import { Ink, type InkHandle } from '../../games/draw/Ink'
 import { HELP_MS, LIFT_FINISH, PathTracker, PX_PER_MM, SNAP_MM, samplePath } from '../../games/draw/track'
-import { RainbowDef, ResumeDot } from '../../games/draw/TraceFx'
+import { GoalStar, RainbowDef, RestGuide, ResumeDot } from '../../games/draw/TraceFx'
 import { GLYPHS } from '../../games/draw/glyphs'
 import { PenArt, easeInOut, tween } from '../../games/Demo'
 import { wait } from '../../games/lines'
@@ -55,7 +55,8 @@ function strokeStart(d: string) {
  * - 起點、斷掉的地方附近按下去都吸過去（track.ts 的 SNAP_MM）；放手不歸零，綠點移到斷掉的地方（TraceFx 的 ResumeDot）；
  * - 畫完：數字變彩虹色、跳一下、星星，不靠語言；
  * - 輪到他描 45 秒還沒描完（HELP_MS）：筆帶著把剩下的描完、照樣慶祝（不算自己描好）；
- * - 描到這一筆的 75% 以上就放手（LIFT_FINISH，T-101）：剩下的一小段很快補滿，算他描完。
+ * - 描到這一筆的 60% 以上就放手（LIFT_FINISH，T-101、T-106）：剩下的一段補滿，算他描完；
+ * - 還剩哪一段（T-106，跟英文描字一樣）：描到一半，還沒描的跑道輕輕亮、小點往終點流（RestGuide），終點有星星，描過一半輕輕晃（GoalStar）。
  */
 export function WritePart({ ctx }: { ctx: PartCtx }) {
   const n = ctx.lesson.n
@@ -283,7 +284,8 @@ export function WritePart({ ctx }: { ctx: PartCtx }) {
     busy.current = true
     const at = t.progress
     const end = t.samples.length - 1
-    await tween(220, (f) => setProg(Math.round(at + (end - at) * f)), () => live.current && tracker.current === t)
+    // 剩下的越長補得越慢一點（最多 0.6 秒）：看得到是「帶著描完」，不是突然跳到好了
+    await tween(Math.min(600, 200 + (end - at) * 8), (f) => setProg(Math.round(at + (end - at) * f)), () => live.current && tracker.current === t)
     if (!live.current || tracker.current !== t) return
     t.progress = end
     busy.current = false
@@ -353,6 +355,9 @@ export function WritePart({ ctx }: { ctx: PartCtx }) {
                 <path d={g.strokes[stroke]} fill="none" stroke="#B9AE9C" strokeWidth={1.2} strokeDasharray="3 3" strokeLinecap="round" />
                 {/* 起點：描到一半就淡掉，綠點換到要接著描的地方（ResumeDot） */}
                 <motion.circle cx={st.x} cy={st.y} r={6} fill="#6FAE86" animate={{ r: prog > 0 ? 4 : [5, 7.5, 5], opacity: prog > 0 && !demo ? 0.35 : 1 }} transition={{ duration: 1.2, repeat: prog > 0 ? 0 : Infinity }} />
+                {/* 還剩哪一段、終點的星星（跟英文描字一樣，TraceFx） */}
+                {prog > 0 && !demo && !hold && <RestGuide d={g.strokes[stroke]} at={prog} total={total} color="#6FAE86" lane={LANE} />}
+                {samples.length > 0 && <GoalStar at={samples[samples.length - 1]} from={samples[0]} near={prog / total >= 0.5 && !demo} />}
                 {prog > 0 && !demo && !hold && <ResumeDot at={tip} color="#6FAE86" />}
                 {prog === 0 && (
                   <g transform={`translate(${st.x} ${st.y}) rotate(${st.ang}) translate(13 0)`}>

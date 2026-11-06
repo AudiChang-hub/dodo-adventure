@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, type CSSProperties } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
 import { Ink, type InkHandle } from '../../games/draw/Ink'
 import { HELP_MS, LIFT_FINISH, PathTracker, PX_PER_MM, SNAP_MM, samplePath, type P2 } from '../../games/draw/track'
-import { RainbowDef, ResumeDot } from '../../games/draw/TraceFx'
+import { GoalStar, RainbowDef, RestGuide, ResumeDot } from '../../games/draw/TraceFx'
 import { HandArt, PenArt, easeInOut, tween } from '../../games/Demo'
 import { Sparkles } from '../../ui/Sparkles'
 import { useIdle } from '../../games/idle'
@@ -62,7 +62,8 @@ function strokeStart(d: string) {
  *   - 10 秒沒動：筆從現在描到的地方往後描一次（不出墨、不說話）；再 15 秒說一次「從綠點開始」；
  *   - 畫完：字變彩虹色、跳一下、星星（TraceFx 的 RainbowDef），不靠語言就看得出「好了」，然後自己往下走；
  *   - 輪到他描 45 秒還沒描完（HELP_MS）：筆帶著把剩下的描完、照樣慶祝（不算自己描好）；
- *   - 描到這一筆的 75% 以上就放手（LIFT_FINISH，T-101）：剩下的一小段很快補滿，算他描完（照常慶祝、往下走）。
+ *   - 描到這一筆的 60% 以上就放手（LIFT_FINISH，T-101、T-106）：剩下的一段補滿，算他描完（照常慶祝、往下走）；
+ *   - 還剩哪一段（T-106）：描到一半，還沒描的跑道輕輕亮、小點往終點流（RestGuide），終點有星星，描過一半輕輕晃（GoalStar）。
  * from：同一天回來接著上時，從第幾輪開始（大寫描過了就只描小寫）；onRound 每一輪開始時告訴外面（記下接續點）。
  */
 export function Trace({ letter, from = 0, onRound, onDone }: { letter: LessonLetter; from?: number; onRound?: (round: number) => void; onDone: (good: number) => void }) {
@@ -347,7 +348,8 @@ export function Trace({ letter, from = 0, onRound, onDone }: { letter: LessonLet
     busy.current = true
     const at = t.progress
     const end = t.samples.length - 1
-    await tween(220, (f) => setProg(Math.round(at + (end - at) * f)), () => live.current && tracker.current === t)
+    // 剩下的越長補得越慢一點（最多 0.6 秒）：看得到是「帶著描完」，不是突然跳到好了
+    await tween(Math.min(600, 200 + (end - at) * 8), (f) => setProg(Math.round(at + (end - at) * f)), () => live.current && tracker.current === t)
     if (!live.current || tracker.current !== t) return
     t.progress = end
     busy.current = false
@@ -433,6 +435,9 @@ export function Trace({ letter, from = 0, onRound, onDone }: { letter: LessonLet
                   )}
                   {/* 起點：描到一半就淡掉，綠點換到要接著描的地方（ResumeDot） */}
                   <motion.circle cx={st.x} cy={st.y} r={6} fill={look.dot} animate={{ r: prog > 0 ? 4 : [5.5, 8, 5.5], opacity: prog > 0 && !demo ? 0.35 : 1 }} transition={{ duration: 1.2, repeat: prog > 0 || hold ? 0 : Infinity }} />
+                  {/* 還剩哪一段：還沒描的跑道輕輕亮、小點往終點流；終點的星星，描過一半輕輕晃（快好了） */}
+                  {prog > 0 && !demo && !hold && <RestGuide d={strokes[stroke]} at={prog} total={total} color={look.dot} lane={LANE} />}
+                  {samples.length > 0 && <GoalStar at={samples[samples.length - 1]} from={samples[0]} near={prog / total >= 0.5 && !demo} />}
                   {prog > 0 && !demo && !hold && <ResumeDot at={tip} color={look.dot} />}
                   {prog === 0 && (
                     <g transform={`translate(${st.x} ${st.y}) rotate(${st.ang}) translate(13 0)`}>
