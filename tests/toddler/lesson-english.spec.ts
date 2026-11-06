@@ -569,6 +569,123 @@ test.describe('英文字母課', () => {
     }
   })
 
+  /** 英文課的進度直接寫進 IndexedDB（今天、還沒上完、停在哪一段） */
+  const seedEnglish = (page: Page, v: Record<string, unknown>) =>
+    page.evaluate(
+      (v) =>
+        new Promise<void>((res) => {
+          const d = new Date()
+          const today = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+          const rq = indexedDB.open('dodo-adventure')
+          rq.onsuccess = () => {
+            const tx = rq.result.transaction('kv', 'readwrite')
+            tx.objectStore('kv').put({ key: 'lesson.english', value: { idx: 0, date: today, done: false, good: false, ...v } })
+            tx.oncomplete = () => res()
+          }
+        }),
+      v,
+    )
+  /** 收作答的時候，點最大的那張（聽不懂 big／little 的孩子只會點大大的）；不收作答回傳 null */
+  const bigCard = (page: Page) =>
+    page.evaluate(() => {
+      const box = document.querySelector('.en-options:not([data-accepting="false"])')
+      if (!box) return null
+      let best: { x: number; y: number; label: string } | null = null
+      let area = 0
+      for (const b of box.querySelectorAll<HTMLElement>('.en-opt')) {
+        const r = b.getBoundingClientRect()
+        if (r.width * r.height > area) {
+          area = r.width * r.height
+          best = { x: r.x + r.width / 2, y: r.y + r.height / 2, label: b.getAttribute('aria-label') ?? '' }
+        }
+      }
+      return best
+    })
+  /** 選擇題的小點：答完幾題／共幾題（沒有小點：null） */
+  const quizDots = (page: Page) =>
+    page.evaluate(() => {
+      const e = document.querySelector('.en-steps .is-quiz')
+      return e ? { done: Number(e.getAttribute('data-done')), total: Number(e.getAttribute('data-total')) } : null
+    })
+  /** 一直只點大的那張，直到上完（stage end）或時間到；回傳花了幾秒（沒上完：null），以及小點每次有沒有往前 */
+  async function onlyBig(k: Toddler, limit: number) {
+    const page = k.page
+    const t0 = Date.now()
+    const seen: number[] = []
+    let taps = 0
+    while (Date.now() - t0 < limit) {
+      const st = await stageOf(page)
+      if (st !== 'quiz') return { secs: st === 'end' || st === null ? Math.round((Date.now() - t0) / 1000) : null, seen, taps }
+      const d = await quizDots(page)
+      if (d && seen[seen.length - 1] !== d.done) seen.push(d.done)
+      const b = await bigCard(page)
+      if (b) {
+        taps++
+        await k.tap({ x: b.x, y: b.y }, `只點大的（${b.label}）`)
+        await page.waitForTimeout(700)
+      } else await page.waitForTimeout(250)
+    }
+    return { secs: null, seen, taps }
+  }
+
+  test('只會點大的那張：選擇題也要在合理時間內上完，答完一題進度亮一顆（T-104）', async ({ page }, info) => {
+    test.skip(!want('lesson-english'))
+    test.setTimeout(5 * 60_000)
+    const { k, c } = await setup(page, info, '只點大的')
+    try {
+      // 今天上到單字（描字已經描過）：念完單字到選擇題。第一天的 4 題是 大 A、小 a、大 A、小 a
+      k.behavior = '從單字接著上'
+      await seedEnglish(page, { stage: 'words' })
+      if (!(await enter(k, c))) return
+      const toQuiz = await waitStage(page, 'quiz', 60_000)
+      if (!toQuiz) return void (await c.once('to-quiz', '卡死', '單字念完沒有往下走到選擇', `停在 ${await stageOf(page)}`))
+      k.behavior = '只點大的'
+      // 4 題、每題最多錯兩次手就帶著做：2 分鐘一定夠（盲測裡 8 分鐘上不完）
+      const r = await onlyBig(k, 120_000)
+      c.outcome('只點大的也上得完（2 分鐘內）', r.secs !== null, r.secs !== null ? `選擇題 ${r.secs} 秒、點了 ${r.taps} 下` : `2 分鐘還在選擇題，點了 ${r.taps} 下`)
+      if (r.secs === null) await c.once('only-big', '卡死', '只會點大的那張：問小寫一直點錯，選擇題一直上不完', `點了 ${r.taps} 下`)
+      const steps = r.seen.join('→')
+      const forward = r.seen.length >= 4 && r.seen.every((x, j) => j === 0 || x === r.seen[j - 1] + 1)
+      c.outcome('答完一題，進度小點亮一顆', forward, steps ? `小點 ${steps}` : '沒有小點')
+      if (!forward) await c.once('dots', '困惑', '選擇題答完一題，看不出進度往前', steps ? `小點 ${steps}` : '畫面上沒有選擇題的進度')
+      await c.flush()
+    } finally {
+      finish(k, c, '只點大的')
+    }
+  })
+
+  test('選擇題答到一半離開，回來先示範這一題、進度還在（T-104）', async ({ page }, info) => {
+    test.skip(!want('lesson-english'))
+    test.setTimeout(4 * 60_000)
+    const { k, c } = await setup(page, info, '選擇題回來')
+    try {
+      // 選擇題已經答完 1 題（大 A 一次就對），離開又回來
+      k.behavior = '選擇題回來'
+      await seedEnglish(page, { stage: 'quiz', round: 1, answers: [{ kind: 'big', first: true }] })
+      if (!(await enter(k, c))) return
+      const inQuiz = await waitStage(page, 'quiz', 15_000)
+      c.outcome('回到選擇題', inQuiz, inQuiz ? '' : `停在 ${await stageOf(page)}`)
+      if (!inQuiz) return void (await c.once('back-quiz', '卡死', '選擇題中途離開，回來沒有接著選擇題', `停在 ${await stageOf(page)}`))
+      const d = await quizDots(page)
+      c.outcome('進度還在（亮 1 顆）', d?.done === 1, d ? `小點 ${d.done}/${d.total}` : '沒有小點')
+      if (d?.done !== 1) await c.once('dots-kept', '困惑', '選擇題回來以後，進度從頭開始', d ? `小點 ${d.done}/${d.total}` : '畫面上沒有選擇題的進度')
+      // 先示範：收作答以前手出來點答案
+      const demo = await page
+        .waitForFunction(() => document.querySelector('.en-options .en-opt.is-yes') && document.querySelector('.en-options[data-accepting="false"]'), null, { timeout: 15_000 })
+        .then(() => true)
+        .catch(() => false)
+      c.outcome('回來先示範這一題', demo, demo ? '' : '直接開始收作答')
+      if (!demo) await c.once('replay', '困惑', '選擇題中途離開再回來，沒有先示範就直接問', '')
+      k.behavior = '只點大的'
+      const r = await onlyBig(k, 120_000)
+      c.outcome('接著上完', r.secs !== null, r.secs !== null ? `${r.secs} 秒` : '2 分鐘還在選擇題')
+      if (r.secs === null) await c.once('resume-finish', '卡死', '選擇題回來以後上不完', `點了 ${r.taps} 下`)
+      await c.flush()
+    } finally {
+      finish(k, c, '選擇題回來')
+    }
+  })
+
   test('描字：描到一半抬筆，再從綠點重描', async ({ page }, info) => {
     test.skip(!want('lesson-english'))
     test.setTimeout(6 * 60_000)

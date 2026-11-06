@@ -53,6 +53,12 @@ export function EnglishLesson({ onDone }: LessonProps) {
   const [stage, setStage] = useState<Stage>('meet')
   /** 描字從第幾輪開始（同一天回來接著上） */
   const [traceFrom, setTraceFrom] = useState(0)
+  /** 選擇題：同一天回來從第幾題接著問、前面答完的（T-104） */
+  const [quizAt, setQuizAt] = useState<{ from: number; answers: QuizResult[]; replay: boolean }>({ from: 0, answers: [], replay: false })
+  /** 選擇題答完幾題（第四顆石頭裡的小點） */
+  const [quizDone, setQuizDone] = useState(0)
+  /** 答對一題：豆豆歡呼一下 */
+  const [cheer, setCheer] = useState(0)
   const qs = useRef<Question[]>([])
   const live = useRef(true)
 
@@ -67,6 +73,11 @@ export function EnglishLesson({ onDone }: LessonProps) {
       if (pl.resume) {
         setStage(pl.resume.stage)
         setTraceFrom(pl.resume.round)
+        if (pl.resume.stage === 'quiz') {
+          const from = Math.min(pl.resume.round, qs.current.length - 1)
+          setQuizAt({ from, answers: (pl.resume.answers ?? []).slice(0, from), replay: true })
+          setQuizDone(from)
+        }
       }
       setPlan(pl)
     })
@@ -93,6 +104,19 @@ export function EnglishLesson({ onDone }: LessonProps) {
     if (live.current) onDone()
   }
 
+  /** 選擇題又答完一題：小點亮一顆、豆豆歡呼一下，記下來（中途離開，回來從下一題接著問） */
+  const progress = (n: number, rs: QuizResult[]) => {
+    setQuizDone(n)
+    setCheer((c) => c + 1)
+    if (plan && n < qs.current.length) void markStage(plan, 'quiz', n, rs)
+  }
+
+  useEffect(() => {
+    if (!cheer) return
+    const t = setTimeout(() => live.current && setCheer(0), 1400)
+    return () => clearTimeout(t)
+  }, [cheer])
+
   const letter = plan ? lessonLetter(plan.idx, plan.seq) : null
   const at = STEPS.indexOf(stage)
 
@@ -103,13 +127,21 @@ export function EnglishLesson({ onDone }: LessonProps) {
           <HomeIcon />
         </BackButton>
       </div>
-      {/* 進度：四顆小石頭（認字母、描字、單字、選擇），走過的變成今天的字母 */}
+      {/* 進度：四顆小石頭（認字母、描字、單字、選擇），走過的變成今天的字母；選擇題那一顆拉長，一題一顆小點（T-104） */}
       <div className="en-steps" aria-hidden="true">
-        {STEPS.map((s, i) => (
-          <span key={s} className={i < at || stage === 'end' ? 'is-done' : i === at ? 'is-now' : ''}>
-            {(i < at || stage === 'end') && letter ? letter.l : ''}
-          </span>
-        ))}
+        {STEPS.map((s, i) =>
+          s === 'quiz' && stage === 'quiz' ? (
+            <span key={s} className="is-now is-quiz" data-done={quizDone} data-total={qs.current.length}>
+              {qs.current.map((_, j) => (
+                <i key={j} className={j < quizDone ? 'on' : undefined} />
+              ))}
+            </span>
+          ) : (
+            <span key={s} className={i < at || stage === 'end' ? 'is-done' : i === at ? 'is-now' : ''}>
+              {(i < at || stage === 'end') && letter ? letter.l : ''}
+            </span>
+          ),
+        )}
       </div>
       {letter && (
         <p className="coplay-hint en-coplay" aria-hidden="true">
@@ -118,7 +150,7 @@ export function EnglishLesson({ onDone }: LessonProps) {
         </p>
       )}
       <div className="en-host" aria-hidden="true">
-        <Dino who="dodo" mood={stage === 'end' ? 'cheer' : 'happy'} size="100%" />
+        <Dino who="dodo" mood={stage === 'end' || cheer ? 'cheer' : 'happy'} size="100%" />
       </div>
       <div className="en-stage">
         {/* 一段淡出、下一段再淡入（紙感螢幕上兩段疊在一起看起來很亂，不交叉淡化） */}
@@ -134,7 +166,9 @@ export function EnglishLesson({ onDone }: LessonProps) {
               {stage === 'meet' && <Meet letter={letter} review={plan!.review} onDone={() => next('trace')} />}
               {stage === 'trace' && <Trace letter={letter} from={traceFrom} onRound={(i) => i > 0 && void markStage(plan!, 'trace', i)} onDone={() => next('words')} />}
               {stage === 'words' && <Words letter={letter} onDone={() => next('quiz')} />}
-              {stage === 'quiz' && <Quiz qs={qs.current} onDone={(rs) => void finish(rs)} />}
+              {stage === 'quiz' && (
+                <Quiz qs={qs.current} from={quizAt.from} answers={quizAt.answers} replay={quizAt.replay} onProgress={progress} onDone={(rs) => void finish(rs)} />
+              )}
               {stage === 'end' && (
                 <div className="en-end">
                   <span className="en-letter is-big is-lit">{letter.L}</span>

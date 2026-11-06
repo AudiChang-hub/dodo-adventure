@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type CSSProperties } from 'react'
-import { AnimatePresence, motion } from 'motion/react'
+import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import { Emoji } from '../../art/Emoji'
 import { Hand } from '../../games/Demo'
 import { useIdle } from '../../games/idle'
@@ -7,12 +7,16 @@ import { praiseKey, retryKey, wait } from '../../games/lines'
 import { say, sfx, stopSpeech } from '../../lib/audio'
 import { hasLine } from '../../content/lines'
 import { logAttempt } from '../../lib/record'
+import { Sparkles } from '../../ui/Sparkles'
 import { pointIn } from '../math/kit'
 import { needsDemo, noteFormat, type Format } from '../formats'
 import type { QuizResult } from './plan'
 import { wrongKeys, type Opt, type Question } from './quiz-plan'
 
 const FORMAT: Record<Question['kind'], Format> = { big: 'en-big', little: 'en-little', word: 'en-word' }
+
+/** 大寫或小寫題有一題不是一次就對：後面的小寫題改問大寫（退一級，LOAD-5） */
+const missedLetter = (rs: QuizResult[]) => rs.some((r) => r.kind !== 'word' && !r.first)
 
 /** 小小的畫框（找開頭的圖：「S → 一張圖」） */
 function Frame() {
@@ -55,12 +59,38 @@ function Ask({ q }: { q: Question }) {
  * 念完題目、開始收作答：每張選項一圈淡黃框、依序輕輕跳一下（輪到你了，靜音也看得出來；點了第一下就收起來）。
  * 答錯：手從泡泡（要找的樣子）移到答案上點一下，同時說出點的是什麼、要找的是什麼（That's big B. Find big A!），
  * 之後答案留著外框和手，點了才往下（一起練，不算答對）。聽不懂英文也看得出「要的是這個」（T-100）。
- * 大寫題第一次沒答對：後面的小寫題改問大寫（退一級，quiz-plan.ts 的 easy）。
+ * 同一題錯兩次：手帶著做（手點答案、答案亮起來，記成一起練），然後照樣往下。所以一題最多點錯兩次，題數固定，一定上得完（T-104）。
+ * 答對（T-104，AI 小男生盲測：只有 Yes 和綠框，他看不出對了）：答對的那張放大、跳一下、右上角綠色大打勾、星星，其他的淡掉；
+ * 下面的進度（第四顆石頭裡的小點）亮一顆（onProgress）。跟中文課選圖（T-97）一樣不用聽懂話也看得出來。
+ * 字母題有一題不是一次就對：後面的小寫題改問大寫（退一級，quiz-plan.ts 的 easy）。
+ * 同一天中途離開又回來（from、answers）：從下一題接著問，先重播這一題的示範（replay），不直接丟回題目（T-104）。
  * 發呆 15 秒再念一次題目、30 秒手指著答案。
  * 每一題都寫作答紀錄（家長區看得到）。onDone(每一題的種類和第一次有沒有答對)：隔天重不重上只看字母題（plan.ts 的 lessonGood）。
  */
-export function Quiz({ qs, onDone }: { qs: Question[]; onDone: (rs: QuizResult[]) => void }) {
-  const [i, setI] = useState(0)
+export function Quiz({
+  qs,
+  from = 0,
+  answers = [],
+  replay = false,
+  onProgress,
+  onDone,
+}: {
+  qs: Question[]
+  /** 從第幾題開始（前面的已經答完） */
+  from?: number
+  /** 前面答完的那幾題 */
+  answers?: QuizResult[]
+  /** 中途離開又回來：這一題先示範一次 */
+  replay?: boolean
+  /** 又答完一題：答完幾題、到現在的結果 */
+  onProgress?: (done: number, rs: QuizResult[]) => void
+  onDone: (rs: QuizResult[]) => void
+}) {
+  const start = Math.max(0, Math.min(from, qs.length - 1))
+  const still = useReducedMotion()
+  const [i, setI] = useState(start)
+  /** 這一題答完了（答對的放大打勾、其他的淡掉） */
+  const [solved, setSolved] = useState(false)
   const [accept, setAccept] = useState(false)
   const [state, setState] = useState<Record<string, 'no' | 'yes'>>({})
   const [hint, setHint] = useState(false)
@@ -71,10 +101,17 @@ export function Quiz({ qs, onDone }: { qs: Question[]; onDone: (rs: QuizResult[]
   const [show, setShow] = useState<'ask' | 'answer' | null>(null)
   const [press, setPress] = useState(0)
   const shown = useRef(false)
-  /** 這一堂的題目（小寫題可能換成退一級的大寫題） */
-  const list = useRef(qs.slice())
-  /** 哪幾題要先示範：每種題型的第一題，而且這種題型孩子還不會（上課前就決定好，不會因為流程重跑而變） */
-  const demoAt = useRef(qs.map((x, k) => qs.findIndex((y) => y.kind === x.kind) === k && needsDemo(FORMAT[x.kind])))
+  /** 這一堂的題目（小寫題可能換成退一級的大寫題；接著上的時候前面錯過，一開始就換） */
+  const list = useRef<Question[]>([])
+  /** 哪幾題要先示範：每種題型的第一題，而且這種題型孩子還不會；回來接著上的那一題一定示範（上課前就決定好，不會因為流程重跑而變） */
+  const demoAt = useRef<boolean[]>([])
+  if (!list.current.length) {
+    const before = answers.slice(0, start)
+    list.current = qs.map((x, k) => (k >= start && x.easy && missedLetter(before) ? x.easy : x))
+    demoAt.current = list.current.map(
+      (x, k) => k >= start && ((replay && k === start) || (list.current.findIndex((y, j) => j >= start && y.kind === x.kind) === k && needsDemo(FORMAT[x.kind]))),
+    )
+  }
   /** 泡泡跳一下（答錯時：先看要找的樣子） */
   const [hop, setHop] = useState(0)
   const layer = useRef<HTMLDivElement | null>(null)
@@ -85,7 +122,7 @@ export function Quiz({ qs, onDone }: { qs: Question[]; onDone: (rs: QuizResult[]
   const tries = useRef(0)
   const taps = useRef<{ pick: string; ms: number }[]>([])
   const t0 = useRef(0)
-  const results = useRef<QuizResult[]>([])
+  const results = useRef<QuizResult[]>(answers.slice(0, start))
   const idle = useIdle()
   const q = list.current[i]
 
@@ -95,16 +132,17 @@ export function Quiz({ qs, onDone }: { qs: Question[]; onDone: (rs: QuizResult[]
     setState({})
     setHint(false)
     setCue(false)
+    setSolved(false)
     tries.current = 0
     taps.current = []
     idle.stop()
     const qk = list.current[k]
     setShow(null)
     shown.current = demoAt.current[k]
-    await wait(k === 0 ? 300 : 450)
+    await wait(k === start ? 300 : 450)
     if (!live.current) return
     // 第一題要示範：Watch me! 就是開頭，不再先說 Let's play!（少說一句）
-    if (k === 0 && !shown.current) await say('le.en.play')
+    if (k === start && !shown.current) await say('le.en.play')
     if (!live.current) return
     if (shown.current) {
       // 我做：手先指泡泡（要找的樣子），念題目，再去點答案；答案亮起來、念它的音
@@ -139,7 +177,7 @@ export function Quiz({ qs, onDone }: { qs: Question[]; onDone: (rs: QuizResult[]
 
   useEffect(() => {
     live.current = true
-    void ask(0)
+    void ask(start)
     return () => {
       live.current = false
       idle.stop()
@@ -160,12 +198,14 @@ export function Quiz({ qs, onDone }: { qs: Question[]; onDone: (rs: QuizResult[]
       sfx.gentle()
       setState((s) => ({ ...s, [o.id]: 'no' }))
       busy.current = true
-      // 手從泡泡（要找的樣子）移到答案上點一下，同時說明點的是什麼、要找的是什麼（之後再錯只念題目）；之後答案留著外框和手
+      // 手從泡泡（要找的樣子）移到答案上點一下，同時說明點的是什麼、要找的是什麼；之後答案留著外框和手。
+      // 第二次錯：一樣手從泡泡到答案，這次手直接幫他點下去（一起做），這一題就算完（不再等他點，T-104）
       setHint(false)
       setHop((h) => h + 1)
       setShow('ask')
       const why = wrongKeys(q, o)
-      const talk = say(...(tries.current >= 2 ? [q.prompt] : why.every(hasLine) ? why : [retryKey('dodo')]))
+      const together = tries.current >= 2
+      const talk = say(...(together ? [q.prompt] : why.every(hasLine) ? why : [retryKey('dodo')]))
       await wait(800)
       if (!live.current) return
       setShow('answer')
@@ -174,42 +214,51 @@ export function Quiz({ qs, onDone }: { qs: Question[]; onDone: (rs: QuizResult[]
       setPress((p) => p + 1)
       await talk
       if (!live.current) return
+      if (together) return void complete(true, ms)
       setShow(null)
       setHint(true)
       busy.current = false
       return
     }
+    void complete(false, ms)
+  }
+
+  /** 這一題答完（自己點對，或錯兩次以後手帶著做）：答對的放大、打勾、星星，其他的淡掉，進度亮一顆，再換下一題 */
+  const complete = async (together: boolean, ms: number) => {
     busy.current = true
     setAccept(false)
+    setHint(false)
     idle.stop()
-    const first = tries.current === 0
+    const first = !together && tries.current === 0
     results.current.push({ kind: q.kind, first })
     noteFormat(FORMAT[q.kind], first)
-    setState((s) => ({ ...s, [o.id]: 'yes' }))
+    setState({ [q.answer]: 'yes' })
+    setSolved(true)
     sfx.correct()
     void logAttempt({
       station: 'english',
       game: 'lesson-en',
       itemId: `${q.kind}:${q.answer}`,
       skill: q.skill,
-      // 答錯過（答案已經亮起來、手指著）才點對的、剛看手示範過的：算一起練
+      // 答錯過（答案已經亮起來、手指著）才點對的、手帶著做的、剛看手示範過的：算一起練
       phase: tries.current >= 1 || shown.current ? 'guided' : 'quiz',
       level: 1,
       options: q.options.map((x) => x.id),
       answer: q.answer,
       taps: taps.current,
       firstTryCorrect: first,
-      attempts: tries.current + 1,
+      attempts: tries.current + (together ? 0 : 1),
       responseMs: ms,
-      hintUsed: hint,
+      hintUsed: hint || together,
     })
+    onProgress?.(i + 1, results.current.slice())
     await say(...(first ? [praiseKey('dodo'), q.yes] : [q.yes]))
-    await wait(300)
+    await wait(500)
     if (!live.current) return
     if (i + 1 >= list.current.length) return onDone(results.current)
-    // 大寫題第一次沒答對：小寫題改問大寫（退一級）。大寫題已經示範過，這一題不再示範
+    // 字母題有一題沒有一次就對：小寫題改問大寫（退一級）。大寫題已經示範過，這一題不再示範
     const nx = list.current[i + 1]
-    if (nx.easy && results.current.some((r) => r.kind === 'big' && !r.first)) {
+    if (nx.easy && missedLetter(results.current)) {
       list.current[i + 1] = nx.easy
       demoAt.current[i + 1] = false
     }
@@ -230,7 +279,7 @@ export function Quiz({ qs, onDone }: { qs: Question[]; onDone: (rs: QuizResult[]
       <AnimatePresence initial={false}>
         <motion.div
           key={i}
-          className={`en-options is-${q.kind} n${q.options.length}${show ? ' is-demo' : ''}`}
+          className={`en-options is-${q.kind} n${q.options.length}${show && !solved ? ' is-demo' : ''}${solved ? ' is-solved' : ''}`}
           data-accepting={accept ? undefined : 'false'}
           data-dim={show ? 'true' : undefined}
           initial={{ opacity: 0 }}
@@ -238,8 +287,10 @@ export function Quiz({ qs, onDone }: { qs: Question[]; onDone: (rs: QuizResult[]
           exit={{ opacity: 0, transition: { duration: 0.3, delay: 0.1 } }}
         >
           {q.options.map((o, k) => (
-            <button
+            <motion.button
               key={o.id}
+              animate={solved && state[o.id] === 'yes' ? { scale: still ? 1.08 : [1, 1.18, 1.08], y: still ? -8 : [0, -20, -8] } : { scale: 1, y: 0 }}
+              transition={{ duration: 0.55, ease: [0.22, 1, 0.36, 1] }}
               ref={(el: HTMLButtonElement | null) => {
                 if (el) tiles.current.set(o.id, el)
               }}
@@ -257,7 +308,22 @@ export function Quiz({ qs, onDone }: { qs: Question[]; onDone: (rs: QuizResult[]
                   <Hand x={58} y={58} tap={1} size="38%" cuff="#BFE0CC" />
                 </span>
               )}
-            </button>
+              {/* 答對：星星撒開、右上角綠色大打勾（跟中文課選圖一樣，T-97） */}
+              {solved && state[o.id] === 'yes' && <Sparkles count={16} />}
+              {solved && state[o.id] === 'yes' && (
+                <motion.span
+                  className="en-yes"
+                  aria-hidden="true"
+                  initial={still ? false : { scale: 0, rotate: -20 }}
+                  animate={{ scale: 1, rotate: 0 }}
+                  transition={{ type: 'spring', stiffness: 420, damping: 15, delay: 0.12 }}
+                >
+                  <svg viewBox="0 0 48 48" width="62%" aria-hidden="true">
+                    <path d="M11 25 L20 34 L37 15" fill="none" stroke="#FBF8F2" strokeWidth={7} strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                </motion.span>
+              )}
+            </motion.button>
           ))}
         </motion.div>
       </AnimatePresence>
