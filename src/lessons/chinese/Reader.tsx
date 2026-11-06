@@ -1,10 +1,11 @@
-import { useEffect, useRef, useState, type CSSProperties } from 'react'
+import { Fragment, useEffect, useRef, useState, type CSSProperties } from 'react'
 import { motion, useReducedMotion } from 'motion/react'
 import { sfx } from '../../lib/audio'
 import { firstFinger } from '../../games/NotYet'
 import { EASE } from '../../ui/motion'
-import { pieces, plain, talkOf, type ZhText } from './data'
+import { pieces, talkOf, type ZhText } from './data'
 import { gapOf } from './cloze'
+import { pageUnits } from './layout'
 import { Pic } from './Pic'
 import type { HostTap } from './Lesson'
 
@@ -32,6 +33,7 @@ export function Reader({
   goLabel = '去選圖',
   onTalk,
   onNext,
+  startAt = 0,
 }: {
   t: ZhText
   run?: number
@@ -41,9 +43,11 @@ export function Reader({
   /** 進出「聊一聊」（陪玩小字跟著換） */
   onTalk?: (on: boolean) => void
   onNext: (ms: number) => void
+  /** 一開始亮第幾行（排版檢查 scripts/check-zh-layout.mjs 用：直接看每一行亮起來、圖放大的樣子；課裡一律從第 0 行） */
+  startAt?: number
 }) {
   const still = useReducedMotion()
-  const [cur, setCur] = useState(0)
+  const [cur, setCur] = useState(startAt)
   const [talk, setTalk] = useState(false)
   const [pop, setPop] = useState<{ w: string; k: number } | null>(null)
   /** 孩子點過的圖（第幾行:哪個詞）：點過就收起「點我」的外框 */
@@ -108,11 +112,12 @@ export function Reader({
     }
   })
 
-  const chars = Math.max(...t.lines.map((l) => plain(l).length))
+  // 字級照最寬的那一行算（字＋放大的圖＋「停」都要放得進課本，./layout.ts）
+  const { units, rows } = pageUnits(t, times)
   const reds = (l: string) => pieces(l).filter((p) => p.red && t.emoji[p.text])
   const tk = talkOf(t.parentTip)
   return (
-    <div className={`zh-read${talk ? ' talking' : ''}`} data-run={times} data-at={talk ? 'talk' : cur} style={{ '--chars': chars } as CSSProperties}>
+    <div className={`zh-read${talk ? ' talking' : ''}`} data-run={times} data-at={talk ? 'talk' : cur} style={{ '--units': units, '--rows': rows } as CSSProperties}>
       <motion.article className="zh-page" initial={still ? false : { y: 14 }} animate={{ y: 0 }} transition={{ duration: 0.5, ease: EASE.out }}>
         <h2 className="zh-title">{t.title}</h2>
         <div className="zh-lines">
@@ -125,8 +130,14 @@ export function Reader({
                 <span className="zh-text">
                   {pieces(l).map((p, j) =>
                     p.red ? (
+                      <Fragment key={j}>
+                        {/* 第 2 次：框起來的詞前面一個「停」，提醒大人念到這裡停一下（排在字的同一行，不疊在上一行） */}
+                        {on && gaps[i] === p.text && (
+                          <span className="zh-gap-tag" aria-hidden="true">
+                            停
+                          </span>
+                        )}
                       <button
-                        key={j}
                         type="button"
                         className={`zh-red${pop?.w === p.text ? ' pop' : ''}${on && gaps[i] === p.text ? ' gap' : ''}`}
                         data-word={p.text}
@@ -137,12 +148,8 @@ export function Reader({
                         }}
                       >
                         {p.text}
-                        {on && gaps[i] === p.text && (
-                          <span className="zh-gap-tag" aria-hidden="true">
-                            停
-                          </span>
-                        )}
                       </button>
+                      </Fragment>
                     ) : (
                       <span key={j}>{p.text}</span>
                     ),
