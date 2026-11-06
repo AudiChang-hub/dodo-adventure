@@ -56,6 +56,36 @@
   background: var(--en-deep);
   box-shadow: 0 3px 0 color-mix(in srgb, var(--en-ink) 55%, var(--en-deep));
 }
+/* 選擇題這一段（T-104）：第四顆石頭拉長，裡面一題一顆小點，答完一題亮一顆（看得出還剩幾題） */
+.en-steps span.is-quiz {
+  width: auto;
+  padding: 0 12px;
+  border-radius: 23px;
+  gap: 8px;
+  grid-auto-flow: column;
+}
+.en-steps span.is-quiz i {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--en-soft) 70%, var(--card));
+  transition: background 0.4s ease;
+}
+.en-steps span.is-quiz i.on {
+  background: var(--en-deep);
+  animation: en-dot 0.5s cubic-bezier(0.22, 1, 0.36, 1);
+}
+@keyframes en-dot {
+  0% {
+    transform: scale(1);
+  }
+  45% {
+    transform: scale(1.6);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
 
 .en-host {
   position: absolute;
@@ -349,6 +379,37 @@
   inset: 0;
   pointer-events: none;
 }
+/* 答對（T-104，跟中文課選圖 T-97 一樣）：其他的淡掉，答對的那張外面一圈暖暖的光暈、右上角綠色大打勾 */
+.en-options.is-solved .en-opt:not(.is-yes) {
+  opacity: 0.22;
+}
+.en-options.is-solved .en-opt.is-yes::before {
+  content: '';
+  position: absolute;
+  inset: -18%;
+  z-index: -1;
+  border-radius: 50%;
+  background: radial-gradient(closest-side, rgba(143, 203, 170, 0.55), rgba(241, 210, 124, 0.25) 60%, transparent);
+  animation: hint-in 0.5s var(--ease-out) both;
+  pointer-events: none;
+}
+.en-yes {
+  position: absolute;
+  top: -14%;
+  right: -14%;
+  z-index: 2;
+  width: 42%;
+  max-width: 96px;
+  aspect-ratio: 1;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--good);
+  box-shadow:
+    0 5px 0 color-mix(in srgb, var(--good) 70%, #2e2a25),
+    0 0 0 6px #fbf8f2;
+  pointer-events: none;
+}
 /* 示範中（我做，PHASE-1）：作答區淡一點，只有手要點的那一張是全亮的 */
 .en-options.is-demo .en-opt:not(.is-shown) {
   opacity: 0.5;
@@ -463,7 +524,8 @@
 }
 @media (prefers-reduced-motion: reduce) {
   .en-hop,
-  .en-shake {
+  .en-shake,
+  .en-steps span.is-quiz i.on {
     animation: none;
   }
 }
@@ -486,6 +548,14 @@
     width: 28px;
     height: 28px;
     font-size: 16px;
+  }
+  .en-steps span.is-quiz {
+    padding: 0 6px;
+    gap: 4px;
+  }
+  .en-steps span.is-quiz i {
+    width: 12px;
+    height: 12px;
   }
   .en-trace-tool {
     display: none;

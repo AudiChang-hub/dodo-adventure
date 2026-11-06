@@ -26,6 +26,8 @@ export interface EnglishProgress {
   /** 還沒上完：走到哪一段、描字到第幾輪（同一天回來從這裡接著上；舊的進度沒有這兩欄） */
   stage?: LessonStage
   round?: number
+  /** 選擇題已經答完的那幾題（round＝答完幾題；同一天回來從下一題接著問，最後一起算隔天重不重上，T-104） */
+  answers?: QuizResult[]
 }
 
 /** 英文課的段落（index.tsx 的 STEPS） */
@@ -58,7 +60,7 @@ export interface TodayPlan {
   /** 昨天（或之前）錯很多、沒上完，今天重上同一個字母 */
   repeat: boolean
   /** 今天中途離開過：從這一段（描字從第幾輪）接著上 */
-  resume?: { stage: LessonStage; round: number }
+  resume?: { stage: LessonStage; round: number; answers?: QuizResult[] }
 }
 
 /** 進課的時候決定今天上哪一個字母（不寫入；上完或離開時才寫）。fresh：新帳號的順序（測試用，預設照名字） */
@@ -66,7 +68,7 @@ export function planFor(p: EnglishProgress | null, d = today(), fresh = nameOrde
   if (!p) return { idx: 0, seq: fresh, review: false, repeat: false }
   const seq = p.seq ?? ORDER
   if (p.date === d) {
-    const resume = !p.done && p.stage && p.stage !== 'meet' ? { stage: p.stage, round: p.round ?? 0 } : undefined
+    const resume = !p.done && p.stage && p.stage !== 'meet' ? { stage: p.stage, round: p.round ?? 0, ...(p.stage === 'quiz' && p.answers?.length ? { answers: p.answers } : {}) } : undefined
     return { idx: p.idx, seq, review: p.done, repeat: false, ...(resume ? { resume } : {}) }
   }
   if (p.done && p.good) return { idx: (p.idx + 1) % seq.length, seq, review: false, repeat: false }
@@ -81,16 +83,18 @@ export const loadProgress = () => getKV<EnglishProgress | null>(KV_KEY, null)
  */
 export async function markStarted(plan: TodayPlan, d = today()) {
   if (plan.review) return
-  const at = plan.resume ? { stage: plan.resume.stage, round: plan.resume.round } : {}
+  const at = plan.resume ? { stage: plan.resume.stage, round: plan.resume.round, ...(plan.resume.answers ? { answers: plan.resume.answers } : {}) } : {}
   await setKV(KV_KEY, { idx: plan.idx, seq: plan.seq, date: d, done: false, good: false, ...at } satisfies EnglishProgress)
 }
 
-/** 走到下一段（描字的下一輪）時記下來：中途離開，同一天回來從這裡接著上。複習、已經上完的不記 */
-export async function markStage(plan: TodayPlan, stage: LessonStage, round = 0, d = today()) {
+/** 走到下一段（描字的下一輪、選擇題答完一題）時記下來：中途離開，同一天回來從這裡接著上。複習、已經上完的不記 */
+export async function markStage(plan: TodayPlan, stage: LessonStage, round = 0, answers?: QuizResult[], d = today()) {
   if (plan.review) return
   const old = await loadProgress()
   if (!old || old.date !== d || old.done || old.idx !== plan.idx) return
-  await setKV(KV_KEY, { ...old, stage, round } satisfies EnglishProgress)
+  const rest: EnglishProgress = { ...old }
+  delete rest.answers
+  await setKV(KV_KEY, { ...rest, stage, round, ...(answers?.length ? { answers } : {}) } satisfies EnglishProgress)
 }
 
 /** 上完：記下錯得多不多（複習那一次只會把「好」改得更好，不會因為複習錯了就讓今天的字母不算） */

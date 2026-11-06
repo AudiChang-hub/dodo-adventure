@@ -105,4 +105,19 @@ ok('A16 問大寫、點了同一個字母的小寫：That\'s little f. → Find 
 }
 ok('T-95 同一天中途離開又回來：從離開的那一段（描字第幾輪）接著上；上完了是複習、隔天照原本的排課（重上，從頭）')
 
+{
+  const d = '2026-11-06'
+  const answers = [
+    { kind: 'big' as const, first: true },
+    { kind: 'little' as const, first: false },
+  ]
+  const mid = planFor({ idx: 0, seq: ORDER, date: d, done: false, good: false, stage: 'quiz', round: 2, answers }, d)
+  assert.deepEqual(mid.resume, { stage: 'quiz', round: 2, answers })
+  // 描字那一段不帶選擇題的結果
+  assert.deepEqual(planFor({ idx: 0, seq: ORDER, date: d, done: false, good: false, stage: 'trace', round: 1, answers }, d).resume, { stage: 'trace', round: 1 })
+  // 選擇題的題數固定（4 題），不會因為答錯變多
+  for (let idx = 0; idx < 26; idx++) assert.equal(makeQuiz(lessonLetter(idx), idx).length, 4)
+}
+ok('T-104 選擇題答完幾題、結果記下來，同一天回來從下一題接著問；題數固定 4 題')
+
 console.log('ALL PASS')
