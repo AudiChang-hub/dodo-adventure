@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { motion } from 'motion/react'
 import { Ink, type InkHandle } from '../../games/draw/Ink'
-import { HELP_MS, PathTracker, PX_PER_MM, SNAP_MM, samplePath } from '../../games/draw/track'
+import { HELP_MS, LIFT_FINISH, PathTracker, PX_PER_MM, SNAP_MM, samplePath } from '../../games/draw/track'
 import { RainbowDef, ResumeDot } from '../../games/draw/TraceFx'
 import { GLYPHS } from '../../games/draw/glyphs'
 import { PenArt, easeInOut, tween } from '../../games/Demo'
@@ -54,7 +54,8 @@ function strokeStart(d: string) {
  * T-95（AI 小男生盲測：描 1 畫了 4 次，看不出畫對了沒、什麼時候算畫完）：
  * - 起點、斷掉的地方附近按下去都吸過去（track.ts 的 SNAP_MM）；放手不歸零，綠點移到斷掉的地方（TraceFx 的 ResumeDot）；
  * - 畫完：數字變彩虹色、跳一下、星星，不靠語言；
- * - 輪到他描 45 秒還沒描完（HELP_MS）：筆帶著把剩下的描完、照樣慶祝（不算自己描好）。
+ * - 輪到他描 45 秒還沒描完（HELP_MS）：筆帶著把剩下的描完、照樣慶祝（不算自己描好）；
+ * - 描到這一筆的 75% 以上就放手（LIFT_FINISH，T-101）：剩下的一小段很快補滿，算他描完。
  */
 export function WritePart({ ctx }: { ctx: PartCtx }) {
   const n = ctx.lesson.n
@@ -277,6 +278,18 @@ export function WritePart({ ctx }: { ctx: PartCtx }) {
     start(next)
   }
 
+  /** 描到大部分就放手（LIFT_FINISH）：剩下的一小段很快補滿，接著跟描到底一樣 */
+  const fillRest = async (t: PathTracker) => {
+    busy.current = true
+    const at = t.progress
+    const end = t.samples.length - 1
+    await tween(220, (f) => setProg(Math.round(at + (end - at) * f)), () => live.current && tracker.current === t)
+    if (!live.current || tracker.current !== t) return
+    t.progress = end
+    busy.current = false
+    void strokeDone()
+  }
+
   const onDown = (p: { x: number; y: number }) => {
     if (!tracker.current || done || busy.current) return
     idle.poke()
@@ -381,6 +394,10 @@ export function WritePart({ ctx }: { ctx: PartCtx }) {
             onDown={onDown}
             onMove={onMove}
             onUp={() => {
+              const t = tracker.current
+              // 描到大部分就放手：剩下的一小段很快補滿，算描完（T-101）
+              if (drawing.current && t && !t.done && t.progress > 0 && !busy.current && t.ratio >= LIFT_FINISH) void fillRest(t)
+              drawing.current = false
               if (!moved.current) ink.current?.fadeLast()
               moved.current = false
             }}
