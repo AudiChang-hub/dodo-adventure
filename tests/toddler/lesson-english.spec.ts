@@ -315,6 +315,120 @@ test.describe('英文字母課', () => {
     }
   })
 
+  // 第六次盲測（2026-11-06）描小 s：他從綠點描過上面的彎、斜下來，停在右下的彎（只剩尾巴往左彎回去那一段），放手。
+  // 描好的部分變藍、綠點停在斷掉的地方，剩下的尾巴只有淡淡的虛線；他說「還是不知道對不對，我不要畫了」，按房子離開。
+  // 要做到：(1) 大寫 S 描到四成放手：看得到「還剩這一段、往這邊」（剩下的跑道有會動的引導、終點有記號）；
+  // (2) 小 s 照盲測那一筆（截圖 1280×800 的座標，換算到描字板）描到右下的彎放手：帶著描完（彩虹、往下走），不用再描尾巴
+  test('描 S、小 s：描到一半看得到還剩哪一段，描到大部分（盲測那一筆）放手就帶著描完', async ({ page }, info) => {
+    test.skip(!want('lesson-english'))
+    test.setTimeout(3 * 60_000)
+    const { k, c } = await setup(page, info, '描小s快完')
+    try {
+      const day = await page.evaluate(() => {
+        const d = new Date()
+        return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+      })
+      // 同一天從描字的第一輪（大寫）接著上，今天的字母是 S
+      await page.evaluate(
+        (day) =>
+          new Promise((res) => {
+            const rq = indexedDB.open('dodo-adventure')
+            rq.onsuccess = () => {
+              const tx = rq.result.transaction('kv', 'readwrite')
+              tx.objectStore('kv').put({ key: 'lesson.english', value: { idx: 0, seq: 'SABCDEFGHIJKLMNOPQRTUVWXYZ', date: day, done: false, good: false, stage: 'trace', round: 0 } })
+              tx.oncomplete = () => res(0)
+            }
+          }),
+        day,
+      )
+      if (!(await enter(k, c))) return
+      if (!(await waitStage(page, 'trace', 20_000))) return void (await c.once('no-trace', '卡死', '沒有從描字接著上', `停在 ${await stageOf(page)}`))
+      const canDraw = () => page.waitForFunction(() => document.querySelector('.en-trace')?.getAttribute('data-accepting') !== 'false' && !document.querySelector('.en-trace[data-demo]'), null, { timeout: 60_000 })
+      await canDraw()
+      await k.wait(400)
+      /** 這一筆（虛線）上 from～to 的點，換成螢幕座標 */
+      const along = (from: number, to: number, n = 12) =>
+        page.evaluate(
+          ({ from, to, n }) => {
+            const boards = [...document.querySelectorAll('.en-trace-board')]
+            const p = boards[boards.length - 1].querySelector<SVGPathElement>('path[stroke-dasharray="3 3"]')!
+            const m = p.getScreenCTM()!
+            const len = p.getTotalLength()
+            return Array.from({ length: n + 1 }, (_, i) => {
+              const q = p.getPointAtLength(len * (from + ((to - from) * i) / n))
+              return new DOMPoint(q.x, q.y).matrixTransform(m)
+            }).map((s) => ({ x: s.x, y: s.y }))
+          },
+          { from, to, n },
+        )
+      const filled = () =>
+        page.evaluate(() => {
+          const boards = [...document.querySelectorAll('.en-trace-board')]
+          const lane = boards[boards.length - 1].querySelector('path[pathLength]')
+          const [a] = (lane?.getAttribute('stroke-dasharray') ?? '0').split(' ').map(Number)
+          return a / Number(lane?.getAttribute('pathLength') ?? 1)
+        })
+      const finished = (ms: number) =>
+        page
+          .waitForFunction(() => !!document.querySelector('.en-trace [data-trace-finished]'), null, { timeout: ms })
+          .then(() => true)
+          .catch(() => false)
+
+      // (1) 大寫 S 描到四成放手：剩下的那一段有引導、終點有記號
+      k.behavior = '大寫 S 描到四成放手'
+      await k.drag(await along(0, 0.4), { stepMs: 16, label: '描大 S 到四成' })
+      await k.wait(900)
+      const guide = await page.evaluate(() => {
+        const b = [...document.querySelectorAll('.en-trace-board')].pop()
+        const rest = b?.querySelector('[data-trace-rest]')
+        const goal = b?.querySelector('[data-trace-goal]')
+        const box = (e: Element | null | undefined) => {
+          const r = e?.getBoundingClientRect()
+          return !!r && r.width > 2 && r.height > 2
+        }
+        return { rest: box(rest), goal: box(goal) }
+      })
+      const half = await filled()
+      if (process.env.TODDLER_SHOTS && info.project.name === 'tab1280') await page.screenshot({ path: `${process.env.TODDLER_SHOTS}/大S描到四成放手.png` })
+      c.outcome('描到四成放手：看得到剩下的那一段（會動的引導）和終點', guide.rest && guide.goal, `填了 ${Math.round(half * 100)}%；引導${guide.rest ? '有' : '沒有'}、終點記號${guide.goal ? '有' : '沒有'}`)
+      if (!(guide.rest && guide.goal)) await c.once('trace-rest', '困惑', '描到一半放手，剩下的那一段只有淡淡的虛線，看不出還要描哪裡、描到哪裡算好', `引導${guide.rest ? '有' : '沒有'}、終點記號${guide.goal ? '有' : '沒有'}`)
+      // 從斷掉的地方接著描完大 S
+      k.behavior = '從斷掉的地方接著描完大 S'
+      await k.drag(await along(Math.max(0, half - 0.02), 1, 16), { stepMs: 16, label: '接著描完大 S' })
+      if (!(await finished(4000))) return void (await c.once('big-s', '卡死', '大 S 接著描到底沒有完成', `填了 ${Math.round((await filled()) * 100)}%`))
+
+      // (2) 小 s：盲測那一筆（1280×800 截圖上的座標，描字板在 (427,105) 寬 426 高 600），換算到這個尺寸的描字板
+      await page.waitForFunction(() => document.querySelector('.en-trace-rounds .is-now')?.textContent?.trim() === 's', null, { timeout: 20_000 })
+      await canDraw()
+      await k.wait(400)
+      const BLIND = [
+        [717, 417],
+        [664, 382],
+        [600, 399],
+        [573, 438],
+        [620, 475],
+        [692, 502],
+        [711, 532],
+      ]
+      const REF = { x: 427, y: 105, w: 426, h: 600 }
+      const box = await page.evaluate(() => {
+        const r = document.querySelector('.en-trace-paper')!.getBoundingClientRect()
+        return { x: r.left, y: r.top, w: r.width, h: r.height }
+      })
+      const pts = BLIND.map(([x, y]) => ({ x: box.x + ((x - REF.x) / REF.w) * box.w, y: box.y + ((y - REF.y) / REF.h) * box.h }))
+      k.behavior = '照盲測那一筆描小 s，描到右下的彎放手'
+      await k.drag(pts, { stepMs: 16, label: '描小 s 到右下的彎（盲測那一筆）' })
+      const lifted = await filled()
+      const ok = await finished(2500)
+      if (process.env.TODDLER_SHOTS && info.project.name === 'tab1280') await page.screenshot({ path: `${process.env.TODDLER_SHOTS}/小s盲測那一筆放手.png` })
+      c.outcome('盲測那一筆（停在右下的彎）放手：帶著描完', ok, `放手時填了 ${Math.round(lifted * 100)}%${ok ? '' : `；2.5 秒後 ${Math.round((await filled()) * 100)}%，還在等他描尾巴`}`)
+      if (!ok) await c.once('trace-almost', '困惑', '描小 s 描到右下的彎放手（只剩尾巴），沒有帶著描完，還要他自己描尾巴', `放手時填了 ${Math.round(lifted * 100)}%`)
+    } finally {
+      await c.flush().catch(() => {})
+      finish(k, c, '描小s快完')
+    }
+  })
+
   test('走完一課：念的時候一直點、示範時搶著畫、點錯、連點答案', async ({ page }, info) => {
     test.skip(!want('lesson-english'))
     test.setTimeout(10 * 60_000)
