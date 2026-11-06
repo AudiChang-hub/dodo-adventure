@@ -7,11 +7,49 @@ import { praiseKey, retryKey, wait } from '../../games/lines'
 import { say, sfx, stopSpeech } from '../../lib/audio'
 import { hasLine } from '../../content/lines'
 import { logAttempt } from '../../lib/record'
+import { pointIn } from '../math/kit'
+import { needsDemo, noteFormat, rotate, type Format } from '../formats'
 import type { QuizResult } from './plan'
 import { wrongKeys, type Opt, type Question } from './quiz-plan'
 
+const FORMAT: Record<Question['kind'], Format> = { big: 'en-big', little: 'en-little', word: 'en-word' }
+
+/** 小小的畫框（找開頭的圖：「S → 一張圖」） */
+function Frame() {
+  return (
+    <svg viewBox="0 0 48 48" aria-hidden="true">
+      <rect x={5} y={7} width={38} height={34} rx={6} fill="#fff" stroke="currentColor" strokeWidth={3.5} />
+      <circle cx={33} cy={17} r={4} fill="currentColor" opacity={0.55} />
+      <path d="M8 37 L19 24 L27 32 L32 27 L40 37 Z" fill="currentColor" opacity={0.55} />
+    </svg>
+  )
+}
+
+/**
+ * 豆豆頭上的泡泡：這一題要找什麼（T-96，聽不懂 Where is big S? 也看得懂）。三種題型樣子固定、分得出來：
+ * 找大寫＝大的 S 是實心、小的 s 只有淡淡的框；找小寫反過來；找開頭的圖＝S 後面一個畫框。泡泡小、不能點，不像選項。
+ */
+function Ask({ q }: { q: Question }) {
+  if (q.kind === 'word')
+    return (
+      <span className="en-ask-in is-word">
+        <b>{q.L}</b>
+        <i aria-hidden="true">→</i>
+        <Frame />
+      </span>
+    )
+  return (
+    <span className={`en-ask-in is-${q.kind}`}>
+      <b className={q.kind === 'big' ? 'on' : ''}>{q.L}</b>
+      <b className={q.kind === 'little' ? 'on' : ''}>{q.L.toLowerCase()}</b>
+    </span>
+  )
+}
+
 /**
  * 選擇（英文課第 4 段）：一題一題問，念完題目才收作答（念的時候點：輕輕一聲，不算）。
+ * 豆豆頭上的泡泡畫出要找的樣子（Ask）。這種題型孩子還不會（../formats.ts）：這一堂的第一題先示範——
+ * Watch me! → 手指泡泡、念題目 → 手點答案 → 選項換位置 → Your turn!（T-96：盲測裡他聽不懂英文題目，等手出來才點對）。
  * 念完題目、開始收作答：每張選項一圈淡黃框、依序輕輕跳一下（輪到你了，靜音也看得出來；點了第一下就收起來）。
  * 答錯：說出點的是什麼、要找的是什麼（That's big B. Find big A!），答案同時亮起來、手指著，點了才往下（一起練，不算答對）。
  * 發呆 15 秒再念一次題目、30 秒手指著答案。
@@ -25,6 +63,17 @@ export function Quiz({ qs, onDone }: { qs: Question[]; onDone: (rs: QuizResult[]
   /** 輪到你了：念完題目、這一題還沒點過（T-84） */
   const [cue, setCue] = useState(false)
   const [bump, setBump] = useState<{ id: string; n: number } | null>(null)
+  /** 選項的順序（示範完轉一格） */
+  const [order, setOrder] = useState<Opt[]>(qs[0].options)
+  /** 示範中：手在泡泡上（ask）或答案上（answer） */
+  const [show, setShow] = useState<'ask' | 'answer' | null>(null)
+  const [press, setPress] = useState(0)
+  const shown = useRef(false)
+  /** 哪幾題要先示範：每種題型的第一題，而且這種題型孩子還不會（上課前就決定好，不會因為流程重跑而變） */
+  const demoAt = useRef(qs.map((x, k) => qs.findIndex((y) => y.kind === x.kind) === k && needsDemo(FORMAT[x.kind])))
+  const layer = useRef<HTMLDivElement | null>(null)
+  const bubble = useRef<HTMLDivElement | null>(null)
+  const tiles = useRef(new Map<string, HTMLElement>())
   const live = useRef(true)
   const busy = useRef(true)
   const tries = useRef(0)
@@ -43,11 +92,39 @@ export function Quiz({ qs, onDone }: { qs: Question[]; onDone: (rs: QuizResult[]
     tries.current = 0
     taps.current = []
     idle.stop()
+    const qk = qs[k]
+    setOrder(qk.options)
+    setShow(null)
+    shown.current = demoAt.current[k]
     await wait(k === 0 ? 300 : 450)
     if (!live.current) return
-    if (k === 0) await say('le.en.play')
+    // 第一題要示範：Watch me! 就是開頭，不再先說 Let's play!（少說一句）
+    if (k === 0 && !shown.current) await say('le.en.play')
     if (!live.current) return
-    await say(qs[k].prompt)
+    if (shown.current) {
+      // 我做：手先指泡泡（要找的樣子），念題目，再去點答案；答案亮起來、念它的音
+      await say('teach.watch.dodo')
+      if (!live.current) return
+      setShow('ask')
+      await say(qk.prompt)
+      if (!live.current) return
+      setShow('answer')
+      await wait(650)
+      if (!live.current) return
+      setPress((p) => p + 1)
+      setState({ [qk.answer]: 'yes' })
+      sfx.pop()
+      await say(qk.yes)
+      await wait(500)
+      if (!live.current) return
+      // 你做：選項換位置（看的是樣子，不是位置），手收起來
+      setShow(null)
+      setState({})
+      setOrder(rotate(qk.options))
+      await wait(600)
+      if (!live.current) return
+      await say('teach.turn.dodo')
+    } else await say(qk.prompt)
     if (!live.current) return
     busy.current = false
     setAccept(true)
@@ -92,6 +169,7 @@ export function Quiz({ qs, onDone }: { qs: Question[]; onDone: (rs: QuizResult[]
     idle.stop()
     const first = tries.current === 0
     results.current.push({ kind: q.kind, first })
+    noteFormat(FORMAT[q.kind], first)
     setState((s) => ({ ...s, [o.id]: 'yes' }))
     sfx.correct()
     void logAttempt({
@@ -99,8 +177,8 @@ export function Quiz({ qs, onDone }: { qs: Question[]; onDone: (rs: QuizResult[]
       game: 'lesson-en',
       itemId: `${q.kind}:${q.answer}`,
       skill: q.skill,
-      // 答錯過（答案已經亮起來、手指著）才點對的：算一起練
-      phase: tries.current >= 1 ? 'guided' : 'quiz',
+      // 答錯過（答案已經亮起來、手指著）才點對的、剛看手示範過的：算一起練
+      phase: tries.current >= 1 || shown.current ? 'guided' : 'quiz',
       level: 1,
       options: q.options.map((x) => x.id),
       answer: q.answer,
@@ -118,23 +196,34 @@ export function Quiz({ qs, onDone }: { qs: Question[]; onDone: (rs: QuizResult[]
     void ask(i + 1)
   }
 
-  const handAt = q.options.findIndex((o) => o.id === q.answer)
+  const handAt = order.findIndex((o) => o.id === q.answer)
+  const at = show === 'ask' ? pointIn(bubble.current, layer.current, 0.5, 0.62) : show === 'answer' ? pointIn(tiles.current.get(q.answer), layer.current) : null
   return (
-    <div className="en-quiz">
+    <div className="en-quiz" ref={layer}>
+      {/* 要找什麼：豆豆頭上的泡泡（每題換 key 輕輕出來一次，不循環） */}
+      <motion.div key={`ask${i}`} ref={bubble} className="en-ask" aria-hidden="true" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4 }}>
+        <Ask q={q} />
+      </motion.div>
       <AnimatePresence initial={false}>
         <motion.div
           key={i}
-          className={`en-options is-${q.kind} n${q.options.length}`}
+          className={`en-options is-${q.kind} n${q.options.length}${show ? ' is-demo' : ''}`}
           data-accepting={accept ? undefined : 'false'}
+          data-dim={show ? 'true' : undefined}
           initial={{ opacity: 0 }}
           animate={{ opacity: 1, transition: { duration: 0.45 } }}
           exit={{ opacity: 0, transition: { duration: 0.3, delay: 0.1 } }}
         >
-          {q.options.map((o, k) => (
-            <button
+          {order.map((o, k) => (
+            <motion.button
               key={o.id}
+              layout
+              transition={{ layout: { duration: 0.5, ease: [0.22, 1, 0.36, 1] } }}
+              ref={(el: HTMLButtonElement | null) => {
+                if (el) tiles.current.set(o.id, el)
+              }}
               type="button"
-              className={`en-opt${state[o.id] === 'yes' ? ' is-yes' : state[o.id] === 'no' ? ' is-no' : ''}${hint && o.id === q.answer ? ' is-hint' : ''}${cue ? ' is-cue turn-hop' : ''}`}
+              className={`en-opt${show && o.id === q.answer ? ' is-shown' : ''}${state[o.id] === 'yes' ? ' is-yes' : state[o.id] === 'no' ? ' is-no' : ''}${hint && o.id === q.answer ? ' is-hint' : ''}${cue ? ' is-cue turn-hop' : ''}`}
               style={{ '--turn-i': k } as CSSProperties}
               aria-label={o.text ?? o.id}
               onClick={() => void choose(o)}
@@ -147,10 +236,11 @@ export function Quiz({ qs, onDone }: { qs: Question[]; onDone: (rs: QuizResult[]
                   <Hand x={58} y={58} tap={1} size="38%" cuff="#BFE0CC" />
                 </span>
               )}
-            </button>
+            </motion.button>
           ))}
         </motion.div>
       </AnimatePresence>
+      <AnimatePresence>{at && <Hand key="demo" x={at.x} y={at.y} tap={press} size="min(110px, 13vmin)" cuff="#BFE0CC" />}</AnimatePresence>
     </div>
   )
 }
