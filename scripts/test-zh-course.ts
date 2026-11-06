@@ -6,7 +6,7 @@ import { LEGACY, RUNS_PER_TEXT, applyPick, current, finishRun, migrate, nextDay,
 import { readFileSync, readdirSync, statSync } from 'node:fs'
 import { join } from 'node:path'
 import { gapOf } from '../src/lessons/chinese/cloze'
-import { ZH_TEXTS, talkOf } from '../src/lessons/chinese/data'
+import { ZH_TEXTS, plain, talkFor, talkOf } from '../src/lessons/chinese/data'
 
 const D = (i: number) => {
   const d = new Date(Date.UTC(2026, 10, 3 + i))
@@ -158,17 +158,32 @@ function main() {
       }
     console.log(`ok 8 第 2 次：每行最後一個紅字框起來提示大人停一下；180 篇共 ${gaps} 行`)
   }
-  // ── 聊一聊（對話式共讀）：parentTip 的問句放大 ─────────────
+  // ── 聊一聊（對話式共讀，T-102）：3 歲問得出來的一題，答不出來時大人示範 ─────────────
   {
+    // 舊的陪讀小字：問句拿掉，剩下的（動一動、生活延伸）當「還可以」
     assert.deepEqual(talkOf('「兔子跑得比較快，為什麼烏龜先到？」讓孩子學烏龜在地上慢慢爬。'), { questions: ['兔子跑得比較快，為什麼烏龜先到？'], rest: '讓孩子學烏龜在地上慢慢爬。' })
-    assert.deepEqual(talkOf('第二次念時，讓孩子接「吹倒了／吹不倒」；問「哪一間房子最堅固？」').questions, ['哪一間房子最堅固？'], '「吹倒了／吹不倒」不是問句')
-    assert.deepEqual(talkOf('一起找家裡哪裡紅紅的。'), { questions: [], rest: '一起找家裡哪裡紅紅的。' }, '沒有問句：整句放大')
-    const withQ = ZH_TEXTS.filter((t) => talkOf(t.parentTip).questions.length).length
+    assert.deepEqual(talkOf('一起找家裡哪裡紅紅的。'), { questions: [], rest: '一起找家裡哪裡紅紅的。' })
+    // 全球幼教指引 ZH-1、ZH-3：3 歲回答「誰、什麼、哪裡」，說得出或指得出誰做了什麼；「為什麼」是 4 歲的目標
+    const BAN = ['為什麼', '怎麼', '如果', '覺得', '會不會', '要不要', '喜不喜歡', '還是']
+    let pics = 0
     for (const t of ZH_TEXTS) {
-      const k = talkOf(t.parentTip)
-      assert.ok(k.questions.length || k.rest, `〈${t.title}〉聊一聊是空的`)
+      const k = talkFor(t)
+      const where = `第 ${t.day} 篇〈${t.title}〉`
+      assert.ok(k && k.q && k.a, `${where}沒有聊一聊`)
+      assert.ok(!BAN.some((b) => k.q.includes(b)), `${where}「${k.q}」：3 歲不問為什麼、怎麼、如果……`)
+      assert.ok(/誰|什麼|哪/.test(k.q), `${where}「${k.q}」：用誰、什麼、哪裡問`)
+      assert.ok([...k.q].length <= 12 && k.q.endsWith('？'), `${where}「${k.q}」：≤ 12 字、問號結尾`)
+      assert.ok([...k.a].length <= 16 && /[。！]$/.test(k.a), `${where}「${k.a}」：示範的回答 ≤ 16 字、一句`)
+      // 答案在課文裡（回想，不是推理）：示範回答裡至少有兩個字連著出現在課文
+      const text = t.lines.map(plain).join('')
+      const core = k.a.replace(/[是！。，、「」：]/g, '')
+      assert.ok([...Array(Math.max(0, core.length - 1)).keys()].some((i) => text.includes(core.slice(i, i + 2))), `${where}「${k.a}」：答案要在課文裡`)
+      if (k.pic) {
+        pics++
+        assert.ok(t.redWords.includes(k.pic) && t.emoji[k.pic], `${where}圖「${k.pic}」要是有圖的紅字`)
+      }
     }
-    console.log(`ok 9 聊一聊：180 篇都有內容，${withQ} 篇有明確的問句放大給大人問`)
+    console.log(`ok 9 聊一聊：180 篇都是誰、什麼、哪裡的問法（沒有為什麼），答案在課文裡、有大人示範的回答；${pics} 篇有圖可以指`)
   }
   // ── 中文課文不出聲（2026-11-03）：沒有程式會去要中文課文、中文數數的音檔；中文課裡不說話、不用平板內建語音 ─────────────
   // （英文單字三明治的中文 audio/zh/ 家長要保留，不在這裡擋）

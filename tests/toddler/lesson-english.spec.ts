@@ -195,6 +195,63 @@ async function remember(page: Page) {
 }
 
 test.describe('英文字母課', () => {
+  // T-101（第三次盲測：描 S 描到下面那個彎就以為描完了，畫面一直停在 Your turn!）：
+  // 跟 AI 小男生一樣快速一筆，點很少（折線、彎的地方切過去），描到大約八成就放手 → 要看到完成效果、自己往下一輪
+  test('描字：快速一筆描到八成就放手 → 完成效果、往下一輪', async ({ page }, info) => {
+    test.skip(!want('lesson-english'))
+    test.setTimeout(3 * 60_000)
+    const { k, c } = await setup(page, info, '一筆描到八成')
+    try {
+      const day = await page.evaluate(() => {
+        const d = new Date()
+        return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+      })
+      // 同一天從描字接著上（T-95），今天的字母是 S（最長的一筆）
+      await page.evaluate(
+        (day) =>
+          new Promise((res) => {
+            const rq = indexedDB.open('dodo-adventure')
+            rq.onsuccess = () => {
+              const tx = rq.result.transaction('kv', 'readwrite')
+              tx.objectStore('kv').put({ key: 'lesson.english', value: { idx: 0, seq: 'SABCDEFGHIJKLMNOPQRTUVWXYZ', date: day, done: false, good: false, stage: 'trace', round: 0 } })
+              tx.oncomplete = () => res(0)
+            }
+          }),
+        day,
+      )
+      if (!(await enter(k, c))) return
+      if (!(await waitStage(page, 'trace', 20_000))) return void (await c.once('no-trace', '卡死', '沒有從描字接著上', `停在 ${await stageOf(page)}`))
+      await page.waitForFunction(() => document.querySelector('.en-trace')?.getAttribute('data-accepting') !== 'false', null, { timeout: 60_000 })
+      await k.wait(400)
+      const pts = await page.evaluate(() => {
+        const boards = [...document.querySelectorAll('.en-trace-board')]
+        const p = boards[boards.length - 1].querySelector<SVGPathElement>('path[stroke-dasharray="3 3"]')!
+        const m = p.getScreenCTM()!
+        const len = p.getTotalLength()
+        // 九個點，到全長的 80%
+        return Array.from({ length: 9 }, (_, i) => {
+          const q = p.getPointAtLength(len * 0.8 * (i / 8))
+          const s = new DOMPoint(q.x, q.y).matrixTransform(m)
+          return { x: s.x, y: s.y }
+        })
+      })
+      k.behavior = '快速一筆描到八成就放手'
+      await k.drag(pts, { stepMs: 10, label: '描 S（到八成）' })
+      const fx = await page.waitForSelector('[data-trace-finished]', { state: 'attached', timeout: 3000 }).catch(() => null)
+      c.outcome('放手後出現完成效果（彩虹、跳一下）', !!fx, fx ? '' : '沒有出現，還在等他描')
+      if (!fx) await c.once('no-finish', '卡死', '描到八成放手，畫面一直停在 Your turn!（沒有完成效果、不往下走）', '')
+      const next = await page
+        .waitForFunction(() => document.querySelectorAll('.en-trace-rounds .is-done').length >= 1, null, { timeout: 6000 })
+        .then(() => true)
+        .catch(() => false)
+      c.outcome('自己往下一輪（小寫）', next, next ? '' : '沒有往下走')
+      if (fx && !next) await c.once('no-next', '卡死', '完成效果之後沒有往下一輪', '')
+    } finally {
+      await c.flush().catch(() => {})
+      finish(k, c, '一筆描到八成')
+    }
+  })
+
   test('走完一課：念的時候一直點、示範時搶著畫、點錯、連點答案', async ({ page }, info) => {
     test.skip(!want('lesson-english'))
     test.setTimeout(10 * 60_000)

@@ -174,7 +174,17 @@ async function readAll(k: Toddler, c: Checker) {
   const s = await waitFor(k, (s) => s.talk || s.quiz || s.cheer, 6000)
   c.outcome('大人按「下一行」念到最後 → 聊一聊', !!s?.talk || !!s?.quiz, s ? (s.talk ? '出現聊一聊' : '到選圖') : '沒有念完')
   if (!s) return void (await c.once('read-stuck', '卡死', '大人一直按「下一行」，課文念不完', ''))
-  if (s.talk) await adult(k, '.zh-talk .zh-go', '去選圖（大人）')
+  if (s.talk) {
+    // 聊一聊剛出來：孩子點大人按鈕的位置（右下角）、點卡片，都不會跳過這一段（「去選圖」4 秒後才出現，T-102）
+    const corner = (await points(k.page, '.zh-controls'))[0]
+    if (corner) await k.spam(corner, 3, '聊一聊時點右下角（孩子）')
+    await k.wait(400)
+    const still = await state(k.page)
+    c.outcome('聊一聊剛出來時孩子亂點，不會跳過', still.talk && !still.quiz, still.talk ? '還在聊一聊' : '被跳過了')
+    if (!still.talk) await c.once('talk-skip', '困惑', '聊一聊剛出來，孩子點右下角就跳過了', '')
+    for (let i = 0; i < 20 && !(await points(k.page, '.zh-controls.on .zh-go-quiz')).length; i++) await k.wait(400)
+    await adult(k, '.zh-controls.on .zh-go-quiz', '去選圖（大人）')
+  }
   return true
 }
 

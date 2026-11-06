@@ -386,13 +386,14 @@ async function mom(): Promise<string> {
   const st = await page.evaluate(() => {
     const root = [...document.querySelectorAll<HTMLElement>('.scene')].filter((e) => !e.inert).pop() ?? document
     const pt: Record<string, { x: number; y: number } | null> = {}
-    for (const [k, sel] of [['intro', '.zh-intro .zh-go'], ['talk', '.zh-talk .zh-go'], ['next', '.zh-controls.on .zh-next']]) {
+    for (const [k, sel] of [['intro', '.zh-intro .zh-go'], ['talk', '.zh-controls.on .zh-go-quiz'], ['next', '.zh-controls.on .zh-next:not(.zh-go-quiz)']]) {
       const r = root.querySelector<HTMLElement>(sel)?.getBoundingClientRect()
       pt[k] = r && r.width && r.height ? { x: r.left + r.width / 2, y: r.top + r.height / 2 } : null
     }
     const read = root.querySelector<HTMLElement>('.zh-read')
     return {
       intro: pt.intro,
+      card: !!root.querySelector('.zh-talk'),
       talk: pt.talk,
       talkQ: [...root.querySelectorAll('.zh-talk-q')].map((e) => e.textContent ?? '').join(''),
       next: pt.next,
@@ -410,11 +411,13 @@ async function mom(): Promise<string> {
     await click(st.intro)
     return '媽媽看完大人的說明，說：「我念故事給你聽喔！」'
   }
-  if (st.talk) {
+  if (st.card) {
     if (!momDone.has(`talk:${st.talkQ}`)) {
       momDone.add(`talk:${st.talkQ}`)
       return `媽媽問你：「${st.talkQ}」，然後看著你等你回答。`
     }
+    // 「去選圖」聊一聊出來 4 秒後才出現在右下角
+    if (!st.talk) return ''
     await click(st.talk)
     return '媽媽說：「我們來選圖！」按了「去選圖」。'
   }

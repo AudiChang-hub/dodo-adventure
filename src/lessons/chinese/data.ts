@@ -1,6 +1,7 @@
 // 中文課文的資料：180 篇課文（texts.json，家長審過，從 docs/中文課文/課文.json 複製進來）、選圖題、聊一聊的問題。
 // 只放資料和規則，畫面在 ./Lesson.tsx。2026-11-03 起中文課是親子共讀：App 不出聲，沒有任何中文音檔。
 import TEXTS from './texts.json'
+import TALK from './talk.json'
 
 export interface ZhText {
   day: number
@@ -111,8 +112,22 @@ export function storyQuestionsOf(_t: ZhText): ZhQuestion[] {
 export const questionText = (w: string) => `哪個是${w}？`
 
 /**
- * 聊一聊（對話式共讀）：parentTip 裡「」括起來的問句放大給大人問，其他的（動一動、生活延伸）小字放在下面。
- * 沒有問句的篇（例如「一起找家裡哪裡紅紅的」）整句放大。
+ * 聊一聊的題目（T-102，第三次盲測：「為什麼烏龜先到？」3 歲答不出來）：照全球幼教指引 ZH-1、ZH-3，3 歲問「誰、什麼、哪裡、在做什麼」，
+ * 答案直接在課文裡（說得出或指得出誰做了什麼）；「為什麼」是 4 歲的目標。每篇一題（./talk.json，照課文寫，scripts/test-zh-course.ts 檢查）：
+ * - q：大人問的那一句；a：他答不出來時，大人示範的完整回答（3 歲大人的角色是示範者）；
+ * - pic：問題的主角有圖的話是那個紅字詞，卡片上放那張圖，孩子可以用指的回答。
+ */
+export interface ZhTalk {
+  q: string
+  a: string
+  pic: string | null
+}
+const TALKS = TALK as unknown as Record<string, ZhTalk>
+export const talkFor = (t: ZhText): ZhTalk => TALKS[String(t.day)]
+
+/**
+ * 舊的陪讀小字（parentTip）裡「」括起來的問句（多半是「為什麼」，3 歲太難，T-102 換成 talkFor）；rest 是其他的（動一動、生活延伸），
+ * 聊一聊卡片下面當「還可以」的小字。沒有問句的篇（例如「一起找家裡哪裡紅紅的」）整句是 rest。
  */
 export function talkOf(tip: string): { questions: string[]; rest: string } {
   const questions = [...tip.matchAll(/「([^」]*[？?])」/g)].map((m) => m[1])

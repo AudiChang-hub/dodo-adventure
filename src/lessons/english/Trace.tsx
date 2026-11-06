@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type CSSProperties } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
 import { Ink, type InkHandle } from '../../games/draw/Ink'
-import { HELP_MS, PathTracker, PX_PER_MM, SNAP_MM, samplePath, type P2 } from '../../games/draw/track'
+import { HELP_MS, LIFT_FINISH, PathTracker, PX_PER_MM, SNAP_MM, samplePath, type P2 } from '../../games/draw/track'
 import { RainbowDef, ResumeDot } from '../../games/draw/TraceFx'
 import { HandArt, PenArt, easeInOut, tween } from '../../games/Demo'
 import { Sparkles } from '../../ui/Sparkles'
@@ -61,7 +61,8 @@ function strokeStart(d: string) {
  *   - 下一筆的起點有一圈光往外擴，看得出要從哪裡開始；
  *   - 10 秒沒動：筆從現在描到的地方往後描一次（不出墨、不說話）；再 15 秒說一次「從綠點開始」；
  *   - 畫完：字變彩虹色、跳一下、星星（TraceFx 的 RainbowDef），不靠語言就看得出「好了」，然後自己往下走；
- *   - 輪到他描 45 秒還沒描完（HELP_MS）：筆帶著把剩下的描完、照樣慶祝（不算自己描好）。
+ *   - 輪到他描 45 秒還沒描完（HELP_MS）：筆帶著把剩下的描完、照樣慶祝（不算自己描好）；
+ *   - 描到這一筆的 75% 以上就放手（LIFT_FINISH，T-101）：剩下的一小段很快補滿，算他描完（照常慶祝、往下走）。
  * from：同一天回來接著上時，從第幾輪開始（大寫描過了就只描小寫）；onRound 每一輪開始時告訴外面（記下接續點）。
  */
 export function Trace({ letter, from = 0, onRound, onDone }: { letter: LessonLetter; from?: number; onRound?: (round: number) => void; onDone: (good: number) => void }) {
@@ -341,10 +342,25 @@ export function Trace({ letter, from = 0, onRound, onDone }: { letter: LessonLet
       cheer('d.glyph.back')
     }
   }
+  /** 描到大部分就放手（LIFT_FINISH）：剩下的一小段很快補滿，接著跟描到底一樣 */
+  const fillRest = async (t: PathTracker) => {
+    busy.current = true
+    const at = t.progress
+    const end = t.samples.length - 1
+    await tween(220, (f) => setProg(Math.round(at + (end - at) * f)), () => live.current && tracker.current === t)
+    if (!live.current || tracker.current !== t) return
+    t.progress = end
+    busy.current = false
+    void strokeDone()
+  }
+
   const onUp = () => {
     const t = tracker.current
-    // 描到一半放手：圓點在停下來的地方彈一下（之後綠點一直在那裡閃，ResumeDot），不說話
-    if (drawing.current && t && !t.done && t.progress > 0 && !busy.current) bump()
+    if (drawing.current && t && !t.done && t.progress > 0 && !busy.current) {
+      // 描到大部分就放手：算描完（T-101）；描到一半放手：圓點在停下來的地方彈一下（之後綠點一直在那裡閃，ResumeDot），不說話
+      if (t.ratio >= LIFT_FINISH) void fillRest(t)
+      else bump()
+    }
     drawing.current = false
     if (!moved.current) ink.current?.fadeLast()
     moved.current = false

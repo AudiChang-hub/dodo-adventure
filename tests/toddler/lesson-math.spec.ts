@@ -232,6 +232,42 @@ async function halfThenAgain(k: Toddler, how: 'restart' | 'continue', sel: { boa
 
 test.describe('數學課', () => {
 
+  // T-99（盲測三次都碰到）：下課畫面剛出來時，左上角的房子還看得到，點下去卻沒反應。
+  // 同一天停在最後一段（小複習），只教過 1 的那一天沒有小複習：開場說完就直接下課，很快就走到下課畫面。
+  for (const sticker of [false, true]) {
+    test(`下課畫面一出現就點左上角的房子 → 回首頁（${sticker ? '有' : '沒有'}貼紙）`, async ({ page }, info) => {
+      test.skip(!want())
+      test.setTimeout(2 * 60_000)
+      const { k, c } = await setup(page, info, `下課點左上角-${sticker ? '貼紙' : '沒貼紙'}`, sticker)
+      try {
+        const day = await page.evaluate(() => {
+          const d = new Date()
+          return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+        })
+        await setMath(page, { next: 2, firm: false, day, n: 1, mode: 'new', part: 4, asked: 0, missed: 0 })
+        k.behavior = '進數學課'
+        if (!(await enter(k, c))) return
+        const end = await page.waitForSelector('.cheer-scrim', { timeout: 20_000 }).catch(() => null)
+        c.outcome('走到下課畫面', !!end, end ? ((await stickerUp(page)) ? '挑貼紙' : '沒有貼紙的下課') : '沒有走到下課')
+        if (!end) return void (await c.once('end', '卡死', '開場說完沒有下課', `停在 ${await partNow(page)}`))
+        // 一出現就點左上角：返回鍵原本的位置（Shell 的 stage-top、英文課的 en-back 都在這裡）
+        k.behavior = '下課畫面一出現就點左上角的房子'
+        const corner = await page.evaluate(() => {
+          const hits = document.elementsFromPoint(72, 64)
+          const top = hits[0] as HTMLElement | undefined
+          return { top: top?.closest('[data-back]') ? 'back' : (top?.className?.toString() ?? '') }
+        })
+        await k.tap({ x: 72, y: 64, nav: true }, '左上角的房子')
+        const home = await waitLive(page, (l) => l === 'home', 4000)
+        c.outcome('點左上角 → 首頁', home === 'home', `到 ${home}（最上面的是 ${corner.top}）`)
+        if (home !== 'home') await c.once('end-corner', '無法返回', '下課畫面左上角的房子看得到卻點不動', `停在 ${home}，左上角最上面是 ${corner.top}`)
+      } finally {
+        await c.flush().catch(() => {})
+        finish(k, c, `下課點左上角-${sticker ? '貼紙' : '沒貼紙'}`)
+      }
+    })
+  }
+
   test('上完一堂：連點門、亂點、連點、示範時搶著點和畫', async ({ page }, info) => {
     test.skip(!want())
     test.setTimeout(12 * 60_000)

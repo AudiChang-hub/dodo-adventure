@@ -315,11 +315,41 @@
   letter-spacing: 0.1em;
   color: var(--ink-soft);
 }
+.zh-talk-main {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 2.4cqw;
+}
 .zh-talk-q {
   margin: 0;
-  font: 400 min(6.4cqh, 3.4cqw) / 1.35 'Huninn', sans-serif;
+  font: 400 min(7cqh, 3.8cqw) / 1.35 'Huninn', sans-serif;
   letter-spacing: 0.04em;
   color: #2f5f8c;
+}
+/* 問題的主角：孩子可以用指的回答（T-102） */
+.zh-talk-pic {
+  flex: none;
+  width: min(18cqh, 13cqw);
+  aspect-ratio: 1;
+  /* padding 的百分比是照外面的卡片寬度算，不是照圖：用圖的寬度算 */
+  padding: calc(min(18cqh, 13cqw) * 0.1);
+  border: 0;
+  border-radius: 26%;
+  background: #fff;
+  box-shadow: 0 5px 0 rgba(46, 42, 37, 0.08);
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+/* 大人示範的回答：比問題小、比說明大 */
+.zh-talk-model {
+  margin: 0;
+  font: 400 min(4.2cqh, 2.4cqw) / 1.45 'Huninn', sans-serif;
+  color: var(--ink);
+}
+.zh-talk-model .zh-talk-how {
+  display: block;
+  font-family: inherit;
 }
 .zh-talk-more,
 .zh-talk-how {
@@ -510,6 +540,13 @@
   }
   .zh-talk-q {
     font-size: min(3.4cqh, 6.4cqw);
+  }
+  .zh-talk-model {
+    font-size: 17px;
+  }
+  .zh-talk-pic {
+    width: 22cqw;
+    padding: 2.2cqw;
   }
   .zh-intro-wrap {
     inset: 0 3cqw 26cqh 3cqw;

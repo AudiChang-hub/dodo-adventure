@@ -8,6 +8,8 @@ import { LESSONS } from '.'
 import type { Subject } from './types'
 import { extensionFor } from './extension'
 import { LessonBye } from './LessonBye'
+import { BackButton } from '../ui/Back'
+import { HomeIcon } from '../games/Shell'
 import { finishRun, startRun } from '../lib/lesson-log'
 import '../ui/celebrate.css'
 import '../games/coplay.css'
@@ -21,6 +23,8 @@ import './lessons.css'
  * 每一堂記開始、上完（lib/lesson-log.ts），家長區的下一步準備度算中途離開用。
  * 下課畫面按返回（Android 的返回手勢）也回首頁；挑貼紙時按返回，貼紙留著下次有貼紙時再挑（StickerPicker 的「等一下再選」一樣）。
  * 課自己的返回鍵照路由回上一層（首頁），不用另外處理。
+ * 下課畫面的遮罩蓋住課自己左上角的房子（看起來變淡、點不到，AI 小男生盲測三次都碰到，T-99）：
+ * 遮罩上同一個位置再放一顆房子，一出現就點得動（準則 NAV-1、NAV-7：看得到的返回鍵一定點得動、永遠在最上層）。
  */
 export function LessonScreen({ subject }: { subject: Subject }) {
   const { Lesson, host } = LESSONS[subject]
@@ -57,6 +61,12 @@ export function LessonScreen({ subject }: { subject: Subject }) {
         {end && (
           <motion.div key="end" className="cheer-scrim" variants={overlay} initial="initial" animate="enter">
             {end === 'pick' ? <StickerPicker onDone={home} /> : <LessonBye host={host} onDone={home} />}
+            {/* 左上角的房子：跟課裡的返回鍵同一個位置；挑貼紙時點它跟按返回一樣，貼紙留著下次再挑 */}
+            <div className={`lesson-end-back${subject === 'english' ? ' is-en' : ''}`}>
+              <BackButton label="回首頁" onTap={home}>
+                <HomeIcon />
+              </BackButton>
+            </div>
             {next && (
               // 給大人看的一句：跟陪玩小字同一個位置、同一種樣子（孩子不識字，不搶眼、不接收點擊）
               <p className="coplay-hint lesson-next" aria-hidden="true">
