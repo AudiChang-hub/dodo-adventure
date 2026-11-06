@@ -326,6 +326,81 @@
   inset: 0;
   pointer-events: none;
 }
+/* 示範中（我做，PHASE-1）：作答區淡一點，只有手要點的那一張是全亮的 */
+.en-options.is-demo .en-opt:not(.is-shown) {
+  opacity: 0.5;
+}
+
+/* 要找什麼（T-96）：豆豆頭上的對話泡泡，小、虛線、尾巴指著豆豆、不能點（不像選項） */
+.en-ask {
+  position: absolute;
+  left: 0;
+  top: 14%;
+  width: min(13vw, 170px);
+  aspect-ratio: 1;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--card) 90%, transparent);
+  border: 3px dashed color-mix(in srgb, var(--en-deep) 80%, transparent);
+  pointer-events: none;
+  z-index: 2;
+}
+.en-ask::after {
+  content: '';
+  position: absolute;
+  left: 22%;
+  bottom: -12%;
+  width: 15%;
+  aspect-ratio: 1;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--card) 90%, transparent);
+  border: 3px dashed color-mix(in srgb, var(--en-deep) 80%, transparent);
+}
+.en-ask-in {
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  gap: 6%;
+  width: 78%;
+  color: var(--en-ink);
+  font-family: 'Fredoka', sans-serif;
+  font-weight: 600;
+  line-height: 0.9;
+}
+/* 大的、小的：要找的那個實心，另一個只有淡淡的外框 */
+.en-ask-in b {
+  color: transparent;
+  -webkit-text-stroke: 2.5px color-mix(in srgb, var(--en-ink) 50%, transparent);
+}
+.en-ask-in b:first-child {
+  font-size: min(6.4vw, 84px);
+}
+.en-ask-in b:last-child {
+  font-size: min(3.4vw, 44px);
+}
+.en-ask-in b.on {
+  color: var(--en-ink);
+  -webkit-text-stroke: 0;
+}
+/* 找開頭的圖：S → 畫框 */
+.en-ask-in.is-word {
+  align-items: center;
+}
+.en-ask-in.is-word b {
+  font-size: min(4.6vw, 60px);
+  color: var(--en-ink);
+  -webkit-text-stroke: 0;
+}
+.en-ask-in.is-word i {
+  font: 600 min(2.4vw, 30px) / 1 'Fredoka', sans-serif;
+  font-style: normal;
+  opacity: 0.6;
+}
+.en-ask-in.is-word svg {
+  width: 40%;
+  height: auto;
+}
 
 /* ── 上完 ────────────────────────────────────────────────── */
 .en-end {
@@ -400,6 +475,12 @@
   }
   .en-options {
     inset: 0;
+  }
+  .en-ask {
+    top: auto;
+    bottom: 2%;
+    left: 24vw;
+    width: 18vw;
   }
   .en-meet {
     flex-direction: column;

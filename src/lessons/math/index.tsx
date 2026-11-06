@@ -11,6 +11,7 @@ import { leaveLesson } from '../LessonScreen'
 import type { LessonProps } from '../types'
 import { REVIEW_FROM, openLesson, partDone, PARTS, type Lesson } from './plan'
 import { Fade, useLive, type PartCtx } from './kit'
+import { loadFormats } from '../formats'
 import { CountPart } from './Count'
 import { GivePart } from './Give'
 import { ComparePart } from './Compare'
@@ -60,7 +61,7 @@ export function MathLesson({ onDone }: LessonProps) {
   const live = useLive()
 
   useEffect(() => {
-    void openLesson().then((l) => live.current && setLesson(l))
+    void Promise.all([openLesson(), loadFormats()]).then(([l]) => live.current && setLesson(l))
     return () => stopSpeech()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])

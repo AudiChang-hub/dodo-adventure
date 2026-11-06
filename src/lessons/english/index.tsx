@@ -15,6 +15,7 @@ import { Trace } from './Trace'
 import { Words } from './Words'
 import { Quiz } from './Quiz'
 import { makeQuiz, type Question } from './quiz-plan'
+import { loadFormats } from '../formats'
 import '../../games/coplay.css'
 import './english.css'
 
@@ -57,7 +58,7 @@ export function EnglishLesson({ onDone }: LessonProps) {
 
   useEffect(() => {
     live.current = true
-    void loadProgress().then(async (p) => {
+    void Promise.all([loadProgress(), loadFormats()]).then(async ([p]) => {
       const pl = planFor(p)
       qs.current = makeQuiz(lessonLetter(pl.idx, pl.seq), pl.idx, pl.seq)
       await markStarted(pl)
