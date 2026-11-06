@@ -58,6 +58,16 @@ export function TeachCard({ spec, short, onDone, camera }: Props) {
   const idle = useIdle()
   const busy = useRef(false)
   const [nudge, setNudge] = useState(false)
+  /** 上一下、再上一下點在畫面任何地方的時間（e.timeStamp）：判斷這一下是不是連點裡的一下（PACE.TEACH_TAP_STREAM） */
+  const downs = useRef<[number, number]>([-Infinity, -Infinity])
+  useEffect(() => {
+    const note = (e: PointerEvent) => {
+      downs.current = [downs.current[1], e.timeStamp]
+    }
+    // capture：比卡片自己的 onPointerDown 先記到這一下
+    window.addEventListener('pointerdown', note, { capture: true })
+    return () => window.removeEventListener('pointerdown', note, { capture: true })
+  }, [])
 
   useEffect(() => {
     live.current = true
@@ -89,8 +99,10 @@ export function TeachCard({ spec, short, onDone, camera }: Props) {
   }, [])
 
   const tap = async () => {
-    // 還在念（或「點我」剛出現）：只給一點點回饋，不打斷；念的時候一直在點的孩子，不會一出現就被帶過去
-    if (!ready || performance.now() - readyAt.current < PACE.TEACH_TAP_ARM) {
+    // 還在念（或「點我」剛出現）、或是一直在連點（上一個工作按完還在點同一個位置）：只給一點點回饋，不打斷；
+    // 念的時候一直在點的孩子，不會一出現就被帶過去，停一下再點才算
+    const [prev, now] = downs.current
+    if (!ready || performance.now() - readyAt.current < PACE.TEACH_TAP_ARM || now - prev < PACE.TEACH_TAP_STREAM) {
       setPop((p) => ({ n: p.n + 1, at: duo ? focus : 0 }))
       return
     }
