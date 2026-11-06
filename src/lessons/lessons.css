@@ -74,3 +74,15 @@
     padding-bottom: 140px;
   }
 }
+
+/* 下課畫面左上角的房子（T-99）：疊在遮罩、挑貼紙（z-index 60）、「現在去做」（61）上面，跟課裡的返回鍵同一個位置：
+   數學、中文課是 Shell 的 .stage-top（92px 的鍵在 96px 高、上面 18px 的一排裡置中，ui/ui.css），英文課是 .en-back（english.css） */
+.lesson-end-back {
+  position: fixed;
+  left: 26px;
+  top: 11px;
+  z-index: 62;
+}
+.lesson-end-back.is-en {
+  top: 18px;
+}
