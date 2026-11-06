@@ -4,6 +4,7 @@ import { VisualView } from '../ui/Visual'
 import { Sparkles } from '../ui/Sparkles'
 import { Emoji } from '../art/Emoji'
 import { Hand } from './Demo'
+import { localPoint, useNotYet } from './NotYet'
 import { preload, say, sfx } from '../lib/audio'
 import { BRIDGE_GAP_MS } from '../lib/clip'
 import { isBridge } from '../content/lines'
@@ -60,6 +61,9 @@ export function TeachCard({ spec, short, onDone, camera }: Props) {
   const [nudge, setNudge] = useState(false)
   /** 上一下、再上一下點在畫面任何地方的時間（e.timeStamp）：判斷這一下是不是連點裡的一下（PACE.TEACH_TAP_STREAM） */
   const downs = useRef<[number, number]>([-Infinity, -Infinity])
+  /** 念的時候被點了：跟全 App 一樣的「看這裡、等一下」圈圈，示範的手點一下頭（games/NotYet，準則 TOUCH-6、PHASE-2） */
+  const notYet = useNotYet()
+  const layer = useRef<HTMLDivElement>(null)
   useEffect(() => {
     const note = (e: PointerEvent) => {
       downs.current = [downs.current[1], e.timeStamp]
@@ -98,12 +102,16 @@ export function TeachCard({ spec, short, onDone, camera }: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  const tap = async () => {
-    // 還在念（或「點我」剛出現）、或是一直在連點（上一個工作按完還在點同一個位置）：只給一點點回饋，不打斷；
-    // 念的時候一直在點的孩子，不會一出現就被帶過去，停一下再點才算
+  const tap = async (e: { clientX: number; clientY: number }) => {
+    // 還在念（或「點我」剛出現）、或是一直在連點（上一個工作按完還在點同一個位置）：不打斷，只回「等一下、先看」；
+    // 念的時候一直在點的孩子，不會一出現就被帶過去，停一下再點才算。
+    // 以前這裡是被點到的那一邊跳一下：看起來像「點對了」卻什麼都沒發生，盲測三次都說「不知道要幹嘛，好久喔」
     const [prev, now] = downs.current
     if (!ready || performance.now() - readyAt.current < PACE.TEACH_TAP_ARM || now - prev < PACE.TEACH_TAP_STREAM) {
-      setPop((p) => ({ n: p.n + 1, at: duo ? focus : 0 }))
+      if (layer.current) {
+        const p = localPoint(layer.current, e.clientX, e.clientY)
+        notYet.ping(p.x, p.y)
+      }
       return
     }
     if (busy.current) return
@@ -127,7 +135,7 @@ export function TeachCard({ spec, short, onDone, camera }: Props) {
   const fit = fitOf(items)
 
   return (
-    <motion.div className="teach-layer" initial={camera ? false : { opacity: 0 }} animate={{ opacity: 1 }} exit={camera ? undefined : { opacity: 0, transition: { duration: 0.22 } }}>
+    <motion.div ref={layer} className="teach-layer" initial={camera ? false : { opacity: 0 }} animate={{ opacity: 1 }} exit={camera ? undefined : { opacity: 0, transition: { duration: 0.22 } }}>
       <motion.div
         className={`teach-card${duo ? ' duo' : ''}${ready && !tapped ? ' ready' : ''}${nudge && !tapped ? ' nudge' : ''}${spec.side ? ' has-side' : ''}`}
         role="button"
@@ -136,7 +144,8 @@ export function TeachCard({ spec, short, onDone, camera }: Props) {
         animate={{ y: 0 }}
         exit={camera ? undefined : { y: LIFT / 2, transition: { duration: 0.22, ease: EASE.inOut } }}
         transition={enterTx}
-        whileTap={{ scale: 0.97 }}
+        // 念完、等他點的時候才像按鈕一樣壓下去（念的時候點了不像按到東西）
+        whileTap={ready ? { scale: 0.97 } : undefined}
         onPointerDown={tap}
       >
         {!short && (
@@ -162,6 +171,7 @@ export function TeachCard({ spec, short, onDone, camera }: Props) {
                   <VisualView v={v} fit={fit} />
                 </motion.div>
                 {duo && on && step >= 0 && !ready && <Hand x={50} y={88} size="22cqmin" />}
+                {duo && ready && !tapped && i === cueAt && <Hand x={50} y={80} size="14cqmin" beckon />}
                 {/* 題目徽章（比多少、比大小）：念第一句時貼到第一句講的那一邊，之後一直留著——作答時題目上方的就是這一張 */}
                 {spec.cue && i === cueAt && step >= 0 && (
                   <motion.div className="teach-cue" initial={{ y: LIFT, rotate: -6, opacity: 0 }} animate={{ y: 0, rotate: -6, opacity: 1 }} transition={FADE}>
@@ -190,13 +200,15 @@ export function TeachCard({ spec, short, onDone, camera }: Props) {
           </motion.div>
         )}
 
-        {ready && !tapped && <Hand x={duo ? 50 : 62} y={duo ? 80 : 70} size={duo ? '14cqmin' : '13cqmin'} beckon />}
+        {/* 念完、等他點：招手的手。並排的兩邊放在第一句講的那一邊（問的那一邊）：手最後停在問的那一邊（AI 小男生 #5），點了再聽的也是這一邊 */}
+        {ready && !tapped && !duo && <Hand x={62} y={70} size="13cqmin" beckon />}
         {tapped && (
           <div className="teach-burst">
             <Sparkles count={14} />
           </div>
         )}
       </motion.div>
+      {notYet.view}
     </motion.div>
   )
 }

@@ -252,6 +252,69 @@ test.describe('英文字母課', () => {
     }
   })
 
+  // 第五次盲測（2026-11-06）描小 s：他瞄準綠點，手指落在綠點正下方約 15 mm（77 px），照著小 s 的樣子畫了一半，
+  // 灰灰的線畫得出來、跑道卻一點都沒有填，他說「畫不好」就離開。15 mm 在起點吸附範圍（SNAP_MM）裡，應該吸到起點、整筆平移再比對；
+  // 但小 s 很小，按下去的地方離起點附近的跑道還不到「接著描」的範圍，就被當成直接描（沒有平移），之後每一點都偏在跑道外面
+  test('描小 s：手指落在綠點下面一點、照樣子畫 → 吸到起點，跑道有填', async ({ page }, info) => {
+    test.skip(!want('lesson-english'))
+    test.setTimeout(3 * 60_000)
+    const { k, c } = await setup(page, info, '描小s按偏')
+    try {
+      const day = await page.evaluate(() => {
+        const d = new Date()
+        return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+      })
+      // 同一天從描字的第二輪（小寫）接著上，今天的字母是 S
+      await page.evaluate(
+        (day) =>
+          new Promise((res) => {
+            const rq = indexedDB.open('dodo-adventure')
+            rq.onsuccess = () => {
+              const tx = rq.result.transaction('kv', 'readwrite')
+              tx.objectStore('kv').put({ key: 'lesson.english', value: { idx: 0, seq: 'SABCDEFGHIJKLMNOPQRTUVWXYZ', date: day, done: false, good: false, stage: 'trace', round: 1 } })
+              tx.oncomplete = () => res(0)
+            }
+          }),
+        day,
+      )
+      if (!(await enter(k, c))) return
+      if (!(await waitStage(page, 'trace', 20_000))) return void (await c.once('no-trace', '卡死', '沒有從描字接著上', `停在 ${await stageOf(page)}`))
+      await page.waitForFunction(() => document.querySelector('.en-trace')?.getAttribute('data-accepting') !== 'false', null, { timeout: 60_000 })
+      const little = await page.evaluate(() => document.querySelector('.en-trace-rounds .is-now')?.textContent?.trim() ?? null)
+      c.outcome('這一輪是小 s', little === 's', String(little))
+      await k.wait(400)
+      // 小 s 這一筆的前一半（盲測他畫了大約一半就放手），整筆往下平移 15 mm（PX_PER_MM 5.2）
+      const DOWN = 15 * 5.2
+      const pts = await page.evaluate((down) => {
+        const boards = [...document.querySelectorAll('.en-trace-board')]
+        const p = boards[boards.length - 1].querySelector<SVGPathElement>('path[stroke-dasharray="3 3"]')!
+        const m = p.getScreenCTM()!
+        const len = p.getTotalLength()
+        return Array.from({ length: 9 }, (_, i) => {
+          const q = p.getPointAtLength(len * 0.5 * (i / 8))
+          const s = new DOMPoint(q.x, q.y).matrixTransform(m)
+          return { x: s.x, y: s.y + down }
+        })
+      }, DOWN)
+      k.behavior = '瞄準綠點、手指落在下面一點，照小 s 的樣子畫一半'
+      await k.drag(pts, { stepMs: 16, label: '描小 s（按偏 15 mm、畫一半）' })
+      await k.wait(500)
+      // 跑道填了多少：這一筆的彩色跑道是 pathLength 的那一條，stroke-dasharray 的第一個數字是描到哪裡
+      const prog = await page.evaluate(() => {
+        const boards = [...document.querySelectorAll('.en-trace-board')]
+        const lane = boards[boards.length - 1].querySelector('path[pathLength]')
+        const [a] = (lane?.getAttribute('stroke-dasharray') ?? '0').split(' ').map(Number)
+        return { at: a, total: Number(lane?.getAttribute('pathLength') ?? 1) }
+      })
+      const filled = prog.at / prog.total
+      c.outcome('跑道有填（吸到起點、照樣子畫有算）', filled >= 0.25, `填了 ${Math.round(filled * 100)}%`)
+      if (filled < 0.25) await c.once('trace-offset', '困惑', '描小 s 手指落在綠點下面一點、照樣子畫：畫得出灰線，跑道卻沒有填', `填了 ${Math.round(filled * 100)}%`)
+    } finally {
+      await c.flush().catch(() => {})
+      finish(k, c, '描小s按偏')
+    }
+  })
+
   test('走完一課：念的時候一直點、示範時搶著畫、點錯、連點答案', async ({ page }, info) => {
     test.skip(!want('lesson-english'))
     test.setTimeout(10 * 60_000)

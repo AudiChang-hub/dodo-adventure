@@ -3,7 +3,7 @@ import { AnimatePresence, motion } from 'motion/react'
 import { Emoji } from '../../art/Emoji'
 import { Hand } from '../../games/Demo'
 import { WaitShield, firstFinger } from '../../games/NotYet'
-import { praiseKey, wait } from '../../games/lines'
+import { wait } from '../../games/lines'
 import { useIdle } from '../../games/idle'
 import { PACE } from '../../games/pace'
 import { logAttempt, logTeach } from '../../lib/record'
@@ -207,8 +207,10 @@ export function GivePart({ ctx }: { ctx: PartCtx }) {
     ctx.mood('cheer')
     sfx.correct()
     setGlad(true)
-    await say(`m.total.${n}`, 'ma.give.thanks', praiseKey('bobo'))
-    await wait(PACE.NEXT_NEW)
+    // 「There is one! Yum! Thank you!」就是稱讚，不再多一句 Yes!：按完打勾到下一段能動手要快（盲測三次都說「好久喔」）
+    await say(`m.total.${n}`, 'ma.give.thanks')
+    // 道謝念了 4 秒，打勾跳一下、盤子亮起來早就看完了：用短的停頓接下一段（教學卡本身的節奏不動）
+    await wait(PACE.NEXT_REVIEW)
     if (live.current) ctx.done(1, firstTry ? 0 : 1)
   }
 
