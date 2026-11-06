@@ -44,6 +44,15 @@ const CHECKS = [
   { id: 'test-math-plan', name: '單元：數學課出題與熟練', cmd: ['npx', 'tsx', 'scripts/test-math-plan.ts'], check: unit },
   { id: 'test-zh-course', name: '單元：中文課文每篇 3 次、聊一聊、中文課不出聲', cmd: ['npx', 'tsx', 'scripts/test-zh-course.ts'], check: unit },
   {
+    id: 'zh-layout',
+    name: '中文課文排版（180 篇 × 每行亮起來 × 第 1、2 次 × 3 種尺寸，字不被圖蓋住、不超出課本）',
+    cmd: ['node', 'scripts/check-zh-layout.mjs'],
+    check: (s) => {
+      const m = /共 (\d+) 個畫面，排版問題 (\d+) 個/.exec(s)
+      return { ok: !!m && m[2] === '0', key: m ? `${m[1]} 個畫面、問題 ${m[2]} 個` : '沒有結果' }
+    },
+  },
+  {
     id: 'check-zh',
     name: '單字三明治的中文（check-zh：每個教學卡的字都有中文台詞和音檔）',
     cmd: ['npx', 'tsx', 'scripts/check-zh.ts'],
