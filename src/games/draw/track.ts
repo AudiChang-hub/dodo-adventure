@@ -78,12 +78,21 @@ export class PathTracker {
     return false
   }
 
+  /** 按在目前進度附近的跑道上（半條跑道以內，跟 feedOne 算「偏離」的界線一樣） */
+  private onLane(p: P2): boolean {
+    const lo = Math.max(0, this.progress - 4)
+    const hi = Math.min(this.samples.length - 1, this.progress + 6)
+    for (let i = lo; i <= hi; i++) if (dist(p, this.samples[i]) <= this.tol * 0.6) return true
+    return false
+  }
+
   /**
    * 描字的下筆（描字遊戲、英文課描字母、數學課寫數字共用）：
    * - 在目前進度附近 → 'go'：接著描；
    * - 描到一半抬筆，又從起點下筆 → 'again'：進度不歸零（準則 DRAW-2：放開再畫不會重來），沿著描好的部分走回接續點就接著往前；
    * - 描到一半抬筆，在接續點附近（snap 範圍內）下筆 → 'snap'：吸到接續點；
    * - 一筆還沒開始、按在起點附近（snap 範圍內，見 SNAP_MM）→ 'snap'：吸到起點，這一筆的點都平移到起點那邊再比對；
+   *   只要不是按在跑道上，就先吸附、不當成接著描（字小的時候 near() 的範圍會蓋到跑道外面）；
    * - 其他地方 → null：這一下不推進度（線照樣畫得出來，放開後淡掉）。
    * snap 是 0（預設）就沒有吸附，跟以前一樣。
    * 以前只有接著描才算，孩子從綠點重新來過一直描不動，會以為壞掉（L-MA 三歲測試）。
@@ -92,6 +101,14 @@ export class PathTracker {
     this.shift = { x: 0, y: 0 }
     this.lastDev = 0
     this.last = p
+    // 一筆還沒開始、按下去的地方不在跑道上，但在起點的吸附範圍裡：先吸到起點（整筆平移），不要當成直接描。
+    // 第五次盲測描小 s：手指落在綠點正下方 15 mm，小 s 很小，這個距離還在 near() 的範圍裡，被當成直接描、沒有平移，
+    // 他照著樣子畫，每一點都偏在跑道外面，跑道一點都沒填，說「畫不好」就離開了
+    if (snap > 0 && this.progress === 0 && !this.onLane(p) && dist(p, this.samples[0]) < snap) {
+      this.shift = { x: this.samples[0].x - p.x, y: this.samples[0].y - p.y }
+      this.last = this.samples[0]
+      return 'snap'
+    }
     if (this.near(p)) return 'go'
     if (this.progress > 0 && dist(p, this.samples[0]) < this.tol * 1.2) return 'again'
     // 描到一半：接續點附近按下去就吸到接續點（T-95，盲測：孩子不知道斷在哪裡，每次從頭畫）

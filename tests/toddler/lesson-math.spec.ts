@@ -264,7 +264,7 @@ test.describe('數學課', () => {
       await k.tap(ok, '打勾')
       // 按完打勾，在同一個位置一直點（三歲：按了好像就好了，再點點看）
       k.behavior = '打勾後連點同一個位置'
-      // 22 秒：蓋過下一段教學卡念完、變成「等他點」的時間（三句，大約按完打勾後 17 秒）
+      // 22 秒：蓋過下一段教學卡念完、變成「等他點」的時間（兩句，大約按完打勾後 12 秒；以前三句 16 秒）
       const end = Date.now() + 22_000
       while (Date.now() < end) {
         await k.tap(ok, '同一個位置')
@@ -289,6 +289,94 @@ test.describe('數學課', () => {
     } finally {
       await c.flush().catch(() => {})
       finish(k, c, '打勾後連點')
+    }
+  })
+
+  // 第一、四、五次盲測：拿給波波按完打勾，他說「不知道要幹嘛，好久喔」。按完打勾到下一個能動手的時候（比多少教學卡念完、等他點）
+  // 舊版大約 16 秒，中間只能看、聽；他在這段時間點畫面，教學卡只有很小的跳一下，看不出「現在是聽的時候、等一下」。
+  // 按完打勾後每 1.5 秒點一下畫面（不是連點）：要在 13 秒內就能動手（舊版 16.2 秒），而且每一下都有「等一下、先看」的回應（看這裡的圈圈）
+  test('拿給波波：按完打勾很快就能動手，等的時候點畫面看得出要等一下', async ({ page }, info) => {
+    test.skip(!want())
+    test.setTimeout(3 * 60_000)
+    const { k, c } = await setup(page, info, '打勾後多久能動手')
+    try {
+      const day = await page.evaluate(() => {
+        const d = new Date()
+        return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+      })
+      // 同一天從「拿給波波」接著上，今天的數字 1（新的：比多少會先出教學卡），跟盲測一樣
+      await setMath(page, { next: 2, firm: false, day, n: 1, mode: 'new', part: 1, asked: 0, missed: 0 })
+      if (!(await enter(k, c))) return
+      const ready = await page
+        .waitForFunction(() => !!document.querySelector('.ma-give') && !document.querySelector('.ma-give [data-accepting="false"]') && !document.querySelector('[data-demo="1"]'), null, { timeout: 60_000 })
+        .then(() => true)
+        .catch(() => false)
+      if (!ready) return void (await c.once('no-give', '卡死', '沒有走到拿給波波（或一直不能拿）', `停在 ${await partNow(page)}`))
+      await k.wait(500)
+      const at = (sel: string) =>
+        page.evaluate((sel) => {
+          const r = document.querySelector(sel)?.getBoundingClientRect()
+          return r ? { x: r.left + r.width / 2, y: r.top + r.height / 2 } : null
+        }, sel)
+      k.behavior = '拿一個給波波、按打勾'
+      await k.tap((await at('.ma-give-thing'))!, '拿一個')
+      await k.wait(700)
+      const ok = (await at('.ma-give-done'))!
+      const t0 = await page.evaluate(() => performance.now())
+      await k.tap(ok, '打勾')
+      // 能動手了：比多少的教學卡念完、等他點（或已經直接到題目、選項收作答）
+      // 等 1.5 秒（中間一能動手就記下那一刻，用頁面裡的時間）
+      const canAct = () =>
+        page
+          .waitForFunction(
+            () => {
+              const part = [...document.querySelectorAll('[data-lesson-part]')].pop()?.getAttribute('data-lesson-part')
+              const can = !!document.querySelector('.teach-card.ready') || (part === 'compare' && !document.querySelector('.teach-card') && !!document.querySelector('.ma-lesson [data-accepting="true"]'))
+              return can ? performance.now() : false
+            },
+            null,
+            { timeout: 1500, polling: 50 },
+          )
+          .then((h) => h.jsonValue() as Promise<number>)
+          .catch(() => null)
+      k.behavior = '按完打勾，每 1.5 秒點一下畫面'
+      let waited = -1
+      let taps = 0
+      let answered = 0
+      const silent: string[] = []
+      const end = Date.now() + 30_000
+      while (Date.now() < end) {
+        const now = await canAct()
+        if (now) {
+          waited = now - t0
+          if (process.env.TODDLER_SHOTS && info.project.name === 'tab1280') {
+            await k.wait(600)
+            await page.screenshot({ path: `${process.env.TODDLER_SHOTS}/教學卡念完等他點.png` })
+          }
+          break
+        }
+        // 點一下打勾原本的位置（教學卡也會蓋在這裡）：要有「看這裡、等一下」的圈圈
+        const before = await page.evaluate(() => performance.now())
+        await k.tap(ok, '等的時候點一下')
+        taps++
+        const ring = await page
+          .waitForFunction((t) => [...document.querySelectorAll('.not-yet')].length > 0 && performance.now() - t < 900, before, { timeout: 600 })
+          .then(() => true)
+          .catch(() => false)
+        if (ring) answered++
+        if (ring && process.env.TODDLER_SHOTS && info.project.name === 'tab1280' && (await page.evaluate(() => !!document.querySelector('.teach-card'))))
+          await page.screenshot({ path: `${process.env.TODDLER_SHOTS}/教學卡念的時候點-${taps}.png` })
+        if (!ring) silent.push(`${((before - t0) / 1000).toFixed(1)}s ${await page.evaluate(() => (document.querySelector('.teach-card') ? '教學卡' : ([...document.querySelectorAll('[data-lesson-part]')].pop()?.getAttribute('data-lesson-part') ?? '?')))}`)
+      }
+      const heard = await page.evaluate((t) => window.__toddler.voices.filter((v) => v.t >= t && v.text).map((v) => `${((v.t - t) / 1000).toFixed(1)}s ${v.text}`), t0)
+      const secs = waited < 0 ? -1 : Math.round(waited / 100) / 10
+      c.outcome('按完打勾 13 秒內就能動手', secs > 0 && secs <= 13, `${secs < 0 ? '30 秒內都不能動手' : `${secs} 秒`}；聽到：${heard.join('、')}`)
+      if (!(secs > 0 && secs <= 13)) await c.once('give-wait', '困惑', '拿給波波按完打勾，要等很久才能動手', `${secs} 秒；聽到：${heard.join('、')}`)
+      c.outcome('等的時候點畫面，每一下都有「等一下」的圈圈', taps > 0 && answered === taps, `${answered}/${taps}${silent.length ? `；沒有回應：${silent.join('、')}` : ''}`)
+      if (taps > 0 && answered < taps) await c.once('give-silent', '困惑', '按完打勾等的時候點畫面，看不出要等一下（沒有「看這裡」的圈圈）', `${answered}/${taps}；沒有回應：${silent.join('、')}`)
+    } finally {
+      await c.flush().catch(() => {})
+      finish(k, c, '打勾後多久能動手')
     }
   })
 
