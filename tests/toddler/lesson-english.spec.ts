@@ -455,6 +455,63 @@ test.describe('英文字母課', () => {
       finish(k, c, '進度')
     }
   })
+  test('找大 S、小 s：照示範的手剛剛點的位置點下去，要點到對的那張（T-100）', async ({ page }, info) => {
+    test.skip(!want('lesson-english'))
+    test.setTimeout(4 * 60_000)
+    const { k, c } = await setup(page, info, '照示範的位置點')
+    try {
+      // 今天已經上到單字（同一天中途離開又回來）：念完單字就到選擇題，小寫題不會被換成大寫題（只有回到選擇題才退一級）
+      k.behavior = '從單字接著上'
+      await page.evaluate(
+        () =>
+          new Promise<void>((res) => {
+            const d = new Date()
+            const today = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+            const rq = indexedDB.open('dodo-adventure')
+            rq.onsuccess = () => {
+              const tx = rq.result.transaction('kv', 'readwrite')
+              tx.objectStore('kv').put({ key: 'lesson.english', value: { idx: 0, date: today, done: false, good: false, stage: 'words' } })
+              tx.oncomplete = () => res()
+            }
+          }),
+      )
+      if (!(await enter(k, c))) return
+      const toQuiz = await waitStage(page, 'quiz', 60_000)
+      c.outcome('從單字走到選擇題', toQuiz, toQuiz ? '' : `停在 ${await stageOf(page)}`)
+      if (!toQuiz) return void (await c.once('to-quiz', '卡死', '單字念完沒有往下走到選擇', `停在 ${await stageOf(page)}`))
+      // 前兩題（大寫、小寫）是新帳號第一次碰到的題型：手先示範。記下手點的那張卡在畫面上的位置，輪到孩子時照那個位置點
+      for (const kind of ['big', 'little']) {
+        k.behavior = `找${kind === 'big' ? '大寫' : '小寫'}：照手剛剛點的位置點`
+        const shown = await page.waitForSelector(`.en-options.is-${kind} .en-opt.is-yes`, { timeout: 30_000 }).catch(() => null)
+        if (!shown) {
+          c.outcome(`${kind}：手有示範`, false, '沒有看到手點答案')
+          await c.once(`demo-${kind}`, '困惑', `找${kind === 'big' ? '大寫' : '小寫'}的第一題沒有示範`, '')
+          continue
+        }
+        const box = (await shown.boundingBox())!
+        const want = await shown.getAttribute('aria-label')
+        const at = { x: box.x + box.width / 2, y: box.y + box.height / 2 }
+        // 輪到孩子：選項外面一圈淡黃框（念完 Your turn!、開始收作答）
+        await page.waitForSelector(`.en-options.is-${kind}:not([data-accepting="false"]) .en-opt.is-cue`, { timeout: 20_000 })
+        const there = await page.evaluate(({ x, y }) => (document.elementFromPoint(x, y)?.closest('.en-opt') as HTMLElement | null)?.getAttribute('aria-label') ?? null, at)
+        const t0 = await page.evaluate(() => Date.now())
+        k.act(`tap ${Math.round(at.x)},${Math.round(at.y)} 手剛剛點的位置（${there}）`)
+        await page.mouse.click(at.x, at.y)
+        await page.waitForTimeout(400)
+        const row = (await attempts(page)).filter((a) => a.game === 'lesson-en' && a.ts >= t0 - 50).pop()
+        const ok = there === want && !!row?.ok
+        c.outcome(`${kind}：照示範的位置點到對的`, ok, `示範點 ${want}，輪到孩子時那個位置是 ${there}；作答紀錄 ${row ? (row.ok ? '一次就對' : '點錯') : '沒有'}`)
+        if (!ok) await c.once(`moved-${kind}`, '困惑', '示範完選項換了位置：照手剛剛點的地方點，點到的不是答案', `示範 ${want}、那個位置變成 ${there}`)
+        // 等下一題開始
+        await page.waitForSelector(`.en-options.is-${kind} .en-opt.is-yes`, { timeout: 10_000 }).catch(() => null)
+        await page.waitForTimeout(1500)
+      }
+      await c.flush()
+    } finally {
+      finish(k, c, '照示範的位置點')
+    }
+  })
+
   test('描字：描到一半抬筆，再從綠點重描', async ({ page }, info) => {
     test.skip(!want('lesson-english'))
     test.setTimeout(6 * 60_000)

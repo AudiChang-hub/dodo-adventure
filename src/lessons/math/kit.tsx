@@ -7,7 +7,7 @@ import { useIdle } from '../../games/idle'
 import { PACE } from '../../games/pace'
 import { say, sfx } from '../../lib/audio'
 import { useRoute } from '../../lib/nav'
-import { needsDemo, noteFormat, rotate, type Format } from '../formats'
+import { needsDemo, noteFormat, type Format } from '../formats'
 import { DUR, EASE, FADE } from '../../ui/motion'
 import type { Mood } from '../../art/Dino'
 import type { Lesson } from './plan'
@@ -94,7 +94,7 @@ export interface QuizResult {
  * 念完、輪到孩子：每張卡外面一圈淡黃框（看得出「現在可以選了」）。
  * 點錯第一次：說出他選的是什麼、再問一次要找的（spec.wrong），答案外面一圈提示框；第二次：手點一下答案、說出答案，孩子再點對的（不會卡住）。
  * 閒置：15 秒再念一次題目 → 再 15 秒答案亮起來、手點一下（不說話）。
- * 題型還不會（spec.format，../formats.ts）：先示範——Watch me! → 手指泡泡（要找的樣子；How many? 指要數的那一堆）、念題目 → 手點答案、說出答案 → 選項換位置 → Your turn!
+ * 題型還不會（spec.format，../formats.ts）：先示範——Watch me! → 手指泡泡（要找的樣子；How many? 指要數的那一堆）、念題目 → 手點答案、說出答案 → Your turn!（選項不換位置）
  * （T-96：盲測裡題目全是英文，他等到手出來才知道要做什麼）。
  */
 export function Quiz({ spec, host, onDone, showing }: { spec: QuizSpec; host: PartCtx['host']; onDone: (r: QuizResult) => void; showing?: PartCtx['demo'] }) {
@@ -105,8 +105,6 @@ export function Quiz({ spec, host, onDone, showing }: { spec: QuizSpec; host: Pa
   const [cue, setCue] = useState(0)
   /** 輪到孩子選：每張卡外面一圈靜態的淡黃框（AI 小男生測試 #5：輪到他時選項要亮起來），點了第一下就收 */
   const [ready, setReady] = useState(false)
-  /** 選項的順序（示範完轉一格） */
-  const [order, setOrder] = useState(spec.options)
   /** 示範中：手在泡泡（有要數的那一堆就指那一堆）上、或在答案上 */
   const [teach, setTeach] = useState<'ask' | 'answer' | null>(null)
   const [press, setPress] = useState(0)
@@ -142,12 +140,11 @@ export function Quiz({ spec, host, onDone, showing }: { spec: QuizSpec; host: Pa
       await say(...spec.correction)
       await wait(500)
       if (!live.current) return
-      // 你做：選項換位置（看的是樣子，不是位置），手收起來
+      // 你做：手收起來，選項留在原地（T-100：三歲記的是位置，示範完換位置他照手剛剛指的地方點就點錯了）
       setTeach(null)
       setMarks({})
-      setOrder((o) => rotate(o))
       showing?.(false)
-      await wait(600)
+      await wait(400)
       if (!live.current) return
       await say('teach.turn.bobo')
     } else await say(...spec.prompt)
@@ -257,10 +254,9 @@ export function Quiz({ spec, host, onDone, showing }: { spec: QuizSpec; host: Pa
         </div>
       )}
       <div className={`ma-options${spec.wide ? ' wide' : ''}${teach ? ' is-demo' : ''}`} data-dim={teach ? 'true' : undefined}>
-        {order.map((o, i) => (
+        {spec.options.map((o, i) => (
           <motion.button
             key={o.id}
-            layout
             ref={(el: HTMLButtonElement | null) => {
               if (el) tiles.current.set(o.id, el)
             }}
@@ -269,7 +265,7 @@ export function Quiz({ spec, host, onDone, showing }: { spec: QuizSpec; host: Pa
             aria-label={o.label}
             initial={{ y: 24, opacity: 0 }}
             animate={marks[o.id] === 'wrong' ? { x: [0, -10, 10, 0], opacity: 0.45, y: 0 } : { y: 0, opacity: 1 }}
-            transition={marks[o.id] === 'wrong' ? { duration: 0.4 } : { ...FADE, delay: i * 0.06, layout: { duration: 0.5, ease: EASE.out } }}
+            transition={marks[o.id] === 'wrong' ? { duration: 0.4 } : { ...FADE, delay: i * 0.06 }}
             onPointerDown={(e) => firstFinger(e.nativeEvent) && tap(o.id)}
           >
             <div className="tile-in">{o.view}</div>

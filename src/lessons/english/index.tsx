@@ -60,7 +60,8 @@ export function EnglishLesson({ onDone }: LessonProps) {
     live.current = true
     void Promise.all([loadProgress(), loadFormats()]).then(async ([p]) => {
       const pl = planFor(p)
-      qs.current = makeQuiz(lessonLetter(pl.idx, pl.seq), pl.idx, pl.seq)
+      // 中途離開、回來接著做選擇題：先只問大寫（退一級，T-100）
+      qs.current = makeQuiz(lessonLetter(pl.idx, pl.seq), pl.idx, pl.seq, pl.resume?.stage === 'quiz')
       await markStarted(pl)
       if (!live.current) return
       if (pl.resume) {

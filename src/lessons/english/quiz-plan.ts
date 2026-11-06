@@ -22,6 +22,11 @@ export interface Question {
   skill: string
   /** 答對之後念的那一句 */
   yes: string
+  /**
+   * 小寫題的退一級（T-100，準則 LOAD-5「答錯自動變簡單」、指引 EN-4「3 歲認大寫，小寫是 4 歲」）：
+   * 這一堂大寫題第一次沒答對、或中途離開又回來，小寫題改問同一個字母的大寫
+   */
+  easy?: Question
 }
 
 /** 跟 x 長得像、或念起來容易混的，不放在同一題（三歲還在認形狀，先不考 b／d） */
@@ -59,8 +64,9 @@ function letterOptions(X: string, big: boolean, taught: string[], learned: strin
  * 4. 以前學過的字母複習一題（第一天沒有以前的字母，就再問一題今天的單字）。
  * 圖的題目要有以前學過的字當陪襯：第一天沒有，就改問字母。
  * 選項數：前三個字母 2 選 1，之後 3 選 1（教過的不夠就少一個）。
+ * bigOnly：小寫題一開始就換成大寫題（同一天中途離開又回來，T-100）。
  */
-export function makeQuiz(letter: LessonLetter, idx: number, seq = ORDER): Question[] {
+export function makeQuiz(letter: LessonLetter, idx: number, seq = ORDER, bigOnly = false): Question[] {
   const learned = [...seq.slice(0, idx)]
   const taught = [...seq.slice(0, idx + 1)]
   const n = idx < 3 ? 1 : 2
@@ -94,12 +100,13 @@ export function makeQuiz(letter: LessonLetter, idx: number, seq = ORDER): Questi
       yes: `ph.word.${wordId(ans)}`,
     }
   }
-  qs.push(letterQ(L, true), letterQ(L, false))
+  const little = (X: string): Question => ({ ...letterQ(X, false), easy: letterQ(X, true) })
+  qs.push(letterQ(L, true), little(L))
   const starts = shuffle(letter.starts.map((w) => w.w))
   qs.push((starts.length && wordQ(starts[0])) || letterQ(L, true))
   if (learned.length) qs.push(letterQ(pick(learned.slice(-3)), true))
-  else qs.push((starts.length > 1 && wordQ(starts[1])) || letterQ(L, false))
-  return qs
+  else qs.push((starts.length > 1 && wordQ(starts[1])) || little(L))
+  return bigOnly ? qs.map((q) => q.easy ?? q) : qs
 }
 
 /**
