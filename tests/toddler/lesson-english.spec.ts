@@ -846,9 +846,9 @@ test.describe('英文字母課', () => {
       const d = await quizDots(page)
       c.outcome('進度還在（亮 1 顆）', d?.done === 1, d ? `小點 ${d.done}/${d.total}` : '沒有小點')
       if (d?.done !== 1) await c.once('dots-kept', '困惑', '選擇題回來以後，進度從頭開始', d ? `小點 ${d.done}/${d.total}` : '畫面上沒有選擇題的進度')
-      // 先示範：收作答以前手出來點答案
+      // 先示範：手出來點答案（T-108 之後示範中也可以搶，所以看示範的樣子 .is-demo，不看還收不收作答）
       const demo = await page
-        .waitForFunction(() => document.querySelector('.en-options .en-opt.is-yes') && document.querySelector('.en-options[data-accepting="false"]'), null, { timeout: 15_000 })
+        .waitForFunction(() => document.querySelector('.en-options.is-demo .en-opt.is-yes'), null, { timeout: 15_000 })
         .then(() => true)
         .catch(() => false)
       c.outcome('回來先示範這一題', demo, demo ? '' : '直接開始收作答')

@@ -231,8 +231,8 @@ export function Quiz({ spec, host, onDone, showing }: { spec: QuizSpec; host: Pa
     taps.current.push({ pick: id, ms: Math.round(performance.now() - t0.current) })
     setReady(false)
     if (id === spec.answer) {
+      // 答對了：之後的點擊都不收（phase）；跟以前一樣不蓋擋板，稱讚完就換題
       phase.current = 'done'
-      setHold(true)
       idle.stop()
       setMarks((m) => ({ ...m, [id]: 'correct' }))
       setHint(false)

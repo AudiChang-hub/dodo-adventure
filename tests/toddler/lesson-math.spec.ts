@@ -540,12 +540,22 @@ test.describe('數學課', () => {
       k.behavior = '連點「數學數字」'
       if (!(await enter(k, c, true))) return
       await c.screenOk('進數學課')
+      // 每一段出現過就記下來（T-108 之後開場、示範都可以搶，搶著點的時候數數可能整段就做完了，play() 看不到）
+      await page.evaluate(() => {
+        const w = window as unknown as { __parts?: string[] }
+        w.__parts = []
+        setInterval(() => {
+          const p = [...document.querySelectorAll('[data-lesson-part]')].pop()?.getAttribute('data-lesson-part')
+          if (p && !w.__parts!.includes(p)) w.__parts!.push(p)
+        }, 100)
+      })
       // 開場（今天的數字）一進來就搶著點
       k.behavior = '開場搶著點'
       await grabDuringTeach(k, c, LESSON)
 
       const seen = new Set<string>()
       const done = await play(k, c, async () => lessonEnd(page), { seen })
+      for (const p of await page.evaluate(() => (window as unknown as { __parts?: string[] }).__parts ?? [])) seen.add(p)
       // 今天的數字是 1、2：教過的數字湊不到 3 選 1，沒有小複習（plan.ts 的 reviewQs）
       const want = n < 3 ? PARTS.filter((p) => p !== 'review') : PARTS
       const parts = want.filter((p) => seen.has(p))

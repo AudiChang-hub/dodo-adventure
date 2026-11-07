@@ -344,9 +344,10 @@ export function WritePart({ ctx }: { ctx: PartCtx }) {
   }
 
   const onDown = (p: { x: number; y: number }) => {
-    if (!tracker.current || doneRef.current || busy.current || !armed.current) return
-    // 說明、示範的時候下筆：示範收掉，這一筆照常描
+    if (!tracker.current || busy.current || !armed.current) return
+    // 說明、示範的時候下筆：示範收掉，這一筆照常描（示範最後整個數字亮起來的那一刻也算，先收掉才看描完了沒）
     if (phase.current !== 'turn') takeOver()
+    if (doneRef.current) return
     idle.poke()
     setAgain(null)
     moved.current = false

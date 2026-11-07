@@ -248,16 +248,18 @@ export function Quiz({
       tries.current++
       sfx.gentle()
       setState((s) => ({ ...s, [o.id]: 'no' }))
-      phase.current = 'fb'
+      const together = tries.current >= 2
+      // 第一次錯的說明可以搶（T-108）：點選項就照常判。
+      // 第二次錯是手帶著做完這一題（題數固定、一定上得完，T-104）：不能搶，不然一直點錯的孩子會一直把它打斷，永遠做不完
+      phase.current = together ? 'done' : 'fb'
+      if (together) setAccept(false)
       const ok = flow.begin(live)
       // 手從泡泡（要找的樣子）移到答案上點一下，同時說明點的是什麼、要找的是什麼；之後答案留著外框和手。
       // 第二次錯：一樣手從泡泡到答案，這次手直接幫他點下去（一起做），這一題就算完（不再等他點，T-104）。
-      // 說明、手在動的時候都可以搶（T-108）：點選項就照常判
       setHint(false)
       setHop((h) => h + 1)
       setShow('ask')
       const why = wrongKeys(q, o)
-      const together = tries.current >= 2
       const talk = say(...(together ? [q.prompt] : why.every(hasLine) ? why : [retryKey('dodo')]))
       await wait(800)
       if (!ok()) return

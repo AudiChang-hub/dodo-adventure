@@ -231,16 +231,9 @@ export function CountPart({ ctx }: { ctx: PartCtx }) {
     setLead(null)
     sfx.count(next.length)
     if (next.length < round.n) return void say(`m.num.${next.length}`)
-    // 最後一個：念數字，再強調「There are three!」，右上角今天的數字跟著跳一下（這之後不能搶）
+    // 最後一個：念數字，再強調「There are three!」，右上角今天的數字跟著跳一下（這之後不能再點，作答在點下去的這一刻就記）
     phase.current = 'done'
-    setHold(true)
     idle.stop()
-    await say(`m.num.${next.length}`)
-    if (!live.current) return
-    setLast(true)
-    ctx.ping()
-    await say(`m.total.${round.n}`)
-    if (!live.current) return
     void logAttempt({
       station: 'math',
       game: 'm-count',
@@ -257,6 +250,12 @@ export function CountPart({ ctx }: { ctx: PartCtx }) {
       hintUsed: false,
       metrics: { recountTaps: recount.current, lesson: ctx.lesson.n },
     })
+    await say(`m.num.${next.length}`)
+    if (!live.current) return
+    setLast(true)
+    ctx.ping()
+    await say(`m.total.${round.n}`)
+    if (!live.current) return
     ctx.mood('cheer')
     sfx.correct()
     await say(praiseKey('bobo'))
