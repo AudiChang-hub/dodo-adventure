@@ -3,6 +3,8 @@ import { motion } from 'motion/react'
 import { Emoji } from '../../art/Emoji'
 import { say, sfx, stopSpeech } from '../../lib/audio'
 import { wait } from '../../games/lines'
+import { useFlow } from '../../games/barge'
+import { PACE } from '../../games/pace'
 import { logTeach } from '../../lib/record'
 import type { LessonLetter } from './data'
 import { Word } from './Word'
@@ -12,41 +14,36 @@ type Lit = 'big' | 'little' | 'both' | null
 /**
  * 認字母（英文課第 1 段）：今天的字母大寫、小寫放大，豆豆念「A, A, A… a, a… apple!」，念到單字時代表字的圖出來。
  * 自己往下走（念完停一下就到描字），不用孩子按「下一步」；念完之後點字母、點圖可以再聽一次（停的時間重新算）。
- * 念的時候點字母：字母輕輕跳一下、有聲音，但不打斷豆豆（三歲會一直點，不能每點一下就重念）。
+ * 搶點（T-108，games/barge.ts）：介紹還沒念完就點字母或圖：停掉介紹，直接念他點的那一個（圖也馬上出來），念完照常停一下就往下走。
+ * 正在念他點的那一個時又點：字母輕輕跳一下、有聲音，不重念（三歲會一直點，不能每點一下就重念）。
  */
 export function Meet({ letter, review, onDone }: { letter: LessonLetter; review: boolean; onDone: () => void }) {
   const [lit, setLit] = useState<Lit>(null)
   const [pic, setPic] = useState(false)
   const [bump, setBump] = useState<{ which: 'big' | 'little' | 'pic'; n: number } | null>(null)
   const talking = useRef(true)
+  /** 開頭的介紹還在念（可以被搶掉） */
+  const intro = useRef(true)
   const live = useRef(true)
   const leaveAt = useRef(0)
+  const flow = useFlow()
+  const mountAt = useRef(performance.now())
+  /** 介紹念完（或被搶掉）：開始倒數往下走（只開一次） */
+  const settle = useRef<() => void>(() => {})
   const { L, l } = letter
   const anchor = letter.words[0]
 
   useEffect(() => {
     live.current = true
+    mountAt.current = performance.now()
     let timer = 0
-    const flow = async () => {
-      const t = performance.now()
-      await wait(350)
-      if (!live.current) return
-      await say(review ? `ph.${l}.again` : `ph.${l}.today`)
-      if (!live.current) return
-      setLit('big')
-      await say(`ph.${l}.big`)
-      if (!live.current) return
-      setLit('little')
-      await say(`ph.${l}.little`)
-      if (!live.current) return
-      setLit('both')
-      // 念到單字之前把圖放上來：字幕念到 apple! 的時候圖已經在了
-      window.setTimeout(() => live.current && setPic(true), 1600)
-      await say(`ph.${l}.says`)
-      if (!live.current) return
+    const t = performance.now()
+    let ticking = false
+    settle.current = () => {
+      if (ticking || !live.current) return
+      ticking = true
+      intro.current = false
       setPic(true)
-      setLit(null)
-      talking.current = false
       void logTeach({ station: 'english', game: 'lesson-en', itemId: `letter:${L}`, skill: `letter:${L}`, level: 1, ms: Math.round(performance.now() - t) })
       // 念完停一下就往下走；孩子點了又念，就從念完再等
       leaveAt.current = performance.now() + 1400
@@ -57,7 +54,28 @@ export function Meet({ letter, review, onDone }: { letter: LessonLetter; review:
       }
       tick()
     }
-    void flow()
+    const run = async () => {
+      const ok = flow.begin(live)
+      await wait(350)
+      if (!ok()) return
+      await say(review ? `ph.${l}.again` : `ph.${l}.today`)
+      if (!ok()) return
+      setLit('big')
+      await say(`ph.${l}.big`)
+      if (!ok()) return
+      setLit('little')
+      await say(`ph.${l}.little`)
+      if (!ok()) return
+      setLit('both')
+      // 念到單字之前把圖放上來：字幕念到 apple! 的時候圖已經在了
+      window.setTimeout(() => live.current && setPic(true), 1600)
+      await say(`ph.${l}.says`)
+      if (!ok()) return
+      setLit(null)
+      talking.current = false
+      settle.current()
+    }
+    void run()
     return () => {
       live.current = false
       clearTimeout(timer)
@@ -68,6 +86,14 @@ export function Meet({ letter, review, onDone }: { letter: LessonLetter; review:
 
   const tap = async (which: 'big' | 'little' | 'pic') => {
     setBump((b) => ({ which, n: (b?.n ?? 0) + 1 }))
+    // 介紹還沒念完就點：停掉介紹，直接念他點的那一個
+    // 剛出來的 0.5 秒（PACE.BARGE_ARM）：上一段連點的手指先不算
+    if (intro.current && performance.now() - mountAt.current < PACE.BARGE_ARM) return void sfx.pop()
+    if (intro.current) {
+      flow.cut()
+      talking.current = false
+      settle.current()
+    }
     if (talking.current) return void sfx.pop()
     talking.current = true
     setLit(which === 'pic' ? null : which)

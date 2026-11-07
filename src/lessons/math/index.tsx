@@ -3,6 +3,8 @@ import { AnimatePresence, motion } from 'motion/react'
 import { Shell } from '../../games/Shell'
 import { WaitShield } from '../../games/NotYet'
 import { wait } from '../../games/lines'
+import { useFlow } from '../../games/barge'
+import { PACE } from '../../games/pace'
 import { Sparkles } from '../../ui/Sparkles'
 import { say, sfx, stopSpeech } from '../../lib/audio'
 import { DUR, EASE } from '../../ui/motion'
@@ -59,6 +61,9 @@ export function MathLesson({ onDone }: LessonProps) {
   /** 開場中點波波：重說的那一次（開場要等它說完） */
   const replay = useRef<Promise<void> | null>(null)
   const live = useLive()
+  const flow = useFlow()
+  /** 開場時點大數字：停掉語音，直接開始第一段（T-108） */
+  const skipOpen = useRef<(() => void) | null>(null)
 
   useEffect(() => {
     void Promise.all([openLesson(), loadFormats()]).then(([l]) => live.current && setLesson(l))
@@ -73,13 +78,34 @@ export function MathLesson({ onDone }: LessonProps) {
   /** 這一段今天沒有東西可以做（只教了 1、2 的那兩天沒有小複習，plan.ts 的 reviewQs） */
   const skip = (p: number, l: Lesson) => PARTS[p] === 'review' && l.max < REVIEW_FROM
 
-  // 開場：波波說今天的數字（複習、混合複習先說一句），數字和點點在中間；說完就開始數數（中途離開過的從那一段接著上）
+  // 開場：波波說今天的數字，數字和點點在中間；說完就開始數數（中途離開過的從那一段接著上）。
+  // 只說一句（T-108：以前複習、混合複習還先說 Let's practice again! 等等，輪到孩子之前話太多）；
+  // 開場時點大數字：停掉語音、直接開始（三歲等不及）
   useEffect(() => {
     if (!lesson) return
+    const ok = flow.begin(live)
+    const at = performance.now()
+    let went = false
+    const proceed = () => {
+      if (went || !live.current) return
+      went = true
+      host.current = null
+      setMood('idle')
+      if (skip(lesson.part, lesson)) {
+        void partDone(lesson.part, 0, 0)
+        return void finish()
+      }
+      go(lesson.part)
+    }
+    skipOpen.current = () => {
+      // 剛進課的 0.5 秒：從首頁一直連點進來的手指先不算
+      if (performance.now() - at < PACE.BARGE_ARM) return
+      flow.cut()
+      replay.current = null
+      proceed()
+    }
     const t = window.setTimeout(async () => {
       setMood('happy')
-      if (lesson.mode !== 'new') await say(lesson.mode === 'review' ? 'ma.again' : 'ma.mix')
-      if (!live.current) return
       sfx.pop()
       await say(`ma.today.${lesson.n}`)
       // 開場中點波波會從頭再說一次：等這一次說完才往下，不要被「Let's count!」切掉
@@ -91,26 +117,26 @@ export function MathLesson({ onDone }: LessonProps) {
         }
       }
       await replayed()
-      if (!live.current) return
-      await wait(700)
+      if (!ok()) return
+      await wait(400)
+      if (!ok()) return
       host.current = null
       await replayed()
-      if (!live.current) return
-      setMood('idle')
-      if (skip(lesson.part, lesson)) {
-        void partDone(lesson.part, 0, 0)
-        return void finish()
-      }
-      go(lesson.part)
+      if (!ok()) return
+      proceed()
     }, 0)
     host.current = () => {
       replay.current = say(`ma.today.${lesson.n}`)
     }
-    return () => clearTimeout(t)
+    return () => {
+      clearTimeout(t)
+      skipOpen.current = null
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [lesson])
 
   const finish = async () => {
+    skipOpen.current = null
     go(PARTS.length)
     setMood('cheer')
     sfx.done()
@@ -182,7 +208,7 @@ export function MathLesson({ onDone }: LessonProps) {
                   <Sparkles count={18} />
                 </div>
               )}
-              <WaitShield on />
+              <WaitShield on onTap={opening ? () => skipOpen.current?.() : undefined} />
             </div>
           )}
         </Fade>

@@ -517,7 +517,15 @@ export async function alive(k: Toddler, c: Checker, ctx: string, budget = 45_000
 
 // ── 測試的行為 ────────────────────────────────────────────
 
-/** 教學卡、示範還在進行時就搶著點、拖、畫 */
+/** from 之後第一下按下去那一刻的狀態（probe.js 的 P.taps） */
+const kindAtDown = (page: Page, from: number) => page.evaluate((from) => window.__toddler.taps.find((x) => x.t >= from)?.kind ?? null, from)
+
+/**
+ * 教學卡、示範還在進行時就搶著點、拖、畫。
+ * T-108（家長真人試玩：三歲等不及，點了沒反應、被擋，整個很卡）之後的規則：
+ * - 波波示範中（data-demo）搶著點、搶著畫：示範收掉、換孩子做，那一下照常算（記成作答、留下墨都是對的）；要檢查的是示範有沒有真的收掉；
+ * - 教學卡念的時候、擋板（data-accepting="false"：題目剛出來的 0.5 秒、答對之後）點的：還是不能記成作答、不能留下墨。
+ */
 export async function grabDuringTeach(k: Toddler, c: Checker, g: GameDef) {
   const page = k.page
   k.behavior = '搶著操作'
@@ -529,6 +537,9 @@ export async function grabDuringTeach(k: Toddler, c: Checker, g: GameDef) {
   let quiet = 0
   let inkDuringDemo = 0
   let inkTries = 0
+  /** 示範中搶著畫：畫完示範還沒收掉 */
+  let demoStuck = 0
+  let demoDraws = 0
   let touches = 0
   let silent = 0
   while (Date.now() < end) {
@@ -555,8 +566,12 @@ export async function grabDuringTeach(k: Toddler, c: Checker, g: GameDef) {
       const cv = k.r.pick(canv)
       const t0 = await pageNow(page)
       const m = await drawAndMeasure(k, scribble(k, cv, page), cv, { fast: true })
-      // 只算下筆那一刻還在示範、說明的那幾筆：看到示範中、真的按下去時示範已經結束，畫得出來是對的
-      if (await busyAtDown(page, t0)) {
+      // 只算下筆那一刻在教學卡、擋板（還不收作答）的那幾筆；示範中下筆是搶點（T-108），畫得出來是對的，但示範要收掉
+      const kind = await kindAtDown(page, t0)
+      if (kind === 'demo') {
+        demoDraws++
+        if (await page.evaluate(() => !!document.querySelector('[data-demo="1"]'))) demoStuck++
+      } else if (await busyAtDown(page, t0)) {
         inkTries++
         if (m.got >= 3) inkDuringDemo++
       }
@@ -585,8 +600,8 @@ export async function grabDuringTeach(k: Toddler, c: Checker, g: GameDef) {
   const bad = after.filter((a) => {
     const last = downs.filter((x) => x.t <= a.ts).pop()
     if (!last || a.ts - last.t >= 1500) return false
-    // 按下那一刻還在示範、教學卡、念題目（不收作答）才算；指著答案的手、已經可以作答（null）都是正常的
-    const early = last.kind === 'teach-card' || last.kind === 'demo' || last.kind === 'wait'
+    // 按下那一刻還在教學卡、擋板（不收作答）才算；示範中搶著點是 T-108 的搶點（照常算），指著答案的手、已經可以作答（null）都是正常的
+    const early = last.kind === 'teach-card' || last.kind === 'wait'
     return early && (a.phase === 'quiz' || a.phase === 'guided')
   })
   const quizBad = bad.filter((a) => a.phase === 'quiz')
@@ -596,10 +611,13 @@ export async function grabDuringTeach(k: Toddler, c: Checker, g: GameDef) {
   if (guidedBad.length)
     await c.once('teach-guided', '困惑', `教學卡還在收起時亂點，就被算成「一起練」作答（${guidedBad.length} 筆）`, `${guidedBad.map((a) => `${a.phase} ${a.itemId} ${a.ok ? '答對' : '答錯'}`).join('；')}。孩子還沒聽到「Here it is! Tap it!」，手就已經點到後面發光的答案；一起練不計分，但這一步等於被跳過`)
   if (inkDuringDemo)
-    await c.once('teach-ink', '困惑', `示範還沒結束就能畫（${inkDuringDemo}/${inkTries} 筆留下墨跡）`, '筆或手還在示範時，孩子在畫布上畫的線條會留下來')
-  const note = !saw ? '沒有遇到教學或示範' : `示範中操作 ${tapsAt.length} 次（${[...new Set(tapsAt.map((x) => x.kind))].join('、')}），誤記 ${bad.length} 筆${inkTries ? `，畫 ${inkTries} 筆留下墨 ${inkDuringDemo}` : ''}`
-  c.outcome('搶著操作', !bad.length && !inkDuringDemo, note)
-  if (saw) c.rule('PHASE-2', !bad.length && !inkDuringDemo, note)
+    await c.once('teach-ink', '困惑', `還不收作答時就能畫（${inkDuringDemo}/${inkTries} 筆留下墨跡）`, '教學卡念的時候、擋板還在時，孩子在畫布上畫的線條會留下來')
+  if (demoStuck) await c.once('grab-demo-stuck', '困惑', `示範中搶著畫，畫完示範還在（${demoStuck}/${demoDraws} 筆）`, 'T-108：示範中下筆要停掉語音、收掉示範，換孩子畫')
+  const note = !saw
+    ? '沒有遇到教學或示範'
+    : `示範中操作 ${tapsAt.length} 次（${[...new Set(tapsAt.map((x) => x.kind))].join('、')}），誤記 ${bad.length} 筆${inkTries ? `，擋板時畫 ${inkTries} 筆留下墨 ${inkDuringDemo}` : ''}${demoDraws ? `，示範中搶畫 ${demoDraws} 筆、示範沒收掉 ${demoStuck}` : ''}`
+  c.outcome('搶著操作', !bad.length && !inkDuringDemo && !demoStuck, note)
+  if (saw) c.rule('PHASE-2', !bad.length && !inkDuringDemo && !demoStuck, note)
   if (touches) c.rule('TOUCH-6', !silent, `示範中點一下 ${touches} 次，300ms 內沒有任何回應 ${silent} 次`)
   await c.flush()
   return saw

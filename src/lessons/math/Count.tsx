@@ -1,8 +1,9 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
 import { Emoji } from '../../art/Emoji'
 import { Hand } from '../../games/Demo'
-import { WaitShield, firstFinger } from '../../games/NotYet'
+import { WaitShield, firstFinger, localPoint, useNotYet } from '../../games/NotYet'
+import { onBlank, useFlow } from '../../games/barge'
 import { scatter } from '../../games/layout'
 import { praiseKey, wait } from '../../games/lines'
 import { useIdle } from '../../games/idle'
@@ -43,13 +44,21 @@ const countLine = (r: CountRound) => (r.n === 1 ? 'ma.count' : `ma.count.${r.ico
 
 /**
  * 數數（點點數數 CountGame 的做法）：一個一個點，每點一下波波念一個數字，最後一個強調「There are three!」。
- * 新的數字第一回合波波先示範（手指一個一個點、邊點邊數），示範中孩子點了只出現「看這裡」，不算數。
+ * 新的數字第一回合波波先示範（手指一個一個點、邊點邊數）。
+ * 搶點（T-108，games/barge.ts）：示範中、說「Let's count…」的時候點了東西：停掉語音、示範收掉，他點的那一個就是 1；
+ * 點空白：停掉語音，手馬上指著第一個要數的。數到最後一個之後的總數、稱讚不能搶。
  * 點過的再點：輕輕一聲，不重算。
  */
 export function CountPart({ ctx }: { ctx: PartCtx }) {
   const [rounds] = useState(() => countRounds(ctx.lesson).map(place))
   const [r, setR] = useState(0)
-  const [counted, setCounted] = useState<number[]>([])
+  const [counted, setCountedState] = useState<number[]>([])
+  /** 點擊時讀得到最新的（被搶掉的示範要馬上清空，不能讀到畫面上那一輪的舊值） */
+  const countedRef = useRef<number[]>([])
+  const setCounted = (f: number[] | ((c: number[]) => number[])) => {
+    countedRef.current = typeof f === 'function' ? f(countedRef.current) : f
+    setCountedState(countedRef.current)
+  }
   const [finger, setFinger] = useState<number | null>(null)
   const [press, setPress] = useState(0)
   const [hold, setHold] = useState(true)
@@ -59,7 +68,14 @@ export function CountPart({ ctx }: { ctx: PartCtx }) {
   /** 數完了：最後一個號碼牌跳一下 */
   const [last, setLast] = useState(false)
   const live = useLive()
-  const busy = useRef(true)
+  /** demo 示範、intro 說明（這兩段可以搶）；turn 輪到孩子；done 數完了（不能搶） */
+  const phase = useRef<'demo' | 'intro' | 'turn' | 'done'>('intro')
+  /** 這一回合剛出來的 0.5 秒過了（PACE.BARGE_ARM） */
+  const armed = useRef(false)
+  const armTimer = useRef(0)
+  const flow = useFlow()
+  const notYet = useNotYet()
+  const box = useRef<HTMLDivElement | null>(null)
   const tapped = useRef(false)
   const recount = useRef(0)
   const t0 = useRef(0)
@@ -72,71 +88,101 @@ export function CountPart({ ctx }: { ctx: PartCtx }) {
   }
 
   /** 波波數一次：手指照順序點每一個，邊點邊念，最後「There are three!」 */
-  const countAlong = async (rd: Round) => {
+  const countAlong = async (rd: Round, ok: () => boolean) => {
     const path = order(rd)
     for (let k = 0; k < rd.n; k++) {
-      if (!live.current) return
+      if (!ok()) return
       setFinger(path[k])
       await wait(k === 0 ? 520 : 380)
-      if (!live.current) return
+      if (!ok()) return
       setPress((p) => p + 1)
       setCounted((c) => [...c, path[k]])
       sfx.count(k + 1)
       await say(`m.num.${k + 1}`)
     }
-    if (!live.current) return
+    if (!ok()) return
     setFinger(null)
     setLast(true)
     ctx.ping()
     await say(`teach.total.${rd.n}`)
   }
 
+  /** 輪到孩子（說完、或被搶掉）：手指著第一個要數的，開始計時 */
+  const openTurn = () => {
+    phase.current = 'turn'
+    if (!t0.current) t0.current = performance.now()
+    // 輪到孩子：一律用手指著第一個要數的（只有發光，三歲看不出要點它）
+    if (!tapped.current) setLead('hand')
+    idle.start({ repeat: () => void say('m.count.go'), hint: nudge })
+  }
+
+  /** 孩子搶點：停掉語音、示範收掉（數到一半的號碼清掉），直接輪到他 */
+  const takeOver = () => {
+    const was = phase.current
+    flow.cut()
+    if (was === 'demo') {
+      setFinger(null)
+      setCounted([])
+      setLast(false)
+      showing(false)
+      ctx.mood('idle')
+    }
+    openTurn()
+  }
+
   const start = async (i: number) => {
     const rd = rounds[i]
+    const ok = flow.begin(live)
     setCounted([])
     setLast(false)
     setLead(null)
     setTapAgain(0)
     tapped.current = false
     recount.current = 0
-    busy.current = true
+    t0.current = 0
+    phase.current = rd.demo ? 'demo' : 'intro'
+    armed.current = false
     setHold(true)
+    clearTimeout(armTimer.current)
+    // 這一回合剛出來的 0.5 秒：上一回合連點的手指先不算，之後說明、示範都可以搶
+    armTimer.current = window.setTimeout(() => {
+      if (!live.current || phase.current === 'done') return
+      armed.current = true
+      setHold(false)
+    }, PACE.BARGE_ARM)
     idle.stop()
     ctx.mood('idle')
     if (rd.demo) {
       const s = performance.now()
       showing(true)
       ctx.mood('happy')
-      await say(countLine(rd), 'teach.watch.bobo')
-      if (!live.current) return
-      await countAlong(rd)
-      if (!live.current) return
+      // 開場一句就好：直接「Watch me!」，數的時候就看得到數的是什麼（T-108）
+      await say('teach.watch.bobo')
+      if (!ok()) return
+      await countAlong(rd, ok)
+      if (!ok()) return
       await wait(PACE.DEMO_HOLD)
-      if (!live.current) return
+      if (!ok()) return
       setCounted([])
       setLast(false)
       showing(false)
       ctx.mood('idle')
+      phase.current = 'intro'
       void logTeach({ station: 'math', game: 'm-count', itemId: String(rd.n), skill: `count:${rd.n}`, level: 1, ms: Math.round(performance.now() - s) })
       await say('teach.turn.bobo')
     } else {
       // 換一種東西再數（第一天數字是 1：畫面上突然只剩一隻恐龍）：也要明白告訴他「換你了」（T-107 真人試玩：大人、孩子都不知道要做什麼）
       await say(countLine(rd))
-      if (!live.current) return
+      if (!ok()) return
       if (rd.n <= 2) await say('teach.turn.bobo')
     }
-    if (!live.current) return
-    busy.current = false
-    setHold(false)
-    t0.current = performance.now()
-    // 輪到孩子：一律用手指著第一個要數的（只有發光，三歲看不出要點它）
-    if (!tapped.current) setLead('hand')
-    idle.start({ repeat: () => void say('m.count.go'), hint: nudge })
+    if (!ok()) return
+    openTurn()
   }
 
   /** 閒置第二段、點波波：手在下一個要數的上面點一下 */
   const nudge = () => {
-    if (busy.current) return
+    if (phase.current !== 'turn') return
     setLead('hand')
     setTapAgain((n) => n + 1)
   }
@@ -144,7 +190,7 @@ export function CountPart({ ctx }: { ctx: PartCtx }) {
   useEffect(() => {
     const boot = window.setTimeout(() => start(0), 0)
     const mine = () => {
-      if (busy.current) return
+      if (phase.current !== 'turn') return
       idle.poke()
       void say('m.count.go')
       nudge()
@@ -152,6 +198,7 @@ export function CountPart({ ctx }: { ctx: PartCtx }) {
     ctx.host.current = mine
     return () => {
       clearTimeout(boot)
+      clearTimeout(armTimer.current)
       idle.stop()
       // 淡出中的這一段比下一段晚卸載：只收自己的，不要清掉下一段的
       if (ctx.host.current === mine) ctx.host.current = null
@@ -160,9 +207,19 @@ export function CountPart({ ctx }: { ctx: PartCtx }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
+  /** 說明、示範的時候點空白：停掉語音，手馬上指著第一個要數的 */
+  const blank = (e: ReactPointerEvent<HTMLDivElement>) => {
+    if (!armed.current || phase.current === 'done' || phase.current === 'turn' || !onBlank(e.target) || !box.current) return
+    const p = localPoint(box.current, e.clientX, e.clientY)
+    notYet.ping(p.x, p.y)
+    takeOver()
+  }
+
   const tapObj = async (i: number) => {
-    if (busy.current) return
+    if (!armed.current || phase.current === 'done') return
+    if (phase.current !== 'turn') takeOver()
     idle.poke()
+    const counted = countedRef.current
     if (counted.includes(i)) {
       recount.current++
       sfx.gentle()
@@ -174,8 +231,9 @@ export function CountPart({ ctx }: { ctx: PartCtx }) {
     setLead(null)
     sfx.count(next.length)
     if (next.length < round.n) return void say(`m.num.${next.length}`)
-    // 最後一個：念數字，再強調「There are three!」，右上角今天的數字跟著跳一下
-    busy.current = true
+    // 最後一個：念數字，再強調「There are three!」，右上角今天的數字跟著跳一下（這之後不能搶）
+    phase.current = 'done'
+    setHold(true)
     idle.stop()
     await say(`m.num.${next.length}`)
     if (!live.current) return
@@ -214,7 +272,7 @@ export function CountPart({ ctx }: { ctx: PartCtx }) {
   const big = round.n > 6
   return (
     <Fade id={r}>
-      <div className="ma-count">
+      <div className="ma-count" ref={box} onPointerDown={blank}>
         {round.pos.map((p, i) => {
           const k = counted.indexOf(i)
           const isLast = last && k === round.n - 1
@@ -250,6 +308,7 @@ export function CountPart({ ctx }: { ctx: PartCtx }) {
             <Hand key="lead" x={round.pos[nextObj].x + 1.5} y={round.pos[nextObj].y + 4} size="11cqmin" beckon={!tapAgain} tap={tapAgain} />
           )}
         </AnimatePresence>
+        {notYet.view}
         <WaitShield on={hold} />
       </div>
     </Fade>

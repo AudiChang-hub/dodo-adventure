@@ -12,6 +12,7 @@ import type { TeachSpec, Visual } from '../content/games'
 import { wait } from './lines'
 import { useIdle } from './idle'
 import { PACE } from './pace'
+import { useFlow } from './barge'
 import { DUR, EASE, FADE } from '../ui/motion'
 import './teach.css'
 
@@ -32,6 +33,21 @@ interface Props {
 const LIFT = 14
 const enterTx = { duration: DUR.fadeIn, ease: EASE.out }
 
+/**
+ * 上一下、再上一下點在畫面任何地方的時間（e.timeStamp）：判斷這一下是不是連點裡的一下（PACE.TEACH_TAP_STREAM）。
+ * 放在模組裡、一直在記：上一段一直連點到教學卡出來，第一下也看得出是連點（T-108）
+ */
+const downs: [number, number] = [-Infinity, -Infinity]
+if (typeof window !== 'undefined')
+  window.addEventListener(
+    'pointerdown',
+    (e) => {
+      downs[0] = downs[1]
+      downs[1] = e.timeStamp
+    },
+    { capture: true },
+  )
+
 /** 同一題裡最大的一組數量：讓並排的兩組圖示一樣大 */
 const fitOf = (vs: Visual[]) => Math.max(0, ...vs.map((v) => (v.t === 'group' ? v.count : 0)))
 
@@ -41,6 +57,8 @@ const fitOf = (vs: Visual[]) => Math.max(0, ...vs.map((v) => (v.t === 'group' ? 
  * 念完那一刻要看得出「輪到你了」（幼兒設計準則 PHASE-1，T-84：AI 小男生在數學課看不出念的時候和念完有什麼不一樣）：
  * - 念的時候：講到的那一邊加框、另一邊變淡、手指著；
  * - 念完：兩邊都全亮、不再只框一邊，依序輕輕往上跳一下（.turn-hop，一次就停），卡片外面一圈靜態的粗外框，招手的手放大。
+ * 搶點（T-108，games/barge.ts）：念的時候「停一下再點」（不是一直連點）就停掉語音，直接變成念完、等他點的樣子；
+ * 再點一下照常再聽第一句、往下走。一直連點（上一段的手指，T-104、T-106）照舊只給「看這裡」的圈圈。
  */
 export function TeachCard({ spec, short, onDone, camera }: Props) {
   const lines = short ? (spec.short ?? spec.lines.slice(0, 1)) : spec.lines
@@ -59,40 +77,42 @@ export function TeachCard({ spec, short, onDone, camera }: Props) {
   const idle = useIdle()
   const busy = useRef(false)
   const [nudge, setNudge] = useState(false)
-  /** 上一下、再上一下點在畫面任何地方的時間（e.timeStamp）：判斷這一下是不是連點裡的一下（PACE.TEACH_TAP_STREAM） */
-  const downs = useRef<[number, number]>([-Infinity, -Infinity])
-  /** 念的時候被點了：跟全 App 一樣的「看這裡、等一下」圈圈，示範的手點一下頭（games/NotYet，準則 TOUCH-6、PHASE-2） */
+  /** 念的時候被點了：跟全 App 一樣的「看這裡」圈圈，示範的手點一下頭（games/NotYet，準則 TOUCH-6） */
   const notYet = useNotYet()
   const layer = useRef<HTMLDivElement>(null)
-  useEffect(() => {
-    const note = (e: PointerEvent) => {
-      downs.current = [downs.current[1], e.timeStamp]
-    }
-    // capture：比卡片自己的 onPointerDown 先記到這一下
-    window.addEventListener('pointerdown', note, { capture: true })
-    return () => window.removeEventListener('pointerdown', note, { capture: true })
-  }, [])
+  const flow = useFlow()
+  const mountedAt = useRef(performance.now())
+  const readyRef = useRef(false)
+
+  /** 念完（或被搶掉）：兩邊全亮、招手的手出來，等他點 */
+  const toReady = () => {
+    if (readyRef.current) return
+    readyRef.current = true
+    readyAt.current = performance.now()
+    setReady(true)
+    // 孩子沒反應：15 秒後再念一次第一句；再 15 秒卡片慢慢亮起來，不說話；之後安靜等，手會一直輕輕點
+    idle.start({ repeat: () => void say(lines[0]), hint: () => setNudge(true) })
+  }
 
   useEffect(() => {
     live.current = true
+    mountedAt.current = performance.now()
     preload(lines)
     // 延到下一輪才開始：StrictMode 開發模式會先掛載、卸載再掛載一次，避免兩條流程同時在念
     const boot = window.setTimeout(async () => {
+      const ok = flow.begin(live)
       sfx.whoosh()
       await wait(PACE.TEACH_ENTER)
       for (let i = 0; i < lines.length; i++) {
-        if (!live.current) return
+        if (!ok()) return
         setStep(i)
         await say(lines[i])
         // 句子之間停一下，讓孩子看著圖把這一句聽進去；最後一句念完，例子貼紙也停留一下才出現「點我」。
         // 下一句是中文三明治（蘋果 → Apple.）：緊接著這一句的英文，只停 0.4 秒
         await wait(i === lines.length - 1 ? PACE.TEACH_SETTLE : isBridge(lines[i + 1]) ? BRIDGE_GAP_MS : PACE.TEACH_LINE_GAP)
       }
-      if (!live.current) return
-      readyAt.current = performance.now()
-      setReady(true)
-      // 孩子沒反應：15 秒後再念一次第一句；再 15 秒卡片慢慢亮起來，不說話；之後安靜等，手會一直輕輕點
-      idle.start({ repeat: () => void say(lines[0]), hint: () => setNudge(true) })
+      if (!ok()) return
+      toReady()
     }, 0)
     return () => {
       live.current = false
@@ -103,14 +123,18 @@ export function TeachCard({ spec, short, onDone, camera }: Props) {
   }, [])
 
   const tap = async (e: { clientX: number; clientY: number }) => {
-    // 還在念（或「點我」剛出現）、或是一直在連點（上一個工作按完還在點同一個位置）：不打斷，只回「等一下、先看」；
-    // 念的時候一直在點的孩子，不會一出現就被帶過去，停一下再點才算。
-    // 以前這裡是被點到的那一邊跳一下：看起來像「點對了」卻什麼都沒發生，盲測三次都說「不知道要幹嘛，好久喔」
-    const [prev, now] = downs.current
-    if (!ready || performance.now() - readyAt.current < PACE.TEACH_TAP_ARM || now - prev < PACE.TEACH_TAP_STREAM) {
+    // 一直在連點（上一個工作按完還在點同一個位置）、「點我」剛出現：只回「看這裡」的圈圈，不會一出現就被帶過去，停一下再點才算。
+    // 還在念的時候停一下再點（T-108）：停掉語音，直接變成念完、等他點的樣子（不重念、不往下走）。
+    const [prev, now] = downs
+    const stream = now - prev < PACE.TEACH_TAP_STREAM
+    if (!readyRef.current || performance.now() - readyAt.current < PACE.TEACH_TAP_ARM || stream) {
       if (layer.current) {
         const p = localPoint(layer.current, e.clientX, e.clientY)
         notYet.ping(p.x, p.y)
+      }
+      if (!readyRef.current && !stream && performance.now() - mountedAt.current >= PACE.BARGE_ARM) {
+        flow.cut()
+        toReady()
       }
       return
     }

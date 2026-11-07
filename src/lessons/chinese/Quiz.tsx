@@ -6,6 +6,7 @@ import { wait } from '../../games/lines'
 import { WaitShield, firstFinger } from '../../games/NotYet'
 import { Hand } from '../../games/Demo'
 import { useIdle } from '../../games/idle'
+import { PACE } from '../../games/pace'
 import { Sparkles } from '../../ui/Sparkles'
 import { FADE, REVEAL_MS } from '../../ui/motion'
 import { useSwapQuiet } from '../../ui/Scenes'
@@ -23,13 +24,12 @@ const CHEER_MS = 1500
 /** 答錯幾次以後把答案標出來（手點一下） */
 const HINT_AFTER = 2
 
-/** 題目卡出來以後，等這麼久才收作答：給大人時間把題目念出來（念的時候孩子點了只出現「看這裡」的圈圈） */
-const READ_MS = 1600
 
 /**
  * 選圖：「哪個是烏龜？」三張圖選一張（親子共讀：App 不出聲，2026-11-03）。
  * - 上面的題目卡字很大：「哪個是」小一點、紅字大，大人照著念給孩子聽。
- * - 題目卡出來一下子（READ_MS）才收作答；答對的卡片放大、亮綠框、撒星星、叮一聲，答錯的抖一下變淡、輕輕一聲；
+ * - 卡片一出來就收作答（T-108 搶點：以前等 1.6 秒給大人念題目，孩子搶著點只出現圈圈，覺得被擋；大人還沒念完他就點對了也照常算）；
+ *   答對的卡片放大、亮綠框、撒星星、叮一聲，答錯的抖一下變淡、輕輕一聲（抖的時候就可以點別張）；
  *   錯兩次就把答案標出來、手點一下。收作答以後、還沒點過時，每張圖一圈淡黃框、依序輕輕跳一下（輪到你了，T-84）。
  * - 回饋只有畫面和音效，不說話（中文、英文都不說）。答對要不靠語言就看得出來（T-97，AI 小男生盲測：只有綠框和小星星，他看不出答對了）：
  *   答對的那張放大、跳一下、亮綠框、右上角一個綠色大打勾、星星撒開，其他兩張淡掉縮小，莫莫歡呼，叮一聲；1.5 秒後換下一題。
@@ -80,7 +80,8 @@ export function Quiz({ t, q, host, setMood, onNext }: { t: ZhText; q: ZhQuestion
   useEffect(() => {
     live.current = true
     void (async () => {
-      await wait(REVEAL_MS + READ_MS)
+      // 卡片淡入完就收（至少 0.5 秒：上一題連點的手指不會直接點掉新題目，PACE.BARGE_ARM）
+      await wait(Math.max(REVEAL_MS, PACE.BARGE_ARM))
       if (!live.current) return
       open()
     })()
@@ -138,12 +139,11 @@ export function Quiz({ t, q, host, setMood, onNext }: { t: ZhText; q: ZhQuestion
     wrongs.current++
     setMarks((m) => ({ ...m, [id]: 'wrong' }))
     sfx.gentle()
-    setAccepting(false)
-    // 抖一下、變淡的動畫走完再收下一次
+    // 抖一下、變淡的時候也可以點別張（T-108）；錯兩次的提示等抖完再出來
     await wait(700)
-    if (!live.current) return
+    if (!live.current || locked.current) return
     if (wrongs.current >= HINT_AFTER) showHint()
-    open()
+    idle.poke()
   }
 
   return (

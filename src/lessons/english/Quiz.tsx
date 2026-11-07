@@ -1,8 +1,11 @@
-import { useEffect, useRef, useState, type CSSProperties } from 'react'
+import { useEffect, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from 'react'
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import { Emoji } from '../../art/Emoji'
 import { Hand } from '../../games/Demo'
 import { useIdle } from '../../games/idle'
+import { onBlank, useFlow } from '../../games/barge'
+import { localPoint, useNotYet } from '../../games/NotYet'
+import { PACE } from '../../games/pace'
 import { praiseKey, retryKey, wait } from '../../games/lines'
 import { say, sfx, stopSpeech } from '../../lib/audio'
 import { hasLine } from '../../content/lines'
@@ -51,7 +54,9 @@ function Ask({ q }: { q: Question }) {
 }
 
 /**
- * 選擇（英文課第 4 段）：一題一題問，念完題目才收作答（念的時候點：輕輕一聲，不算）。
+ * 選擇（英文課第 4 段）：一題一題問。
+ * 搶點（T-108，games/barge.ts）：念題目、示範、答錯的說明都可以搶——點選項就停掉語音、收掉示範、照常判對錯；
+ * 點空白就停掉語音、黃框馬上亮。題目剛出來 0.5 秒內、答對之後的稱讚到下一題不收（點了輕輕一聲）。
  * 豆豆頭上的泡泡畫出要找的樣子（Ask）。這種題型孩子還不會（../formats.ts）：這一堂的第一題先示範——
  * Watch me! → 手指泡泡、念題目 → 手點答案 → Your turn!（T-96：盲測裡他聽不懂英文題目，等手出來才點對）。
  * 示範完選項不換位置（T-100：三歲記的是位置，換邊他照手剛剛指的地方點就點錯了）；示範過的那一題記成一起練。
@@ -118,7 +123,15 @@ export function Quiz({
   const bubble = useRef<HTMLDivElement | null>(null)
   const tiles = useRef(new Map<string, HTMLElement>())
   const live = useRef(true)
-  const busy = useRef(true)
+  /** demo 示範、ask 念題目、fb 答錯的說明（可以搶）；turn 輪到孩子；done 答完了（不能再點） */
+  const phase = useRef<'demo' | 'ask' | 'fb' | 'turn' | 'done'>('ask')
+  /** 這一題剛出來的 0.5 秒過了（PACE.BARGE_ARM） */
+  const armed = useRef(false)
+  const armTimer = useRef(0)
+  const flow = useFlow()
+  const notYet = useNotYet()
+  /** 現在是第幾題（搶點時要知道念的是哪一題） */
+  const cur = useRef(start)
   const tries = useRef(0)
   const taps = useRef<{ pick: string; ms: number }[]>([])
   const t0 = useRef(0)
@@ -126,53 +139,81 @@ export function Quiz({
   const idle = useIdle()
   const q = list.current[i]
 
+  /** 輪到孩子（念完、或被搶掉）：黃框亮、開始計時 */
+  const openTurn = (qk: Question) => {
+    phase.current = 'turn'
+    if (!taps.current.length) setCue(true)
+    if (!t0.current) t0.current = performance.now()
+    idle.start({ repeat: () => void say(qk.prompt), hint: () => setHint(true) })
+  }
+
+  /** 孩子搶點：停掉語音；示範的手收起來（答錯的說明被搶掉時，答案的外框留著），直接輪到他 */
+  const takeOver = () => {
+    const was = phase.current
+    flow.cut()
+    if (was === 'demo') {
+      setShow(null)
+      setState({})
+    } else if (was === 'fb') {
+      setShow(null)
+      setHint(true)
+    }
+    openTurn(list.current[cur.current])
+  }
+
   const ask = async (k: number) => {
-    busy.current = true
+    const ok = flow.begin(live)
+    cur.current = k
+    phase.current = demoAt.current[k] ? 'demo' : 'ask'
+    armed.current = false
     setAccept(false)
+    clearTimeout(armTimer.current)
+    // 題目剛出來的 0.5 秒：上一題連點的手指先不算，之後念題目、示範都可以搶
+    armTimer.current = window.setTimeout(() => {
+      if (!live.current || phase.current === 'done') return
+      armed.current = true
+      setAccept(true)
+    }, PACE.BARGE_ARM)
     setState({})
     setHint(false)
     setCue(false)
     setSolved(false)
     tries.current = 0
     taps.current = []
+    t0.current = 0
     idle.stop()
     const qk = list.current[k]
     setShow(null)
     shown.current = demoAt.current[k]
     await wait(k === start ? 300 : 450)
-    if (!live.current) return
-    // 第一題要示範：Watch me! 就是開頭，不再先說 Let's play!（少說一句）
-    if (k === start && !shown.current) await say('le.en.play')
-    if (!live.current) return
+    if (!ok()) return
+    // 開場只念題目，不再先說 Let's play!（T-108：輪到他之前越短越好）；要示範的題目 Watch me! 就是開頭
     if (shown.current) {
       // 我做：手先指泡泡（要找的樣子），念題目，再去點答案；答案亮起來、念它的音
       await say('teach.watch.dodo')
-      if (!live.current) return
+      if (!ok()) return
       setShow('ask')
       await say(qk.prompt)
-      if (!live.current) return
+      if (!ok()) return
       setShow('answer')
       await wait(650)
-      if (!live.current) return
+      if (!ok()) return
       setPress((p) => p + 1)
       setState({ [qk.answer]: 'yes' })
       sfx.pop()
       await say(qk.yes)
       await wait(500)
-      if (!live.current) return
+      if (!ok()) return
       // 你做：手收起來，選項留在原地（不換位置）
       setShow(null)
       setState({})
+      phase.current = 'ask'
       await wait(400)
-      if (!live.current) return
+      if (!ok()) return
       await say('teach.turn.dodo')
     } else await say(qk.prompt)
-    if (!live.current) return
-    busy.current = false
-    setAccept(true)
-    setCue(true)
-    t0.current = performance.now()
-    idle.start({ repeat: () => void say(qk.prompt), hint: () => setHint(true) })
+    if (!ok()) return
+    openTurn(qk)
   }
 
   useEffect(() => {
@@ -180,15 +221,25 @@ export function Quiz({
     void ask(start)
     return () => {
       live.current = false
+      clearTimeout(armTimer.current)
       idle.stop()
       stopSpeech()
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
+  /** 念題目、示範、答錯說明的時候點空白：停掉語音、黃框馬上亮，不算錯 */
+  const blank = (e: ReactPointerEvent<HTMLDivElement>) => {
+    if (!armed.current || phase.current === 'done' || phase.current === 'turn' || !onBlank(e.target) || !layer.current) return
+    const p = localPoint(layer.current, e.clientX, e.clientY)
+    notYet.ping(p.x, p.y)
+    takeOver()
+  }
+
   const choose = async (o: Opt) => {
     setBump((b) => ({ id: o.id, n: (b?.n ?? 0) + 1 }))
-    if (busy.current) return void sfx.tap()
+    if (!armed.current || phase.current === 'done') return void sfx.tap()
+    if (phase.current !== 'turn') takeOver()
     idle.poke()
     setCue(false)
     const ms = Math.round(performance.now() - t0.current)
@@ -197,9 +248,11 @@ export function Quiz({
       tries.current++
       sfx.gentle()
       setState((s) => ({ ...s, [o.id]: 'no' }))
-      busy.current = true
+      phase.current = 'fb'
+      const ok = flow.begin(live)
       // 手從泡泡（要找的樣子）移到答案上點一下，同時說明點的是什麼、要找的是什麼；之後答案留著外框和手。
-      // 第二次錯：一樣手從泡泡到答案，這次手直接幫他點下去（一起做），這一題就算完（不再等他點，T-104）
+      // 第二次錯：一樣手從泡泡到答案，這次手直接幫他點下去（一起做），這一題就算完（不再等他點，T-104）。
+      // 說明、手在動的時候都可以搶（T-108）：點選項就照常判
       setHint(false)
       setHop((h) => h + 1)
       setShow('ask')
@@ -207,17 +260,17 @@ export function Quiz({
       const together = tries.current >= 2
       const talk = say(...(together ? [q.prompt] : why.every(hasLine) ? why : [retryKey('dodo')]))
       await wait(800)
-      if (!live.current) return
+      if (!ok()) return
       setShow('answer')
       await wait(450)
-      if (!live.current) return
+      if (!ok()) return
       setPress((p) => p + 1)
       await talk
-      if (!live.current) return
+      if (!ok()) return
       if (together) return void complete(true, ms)
       setShow(null)
       setHint(true)
-      busy.current = false
+      phase.current = 'turn'
       return
     }
     void complete(false, ms)
@@ -225,7 +278,7 @@ export function Quiz({
 
   /** 這一題答完（自己點對，或錯兩次以後手帶著做）：答對的放大、打勾、星星，其他的淡掉，進度亮一顆，再換下一題 */
   const complete = async (together: boolean, ms: number) => {
-    busy.current = true
+    phase.current = 'done'
     setAccept(false)
     setHint(false)
     idle.stop()
@@ -271,7 +324,7 @@ export function Quiz({
   const size = (o: Opt) => (q.kind === 'word' || !o.text ? '' : o.text === o.text.toUpperCase() ? ' is-upper' : ' is-lower')
   const at = show === 'ask' ? pointIn(bubble.current, layer.current, 0.5, 0.62) : show === 'answer' ? pointIn(tiles.current.get(q.answer), layer.current) : null
   return (
-    <div className="en-quiz" ref={layer}>
+    <div className="en-quiz" ref={layer} onPointerDown={blank}>
       {/* 要找什麼：豆豆頭上的泡泡（每題換 key 輕輕出來一次，不循環） */}
       <motion.div key={`ask${i}-${hop}`} ref={bubble} className="en-ask" aria-hidden="true" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4 }}>
         <Ask q={q} />
@@ -328,6 +381,7 @@ export function Quiz({
         </motion.div>
       </AnimatePresence>
       <AnimatePresence>{at && <Hand key="demo" x={at.x} y={at.y} tap={press} size="min(110px, 13vmin)" cuff="#BFE0CC" />}</AnimatePresence>
+      {notYet.view}
     </div>
   )
 }

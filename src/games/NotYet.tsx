@@ -66,8 +66,10 @@ export function localPoint(el: HTMLElement, clientX: number, clientY: number) {
 /**
  * 蓋在作答區上的透明擋板：on 的時候接住所有觸碰（不會穿過去點到選項），在碰到的地方出現「看這裡」的圈圈。
  * 放在作答區的容器裡（position: relative／absolute），返回鍵、主持的恐龍不在擋板底下，照樣可以點。
+ * T-108 之後說明、示範都可以搶（games/barge.ts），擋板只剩答對後、慶祝中、新題目剛出來的 0.5 秒會開；
+ * onTap：被點了要做的事（數學課開場：點一下就直接開始）。
  */
-export function WaitShield({ on, z }: { on: boolean; /** 作答區裡有自己 z-index 很高的東西（拖曳的蛋）時，擋板要蓋得過它 */ z?: number }) {
+export function WaitShield({ on, z, onTap }: { on: boolean; /** 作答區裡有自己 z-index 很高的東西（拖曳的蛋）時，擋板要蓋得過它 */ z?: number; onTap?: () => void }) {
   const { ping, view } = useNotYet()
   const el = useRef<HTMLDivElement>(null)
   return (
@@ -80,6 +82,7 @@ export function WaitShield({ on, z }: { on: boolean; /** 作答區裡有自己 z
         if (!on || !el.current) return
         const p = localPoint(el.current, e.clientX, e.clientY)
         ping(p.x, p.y)
+        if (firstFinger(e.nativeEvent)) onTap?.()
       }}
     >
       {view}

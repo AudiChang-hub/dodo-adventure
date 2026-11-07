@@ -261,8 +261,9 @@ test.describe('中文課', () => {
       if (s.quiz && tiles.length && !(await state(page)).accepting) {
         for (const t of tiles) await k.tap(t, '搶著點選項')
         const n = (await quizRows(page)).length
-        c.outcome('大人還在念題目時點選項不算作答', n === 0, `作答 ${n} 筆`)
-        if (n) await c.once('grab', '誤記作答', '大人還在念題目時點選項，記了作答', `${n} 筆`)
+        // T-108 之後卡片一出來（0.5 秒）就收作答；擋板只剩剛出來的 0.5 秒（上一題連點的手指）：那時候點的不能記成作答
+        c.outcome('題目剛出來、還不收的時候點選項不算作答', n === 0, `作答 ${n} 筆`)
+        if (n) await c.once('grab', '誤記作答', '題目剛出來、還不收的時候點選項，記了作答', `${n} 筆`)
       }
       k.behavior = '兩根手指一起按'
       s = (await waitFor(k, (s) => s.quiz && s.accepting, 20_000)) ?? s
