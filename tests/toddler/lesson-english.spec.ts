@@ -36,7 +36,13 @@ function finish(k: Toddler, c: Checker, name: string) {
 
 /** 這一課現在在哪一段（.en-lesson 的 data-phase） */
 const stageOf = (page: Page) => page.evaluate(() => document.querySelector('.en-lesson')?.getAttribute('data-phase') ?? null)
-const letterOf = (page: Page) => page.evaluate(() => document.querySelector('.en-meet .en-letter.is-big')?.textContent?.trim() ?? null)
+/** 今天的字母（大寫）：認字母的大字；中途離開再回來會從離開的那一段接著上（T-95），不在認字母就看描字上面的大小寫格子 */
+const letterOf = (page: Page) =>
+  page.evaluate(
+    () =>
+      // 到了單字範例：上面走過的小石頭寫著今天的小寫
+      (document.querySelector('.en-meet .en-letter.is-big') ?? document.querySelector('.en-trace-rounds span') ?? document.querySelector('.en-steps .is-done'))?.textContent?.trim().toUpperCase() || null,
+  )
 
 async function shot(page: Page, name: string, info: { project: { name: string } }) {
   if (!SHOTS || info.project.name !== 'tab1200') return
@@ -617,7 +623,7 @@ test.describe('英文字母課', () => {
       // 再進來：同一個字母從頭上（今天還沒上完）
       k.behavior = '返回後再進來'
       if (!(await enter(k, c))) return
-      await page.waitForSelector('.en-meet .en-letter.is-big', { timeout: 10_000 }).catch(() => null)
+      await page.waitForSelector('.en-meet .en-letter.is-big, .en-trace-rounds span, .en-steps .is-done', { timeout: 10_000 }).catch(() => null)
       const L2 = await letterOf(page)
       c.outcome('返回後再進來：同一個字母', !!L1 && L1 === L2, `${L1} → ${L2}`)
       if (L1 && L2 && L1 !== L2) await c.once('letter-skip', '誤記作答', '中途離開再進來換了字母', `${L1} → ${L2}`)
