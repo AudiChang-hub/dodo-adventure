@@ -23,18 +23,22 @@ type Stage = 'meet' | 'trace' | 'words' | 'quiz' | 'end'
 const STEPS: Stage[] = ['meet', 'trace', 'words', 'quiz']
 
 /** 給大人看的一行陪玩小字（A10，角落、不收點擊；跟數學課的 HINT、中文課的 parentTip 一樣） */
-function hintOf(stage: Stage, x: LessonLetter) {
+function hintOf(stage: Stage, x: LessonLetter, q?: Question) {
   const zh = lexWord(wordKey(x.words[0].w))?.zh?.replace(/\s+/g, '')
   switch (stage) {
     case 'meet':
       return `跟他一起用手指在空中寫 ${x.L}`
     case 'trace':
-      return '描歪沒關係，讚美他從綠點開始'
+      return '請他從綠點開始，沿著發亮的路描到星星；描歪沒關係'
     case 'words':
       // 不問「家裡有沒有」：第一個字可能是 snake、volcano 這種家裡沒有的（AI 小男生測試 2026-11-02）
       return zh ? `跟他一起說：${zh}、${x.words[0].w}` : `跟他一起找：還有什麼是 ${x.L} 開頭的？`
     case 'quiz':
-      return '讓他自己找，錯了會有提示'
+      // 每一題直接寫「現在請他點哪一個」（T-107 真人試玩：大人聽完英文也不知道這一段要做什麼）
+      if (q?.kind === 'big') return `找字母：請他點大的 ${q.L}（大卡片）`
+      if (q?.kind === 'little') return `找字母：請他點小的 ${q.L.toLowerCase()}（小卡片）`
+      if (q?.kind === 'word') return `找圖：請他點 ${q.L} 開頭的那張圖`
+      return '找字母：請他點豆豆頭上泡泡裡亮的那一個'
     default:
       return `今天的字母是 ${x.L}、${x.l}`
   }
@@ -146,7 +150,7 @@ export function EnglishLesson({ onDone }: LessonProps) {
       {letter && (
         <p className="coplay-hint en-coplay" aria-hidden="true">
           <span className="coplay-tag">陪玩</span>
-          {hintOf(stage, letter)}
+          {hintOf(stage, letter, qs.current[Math.min(quizDone, qs.current.length - 1)])}
         </p>
       )}
       <div className="en-host" aria-hidden="true">

@@ -2,8 +2,10 @@
    每一格 ≥ 2 cm（92 px）、格子之間 34 px（選到的那一格放大 1.08 倍後仍 ≥ 0.6 cm ≈ 28 px）（準則 TOUCH-1、DRAW-5、V-20）；
    會「結束、清掉」的鍵放在最上面一排，離畫面下緣很遠（TOUCH-5）。 */
 .tool-col {
-  --tool: 92px;
-  --tool-gap: 34px;
+  /* 高度不夠時整欄一起縮（T-107 真人試玩：平板瀏覽器有網址列時，最下排粉紅、黑色被切掉一半）。
+     --rows 由 Palette 依按鈕數量給；最大仍是 92px、間距 34px，最小 72px（約 2 cm）。 */
+  --tool-gap: clamp(14px, 3.4cqh, 34px);
+  --tool: clamp(76px, calc((94cqh - (var(--rows, 5) - 1) * var(--tool-gap)) / var(--rows, 5)), 92px);
   position: absolute;
   right: 14px;
   top: 0;
@@ -22,6 +24,18 @@
 /* 工具欄留出來的寬度：畫紙不要伸到工具欄底下 */
 .tool-room {
   right: calc(2 * 92px + 34px + 28px) !important;
+}
+/* 畫面很矮（平板瀏覽器有網址列、系統列）：兩欄放不下就改三欄，每格維持 ≥ 76px，不縮到三歲點不準 */
+@container (max-height: 500px) {
+  .tool-col {
+    grid-template-columns: repeat(3, var(--tool));
+    --rows: var(--rows3, 4);
+    --tool-gap: 14px;
+  }
+  .tool-room {
+    /* 只有自由畫畫用這個工具欄：10 個鍵、三欄就是 4 排 */
+    right: calc(3 * clamp(76px, calc((94cqh - 42px) / 4), 92px) + 2 * 14px + 28px) !important;
+  }
 }
 
 .tool {

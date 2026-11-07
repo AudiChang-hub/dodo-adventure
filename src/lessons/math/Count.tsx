@@ -119,12 +119,18 @@ export function CountPart({ ctx }: { ctx: PartCtx }) {
       ctx.mood('idle')
       void logTeach({ station: 'math', game: 'm-count', itemId: String(rd.n), skill: `count:${rd.n}`, level: 1, ms: Math.round(performance.now() - s) })
       await say('teach.turn.bobo')
-    } else await say(countLine(rd))
+    } else {
+      // 換一種東西再數（第一天數字是 1：畫面上突然只剩一隻恐龍）：也要明白告訴他「換你了」（T-107 真人試玩：大人、孩子都不知道要做什麼）
+      await say(countLine(rd))
+      if (!live.current) return
+      if (rd.n <= 2) await say('teach.turn.bobo')
+    }
     if (!live.current) return
     busy.current = false
     setHold(false)
     t0.current = performance.now()
-    if (!tapped.current) setLead(rd.demo ? 'hand' : 'glow')
+    // 輪到孩子：一律用手指著第一個要數的（只有發光，三歲看不出要點它）
+    if (!tapped.current) setLead('hand')
     idle.start({ repeat: () => void say('m.count.go'), hint: nudge })
   }
 

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { Children, useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react'
 import { COLORS } from '../../content/park'
 import { sfx } from '../../lib/audio'
 import { firstFinger } from '../NotYet'
@@ -14,8 +14,9 @@ export const PALETTE = [...FREE.map((id) => COLORS.find((c) => c.id === id)!.hex
  * 兩欄大格子，整欄都在畫紙外（tools.css）。
  */
 export function Palette({ value, onChange, children }: { value: string; onChange: (hex: string) => void; children?: ReactNode }) {
+  const n = Children.toArray(children).length + PALETTE.length
   return (
-    <div className="tool-col">
+    <div className="tool-col" style={{ '--rows': Math.ceil(n / 2), '--rows3': Math.ceil(n / 3) } as CSSProperties}>
       {children}
       {PALETTE.map((hex) => (
         <button
