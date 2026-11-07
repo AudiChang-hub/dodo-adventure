@@ -542,8 +542,12 @@ export async function grabDuringTeach(k: Toddler, c: Checker, g: GameDef) {
   let demoDraws = 0
   let touches = 0
   let silent = 0
+  /** 一開始在哪個畫面：T-108 之後示範、念題目都可以搶，搶著點可能把整段（甚至整堂）做完，離開這個畫面、下課慶祝出來就交回主流程 */
+  let home: string | null | undefined
   while (Date.now() < end) {
     const s = await snap(page)
+    if (home === undefined) home = s.live
+    if (s.live !== home || (await page.evaluate(() => !!document.querySelector('.cheer-scrim')))) break
     if (!s.teaching || s.teaching === 'teach-card-ready') {
       // 教學卡念完、在等孩子點：這時候點是正常的，換別的動作
       quiet++
