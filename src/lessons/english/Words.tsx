@@ -3,6 +3,8 @@ import { motion } from 'motion/react'
 import { Emoji } from '../../art/Emoji'
 import { say, sfx, stopSpeech } from '../../lib/audio'
 import { wait } from '../../games/lines'
+import { useFlow } from '../../games/barge'
+import { PACE } from '../../games/pace'
 import { logTeach } from '../../lib/record'
 import { noteTaught } from '../../lib/words'
 import { wordKey } from '../../content/lexicon'
@@ -35,37 +37,33 @@ async function linesOf(w: string): Promise<string[]> {
  * 單字範例（英文課第 3 段）：三個今天字母開頭的字，每個念「Apple → 蘋果 → Apple」，念到哪一個哪一個亮起來。
  * 三張圖一進這一段就跟字幕一起出來（2026-11-01 PM：以前念「These words start with A!」的兩秒多畫面中間是空的，
  * 三歲孩子盯著空白超過一秒就會開始亂點）。
- * 念完自己往下走；念完之後點圖可以再聽一次。念的時候點圖：圖跳一下、有聲音，不打斷。
+ * 念完自己往下走；念完之後點圖可以再聽一次。
+ * 搶點（T-108，games/barge.ts）：三個字還沒念完就點圖：停掉介紹，直接念他點的那一個，念完照常停一下就往下走。
+ * 正在念他點的那一個時又點：圖跳一下、有聲音，不重念。
  */
 export function Words({ letter, onDone }: { letter: LessonLetter; onDone: () => void }) {
   const [lit, setLit] = useState(-1)
   const [bump, setBump] = useState<{ i: number; n: number } | null>(null)
   const talking = useRef(true)
+  /** 開頭三個字的介紹還在念（可以被搶掉） */
+  const intro = useRef(true)
   const live = useRef(true)
   const leaveAt = useRef(0)
+  const flow = useFlow()
+  const mountAt = useRef(performance.now())
+  /** 介紹念完（或被搶掉）：開始倒數往下走（只開一次） */
+  const settle = useRef<() => void>(() => {})
 
   useEffect(() => {
     live.current = true
+    mountAt.current = performance.now()
     let timer = 0
-    void (async () => {
-      await wait(300)
-      if (!live.current) return
-      await say(`ph.${letter.l}.words`)
-      for (let i = 0; i < letter.words.length; i++) {
-        if (!live.current) return
-        const t = performance.now()
-        setLit(i)
-        await wait(350)
-        const ls = await linesOf(letter.words[i].w)
-        if (!live.current) return
-        await say(...ls)
-        if (!live.current) return
-        void logTeach({ station: 'english', game: 'lesson-en', itemId: `word:${wordKey(letter.words[i].w)}`, skill: `word:${wordKey(letter.words[i].w)}`, level: 1, ms: Math.round(performance.now() - t) })
-        await wait(250)
-      }
+    let ticking = false
+    settle.current = () => {
+      if (ticking || !live.current) return
+      ticking = true
+      intro.current = false
       noteTaught(letter.words.map((w) => wordKey(w.w)))
-      setLit(-1)
-      talking.current = false
       leaveAt.current = performance.now() + 1500
       const tick = () => {
         if (!live.current) return
@@ -73,6 +71,28 @@ export function Words({ letter, onDone }: { letter: LessonLetter; onDone: () => 
         timer = window.setTimeout(tick, 200)
       }
       tick()
+    }
+    void (async () => {
+      const ok = flow.begin(live)
+      await wait(300)
+      if (!ok()) return
+      await say(`ph.${letter.l}.words`)
+      for (let i = 0; i < letter.words.length; i++) {
+        if (!ok()) return
+        const t = performance.now()
+        setLit(i)
+        await wait(350)
+        const ls = await linesOf(letter.words[i].w)
+        if (!ok()) return
+        await say(...ls)
+        if (!ok()) return
+        void logTeach({ station: 'english', game: 'lesson-en', itemId: `word:${wordKey(letter.words[i].w)}`, skill: `word:${wordKey(letter.words[i].w)}`, level: 1, ms: Math.round(performance.now() - t) })
+        await wait(250)
+      }
+      if (!ok()) return
+      setLit(-1)
+      talking.current = false
+      settle.current()
     })()
     return () => {
       live.current = false
@@ -84,6 +104,14 @@ export function Words({ letter, onDone }: { letter: LessonLetter; onDone: () => 
 
   const tap = async (i: number) => {
     setBump((b) => ({ i, n: (b?.n ?? 0) + 1 }))
+    // 介紹還沒念完就點：停掉介紹，直接念他點的那一個
+    // 剛出來的 0.5 秒（PACE.BARGE_ARM）：上一段連點的手指先不算
+    if (intro.current && performance.now() - mountAt.current < PACE.BARGE_ARM) return void sfx.pop()
+    if (intro.current) {
+      flow.cut()
+      talking.current = false
+      settle.current()
+    }
     if (talking.current) return void sfx.pop()
     talking.current = true
     setLit(i)

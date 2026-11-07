@@ -10,6 +10,7 @@ import { album, nextPick, pickOptions, placeSticker, type OwnedSticker } from '.
 import type { Stk } from '../lib/sticker-pick'
 import { say, sfx, hushSpeech, stopSpeech } from '../lib/audio'
 import { wait } from '../games/lines'
+import { PACE } from '../games/pace'
 import { FADE, overlay } from './motion'
 import { useTaps } from './tap'
 import './sticker-ui.css'
@@ -71,6 +72,8 @@ export function StickerPicker({ onDone }: { onDone: () => void }) {
   const live = useRef(true)
   const lastTouch = useRef(performance.now())
   const done = useRef(false)
+  /** 翻牌、說「Pick a sticker you like!」的時候點一下：停掉語音、馬上攤開（T-108 搶點）；翻牌剛開始的 0.5 秒不算（上一個畫面連點的手指） */
+  const skipReveal = useRef<{ at: number; go: () => void } | null>(null)
   const finish = () => {
     if (done.current) return
     done.current = true
@@ -129,7 +132,17 @@ export function StickerPicker({ onDone }: { onDone: () => void }) {
       sfx.pop()
       void say(first.current ? 'stk.pick.hi' : 'stk.pick.another')
       first.current = false
-      await wait(1150)
+      await new Promise<void>((r) => {
+        const t = window.setTimeout(r, 1150)
+        skipReveal.current = {
+          at: performance.now(),
+          go: () => {
+            clearTimeout(t)
+            r()
+          },
+        }
+      })
+      skipReveal.current = null
       if (!alive || !live.current) return
       newBatch(pick.feature)
       setPhase('choose')
@@ -269,6 +282,11 @@ export function StickerPicker({ onDone }: { onDone: () => void }) {
         lastTouch.current = performance.now()
         if (hand) hideHand()
         if (homeHand) setHomeHand(0)
+        const sk = skipReveal.current
+        if (sk && performance.now() - sk.at >= PACE.BARGE_ARM) {
+          hushSpeech()
+          sk.go()
+        }
       }}
     >
       <div className="pk-glow" aria-hidden="true" />

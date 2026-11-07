@@ -7,6 +7,8 @@ import { HandArt, PenArt, easeInOut, tween } from '../../games/Demo'
 import { Sparkles } from '../../ui/Sparkles'
 import { useIdle } from '../../games/idle'
 import { wait } from '../../games/lines'
+import { useFlow } from '../../games/barge'
+import { PACE } from '../../games/pace'
 import { logAttempt, logTeach } from '../../lib/record'
 import { say, sfx, stopSpeech } from '../../lib/audio'
 import { LINES, type LessonLetter } from './data'
@@ -50,7 +52,9 @@ function strokeStart(d: string) {
 /**
  * 描字（英文課第 2 段）：今天的大寫、小寫各描一次，用觸控筆或手指都可以。
  * 粗跑道、起點圓點和箭頭、一筆一筆照筆順描（PathTracker）。描得好不好只寫進作答紀錄，不影響隔天上哪個字母（A5）。
- * - 每一輪先「Watch me!」筆照筆順描一次，說完「Your turn!」才能畫；示範中畫不出線（Ink disabled），也不會記成作答。
+ * - 每一輪先「Watch me!」筆照筆順描一次，示範完只說「Your turn!」。
+ * - 搶點（T-108，games/barge.ts）：示範、說明的時候下筆：停掉語音、筆的示範收掉，那一筆照常描。
+ *   描完的慶祝、筆帶著描完、放手後補滿的那一下不能搶（Ink disabled）。
  * - 要沿著跑道一路描到底才算描完一筆：點一下、亂畫都不會自動完成。沒描到的線放開後淡掉。
  * - 回饋（AI 小男生測試 #3）：
  *   - 起點附近按下去吸到起點（SNAP_MM，3 歲手指的偏差），圓點那邊亮一圈、有一條虛線從手指連過去；
@@ -85,7 +89,14 @@ export function Trace({ letter, from = 0, onRound, onDone }: { letter: LessonLet
   const paper = useRef<HTMLDivElement>(null)
   const drawing = useRef(false)
   const moved = useRef(false)
-  const busy = useRef(true)
+  /** 不能搶的那幾段：描完的慶祝、筆帶著描完、放手後補滿 */
+  const busy = useRef(false)
+  /** intro 說明、demo 筆的示範（可以搶）；turn 輪到孩子 */
+  const phase = useRef<'intro' | 'demo' | 'turn'>('intro')
+  /** 這一輪剛出來的 0.5 秒過了（PACE.BARGE_ARM） */
+  const armed = useRef(false)
+  const armTimer = useRef(0)
+  const flow = useFlow()
   const live = useRef(true)
   const devs = useRef<{ offRatio: number; meanDev: number }[]>([])
   const good = useRef(0)
@@ -135,28 +146,65 @@ export function Trace({ letter, from = 0, onRound, onDone }: { letter: LessonLet
   }
 
   /** 筆照筆順描一次 */
-  const showMe = async (ss: string[], big: boolean) => {
+  const showMe = async (ss: string[], big: boolean, ok: () => boolean) => {
     const s = performance.now()
     setDemo(true)
     await say('teach.watch.dodo')
     for (let k = 0; k < ss.length; k++) {
-      if (!live.current) return
+      if (!ok()) return
       begin(ss, k)
       const total = tracker.current!.samples.length - 1
       await wait(260)
-      await tween(Math.max(900, total * 26), (f) => setProg(Math.round(f * total)), () => live.current, easeInOut)
-      if (!live.current) return
+      if (!ok()) return
+      await tween(Math.max(900, total * 26), (f) => setProg(Math.round(f * total)), ok, easeInOut)
+      if (!ok()) return
       sfx.correct()
     }
     setDone(true)
     await say(nameKey(big))
-    if (!live.current) return
+    if (!ok()) return
     await wait(300)
+    if (!ok()) return
     setDone(false)
     setDemo(false)
     begin(ss, 0)
+    phase.current = 'intro'
     void logTeach({ station: 'english', game: 'lesson-en', itemId: `write:${glyphOf(big)}`, skill: `write:${glyphOf(big)}`, level: 1, ms: Math.round(performance.now() - s) })
-    await say('d.intro.glyph', 'teach.turn.dodo')
+    // 示範完只說「Your turn!」（T-108：以前還先說 Start at the green dot! Go this way!，輪到他之前話太多；綠點一直在閃，10 秒沒動筆會再示範）
+    await say('teach.turn.dodo')
+  }
+
+  /** 輪到孩子（說完、或被搶掉）：開始計時，45 秒還沒描完筆帶著描完 */
+  const openTurn = () => {
+    phase.current = 'turn'
+    if (!t0.current) t0.current = performance.now()
+    spoke.current = false
+    idle.start(
+      {
+        repeat: () => void showAgain(),
+        hint: () => {
+          // 只說一次；之後每 40 秒筆再安靜地描一次
+          if (!spoke.current) void say('d.intro.glyph')
+          spoke.current = true
+          void showAgain()
+        },
+      },
+      { repeat: 10_000, hint: 15_000 },
+    )
+    clearTimeout(helpTimer.current)
+    helpTimer.current = window.setTimeout(() => void helpFinish(), HELP_MS)
+  }
+
+  /** 孩子搶著下筆：停掉語音、筆的示範收掉，直接輪到他 */
+  const takeOver = () => {
+    const was = phase.current
+    flow.cut()
+    if (was === 'demo') {
+      setDone(false)
+      setDemo(false)
+      begin(cur.current.strokes, 0)
+    }
+    openTurn()
   }
 
   /** 沒動 10 秒：筆從現在描到的地方往後描一次（不出墨），再停回孩子該接著描的地方 */
@@ -204,38 +252,32 @@ export function Trace({ letter, from = 0, onRound, onDone }: { letter: LessonLet
     helped.current = false
     onRound?.(i)
     const ss = rd.big ? letter.upper : letter.lower
+    const ok = flow.begin(live)
     devs.current = []
     setDone(false)
     setAgain(null)
     setBounce(null)
     setSnapFx(null)
     begin(ss, 0)
-    busy.current = true
+    busy.current = false
+    phase.current = rd.demo ? 'demo' : 'intro'
+    t0.current = 0
+    armed.current = false
     setHold(true)
+    clearTimeout(armTimer.current)
+    // 剛出來的 0.5 秒：上一輪連點的手指先不算，之後示範、說明時下筆就搶
+    armTimer.current = window.setTimeout(() => {
+      if (!live.current || busy.current) return
+      armed.current = true
+      setHold(false)
+    }, PACE.BARGE_ARM)
     idle.stop()
     ink.current?.clear()
-    if (i === from) await say('le.en.write')
-    if (!live.current) return
-    if (rd.demo) await showMe(ss, rd.big)
+    // 示範的「Watch me!」就是開頭，不再先說「Let's write it!」（T-108：少一句）
+    if (rd.demo) await showMe(ss, rd.big, ok)
     else await say(nameKey(rd.big), 'd.intro.glyph')
-    if (!live.current) return
-    t0.current = performance.now()
-    busy.current = false
-    setHold(false)
-    spoke.current = false
-    idle.start(
-      {
-        repeat: () => void showAgain(),
-        hint: () => {
-          // 只說一次；之後每 40 秒筆再安靜地描一次
-          if (!spoke.current) void say('d.intro.glyph')
-          spoke.current = true
-          void showAgain()
-        },
-      },
-      { repeat: 10_000, hint: 15_000 },
-    )
-    helpTimer.current = window.setTimeout(() => void helpFinish(), HELP_MS)
+    if (!ok()) return
+    openTurn()
   }
 
   useEffect(() => {
@@ -244,6 +286,7 @@ export function Trace({ letter, from = 0, onRound, onDone }: { letter: LessonLet
     return () => {
       live.current = false
       clearTimeout(boot)
+      clearTimeout(armTimer.current)
       clearTimeout(helpTimer.current)
       idle.stop()
       stopSpeech()
@@ -302,8 +345,10 @@ export function Trace({ letter, from = 0, onRound, onDone }: { letter: LessonLet
   }
 
   const onDown = (p: P2) => {
+    if (!tracker.current || busy.current || !armed.current) return
+    // 示範、說明的時候下筆：示範收掉，這一筆照常描
+    if (phase.current !== 'turn') takeOver()
     const t = tracker.current
-    if (!t || busy.current) return
     idle.poke()
     setAgain(null)
     moved.current = false
@@ -326,7 +371,7 @@ export function Trace({ letter, from = 0, onRound, onDone }: { letter: LessonLet
   }
   const onMove = (p: P2) => {
     const t = tracker.current
-    if (!t || busy.current) return
+    if (!t || busy.current || phase.current !== 'turn') return
     idle.poke()
     if (!drawing.current) return
     if (t.feed(p)) {

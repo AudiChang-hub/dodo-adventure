@@ -1,8 +1,9 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
 import { Emoji } from '../../art/Emoji'
 import { Hand } from '../../games/Demo'
-import { WaitShield, firstFinger } from '../../games/NotYet'
+import { WaitShield, firstFinger, localPoint, useNotYet } from '../../games/NotYet'
+import { onBlank, useFlow } from '../../games/barge'
 import { wait } from '../../games/lines'
 import { useIdle } from '../../games/idle'
 import { PACE } from '../../games/pace'
@@ -34,7 +35,9 @@ type Where = { at: 'pile'; i: number } | { at: 'plate'; i: number }
  * 拿給波波（Give-N，現況對照 A1 第 6 點、指引 MA-2）：「Give me three!」孩子把東西一個一個點進波波的盤子，點勾勾交出去。
  * 這是看孩子是不是真的懂「3 是多少」最好的題目（會唱數不一定拿得出 3 個）。
  * - 只用點的（TOUCH-2）：點左邊的東西 → 飛進盤子，波波念盤子裡有幾個；點盤子裡的 → 拿回去。
- * - 第一次拿這個數量：波波先示範（手一個一個點進盤子、邊點邊數、最後點勾勾），示範中孩子點了不算。
+ * - 第一次拿這個數量：波波先示範（手一個一個點進盤子、邊點邊數、最後點勾勾）。
+ * - 搶點（T-108，games/barge.ts）：示範中、說明中點了東西：停掉語音、示範收掉（盤子清空），那一下照常拿；
+ *   點勾勾或空白：停掉語音，手馬上指著下一步。交出去之後的道謝不能搶。
  * - 點勾勾：剛好 → 「There are three! Yum! Thank you!」；不對（第一次）→ 說盤子裡有幾個、波波要幾個（More, please!／Too many!），
  *   東西留著讓孩子自己改；第二次 → 手把盤子改成剛好、一起數，再指勾勾，孩子點了就過。
  * - 盤子是空的就點勾勾：再說一次「Give me three!」，不算答錯。
@@ -49,7 +52,13 @@ export function GivePart({ ctx }: { ctx: PartCtx }) {
   const [glad, setGlad] = useState(false)
   const [want, setWant] = useState(0)
   const live = useLive()
-  const busy = useRef(true)
+  /** demo 示範、intro 說明、fb 答錯的說明、help 錯兩次手幫忙放（這幾段可以搶）；turn 輪到孩子；done 交出去了 */
+  const phase = useRef<'demo' | 'intro' | 'fb' | 'help' | 'turn' | 'done'>('intro')
+  /** 剛出來的 0.5 秒過了（PACE.BARGE_ARM） */
+  const armed = useRef(false)
+  const flow = useFlow()
+  const notYet = useNotYet()
+  const box = useRef<HTMLDivElement | null>(null)
   const plateRef = useRef<number[]>([])
   const checks = useRef<{ pick: string; ms: number }[]>([])
   const t0 = useRef(0)
@@ -84,13 +93,14 @@ export function GivePart({ ctx }: { ctx: PartCtx }) {
   }
 
   /** 手把盤子放成剛好 n 個，邊放邊數（示範、錯兩次的時候） */
-  const fillTo = async () => {
+  const fillTo = async (ok: () => boolean) => {
     setP([])
     await wait(300)
     const got: number[] = []
     for (let k = 0; k < n; k++) {
-      if (!live.current) return
+      if (!ok()) return
       await point(SUPPLY[k], k === 0 ? 520 : 360)
+      if (!ok()) return
       got.push(k)
       setP([...got])
       sfx.count(got.length)
@@ -98,47 +108,61 @@ export function GivePart({ ctx }: { ctx: PartCtx }) {
     }
   }
 
+  /** 輪到孩子（說完、或被搶掉） */
   const open = () => {
-    busy.current = false
-    setHold(false)
-    t0.current = performance.now()
+    phase.current = 'turn'
+    if (!t0.current) t0.current = performance.now()
     idle.start({ repeat: () => void ask(), hint: nudge })
   }
 
+  /** 孩子搶點：停掉語音；示範收掉（盤子清空），手幫忙放的停在那裡，直接輪到他 */
+  const takeOver = () => {
+    const was = phase.current
+    flow.cut()
+    if (was === 'demo' || was === 'help') {
+      setHand(null)
+      setGlad(false)
+      if (was === 'demo') setP([])
+      showing(false)
+      ctx.mood('idle')
+    }
+    open()
+  }
+
   const start = async () => {
-    busy.current = true
-    setHold(true)
+    const ok = flow.begin(live)
+    phase.current = round.demo ? 'demo' : 'intro'
     if (round.demo) {
       const s = performance.now()
       showing(true)
       ctx.mood('happy')
       await ask()
-      if (!live.current) return
+      if (!ok()) return
       await say('teach.watch.bobo')
-      if (!live.current) return
-      await fillTo()
-      if (!live.current) return
+      if (!ok()) return
+      await fillTo(ok)
+      if (!ok()) return
       await point(DONE, 500)
+      if (!ok()) return
       // 手點完勾勾就收起來，不停在勾勾上（AI 小男生測試 2026-11-02 數學-2 第 4～7 步：手最後停在勾勾，他就一直點勾勾，沒去拿東西）
       setHand(null)
-      await say(`m.total.${n}`)
-      if (!live.current) return
       setGlad(true)
-      await say('ma.give.thanks')
-      if (!live.current) return
+      // 示範只說總數，不再加「Yum! Thank you!」：輪到他之前少一句（T-108）
+      await say(`m.total.${n}`)
+      if (!ok()) return
       await wait(PACE.DEMO_HOLD)
-      if (!live.current) return
+      if (!ok()) return
       setHand(null)
       setGlad(false)
       setP([])
       showing(false)
       ctx.mood('idle')
+      phase.current = 'intro'
       void logTeach({ station: 'math', game: 'm-give', itemId: String(n), skill: `give:${n}`, level: 1, ms: Math.round(performance.now() - s) })
+      // 示範完只說「Your turn!」，不再重說一次 Give me three（上面的大數字一直在，15 秒沒動會再說）
       await say('teach.turn.bobo')
-      if (!live.current) return
-    }
-    await ask()
-    if (!live.current) return
+    } else await ask()
+    if (!ok()) return
     open()
     // 剛示範完：手停在第一個可以拿的東西上（跟數數一樣），看得出要先「拿」
     if (round.demo) void point(SUPPLY[0], 0)
@@ -146,7 +170,7 @@ export function GivePart({ ctx }: { ctx: PartCtx }) {
 
   /** 閒置第二段、點波波：手指著下一步（還不夠：左邊的一個；太多：盤子裡的一個；剛好：勾勾） */
   const nudge = () => {
-    if (busy.current) return
+    if (phase.current !== 'turn') return
     helped.current = true
     const p = plateRef.current
     if (p.length < n) {
@@ -158,8 +182,14 @@ export function GivePart({ ctx }: { ctx: PartCtx }) {
 
   useEffect(() => {
     const boot = window.setTimeout(() => void start(), 0)
+    // 剛出來的 0.5 秒：上一段連點的手指先不算，之後說明、示範都可以搶
+    const arm = window.setTimeout(() => {
+      if (!live.current || phase.current === 'done') return
+      armed.current = true
+      setHold(false)
+    }, PACE.BARGE_ARM)
     const mine = () => {
-      if (busy.current) return
+      if (phase.current !== 'turn') return
       idle.poke()
       void ask()
       nudge()
@@ -167,6 +197,7 @@ export function GivePart({ ctx }: { ctx: PartCtx }) {
     ctx.host.current = mine
     return () => {
       clearTimeout(boot)
+      clearTimeout(arm)
       idle.stop()
       if (ctx.host.current === mine) ctx.host.current = null
       if (demoing.current) ctx.demo(false)
@@ -174,8 +205,18 @@ export function GivePart({ ctx }: { ctx: PartCtx }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
+  /** 說明、示範的時候點空白：停掉語音，手馬上指著下一步 */
+  const blank = (e: ReactPointerEvent<HTMLDivElement>) => {
+    if (!armed.current || phase.current === 'done' || phase.current === 'turn' || !onBlank(e.target) || !box.current) return
+    const p = localPoint(box.current, e.clientX, e.clientY)
+    notYet.ping(p.x, p.y)
+    takeOver()
+    nudge()
+  }
+
   const tapThing = (k: number) => {
-    if (busy.current) return
+    if (!armed.current || phase.current === 'done') return
+    if (phase.current !== 'turn') takeOver()
     idle.poke()
     setHand(null)
     const p = plateRef.current
@@ -215,7 +256,12 @@ export function GivePart({ ctx }: { ctx: PartCtx }) {
   }
 
   const check = async () => {
-    if (busy.current) return
+    if (!armed.current || phase.current === 'done') return
+    // 說明、示範的時候點勾勾：停掉語音，手馬上指著下一步（不算交出去）
+    if (phase.current !== 'turn') {
+      takeOver()
+      return nudge()
+    }
     idle.poke()
     const have = plateRef.current.length
     // 盤子是空的：再說一次要幾個（不算答錯）
@@ -224,34 +270,38 @@ export function GivePart({ ctx }: { ctx: PartCtx }) {
       return void ask()
     }
     checks.current.push({ pick: String(have), ms: Math.round(performance.now() - t0.current) })
-    busy.current = true
-    setHold(true)
     setHand(null)
     idle.stop()
-    if (have === n) return void finish(checks.current.length === 1)
+    if (have === n) {
+      phase.current = 'done'
+      setHold(true)
+      return void finish(checks.current.length === 1)
+    }
     sfx.gentle()
+    const ok = flow.begin(live)
     if (checks.current.length < 2) {
-      // 錯第一次：說出盤子裡有幾個、波波要幾個（HOW-5），東西留著讓孩子自己改
+      // 錯第一次：說出盤子裡有幾個、波波要幾個（HOW-5），東西留著讓孩子自己改（說的時候可以搶）
+      phase.current = 'fb'
       await say(`m.total.${have}`, have < n ? 'ma.give.more' : 'ma.give.toomany', `ma.want.${n}`)
-      if (!live.current) return
+      if (!ok()) return
       return open()
     }
-    // 錯第二次：手把盤子放成剛好、一起數，再指勾勾讓孩子點
+    // 錯第二次：手把盤子放成剛好、一起數，再指勾勾讓孩子點（手在放的時候可以搶）
+    phase.current = 'help'
     helped.current = true
     showing(true)
-    await fillTo()
-    if (!live.current) return
+    await fillTo(ok)
+    if (!ok()) return
     await say(`m.total.${n}`)
-    if (!live.current) return
+    if (!ok()) return
     showing(false)
     await point(DONE, 0)
-    busy.current = false
-    setHold(false)
+    phase.current = 'turn'
     idle.start({ repeat: () => void point(DONE, 0), hint: () => void point(DONE, 0) })
   }
 
   return (
-    <div className="ma-give">
+    <div className="ma-give" ref={box} onPointerDown={blank}>
       {/* 波波要幾個：大大的數字和點點（只說英文也看得懂要幾個） */}
       <motion.div key={want} className="ma-give-want" aria-label={`波波要 ${n} 個`} animate={want ? { scale: [1, 1.08, 1] } : {}} transition={{ duration: 0.45 }}>
         <span className="ma-give-num">{n}</span>
@@ -286,6 +336,7 @@ export function GivePart({ ctx }: { ctx: PartCtx }) {
         </svg>
       </button>
       <AnimatePresence>{hand && <Hand key="hand" x={hand.x} y={hand.y} tap={hand.tap} size="11cqmin" cuff="#F0B088" />}</AnimatePresence>
+      {notYet.view}
       <WaitShield on={hold} />
     </div>
   )

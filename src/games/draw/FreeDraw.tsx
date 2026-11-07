@@ -7,7 +7,7 @@ import { HandArt, easeInOut, tween } from '../Demo'
 import { game as gameDef } from '../../content/games'
 import { markPlayed } from '../../lib/adaptive'
 import { logAttempt } from '../../lib/record'
-import { hushSpeech, say, sfx, stopSpeech } from '../../lib/audio'
+import { hushSpeech, isSpeaking, say, sfx, stopSpeech } from '../../lib/audio'
 import { motion } from 'motion/react'
 import { Sparkles } from '../../ui/Sparkles'
 import { wait, within } from '../lines'
@@ -138,6 +138,8 @@ export function FreeDraw({ gameId, onDone, onExit }: GameProps) {
             drawing.current = true
             hideHand()
             idle.poke()
+            // 開場「Draw anything you like!」講到一半就下筆：停掉語音（T-108 搶點，孩子已經在做了）
+            if (!busy.current && isSpeaking()) hushSpeech()
           }}
           onUp={() => {
             drawing.current = false

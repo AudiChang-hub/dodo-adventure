@@ -1,7 +1,8 @@
-import { useEffect, useRef, useState, type CSSProperties, type MutableRefObject, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type CSSProperties, type MutableRefObject, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react'
 import { AnimatePresence, motion, useIsPresent } from 'motion/react'
 import { Hand } from '../../games/Demo'
-import { WaitShield, firstFinger } from '../../games/NotYet'
+import { WaitShield, firstFinger, localPoint, useNotYet } from '../../games/NotYet'
+import { onBlank, useFlow } from '../../games/barge'
 import { praiseKey, retryKey, wait } from '../../games/lines'
 import { useIdle } from '../../games/idle'
 import { PACE } from '../../games/pace'
@@ -90,8 +91,9 @@ export interface QuizResult {
 }
 
 /**
- * 一題選擇題：念題目時選項上面蓋著擋板（點了只出現「看這裡」，PHASE-2），念完才收。
- * 念完、輪到孩子：每張卡外面一圈淡黃框（看得出「現在可以選了」）。
+ * 一題選擇題。念完、輪到孩子：每張卡外面一圈淡黃框（看得出「現在可以選了」）。
+ * 搶點（T-108，games/barge.ts）：念題目、示範、答錯的說明都可以被搶掉——點選項就停掉語音、收掉示範、照常判對錯；
+ * 點空白就停掉語音、黃框馬上亮（不算錯）。題目剛出來 0.5 秒內（PACE.BARGE_ARM）、答對之後的稱讚到下一題，擋板照舊只給圈圈。
  * 點錯第一次：說出他選的是什麼、再問一次要找的（spec.wrong），答案外面一圈提示框；第二次：手點一下答案、說出答案，孩子再點對的（不會卡住）。
  * 閒置：15 秒再念一次題目 → 再 15 秒答案亮起來、手點一下（不說話）。
  * 題型還不會（spec.format，../formats.ts）：先示範——Watch me! → 手指泡泡（要找的樣子；How many? 指要數的那一堆）、念題目 → 手點答案、說出答案 → Your turn!（選項不換位置）
@@ -101,6 +103,7 @@ export function Quiz({ spec, host, onDone, showing }: { spec: QuizSpec; host: Pa
   const [marks, setMarks] = useState<Record<string, 'wrong' | 'correct'>>({})
   const [hint, setHint] = useState(false)
   const [hand, setHand] = useState(0)
+  /** 擋板：題目剛出來的 0.5 秒、答對之後 */
   const [hold, setHold] = useState(true)
   const [cue, setCue] = useState(0)
   /** 輪到孩子選：每張卡外面一圈靜態的淡黃框（AI 小男生測試 #5：輪到他時選項要亮起來），點了第一下就收 */
@@ -112,48 +115,69 @@ export function Quiz({ spec, host, onDone, showing }: { spec: QuizSpec; host: Pa
   const bubble = useRef<HTMLDivElement | null>(null)
   const pile = useRef<HTMLDivElement | null>(null)
   const live = useLive()
-  const busy = useRef(true)
+  /** demo 示範中、ask 念題目、fb 答錯的說明（這三段可以搶）；turn 輪到孩子；done 答對了（不能再點） */
+  const phase = useRef<'demo' | 'ask' | 'turn' | 'fb' | 'done'>(shown.current ? 'demo' : 'ask')
+  const armed = useRef(false)
+  const flow = useFlow()
   const taps = useRef<{ pick: string; ms: number }[]>([])
   const t0 = useRef(0)
   const hinted = useRef(false)
   const idle = useIdle()
   const tiles = useRef(new Map<string, HTMLElement>())
   const layer = useRef<HTMLDivElement | null>(null)
+  const notYet = useNotYet()
+
+  /** 輪到孩子（念完、或被搶掉）：黃框亮、開始計時 */
+  const openTurn = () => {
+    phase.current = 'turn'
+    if (!taps.current.length) setReady(true)
+    if (!t0.current) t0.current = performance.now()
+    idle.start({ repeat: () => void say(...spec.prompt), hint: show })
+  }
+
+  /** 孩子搶點：停掉語音、示範收起來，直接輪到他（不再說 Your turn、不重講） */
+  const takeOver = () => {
+    const was = phase.current
+    flow.cut()
+    if (was === 'demo') {
+      setTeach(null)
+      setMarks({})
+      showing?.(false)
+    }
+    openTurn()
+  }
 
   const ask = async () => {
-    busy.current = true
-    setHold(true)
+    const ok = flow.begin(live)
     setCue((c) => c + 1)
     if (shown.current) {
+      phase.current = 'demo'
       showing?.(true)
       await say('teach.watch.bobo')
-      if (!live.current) return
+      if (!ok()) return
       setTeach('ask')
       await say(...spec.prompt)
-      if (!live.current) return
+      if (!ok()) return
       setTeach('answer')
       await wait(650)
-      if (!live.current) return
+      if (!ok()) return
       setPress((p) => p + 1)
       setMarks({ [spec.answer]: 'correct' })
       sfx.pop()
       await say(...spec.correction)
       await wait(500)
-      if (!live.current) return
+      if (!ok()) return
       // 你做：手收起來，選項留在原地（T-100：三歲記的是位置，示範完換位置他照手剛剛指的地方點就點錯了）
       setTeach(null)
       setMarks({})
       showing?.(false)
+      phase.current = 'ask'
       await wait(400)
-      if (!live.current) return
+      if (!ok()) return
       await say('teach.turn.bobo')
     } else await say(...spec.prompt)
-    if (!live.current) return
-    busy.current = false
-    setHold(false)
-    if (!taps.current.length) setReady(true)
-    t0.current = performance.now()
-    idle.start({ repeat: () => void say(...spec.prompt), hint: show })
+    if (!ok()) return
+    openTurn()
   }
 
   const show = () => {
@@ -163,8 +187,14 @@ export function Quiz({ spec, host, onDone, showing }: { spec: QuizSpec; host: Pa
 
   useEffect(() => {
     const boot = window.setTimeout(ask, 0)
+    // 題目剛出來：上一題連點的手指先不算（只給圈圈），之後念題目時就可以搶
+    const arm = window.setTimeout(() => {
+      if (!live.current || phase.current === 'done') return
+      armed.current = true
+      setHold(false)
+    }, PACE.BARGE_ARM)
     const mine = () => {
-      if (busy.current) return
+      if (phase.current !== 'turn') return
       idle.poke()
       setCue((c) => c + 1)
       void say(...spec.prompt)
@@ -172,6 +202,7 @@ export function Quiz({ spec, host, onDone, showing }: { spec: QuizSpec; host: Pa
     host.current = mine
     return () => {
       clearTimeout(boot)
+      clearTimeout(arm)
       idle.stop()
       if (shown.current) showing?.(false)
       // 淡出中的上一題比下一題晚卸載：只收自己的
@@ -180,8 +211,17 @@ export function Quiz({ spec, host, onDone, showing }: { spec: QuizSpec; host: Pa
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
+  /** 念題目、示範的時候點空白：停掉語音、黃框馬上亮，不算錯 */
+  const blank = (e: ReactPointerEvent<HTMLDivElement>) => {
+    if (!armed.current || phase.current === 'done' || phase.current === 'turn' || !onBlank(e.target) || !layer.current) return
+    const p = localPoint(layer.current, e.clientX, e.clientY)
+    notYet.ping(p.x, p.y)
+    takeOver()
+  }
+
   const tap = async (id: string) => {
-    if (busy.current) return
+    if (!armed.current || phase.current === 'done') return
+    if (phase.current !== 'turn') takeOver()
     idle.poke()
     // 又點到剛剛點錯的：輕輕一聲，答案亮起來（有反應，不會以為壞掉）
     if (marks[id] === 'wrong') {
@@ -191,7 +231,8 @@ export function Quiz({ spec, host, onDone, showing }: { spec: QuizSpec; host: Pa
     taps.current.push({ pick: id, ms: Math.round(performance.now() - t0.current) })
     setReady(false)
     if (id === spec.answer) {
-      busy.current = true
+      // 答對了：之後的點擊都不收（phase）；跟以前一樣不蓋擋板，稱讚完就換題
+      phase.current = 'done'
       idle.stop()
       setMarks((m) => ({ ...m, [id]: 'correct' }))
       setHint(false)
@@ -210,25 +251,23 @@ export function Quiz({ spec, host, onDone, showing }: { spec: QuizSpec; host: Pa
         await say(retryKey('bobo'))
         return idle.poke()
       }
-      // 錯第一次：說出選的是什麼、再問一次要找的；說的時候不收作答，答案外面一圈提示框（不出手，讓孩子自己再點）
-      busy.current = true
-      setHold(true)
+      // 錯第一次：說出選的是什麼、再問一次要找的；答案外面一圈提示框（不出手，讓孩子自己再點）。說的時候可以搶
+      phase.current = 'fb'
       setHint(true)
+      const ok = flow.begin(live)
       await say(...spec.wrong(id), ...spec.prompt)
-      if (!live.current) return
-      busy.current = false
-      setHold(false)
+      if (!ok()) return
+      phase.current = 'turn'
       return idle.poke()
     }
-    // 錯兩次：答案亮起來、手點一下、說出答案，再讓孩子點
-    busy.current = true
+    // 錯兩次：答案亮起來、手點一下、說出答案，再讓孩子點（說的時候可以搶）
+    phase.current = 'fb'
     hinted.current = true
-    setHold(true)
     show()
+    const ok = flow.begin(live)
     await say(...spec.correction)
-    if (!live.current) return
-    busy.current = false
-    setHold(false)
+    if (!ok()) return
+    phase.current = 'turn'
     idle.poke()
   }
 
@@ -242,7 +281,7 @@ export function Quiz({ spec, host, onDone, showing }: { spec: QuizSpec; host: Pa
         ? pointIn(tiles.current.get(spec.answer), layer.current)
         : null
   return (
-    <div className={`ma-quiz${spec.top ? ' has-top' : ''}`} ref={layer}>
+    <div className={`ma-quiz${spec.top ? ' has-top' : ''}`} ref={layer} onPointerDown={blank}>
       {spec.top && (
         <div className="ma-quiz-top" key={cue} ref={pile}>
           {spec.top}
@@ -273,6 +312,7 @@ export function Quiz({ spec, host, onDone, showing }: { spec: QuizSpec; host: Pa
         ))}
       </div>
       <AnimatePresence>{at && <Hand key="hint" x={at.x} y={at.y} tap={teach ? press : hand} size="10cqmin" cuff="#F0B088" />}</AnimatePresence>
+      {notYet.view}
       <WaitShield on={hold} />
     </div>
   )

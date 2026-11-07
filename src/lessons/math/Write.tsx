@@ -6,6 +6,8 @@ import { GoalStar, RainbowDef, RestGuide, ResumeDot } from '../../games/draw/Tra
 import { GLYPHS } from '../../games/draw/glyphs'
 import { PenArt, easeInOut, tween } from '../../games/Demo'
 import { wait } from '../../games/lines'
+import { useFlow } from '../../games/barge'
+import { PACE } from '../../games/pace'
 import { useIdle } from '../../games/idle'
 import { Sparkles } from '../../ui/Sparkles'
 import { Emoji } from '../../art/Emoji'
@@ -49,7 +51,9 @@ function strokeStart(d: string) {
 /**
  * 寫數字（描字 GlyphGame 的做法）：粗跑道、綠色起點、箭頭，一筆一筆描今天的數字。
  * 新的數字描一次就慶祝，複習描兩次、第二次換一個樣子（plan.ts 的 writeReps、上面的 LOOKS）；描得好不好不影響明天上什麼。
- * 第一次波波先用筆照筆順描一次（Watch me!），示範中下筆不出墨、只出現「看這裡」（Ink 的 disabled）。
+ * 第一次波波先用筆照筆順描一次（Watch me!）。
+ * 搶點（T-108，games/barge.ts）：說明、示範的時候在描字板下筆：停掉語音、筆的示範收掉，那一筆照常描。
+ * 描完的慶祝、筆帶著描完、放手後補滿的那一下不能搶（Ink 的 disabled）。
  * 筆要沿著跑道往前推才會前進：點一下、亂畫都不會完成；畫在跑道外的線放開後淡掉。
  * T-95（AI 小男生盲測：描 1 畫了 4 次，看不出畫對了沒、什麼時候算畫完）：
  * - 起點、斷掉的地方附近按下去都吸過去（track.ts 的 SNAP_MM）；放手不歸零，綠點移到斷掉的地方（TraceFx 的 ResumeDot）；
@@ -68,7 +72,13 @@ export function WritePart({ ctx }: { ctx: PartCtx }) {
   const look = LOOKS[k % LOOKS.length]
   const [stroke, setStroke] = useState(0)
   const [prog, setProg] = useState(0)
-  const [done, setDone] = useState(false)
+  const [done, setDoneState] = useState(false)
+  /** 下筆時讀得到最新的（示範最後整個數字亮起來時被搶掉，要馬上算回「還沒描完」） */
+  const doneRef = useRef(false)
+  const setDone = (v: boolean) => {
+    doneRef.current = v
+    setDoneState(v)
+  }
   const [demo, setDemo] = useState(false)
   const [hold, setHold] = useState(true)
   /** 閒置提示：筆在這一筆上的位置（取樣點） */
@@ -81,7 +91,14 @@ export function WritePart({ ctx }: { ctx: PartCtx }) {
   const strokeRef = useRef(0)
   const drawing = useRef(false)
   const moved = useRef(false)
-  const busy = useRef(true)
+  /** 不能搶的那幾段：描完的慶祝、筆帶著描完、放手後補滿 */
+  const busy = useRef(false)
+  /** intro 說明、demo 筆的示範（可以搶）；turn 輪到孩子 */
+  const phase = useRef<'intro' | 'demo' | 'turn'>('intro')
+  /** 這一次剛出來的 0.5 秒過了（PACE.BARGE_ARM） */
+  const armed = useRef(false)
+  const armTimer = useRef(0)
+  const flow = useFlow()
   const devs = useRef<{ meanDev: number; offRatio: number }[]>([])
   const t0 = useRef(0)
   const ink = useRef<InkHandle>(null)
@@ -103,25 +120,27 @@ export function WritePart({ ctx }: { ctx: PartCtx }) {
   }
 
   /** 波波用筆照筆順描一次，描完整個數字亮起來、念一次 */
-  const showMe = async () => {
+  const showMe = async (ok: () => boolean) => {
     const s = performance.now()
     setDemo(true)
     showing(true)
     ctx.mood('happy')
     await say('teach.watch.bobo')
     for (let i = 0; i < g.strokes.length; i++) {
-      if (!live.current) return
+      if (!ok()) return
       begin(i)
       const total = tracker.current!.samples.length - 1
       await wait(260)
-      await tween(Math.max(900, total * 26), (f) => setProg(Math.round(f * total)), () => live.current, easeInOut)
-      if (!live.current) return
+      if (!ok()) return
+      await tween(Math.max(900, total * 26), (f) => setProg(Math.round(f * total)), ok, easeInOut)
+      if (!ok()) return
       sfx.correct()
     }
     setDone(true)
     await say(`teach.num.${n}`)
-    if (!live.current) return
+    if (!ok()) return
     await wait(300)
+    if (!ok()) return
     setDone(false)
     setDemo(false)
     showing(false)
@@ -174,38 +193,69 @@ export function WritePart({ ctx }: { ctx: PartCtx }) {
     void finishOne()
   }
 
+  /** 輪到孩子（說完、或被搶掉）：開始計時，45 秒還沒描完筆帶著描完 */
+  const openTurn = () => {
+    phase.current = 'turn'
+    if (!t0.current) t0.current = performance.now()
+    idle.start({ repeat: () => void say('ma.write.go'), hint: () => void showAgain() })
+    clearTimeout(helpTimer.current)
+    helpTimer.current = window.setTimeout(() => void helpFinish(), HELP_MS)
+  }
+
+  /** 孩子搶著下筆：停掉語音、筆的示範收掉，直接輪到他 */
+  const takeOver = () => {
+    const was = phase.current
+    flow.cut()
+    if (was === 'demo') {
+      setDone(false)
+      setDemo(false)
+      showing(false)
+      ctx.mood('idle')
+      begin(0)
+    }
+    openTurn()
+  }
+
   const start = async (i: number) => {
+    const ok = flow.begin(live)
     clearTimeout(helpTimer.current)
     helped.current = false
-    busy.current = true
+    busy.current = false
+    phase.current = 'intro'
+    t0.current = 0
+    armed.current = false
     setHold(true)
+    clearTimeout(armTimer.current)
+    // 剛出來的 0.5 秒：上一次連點的手指先不算，之後說明、示範時下筆就搶
+    armTimer.current = window.setTimeout(() => {
+      if (!live.current || busy.current) return
+      armed.current = true
+      setHold(false)
+    }, PACE.BARGE_ARM)
     setDone(false)
     setAgain(null)
     devs.current = []
     idle.stop()
     begin(0)
     if (i === 0) {
-      await say(`ma.write.${n}`)
-      if (!live.current) return
-      // 新的數字（或還沒描過這個數字）先示範；複習就直接描
+      // 新的數字（或還沒描過這個數字）先示範：直接「Watch me!」，示範完只說「Your turn!」（T-108：輪到他之前的話越短越好）；
+      // 複習只說「Let's write three!」就換他
       if (ctx.lesson.mode === 'new' || isNew(skillOf(n))) {
-        await showMe()
-        if (!live.current) return
-        await say('teach.turn.bobo', 'ma.pen', 'ma.write.go')
-      } else await say('ma.pen', 'ma.write.go')
+        phase.current = 'demo'
+        await showMe(ok)
+        if (!ok()) return
+        phase.current = 'intro'
+        await say('teach.turn.bobo')
+      } else await say(`ma.write.${n}`)
     } else await say('ma.write.again')
-    if (!live.current) return
-    busy.current = false
-    setHold(false)
-    t0.current = performance.now()
-    idle.start({ repeat: () => void say('ma.write.go'), hint: () => void showAgain() })
-    helpTimer.current = window.setTimeout(() => void helpFinish(), HELP_MS)
+    if (!ok()) return
+    openTurn()
   }
 
   useEffect(() => {
     const boot = window.setTimeout(() => start(0), 0)
     const mine = () => {
-      if (busy.current) return
+      if (busy.current || phase.current !== 'turn') return
       idle.poke()
       void say('ma.write.go')
       void showAgain()
@@ -213,6 +263,7 @@ export function WritePart({ ctx }: { ctx: PartCtx }) {
     ctx.host.current = mine
     return () => {
       clearTimeout(boot)
+      clearTimeout(armTimer.current)
       clearTimeout(helpTimer.current)
       idle.stop()
       // 淡出中的這一段比下一段晚卸載：只收自己的，不要清掉下一段的
@@ -293,7 +344,10 @@ export function WritePart({ ctx }: { ctx: PartCtx }) {
   }
 
   const onDown = (p: { x: number; y: number }) => {
-    if (!tracker.current || done || busy.current) return
+    if (!tracker.current || busy.current || !armed.current) return
+    // 說明、示範的時候下筆：示範收掉，這一筆照常描（示範最後整個數字亮起來的那一刻也算，先收掉才看描完了沒）
+    if (phase.current !== 'turn') takeOver()
+    if (doneRef.current) return
     idle.poke()
     setAgain(null)
     moved.current = false
@@ -303,7 +357,7 @@ export function WritePart({ ctx }: { ctx: PartCtx }) {
   }
   const onMove = (p: { x: number; y: number }) => {
     const t = tracker.current
-    if (!t || done || busy.current) return
+    if (!t || doneRef.current || busy.current || phase.current !== 'turn') return
     idle.poke()
     if (!drawing.current) return
     if (t.feed(p)) {
