@@ -213,6 +213,10 @@
   box-shadow: 0 6px 0 #8fc0a2;
   animation: ma-give-done 520ms cubic-bezier(0.34, 1.56, 0.64, 1);
 }
+/* 沒聽完就交、改過才對（T-109）：勾勾變綠就好，不跳 */
+.ma-give-done.is-done.is-plain {
+  animation: none;
+}
 @keyframes ma-give-done {
   0% {
     scale: 1;

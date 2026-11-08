@@ -51,7 +51,8 @@ export function GivePart({ ctx }: { ctx: PartCtx }) {
   const [plate, setPlate] = useState<number[]>([])
   const [hold, setHold] = useState(true)
   const [hand, setHand] = useState<{ x: number; y: number; tap: number } | null>(null)
-  const [glad, setGlad] = useState(false)
+  /** 交出去了：full＝聽完才答、一次就對（勾勾跳一下）；plain＝平平的（勾勾變綠、不跳，T-109） */
+  const [glad, setGlad] = useState<false | 'full' | 'plain'>(false)
   const [want, setWant] = useState(0)
   /** 左邊的東西出來了沒（T-109）：波波開始說要幾個、或孩子搶點的時候 */
   const [things, setThings] = useState(false)
@@ -157,7 +158,7 @@ export function GivePart({ ctx }: { ctx: PartCtx }) {
       if (!ok()) return
       // 手點完勾勾就收起來，不停在勾勾上（AI 小男生測試 2026-11-02 數學-2 第 4～7 步：手最後停在勾勾，他就一直點勾勾，沒去拿東西）
       setHand(null)
-      setGlad(true)
+      setGlad('full')
       // 示範只說總數，不再加「Yum! Thank you!」：輪到他之前少一句（T-108）
       await say(`m.total.${n}`)
       if (!ok()) return
@@ -238,6 +239,7 @@ export function GivePart({ ctx }: { ctx: PartCtx }) {
     if (next.length) void say(`m.num.${next.length}`)
   }
 
+  /** 交出去剛好：聽完才答、一次就對才歡呼（T-109）；沒聽完就交、改過才對的，平平地說「There are three!」就往下 */
   const finish = async (firstTry: boolean) => {
     void logAttempt({
       station: 'math',
@@ -257,11 +259,14 @@ export function GivePart({ ctx }: { ctx: PartCtx }) {
       heard: heard.current,
       metrics: { lesson: ctx.lesson.n, supply, ...(checks.current.length > 1 ? { retaught: 1 } : {}) },
     })
-    ctx.mood('cheer')
-    sfx.correct()
-    setGlad(true)
+    const full = firstTry && heard.current
+    if (full) {
+      ctx.mood('cheer')
+      sfx.correct()
+    }
+    setGlad(full ? 'full' : 'plain')
     // 「There is one! Yum! Thank you!」就是稱讚，不再多一句 Yes!：按完打勾到下一段能動手要快（盲測三次都說「好久喔」）
-    await say(`m.total.${n}`, 'ma.give.thanks')
+    await say(...(full ? [`m.total.${n}`, 'ma.give.thanks'] : [`m.total.${n}`]))
     // 道謝念了 4 秒，打勾跳一下、盤子亮起來早就看完了：用短的停頓接下一段（教學卡本身的節奏不動）
     await wait(PACE.NEXT_REVIEW)
     // 沒聽完就交的（猜的）不算進「錯很多隔天重上」（T-109）
@@ -346,7 +351,7 @@ export function GivePart({ ctx }: { ctx: PartCtx }) {
         )
       })}
       {/* 答對：勾勾變成實心綠色、跳一下，在波波道謝的這段時間佔住這個位置（不能按，下一段的東西也還沒來；T-104） */}
-      <button type="button" className={`ma-give-done${glad ? ' is-done' : !hold && plate.length > 0 ? ' on' : ''}`} style={{ left: `${DONE.x}%`, top: `${DONE.y}%` }} aria-label="好了，交給波波" onPointerDown={(e) => firstFinger(e.nativeEvent) && check()}>
+      <button type="button" className={`ma-give-done${glad ? ` is-done${glad === 'plain' ? ' is-plain' : ''}` : !hold && plate.length > 0 ? ' on' : ''}`} style={{ left: `${DONE.x}%`, top: `${DONE.y}%` }} aria-label="好了，交給波波" onPointerDown={(e) => firstFinger(e.nativeEvent) && check()}>
         <svg viewBox="0 0 48 48" aria-hidden="true">
           <path d="M12 25 L21 34 L37 15" fill="none" stroke="currentColor" strokeWidth={6} strokeLinecap="round" strokeLinejoin="round" />
         </svg>

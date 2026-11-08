@@ -101,11 +101,16 @@ test('英文：選項跟著 Big D! 出來；一出來就點對 → 沒聽完、�
   expect(hidden0).toBe(true)
   expect(saying).toMatch(big ? /Big/ : /Little/)
   await page.waitForFunction(() => !!document.querySelector('.en-opt.is-yes'), null, { timeout: 5000 })
+  const look = await page.evaluate(() => ({ plain: !!document.querySelector('.en-options.is-plain'), check: !!document.querySelector('.en-yes'), dotsOn: document.querySelectorAll('.en-steps i.on').length }))
+  console.log('猜對的畫面：', JSON.stringify(look))
+  expect(look).toMatchObject({ plain: true, check: false })
   await page.waitForTimeout(3500)
   const fb = await voicesSince(page, t1)
   console.log('猜對之後聽到：', fb.join('、'))
-  // 猜對：稱讚後把關鍵字再念一次（Yes! Big D!）
-  expect(fb.join(' ')).toMatch(big ? /Yes!.*Big/ : /Yes!.*Little/)
+  // 猜對：不說 Yes!、不慶祝，平平地把關鍵字再念一次（Big D!）
+  expect(fb[0]).toMatch(big ? /Big/ : /Little/)
+  expect(fb.join(' ')).not.toMatch(/Yes!/)
+  expect(await page.evaluate(() => document.querySelectorAll('.en-steps i.on').length)).toBe(look.dotsOn)
   const all = await attempts(page)
   console.log('作答紀錄：', JSON.stringify(all))
   expect(all.at(-1)).toMatchObject({ skill: big ? 'letter:D' : 'letter:d', ok: true, heard: false })
@@ -114,11 +119,19 @@ test('英文：選項跟著 Big D! 出來；一出來就點對 → 沒聽完、�
   const opts = await page.evaluate(() => [...document.querySelectorAll('.en-options.is-word .en-opt')].map((e) => e.getAttribute('aria-label')))
   // 點每一個直到答對（只看第一次點的 heard）
   const box = (await center(page, '.en-options.is-word .en-opt'))!
+  const tw = await page.evaluate(() => performance.now())
   await k.tap(box, '聽完才點')
   await page.waitForTimeout(1500)
   const last = (await attempts(page)).filter((a) => a.skill.startsWith('phonics:'))
   console.log('選項：', opts.join('/'), '；開頭音那一題：', JSON.stringify(last))
-  if (last.length) expect(last.at(-1)!.heard).toBe(true)
+  if (last.length) {
+    // 聽完才答、一次就對：完整的慶祝（打勾、Yes!、進度點亮）
+    expect(last.at(-1)!.heard).toBe(true)
+    const full = await page.evaluate(() => ({ check: !!document.querySelector('.en-yes'), plain: !!document.querySelector('.en-options.is-plain'), dotsOn: document.querySelectorAll('.en-steps i.on').length }))
+    console.log('聽完才答對的畫面：', JSON.stringify(full), '聽到：', (await voicesSince(page, tw)).join('、'))
+    expect(full).toMatchObject({ check: true, plain: false })
+    expect((await voicesSince(page, tw)).join(' ')).toMatch(/Yes!/)
+  }
   else {
     // 第一下點錯了：再點到對為止，紀錄的 heard 還是看第一下
     for (let i = 0; i < 4 && !(await attempts(page)).some((a) => a.skill.startsWith('phonics:')); i++) {

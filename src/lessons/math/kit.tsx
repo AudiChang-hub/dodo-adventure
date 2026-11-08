@@ -105,7 +105,8 @@ export interface QuizResult {
  * 題型還不會（spec.format，../formats.ts）：先示範——Watch me! → 手指泡泡（要找的樣子；How many? 指要數的那一堆）、念題目 → 手點答案、說出答案 → Your turn!（選項不換位置）
  * （T-96：盲測裡題目全是英文，他等到手出來才知道要做什麼）。
  * 關鍵字放最前面（T-109）：選項在題目第一句（關鍵字）開始念的時候才出來；第一次點的時候關鍵字念完了沒記成 heard。
- * 沒念完就點對（猜對）：稱讚之後把答案再說一次（Yes! This side has more!），幫他把聲音和答案連起來。
+ * 叮咚和 Yes! 只給「聽完才答、一次就對」；沒念完就點對（猜對）不說 Yes!，平平地把答案再說一次（This side has more!），
+ * 幫他把聲音和答案連起來；點錯過才對的只有答案的綠框。點錯：淡掉、輕輕一聲，不搖、不打叉。
  */
 export function Quiz({ spec, host, onDone, showing }: { spec: QuizSpec; host: PartCtx['host']; onDone: (r: QuizResult) => void; showing?: PartCtx['demo'] }) {
   const [marks, setMarks] = useState<Record<string, 'wrong' | 'correct'>>({})
@@ -254,12 +255,16 @@ export function Quiz({ spec, host, onDone, showing }: { spec: QuizSpec; host: Pa
       idle.stop()
       setMarks((m) => ({ ...m, [id]: 'correct' }))
       setHint(false)
-      sfx.correct()
       const r = { firstTry: taps.current.length === 1, taps: taps.current, ms: Math.round(performance.now() - t0.current), hinted: hinted.current, shown: shown.current, heard: heard.current }
       // 題型會了沒只看聽完才答的（猜對不代表懂這種題目在問什麼）
       if (spec.format && r.heard) noteFormat(spec.format, r.firstTry)
-      // 猜對（關鍵字還沒念完就點對）：Yes! 之後把答案再說一次（This side has more!、This is three.）
-      await say(praiseKey('bobo'), ...(r.firstTry && !r.heard ? spec.correction : []))
+      // 好玩的回饋只留給「聽完才答、一次就對」（T-109）：叮咚、Yes!。
+      // 沒聽完就猜對：不說 Yes!，平平地把答案再說一次（This side has more!、This is three.）；點錯過才對的：答案的綠框就好
+      const full = r.firstTry && r.heard
+      if (full) {
+        sfx.correct()
+        await say(praiseKey('bobo'))
+      } else if (r.firstTry) await say(...spec.correction)
       await wait(r.firstTry ? PACE.NEXT_REVIEW : PACE.NEXT_NEW)
       if (live.current) onDone(r)
       return
@@ -323,8 +328,9 @@ export function Quiz({ spec, host, onDone, showing }: { spec: QuizSpec; host: Pa
             aria-label={o.label}
             initial={{ y: 24, opacity: 0 }}
             // 關鍵字還沒開始念：先不出來、點不到（點那裡算點空白，T-109）
-            animate={!opts ? { y: 24, opacity: 0 } : marks[o.id] === 'wrong' ? { x: [0, -10, 10, 0], opacity: 0.45, y: 0 } : { y: 0, opacity: 1 }}
-            transition={!opts ? { duration: 0 } : marks[o.id] === 'wrong' ? { duration: 0.4 } : { ...FADE, delay: i * 0.06 }}
+            // 點錯：淡掉就好，不搖、不打叉（T-109：點錯、亂點都平平的）
+            animate={!opts ? { y: 24, opacity: 0 } : marks[o.id] === 'wrong' ? { opacity: 0.45, y: 0 } : { y: 0, opacity: 1 }}
+            transition={!opts ? { duration: 0 } : marks[o.id] === 'wrong' ? { duration: 0.3 } : { ...FADE, delay: i * 0.06 }}
             style={{ '--turn-i': i, pointerEvents: opts ? undefined : 'none' } as CSSProperties}
             onPointerDown={(e) => firstFinger(e.nativeEvent) && tap(o.id)}
           >

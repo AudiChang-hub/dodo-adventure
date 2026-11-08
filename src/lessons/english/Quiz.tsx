@@ -67,6 +67,8 @@ function Ask({ q }: { q: Question }) {
  * 同一題錯兩次：手帶著做（手點答案、答案亮起來，記成一起練），然後照樣往下。所以一題最多點錯兩次，題數固定，一定上得完（T-104）。
  * 答對（T-104，AI 小男生盲測：只有 Yes 和綠框，他看不出對了）：答對的那張放大、跳一下、右上角綠色大打勾、星星，其他的淡掉；
  * 下面的進度（第四顆石頭裡的小點）亮一顆（onProgress）。跟中文課選圖（T-97）一樣不用聽懂話也看得出來。
+ * 這個慶祝只給「聽完才答、一次就對」（T-109）；沒聽完就猜對、點錯過、手帶著做的只有安靜的綠框和再念一次，進度點不亮。
+ * 點錯：輕輕一聲、那張淡掉，不搖、不打叉。
  * 字母題有一題不是一次就對：後面的小寫題改問大寫（退一級，quiz-plan.ts 的 easy）。
  * 同一天中途離開又回來（from、answers）：從下一題接著問，先重播這一題的示範（replay），不直接丟回題目（T-104）。
  * 發呆 15 秒再念一次題目、30 秒手指著答案。
@@ -98,7 +100,7 @@ export function Quiz({
   const still = useReducedMotion()
   const [i, setI] = useState(start)
   /** 這一題答完了（答對的放大打勾、其他的淡掉） */
-  const [solved, setSolved] = useState(false)
+  const [solved, setSolved] = useState<'full' | 'plain' | null>(null)
   const [accept, setAccept] = useState(false)
   /** 選項出來了沒：關鍵字開始念、或孩子搶點的時候才出來（T-109） */
   const [opts, setOpts] = useState(false)
@@ -106,7 +108,6 @@ export function Quiz({
   const [hint, setHint] = useState(false)
   /** 輪到你了：念完題目、這一題還沒點過（T-84） */
   const [cue, setCue] = useState(false)
-  const [bump, setBump] = useState<{ id: string; n: number } | null>(null)
   /** 示範中、答錯時：手在泡泡上（ask）或答案上（answer） */
   const [show, setShow] = useState<'ask' | 'answer' | null>(null)
   const [press, setPress] = useState(0)
@@ -188,7 +189,7 @@ export function Quiz({
     setState({})
     setHint(false)
     setCue(false)
-    setSolved(false)
+    setSolved(null)
     setOpts(false)
     qStart.current = performance.now()
     heard.current = false
@@ -251,8 +252,8 @@ export function Quiz({
   }
 
   const choose = async (o: Opt) => {
-    setBump((b) => ({ id: o.id, n: (b?.n ?? 0) + 1 }))
-    if (!armed.current || phase.current === 'done') return void sfx.tap()
+    // 擋板時間（剛出來的 0.5 秒、答完之後）點的：很輕的一聲「嗯？」，不跳、不好玩（T-109）
+    if (!armed.current || phase.current === 'done') return void sfx.notYet()
     // 第一次點：題目的關鍵字念完了沒（要在 takeOver 停掉語音之前問）
     if (!taps.current.length) heard.current = heardSince(q.prompt[0], qStart.current)
     if (phase.current !== 'turn') takeOver()
@@ -306,8 +307,11 @@ export function Quiz({
     // 題型會了沒只看聽完才答的（猜對不代表懂這種題目在問什麼）
     if (h) noteFormat(FORMAT[q.kind], first)
     setState({ [q.answer]: 'yes' })
-    setSolved(true)
-    sfx.correct()
+    // 好玩的回饋只留給「聽完才答、一次就對」（T-109，家長：他把 App 當遊戲在亂試）：放大、打勾、星星、豆豆歡呼、進度點亮。
+    // 沒聽完就猜對、點錯過才對、手帶著做的：答案安靜地亮著、其他的淡掉，把關鍵字或答案再念一次，不慶祝
+    const full = first && h
+    setSolved(full ? 'full' : 'plain')
+    if (full) sfx.correct()
     void logAttempt({
       station: 'english',
       game: 'lesson-en',
@@ -328,8 +332,8 @@ export function Quiz({
       ...(shown.current ? { metrics: { shown: 1 } } : {}),
     })
     onProgress?.(i + 1, results.current.slice())
-    // 猜對（關鍵字還沒念完就點對）：Yes! 之後把關鍵字和答案再念一次（Yes! Big S!）
-    await say(...(first ? [praiseKey('dodo'), ...(h ? [q.yes] : q.echo)] : [q.yes]))
+    // 聽完才答、一次就對：Yes! S… s, s…。猜對（關鍵字還沒念完就點對）：不說 Yes!，平平地把關鍵字和答案再念一次（Big S!）
+    await say(...(full ? [praiseKey('dodo'), q.yes] : first ? q.echo : [q.yes]))
     await wait(500)
     if (!live.current) return
     if (i + 1 >= list.current.length) return onDone(results.current)
@@ -356,7 +360,7 @@ export function Quiz({
       <AnimatePresence initial={false}>
         <motion.div
           key={i}
-          className={`en-options is-${q.kind} n${q.options.length}${show && !solved ? ' is-demo' : ''}${solved ? ' is-solved' : ''}`}
+          className={`en-options is-${q.kind} n${q.options.length}${show && !solved ? ' is-demo' : ''}${solved ? ' is-solved' : ''}${solved === 'plain' ? ' is-plain' : ''}`}
           data-accepting={accept ? undefined : 'false'}
           data-dim={show ? 'true' : undefined}
           initial={{ opacity: 0 }}
@@ -366,7 +370,7 @@ export function Quiz({
           {q.options.map((o, k) => (
             <motion.button
               key={o.id}
-              animate={solved && state[o.id] === 'yes' ? { scale: still ? 1.08 : [1, 1.18, 1.08], y: still ? -8 : [0, -20, -8] } : { scale: 1, y: 0 }}
+              animate={solved === 'full' && state[o.id] === 'yes' ? { scale: still ? 1.08 : [1, 1.18, 1.08], y: still ? -8 : [0, -20, -8] } : { scale: 1, y: 0 }}
               transition={{ duration: 0.55, ease: [0.22, 1, 0.36, 1] }}
               ref={(el: HTMLButtonElement | null) => {
                 if (el) tiles.current.set(o.id, el)
@@ -377,7 +381,8 @@ export function Quiz({
               aria-label={o.text ?? o.id}
               onClick={() => void choose(o)}
             >
-              <span key={bump?.id === o.id ? bump.n : 0} className={bump?.id === o.id ? (state[o.id] === 'no' ? 'en-shake' : 'en-hop') : undefined}>
+              {/* 點了不跳、點錯不搖（T-109：點錯、亂點都平平的，沒有好玩的動畫，也不打叉） */}
+              <span>
                 {o.icon ? <Emoji name={o.icon} /> : <span className="en-opt-letter">{o.text}</span>}
               </span>
               {hint && !show && k === handAt && (
@@ -386,8 +391,8 @@ export function Quiz({
                 </span>
               )}
               {/* 答對：星星撒開、右上角綠色大打勾（跟中文課選圖一樣，T-97） */}
-              {solved && state[o.id] === 'yes' && <Sparkles count={16} />}
-              {solved && state[o.id] === 'yes' && (
+              {solved === 'full' && state[o.id] === 'yes' && <Sparkles count={16} />}
+              {solved === 'full' && state[o.id] === 'yes' && (
                 <motion.span
                   className="en-yes"
                   aria-hidden="true"

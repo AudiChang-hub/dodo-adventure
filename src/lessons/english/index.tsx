@@ -52,6 +52,9 @@ function hintOf(stage: Stage, x: LessonLetter, q?: Question) {
  * 段落之間在原地淡入淡出，不縮放、不跳整頁卡片；上面四顆小石頭是進度。左上角返回鍵回首頁（中途離開隔天重上同一個字母）。
  * 同一天中途離開又回來：從離開的那一段接著上，做過的段落石頭已經亮著，描字大寫描過了就只描小寫（T-95；./plan.ts 的 markStage）。
  */
+/** 這一題算不算「聽完才答、一次就對」（舊的進度沒有 heard，當作聽完了） */
+const earnedBy = (r: QuizResult | undefined) => !!r && r.first && r.heard !== false
+
 export function EnglishLesson({ onDone }: LessonProps) {
   const [plan, setPlan] = useState<TodayPlan | null>(null)
   const [stage, setStage] = useState<Stage>('meet')
@@ -61,6 +64,8 @@ export function EnglishLesson({ onDone }: LessonProps) {
   const [quizAt, setQuizAt] = useState<{ from: number; answers: QuizResult[]; replay: boolean }>({ from: 0, answers: [], replay: false })
   /** 選擇題答完幾題（第四顆石頭裡的小點） */
   const [quizDone, setQuizDone] = useState(0)
+  /** 哪幾題是聽完才答、一次就對（這幾顆小點才亮，T-109） */
+  const [earned, setEarned] = useState<boolean[]>([])
   /** 答對一題：豆豆歡呼一下 */
   const [cheer, setCheer] = useState(0)
   const qs = useRef<Question[]>([])
@@ -81,6 +86,7 @@ export function EnglishLesson({ onDone }: LessonProps) {
           const from = Math.min(pl.resume.round, qs.current.length - 1)
           setQuizAt({ from, answers: (pl.resume.answers ?? []).slice(0, from), replay: true })
           setQuizDone(from)
+          setEarned((pl.resume.answers ?? []).slice(0, from).map(earnedBy))
         }
       }
       setPlan(pl)
@@ -108,10 +114,12 @@ export function EnglishLesson({ onDone }: LessonProps) {
     if (live.current) onDone()
   }
 
-  /** 選擇題又答完一題：小點亮一顆、豆豆歡呼一下，記下來（中途離開，回來從下一題接著問） */
+  /** 選擇題又答完一題：聽完才答、一次就對的小點亮一顆、豆豆歡呼一下（其他的只留一圈淡框），記下來（中途離開，回來從下一題接著問） */
   const progress = (n: number, rs: QuizResult[]) => {
     setQuizDone(n)
-    setCheer((c) => c + 1)
+    setEarned(rs.map(earnedBy))
+    // 豆豆歡呼只給聽完才答、一次就對的（T-109）
+    if (earnedBy(rs[rs.length - 1])) setCheer((c) => c + 1)
     if (plan && n < qs.current.length) void markStage(plan, 'quiz', n, rs)
   }
 
@@ -137,7 +145,7 @@ export function EnglishLesson({ onDone }: LessonProps) {
           s === 'quiz' && stage === 'quiz' ? (
             <span key={s} className="is-now is-quiz" data-done={quizDone} data-total={qs.current.length}>
               {qs.current.map((_, j) => (
-                <i key={j} className={j < quizDone ? 'on' : undefined} />
+                <i key={j} className={j < quizDone ? (earned[j] ? 'on' : 'past') : undefined} />
               ))}
             </span>
           ) : (
