@@ -37,6 +37,12 @@ function finish(k: Toddler, c: Checker, name: string) {
 /** 這一課現在在哪一段（.en-lesson 的 data-phase） */
 const stageOf = (page: Page) => page.evaluate(() => document.querySelector('.en-lesson')?.getAttribute('data-phase') ?? null)
 /** 今天的字母（大寫）：認字母的大字；中途離開再回來會從離開的那一段接著上（T-95），不在認字母就看描字上面的大小寫格子 */
+/** 選擇題的小點：答完幾題／共幾題（沒有小點：null） */
+const quizDots = (page: Page) =>
+  page.evaluate(() => {
+    const e = document.querySelector('.en-steps .is-quiz')
+    return e ? { done: Number(e.getAttribute('data-done')), total: Number(e.getAttribute('data-total')) } : null
+  })
 const letterOf = (page: Page) =>
   page.evaluate(
     () =>
@@ -523,6 +529,8 @@ test.describe('英文字母課', () => {
       // 4. 選擇：第一題點錯一次，其他照答；答對時連點
       k.behavior = '選擇'
       const t0 = await page.evaluate(() => Date.now())
+      // 這一堂幾題（T-112：第一天 2 題、之後 3 題，quiz-plan.ts 的 makeQuiz）
+      const nQ = (await quizDots(page))?.total ?? 2
       for (let q = 0; q < 6 && (await stageOf(page)) === 'quiz'; q++) {
         if (q === 1) await shot(page, '6-選擇', info)
         await answer(k, q === 0)
@@ -532,14 +540,13 @@ test.describe('英文字母課', () => {
       c.outcome('選完到上完', toEnd || (await snap(page)).cheer, `停在 ${await stageOf(page)}`)
       await page.waitForTimeout(1500)
       await shot(page, '7-上完', info)
-      // 作答紀錄：每一題一筆、連點不重複。一課固定 4 題（quiz-plan.ts 的 makeQuiz）；
-      // 第一天教過的只有 A，同一題（大寫 A、小寫 a）會問兩次，所以不能用 itemId 有沒有重複判斷，改看筆數
+      // 作答紀錄：每一題一筆、連點不重複。題數看畫面上的小點（quiz-plan.ts 的 makeQuiz：第一天 2 題、之後 3 題），看筆數
       const rows = (await attempts(page)).filter((a) => a.game === 'lesson-en' && a.ts >= t0 && a.phase !== 'teach')
       const keys = rows.map((a) => a.itemId)
-      const dup = Math.max(0, rows.length - 4)
-      c.outcome('作答紀錄', rows.length >= 4 && !dup, `${rows.length} 筆（${keys.join('、')}），重複 ${dup}`)
+      const dup = Math.max(0, rows.length - nQ)
+      c.outcome('作答紀錄', rows.length >= nQ && !dup, `${rows.length} 筆／${nQ} 題（${keys.join('、')}），重複 ${dup}`)
       if (dup) await c.once('dup', '誤記作答', `選擇題連點答案被記了兩次（${dup} 筆）`, keys.join('、'))
-      if (rows.length < 4) await c.once('rows', '誤記作答', `選擇題的作答紀錄少了（${rows.length} 筆）`, keys.join('、'))
+      if (rows.length < nQ) await c.once('rows', '誤記作答', `選擇題的作答紀錄少了（${rows.length} 筆）`, keys.join('、'))
       // 上完：這一堂沒有貼紙 → 安靜的下課畫面（恐龍、回首頁的房子、大人的「現在去做」），不會出現挑貼紙
       const bye = await page.waitForSelector('.cheer-scrim .lesson-bye', { timeout: 10_000 }).catch(() => null)
       const picker = await page.evaluate(() => !!document.querySelector('.picker'))
@@ -784,22 +791,18 @@ test.describe('英文字母課', () => {
       }
       return best
     })
-  /** 選擇題的小點：答完幾題／共幾題（沒有小點：null） */
-  const quizDots = (page: Page) =>
-    page.evaluate(() => {
-      const e = document.querySelector('.en-steps .is-quiz')
-      return e ? { done: Number(e.getAttribute('data-done')), total: Number(e.getAttribute('data-total')) } : null
-    })
   /** 一直只點大的那張，直到上完（stage end）或時間到；回傳花了幾秒（沒上完：null），以及小點每次有沒有往前 */
   async function onlyBig(k: Toddler, limit: number) {
     const page = k.page
     const t0 = Date.now()
     const seen: number[] = []
+    let total = 0
     let taps = 0
     while (Date.now() - t0 < limit) {
       const st = await stageOf(page)
-      if (st !== 'quiz') return { secs: st === 'end' || st === null ? Math.round((Date.now() - t0) / 1000) : null, seen, taps }
+      if (st !== 'quiz') return { secs: st === 'end' || st === null ? Math.round((Date.now() - t0) / 1000) : null, seen, total, taps }
       const d = await quizDots(page)
+      if (d) total = d.total
       if (d && seen[seen.length - 1] !== d.done) seen.push(d.done)
       const b = await bigCard(page)
       if (b) {
@@ -808,7 +811,7 @@ test.describe('英文字母課', () => {
         await page.waitForTimeout(700)
       } else await page.waitForTimeout(250)
     }
-    return { secs: null, seen, taps }
+    return { secs: null, seen, total, taps }
   }
 
   test('只會點大的那張：選擇題也要在合理時間內上完，答完一題進度亮一顆（T-104）', async ({ page }, info) => {
@@ -816,19 +819,20 @@ test.describe('英文字母課', () => {
     test.setTimeout(5 * 60_000)
     const { k, c } = await setup(page, info, '只點大的')
     try {
-      // 今天上到單字（描字已經描過）：念完單字到選擇題。第一天的 4 題是 大 A、小 a、大 A、小 a
+      // 今天上到單字（描字已經描過）：念完單字到選擇題。第一天的 2 題是 大 A、小 a（T-112：以前 4 題，大 A、小 a 各問兩次）
       k.behavior = '從單字接著上'
       await seedEnglish(page, { stage: 'words' })
       if (!(await enter(k, c))) return
       const toQuiz = await waitStage(page, 'quiz', 60_000)
       if (!toQuiz) return void (await c.once('to-quiz', '卡死', '單字念完沒有往下走到選擇', `停在 ${await stageOf(page)}`))
       k.behavior = '只點大的'
-      // 4 題、每題最多錯兩次手就帶著做：2 分鐘一定夠（盲測裡 8 分鐘上不完）
+      // 每題最多錯兩次手就帶著做：2 分鐘一定夠（盲測裡 8 分鐘上不完）
       const r = await onlyBig(k, 120_000)
       c.outcome('只點大的也上得完（2 分鐘內）', r.secs !== null, r.secs !== null ? `選擇題 ${r.secs} 秒、點了 ${r.taps} 下` : `2 分鐘還在選擇題，點了 ${r.taps} 下`)
       if (r.secs === null) await c.once('only-big', '卡死', '只會點大的那張：問小寫一直點錯，選擇題一直上不完', `點了 ${r.taps} 下`)
       const steps = r.seen.join('→')
-      const forward = r.seen.length >= 4 && r.seen.every((x, j) => j === 0 || x === r.seen[j - 1] + 1)
+      // 小點從 0 亮到 題數-1（答完最後一題就下課了）
+      const forward = r.total > 0 && r.seen.length >= r.total && r.seen.every((x, j) => j === 0 || x === r.seen[j - 1] + 1)
       c.outcome('答完一題，進度小點亮一顆', forward, steps ? `小點 ${steps}` : '沒有小點')
       if (!forward) await c.once('dots', '困惑', '選擇題答完一題，看不出進度往前', steps ? `小點 ${steps}` : '畫面上沒有選擇題的進度')
       await c.flush()

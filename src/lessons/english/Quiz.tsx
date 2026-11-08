@@ -71,7 +71,7 @@ function Ask({ q }: { q: Question }) {
  * 點錯：輕輕一聲、那張淡掉，不搖、不打叉。
  * 字母題有一題不是一次就對：後面的小寫題改問大寫（退一級，quiz-plan.ts 的 easy）。
  * 同一天中途離開又回來（from、answers）：從下一題接著問，先重播這一題的示範（replay），不直接丟回題目（T-104）。
- * 發呆 15 秒再念一次題目、30 秒手指著答案。
+ * 發呆 8 秒手安靜地指著答案、15 秒再念一次題目（PHASE-7，T-112；以前 15／30 秒）。
  * 關鍵字放最前面（T-109）：題目先講關鍵字（Big S!；找開頭音的圖先念 S… s, s…），選項在關鍵字開始念的那一刻才出來。
  * 孩子點下去的那一刻關鍵字念完了沒，記成作答紀錄的 heard：沒念完就點的是猜的，不計入熟練、也不算錯（lib/record.ts）；
  * 猜對了照樣稱讚，但稱讚後把關鍵字再念一次（Yes! Big S!），幫他把聲音和答案連起來。
@@ -160,7 +160,21 @@ export function Quiz({
     setOpts(true)
     if (!taps.current.length) setCue(true)
     if (!t0.current) t0.current = performance.now()
-    idle.start({ repeat: () => void say(...qk.prompt), hint: () => setHint(true) })
+    // 發呆的提示照小班段（準則 PHASE-7、FRAME-9 的 8／15 秒，T-112）：以前 15 秒才重念、30 秒才有手，
+    // 盲測 b637ff7 他說「一直點都不知道要幹嘛」。8 秒：手安靜地指著答案（不說話）；15 秒：再念一次題目（只念一次，之後安靜）。
+    // 手指著答案時點的照 T-111 記成一起練，不計入熟練
+    let asked = false
+    idle.start(
+      {
+        repeat: () => setHint(true),
+        hint: () => {
+          if (asked) return
+          asked = true
+          void say(...qk.prompt)
+        },
+      },
+      { repeat: 8_000, hint: 7_000 },
+    )
   }
 
   /** 孩子搶點：停掉語音；示範的手收起來（答錯的說明被搶掉時，答案的外框留著），直接輪到他 */

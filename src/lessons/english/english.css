@@ -241,6 +241,19 @@
   position: absolute;
   inset: 3%;
 }
+.en-trace-glow {
+  /* 還沒描的跑道亮兩下（偏離跑道、沒描上的時候，T-112）：只用畫面引導，不說話。只動透明度，播一次就停（不循環，MOTION-3） */
+  opacity: 0;
+  animation: en-trace-glow 1.8s ease-in-out both;
+  pointer-events: none;
+}
+@keyframes en-trace-glow {
+  0% { opacity: 0; }
+  25% { opacity: 0.95; }
+  50% { opacity: 0.35; }
+  75% { opacity: 0.95; }
+  100% { opacity: 0; }
+}
 .en-trace-svg {
   position: absolute;
   inset: 0;

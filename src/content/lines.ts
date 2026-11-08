@@ -138,7 +138,11 @@ def('d.glyph.done', 'dodo', 'Great writing!')
 def('d.glyph.next', 'dodo', 'Now the next line!')
 // 描字的鼓勵（AI 小男生測試 #3）：描到一半放手、一直畫到跑道外面時說（Trace.tsx，最少隔 5 秒）
 def('d.glyph.keep', 'dodo', 'Keep going! You can do it!')
-def('d.glyph.back', 'dodo', 'Almost! Follow the line!')
+// 以前一直畫到跑道外面時說 Almost! Follow the line!（T-112 拿掉：盲測 b637ff7 他聽成「又畫不對」、連兩次就離開）。
+// 描得亂也先肯定他有畫（英文課描字 Trace.tsx）：第一次沒描上 → Nice try!＋跑道發亮、筆再帶一次；
+// 再一次沒描上、筆帶著描完、描完但大多在跑道外 → You drew it!（不說 Almost、不讓他覺得錯了）
+def('d.glyph.try', 'dodo', 'Nice try!')
+def('d.glyph.drew', 'dodo', 'You drew it!')
 // 連點成圖連完：This is a | house!（菱形 diamond 不是小班教的形狀、又是鑽石，改說像風箏 kite）
 const DOTS: Record<string, string> = { triangle: 'triangle', square: 'square', house: 'house', fish: 'fish', star: 'star', boat: 'boat', heart: 'heart', diamond: 'kite' }
 for (const [d, name] of Object.entries(DOTS)) def(`d.dots.is.${d}`, 'dodo', `This is ${articleOf(name)} | ${name}!`)

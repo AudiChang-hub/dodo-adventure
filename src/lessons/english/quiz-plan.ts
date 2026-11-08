@@ -64,11 +64,14 @@ function letterOptions(X: string, big: boolean, taught: string[], learned: strin
 }
 
 /**
- * 出今天的選擇題（4 題）。問的都是今天剛教過的字母、單字，或以前上過的字母（複習）；干擾選項也一樣只用教過的。
+ * 出今天的選擇題（最多 3 題，T-112）。問的都是今天剛教過的字母、單字，或以前上過的字母（複習）；干擾選項也一樣只用教過的。
  * seq：這一輪的字母順序（plan.ts；名字的字母先上時不是 A→Z），「以前上過」照它算。
- * 1. Big A!（大寫）  2. Little a!（小寫）  3. A… a, a… Which one starts with A?（圖）（T-109：關鍵字放最前面、句子最短）
- * 4. 以前學過的字母複習一題（第一天沒有以前的字母，就再問一題今天的單字）。
- * 圖的題目要有以前學過的字當陪襯：第一天沒有，就改問字母。
+ * 1. Big A!（大寫）  2. Little a!（小寫）
+ * 3. 單日（第 2、4…天）A… a, a… Which one starts with A?（圖）（T-109：關鍵字放最前面、句子最短）；
+ *    雙日（第 3、5…天）以前學過的字母複習一題。做不出來就換另一種。
+ * 第一天沒有以前學過的字母：圖的題目沒有陪襯、也沒有複習，只問大寫、小寫 2 題。
+ * 以前是 4 題，第一天做不出來的兩題都退回成同樣的大 S、小 s，一堂問 4 次 S／s（盲測 b637ff7：「好久喔，一直點都不知道要幹嘛」，
+ * 準則 LOAD-3 一回合 3～5 題——英文課前面還有認識、描字、單字三段，選擇題這一段再短一點）。
  * 選項數：前三個字母 2 選 1，之後 3 選 1（教過的不夠就少一個）。
  * bigOnly：小寫題一開始就換成大寫題（同一天中途離開又回來，T-100）。
  */
@@ -111,9 +114,10 @@ export function makeQuiz(letter: LessonLetter, idx: number, seq = ORDER, bigOnly
   const little = (X: string): Question => ({ ...letterQ(X, false), easy: letterQ(X, true) })
   qs.push(letterQ(L, true), little(L))
   const starts = shuffle(letter.starts.map((w) => w.w))
-  qs.push((starts.length && wordQ(starts[0])) || letterQ(L, true))
-  if (learned.length) qs.push(letterQ(pick(learned.slice(-3)), true))
-  else qs.push((starts.length > 1 && wordQ(starts[1])) || little(L))
+  const word = (starts.length && wordQ(starts[0])) || null
+  const review = learned.length ? letterQ(pick(learned.slice(-3)), true) : null
+  const third = idx % 2 ? (word ?? review) : (review ?? word)
+  if (third) qs.push(third)
   return bigOnly ? qs.map((q) => q.easy ?? q) : qs
 }
 
