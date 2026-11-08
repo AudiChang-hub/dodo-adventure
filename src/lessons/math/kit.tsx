@@ -82,6 +82,8 @@ export interface QuizSpec {
   wide?: boolean
   /** 題型（../formats.ts）：孩子還不會這種題型，手先做一次（T-96） */
   format?: Format
+  /** 這一堂的最後一題：答對了不等稱讚念完，馬上交給下課的慶祝（T-113） */
+  last?: boolean
 }
 
 export interface QuizResult {
@@ -284,6 +286,13 @@ export function Quiz({ spec, host, onDone, showing }: { spec: QuizSpec; host: Pa
       // 沒聽完就猜對：不說 Yes!，平平地把答案再說一次（This side has more!、This is three.）；點錯過才對的：答案的綠框就好
       // 手正指著答案時點的（T-111）：答案是看手的，也不慶祝
       const full = r.firstTry && r.heard && !r.led
+      if (spec.last) {
+        // 這一堂的最後一題（T-113，盲測 8948054：打勾之後等太久，孩子按返回）：打勾馬上出來，叮咚一聲就交給下課的慶祝（index.tsx 的 finish）
+        if (full) sfx.correct()
+        await wait(500)
+        if (live.current) onDone(r)
+        return
+      }
       if (full) {
         sfx.correct()
         await say(praiseKey('bobo'))

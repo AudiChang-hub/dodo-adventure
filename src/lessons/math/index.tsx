@@ -141,9 +141,9 @@ export function MathLesson({ onDone }: LessonProps) {
     setMood('cheer')
     sfx.done()
     host.current = null
-    await say('ma.bye')
-    if (!live.current) return
-    await wait(600)
+    // Great job today! 念著的時候就出下課畫面（T-113：以前念完再等 0.6 秒，最後一題打勾到下課 3.3 秒）
+    void say('ma.bye')
+    await wait(1100)
     if (live.current) onDone()
   }
 

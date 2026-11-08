@@ -27,6 +27,40 @@ const MOMO_PLAY = 2
 const MOMO_HAPPY_MS = 1300
 
 /**
+ * 連點同一張圖：每一下換一種動作、冒出小東西（T-113，盲測 8948054 中文 seed 2：「一直點都一樣，不好玩」就離開；
+ * 以前第二下起 motion 的 animate 值跟上一下一樣，不會重播，只剩一聲很輕的 tap）。
+ * 第一下照舊撒星星；之後依序跳、轉一圈、搖一搖、壓扁彈回、躲起來又冒出來，每一種配不同的短音效。中文課 App 不說話，只有音效。
+ */
+const ACTS = ['hop', 'spin', 'wiggle', 'squish', 'peek'] as const
+type Act = (typeof ACTS)[number]
+const ACT_SFX: Record<Act, (n: number) => void> = {
+  hop: () => sfx.boing(),
+  spin: () => sfx.star(),
+  wiggle: (n) => sfx.beat(n),
+  squish: () => sfx.pop(),
+  peek: () => sfx.tap(),
+}
+/** 冒出來的小東西：愛心、星星、音符輪流 */
+const BITS = [
+  'M12 21s-7-4.5-9.3-9A5 5 0 0 1 12 6.5 5 5 0 0 1 21.3 12C19 16.5 12 21 12 21Z',
+  'M12 2.5l2.8 6 6.5.7-4.9 4.4 1.4 6.4L12 16.8 6.2 20l1.4-6.4L2.7 9.2l6.5-.7Z',
+  'M15 3v11.2a3.3 3.3 0 1 1-2-3V6.5l-5 1.3v8.4a3.3 3.3 0 1 1-2-3V5.8Z',
+]
+const BIT_COLORS = ['#F08A8A', '#F2C14E', '#7FB3E0']
+function Bits({ n }: { n: number }) {
+  const d = BITS[n % BITS.length]
+  return (
+    <span className="zh-bits" aria-hidden="true">
+      {[0, 1, 2].map((i) => (
+        <svg key={i} className="zh-bit" viewBox="0 0 24 24" style={{ '--i': i } as CSSProperties}>
+          <path d={d} fill={BIT_COLORS[(n + i) % BIT_COLORS.length]} />
+        </svg>
+      ))}
+    </span>
+  )
+}
+
+/**
  * 親子共讀（2026-11-03 家長決定：拿掉全部中文語音，App 不出聲，大人念給孩子聽）。
  * - 課本一頁，一次亮一行：亮的那一行底下一條淡藍帶子，念過的行是墨色、還沒念的行很淡；紅字的圖跟著那一行跳出來一下（只一次），孩子的眼睛跟著走。
  * - 大人念完這一行，按右下的「下一行」往下走（大人的按鈕：低調、不跳動，放在孩子常點的課文和圖以外；連點只算一下）；
@@ -80,6 +114,15 @@ export function Reader({
   const [talk, setTalk] = useState(false)
   /** 聊一聊出來一陣子了（或孩子已經用指的回答了）：「去選圖」「再念一次」才出現在右下角 */
   const [talkReady, setTalkReady] = useState(false)
+  /** 同一張圖再點：換下一種動作、冒出小東西、配那個動作的音效 */
+  const playAct = (key: string) => {
+    const n = (tapsOf.current.get(key) ?? 0) + 1
+    tapsOf.current.set(key, n)
+    const kind = ACTS[(n - 1) % ACTS.length]
+    ACT_SFX[kind](n)
+    setAct({ key, n, kind })
+  }
+
   /** 聊一聊：孩子點了問題的主角（用指的回答了） */
   const [answered, setAnswered] = useState(false)
   const [pop, setPop] = useState<{ w: string; k: number } | null>(null)
@@ -89,6 +132,10 @@ export function Reader({
   const [burst, setBurst] = useState<{ key: string; n: number } | null>(null)
   /** 撒過星星的圖（第幾行:哪個詞）：每張只撒一次，點莫莫也不會重來 */
   const sparkled = useRef(new Set<string>())
+  /** 每張圖點了幾下（換動作用） */
+  const tapsOf = useRef(new Map<string, number>())
+  /** 現在在動的那張圖：哪一張、第幾下（換 key 重播）、什麼動作（ACTS） */
+  const [act, setAct] = useState<{ key: string; n: number; kind: Act } | null>(null)
   /** 點莫莫：聊一聊的主角再亮黃框、跳一下（第幾次） */
   const [look, setLook] = useState(0)
   const momoTaps = useRef<number[]>([])
@@ -148,7 +195,7 @@ export function Reader({
 
   /**
    * 孩子點紅字、點圖、點這一行的字：圖放大跳一下（只看得到念過的行）。
-   * 這一行第一次點到：那張圖撒一把星星、亮一點的一聲；同一行再點只跳一下、輕輕一聲。
+   * 這一行第一次點到：那張圖撒一把星星、亮一點的一聲；再點同一張：每一下換一種動作、冒出小東西（playAct，T-113）。
    */
   const tapWord = (w: string, line: number) => {
     if ((line > cur && !talk) || left.current) return
@@ -157,7 +204,7 @@ export function Reader({
       sparkled.current.add(key)
       sfx.pop()
       setBurst({ key, n: performance.now() })
-    } else sfx.tap()
+    } else playAct(key)
     if (!touched.has(key)) setTouched((s) => new Set(s).add(key))
     setPop({ w, k: performance.now() })
   }
@@ -166,7 +213,7 @@ export function Reader({
   const answerTalk = (w: string) => {
     if (left.current) return
     setPop({ w, k: performance.now() })
-    if (answered) return void sfx.tap()
+    if (answered) return playAct(`talk:${w}`)
     sfx.pop()
     setAnswered(true)
     setBurst({ key: `talk:${w}`, n: performance.now() })
@@ -300,10 +347,11 @@ export function Reader({
                           if (firstFinger(e.nativeEvent)) tapWord(word, i)
                         }}
                       >
-                        <span className="zh-pic-in">
+                        <span key={act?.key === key ? act.n : 0} className={`zh-pic-in${act?.key === key ? ` act-${act.kind}` : ''}`} data-act={act?.key === key ? act.kind : undefined}>
                           <Pic name={t.emoji[word]!} />
                         </span>
                         {burst?.key === key && <Sparkles key={burst.n} count={10} />}
+                        {act?.key === key && <Bits key={`bits-${act.n}`} n={act.n} />}
                       </motion.button>
                     )
                   })}
@@ -364,10 +412,15 @@ export function Reader({
                   if (firstFinger(e.nativeEvent)) answerTalk(tk.pic!)
                 }}
               >
-                <span className="zh-pic-in">
+                <span
+                  key={act?.key === `talk:${tk.pic}` ? act.n : 0}
+                  className={`zh-pic-in${act?.key === `talk:${tk.pic}` ? ` act-${act.kind}` : ''}`}
+                  data-act={act?.key === `talk:${tk.pic}` ? act.kind : undefined}
+                >
                   <Pic name={t.emoji[tk.pic]!} />
                 </span>
                 {burst?.key === `talk:${tk.pic}` && <Sparkles key={burst.n} count={14} />}
+                {act?.key === `talk:${tk.pic}` && <Bits key={`bits-${act.n}`} n={act.n} />}
               </motion.button>
             )}
           </div>

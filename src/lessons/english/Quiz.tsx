@@ -381,6 +381,14 @@ export function Quiz({
       ...(shown.current ? { metrics: { shown: 1 } } : byHand ? { metrics: { led: 1 } } : {}),
     })
     onProgress?.(i + 1, results.current.slice())
+    // 最後一題（T-113，盲測 8948054：打勾之後要等 4 秒才慶祝、4.5 秒才下課，孩子等不及按返回）：
+    // 打勾、星星照舊馬上出來；聽完才答、一次就對的只說一聲 Yes!，0.6 秒後就進下課的慶祝（index.tsx 的 finish 說 You did it!）
+    if (i + 1 >= list.current.length) {
+      if (full) void say(praiseKey('dodo'))
+      await wait(600)
+      if (live.current) onDone(results.current)
+      return
+    }
     // 聽完才答、一次就對：Yes! S… s, s…。猜對（關鍵字還沒念完就點對）：不說 Yes!，平平地把關鍵字和答案再念一次（Big S!）
     await say(...(full ? [praiseKey('dodo'), q.yes] : first ? q.echo : [q.yes]))
     await wait(500)

@@ -85,11 +85,13 @@ export function ChineseLessonBody({ onDone }: LessonProps) {
     setScene('read')
   }
 
+  /** 上完：完成的音效、莫莫歡呼，馬上出下課畫面（T-113：以前最後一題打勾後等 1.5＋0.9 秒，中間畫面沒有新東西，孩子按返回） */
   const finish = async () => {
     if (!t) return
     setMood('cheer')
-    await markDone(t.day)
-    window.setTimeout(onDone, 900)
+    sfx.done()
+    await Promise.all([markDone(t.day), new Promise((r) => window.setTimeout(r, 350))])
+    onDone()
   }
 
   /** 課文念完、要去選圖了：第一次念完時，每個要考的字詞記一筆「教學」（家長區看得到今天教了什麼） */
@@ -128,7 +130,7 @@ export function ChineseLessonBody({ onDone }: LessonProps) {
           ) : scene === 'read' ? (
             <Reader t={t} run={run} host={host} goLabel={qs.length ? '去選圖' : '下課'} onTalk={setTalk} onNext={toQuiz} onLine={onLine} setMood={setMood} />
           ) : (
-            <Quiz key={scene} t={t} q={qs[scene]} host={host} setMood={setMood} onNext={next} />
+            <Quiz key={scene} t={t} q={qs[scene]} last={scene + 1 >= qs.length} host={host} setMood={setMood} onNext={next} />
           )}
         </Swap>
       )}
