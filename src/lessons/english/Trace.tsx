@@ -26,8 +26,11 @@ const VIEW_H = 140
 const LOOKS = {
   green: { rim: '#CFE3D6', lane: '#8FCBAA', dot: '#4E9A72', dash: '#9DB5A6', tag: '#4E9A72' },
   blue: { rim: '#D3E2F1', lane: '#9DC2E5', dot: '#4E9A72', dash: '#9AB0C6', tag: '#3E7DB6' },
-  /** 寫寫看（T-112，單字之後自己再描一次）：換一個暖色，看得出是新的一段 */
-  coral: { rim: '#F5DCD3', lane: '#F2AE9C', dot: '#4E9A72', dash: '#C9A297', tag: '#C8604A' },
+  /**
+   * 寫寫看（T-112，單字之後自己再描一次）：換一個顏色，看得出是新的一段。
+   * T-113：以前是珊瑚色，盲測 8948054 他看成「紅色」，紅底對 3 歲太像「錯了」；換成溫和的淡紫
+   */
+  lilac: { rim: '#E6DEF3', lane: '#C7B6E8', dot: '#4E9A72', dash: '#A99BC4', tag: '#7A5FB5' },
 } as const
 
 /**
@@ -46,10 +49,10 @@ const ROUNDS: TraceRound[] = [
 
 /**
  * 寫寫看（T-112，家長：「手寫的比例可以多一些」）：單字之後、選擇題之前，自己再描一次大寫。
- * 前面描字段已經看過兩次示範，這一次不示範，只說 Big S! Start at the green dot! Go this way!；換暖色，看得出是新的一段。
+ * 前面描字段已經看過兩次示範，這一次不示範，只說 Big S! Start at the green dot! Go this way!；換淡紫色，看得出是新的一段（T-113 以前是珊瑚色，看起來像紅色）。
  * 回饋、沒描上的處理跟描字段一樣（寬鬆、正面，最多重試一次就往下）。
  */
-export const WRITE_ROUNDS: TraceRound[] = [{ big: true, demo: false, look: 'coral' }]
+export const WRITE_ROUNDS: TraceRound[] = [{ big: true, demo: false, look: 'lilac' }]
 
 /** 描完的稱讚念完之後再停多久就換下一輪（T-110：以前 450 ms，他覺得要等很久） */
 const PRAISE_TAIL_MS = 200
@@ -65,13 +68,13 @@ const NEAT_OFF = 0.75
 const GOOD_OFF = 0.4
 
 /**
- * 一次「沒描上」（T-112）：這一下畫了一大段（墨水長度 ≥ 這一筆的 40%、至少 30 單位），進度卻幾乎沒動（< 這一筆的 25%）。
- * 盲測 b637ff7 seed 3：從綠點往右下畫、跳過 S 上面的彎，一大段墨水、進度 1%，被說兩次 Almost 就離開了。
- * 拖到一半放手、進度有跟著走的（歷次盲測 32～59%）不算，照舊從斷掉的地方接著描。
+ * 一次「沒描好」：放開手指時這一筆還沒描完（也沒到 LIFT_FINISH 帶著描完），而且畫了一段（墨水 ≥ 這麼長，描字板單位，約 9 mm），
+ * 不管進度有沒有跟著走。只點一下、碰一下不算。
+ * T-112 只算「一大段墨水、進度幾乎沒動」（盲測 b637ff7 seed 3 跳過 S 上面的彎）；拖到一半放手、進度有走的照舊不說話、接著描。
+ * T-113（盲測 8948054 英文 seed 1 第 9～11 步）：寫寫看拖 5 點就放手，進度有走，所以走的是「不說話、綠點等他接著描」那條路，
+ * 畫面只有跑道顏色和流動的小點，他不知道對不對、按返回離開。現在所有沒描好的都走同一套：Nice try! → You drew it!
  */
-const MESSY_INK = 0.4
-const MESSY_INK_MIN = 30
-const MESSY_GAIN = 0.25
+const ATTEMPT_INK = 12
 /** 第幾次沒描上就由筆帶著描完、往下走（最多重試一次，不卡關） */
 const MAX_TRIES = 2
 
@@ -97,10 +100,11 @@ function strokeStart(d: string) {
  * - 回饋（AI 小男生測試 #3）：
  *   - 起點附近按下去吸到起點（SNAP_MM，3 歲手指的偏差），圓點那邊亮一圈、有一條虛線從手指連過去；
  *   - 描到一半放手：綠點移到斷掉的地方、一圈光往外擴（TraceFx 的 ResumeDot），從那裡（或從起點沿著描好的部分）接著描，進度不歸零；
- *     不說話（盲測：Keep going! 他聽不懂，T-95）；
+ *     這一下也算一次「沒描好」（下面，T-113）；
  *   - 一直偏離跑道：圓點彈一下、還沒描的跑道亮兩下（不說話；以前說 Almost! Follow the line!，T-112 拿掉）；
- *   - 畫了一大段卻沒描上（MESSY_*，T-112）：那條線淡掉。第一次「Nice try!」、跑道亮兩下、筆從他描到的地方輕輕帶到終點，再讓他描；
- *     第二次「You drew it!」、筆帶著描完，往下一輪（最多重試一次，不卡關；不說 Almost、不讓他覺得錯了）；
+ *   - 沒描好（放開時這一筆還沒描完，ATTEMPT_INK，T-112、T-113）：沒描上的那條線淡掉。第一次「Nice try!」、跑道亮兩下、
+ *     筆從他描到的地方輕輕帶到終點，再讓他描；第二次「You drew it!」、筆帶著描完，往下一輪
+ *     （最多重試一次，不卡關；不說 Almost、不讓他覺得錯了；不會只有顏色沒有聲音）；
  *   - 按得太遠（吸不到）：圓點彈一下；連兩次再說一次「從綠點開始」；
  *   - 下一筆的起點有一圈光往外擴，看得出要從哪裡開始；
  *   - 10 秒沒動：筆從現在描到的地方往後描一次（不出墨、不說話）；再 15 秒說一次「從綠點開始」；
@@ -178,14 +182,13 @@ export function Trace({
   const helpTimer = useRef(0)
   /** 這一輪是筆帶著描完的 */
   const helped = useRef(false)
-  /** 這一輪沒描上幾次（MESSY_*） */
+  /** 這一輪沒描好幾次（ATTEMPT_INK） */
   const tries = useRef(0)
   /** 已經說過 You drew it!（第二次沒描上，筆帶著描完之前先說） */
   const affirmed = useRef(false)
-  /** 這一下（按下到放開）：墨水多長（描字板單位）、上一點、按下時進度到哪 */
+  /** 這一下（按下到放開）：墨水多長（描字板單位）、上一點 */
   const inkLen = useRef(0)
   const inkLast = useRef<P2 | null>(null)
-  const dragFrom = useRef(0)
   /** 按下去時描的是哪一筆（這一下描完一筆、換到下一筆的，不算沒描上） */
   const dragT = useRef<PathTracker | null>(null)
   const cur = useRef({ r: from, strokes, stroke: 0 })
@@ -413,11 +416,8 @@ export function Trace({
     setReview(false)
   }
 
-  /** 這一下是不是「畫了一大段卻沒描上」（MESSY_*） */
-  const isMessy = (t: PathTracker, ink: number) => {
-    const n = t.samples.length - 1
-    return t === dragT.current && !t.done && ink >= Math.max(MESSY_INK_MIN, n * 2 * MESSY_INK) && (t.progress - dragFrom.current) / n < MESSY_GAIN
-  }
+  /** 這一下是不是一次「沒描好」（ATTEMPT_INK）：這一筆還沒描完、畫了一段；這一下描完一筆換到下一筆的不算 */
+  const isAttempt = (t: PathTracker, ink: number) => t === dragT.current && !t.done && ink >= ATTEMPT_INK
 
   /**
    * 沒描上（T-112）：先肯定他有畫，只用畫面引導，不說 Almost。
@@ -511,7 +511,6 @@ export function Trace({
     strayed.current = 0
     inkLen.current = 0
     inkLast.current = p
-    dragFrom.current = t.progress
     dragT.current = t
     // 接著描、描到一半又從起點重新開始、或起點附近吸過去（track.ts 的 penDown）
     const how = t.penDown(p, snapUnits())
@@ -574,14 +573,16 @@ export function Trace({
     if (open && drawing.current && t.progress > 0 && t.ratio >= LIFT_FINISH) {
       // 描到大部分就放手：算描完（T-101）
       void fillRest(t)
-    } else if (open && was && isMessy(t, len)) {
-      // 畫了一大段卻沒描上：那條線淡掉，Nice try! ＋跑道亮、筆帶一次；第二次就帶著描完往下走（T-112）
+    } else if (open && was && isAttempt(t, len)) {
+      // 沒描好（沒描上、描到一半放手都算）：Nice try! ＋跑道亮、筆從斷掉的地方帶到終點；第二次就帶著描完往下走（T-112、T-113）。
+      // 沒描上的線淡掉；描到一半的照舊留著（跑道已經填到那裡，綠點在斷掉的地方等他接著描）
+      if (drawing.current && t.progress > 0) bump()
+      if (!moved.current) ink.current?.fadeLast(200)
       drawing.current = false
       moved.current = false
-      ink.current?.fadeLast(200)
       return void missed()
     } else if (open && drawing.current && t.progress > 0) {
-      // 描到一半放手：圓點在停下來的地方彈一下（之後綠點一直在那裡閃，ResumeDot），不說話
+      // 只碰一下：圓點在停下來的地方彈一下
       bump()
     }
     drawing.current = false

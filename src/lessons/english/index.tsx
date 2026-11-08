@@ -107,14 +107,13 @@ export function EnglishLesson({ onDone }: LessonProps) {
     if (plan) void markStage(plan, s)
   }
 
+  /** 上完：馬上換成慶祝（大字母、星星、完成的音效），You did it! 念著的時候就出下課畫面（T-113：以前念完再等 0.5 秒，打勾到下課 4.5 秒） */
   const finish = async (rs: QuizResult[]) => {
     if (!plan) return
-    await markDone(plan, lessonGood(rs))
-    if (!live.current) return
     setStage('end')
     sfx.done()
-    await say('le.en.done')
-    await wait(500)
+    void say('le.en.done')
+    await Promise.all([markDone(plan, lessonGood(rs)), wait(1100)])
     if (live.current) onDone()
   }
 

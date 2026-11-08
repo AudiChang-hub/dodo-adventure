@@ -20,6 +20,8 @@ type Mark = 'wrong' | 'correct' | 'hint'
 
 /** 答對的慶祝多久（FB-4：每題 ≤ 1.5 秒），之後換下一題 */
 const CHEER_MS = 1500
+/** 最後一題答對：看一下打勾、星星就進下課的慶祝（T-113） */
+const LAST_CHEER_MS = 800
 
 /** 答錯幾次以後把答案標出來（手點一下） */
 const HINT_AFTER = 2
@@ -35,7 +37,22 @@ const HINT_AFTER = 2
  *   答對的那張放大、跳一下、亮綠框、右上角一個綠色大打勾、星星撒開，其他兩張淡掉縮小，莫莫歡呼，叮一聲；1.5 秒後換下一題。
  *   綠框、星星、叮、恐龍歡呼跟英文課、數學課答對時一樣；打勾和其他選項淡掉是中文課多的（別的課有恐龍說 Yes!，這裡不說話）。孩子一直沒動：題目卡輕輕跳一下提醒大人再問一次，再久一點手就示範。
  */
-export function Quiz({ t, q, host, setMood, onNext }: { t: ZhText; q: ZhQuestion; host: HostTap; setMood: (m: Mood) => void; onNext: () => void }) {
+export function Quiz({
+  t,
+  q,
+  last = false,
+  host,
+  setMood,
+  onNext,
+}: {
+  t: ZhText
+  q: ZhQuestion
+  /** 這一篇的最後一題：答對了看一下打勾就下課（T-113：不再等滿 1.5 秒） */
+  last?: boolean
+  host: HostTap
+  setMood: (m: Mood) => void
+  onNext: () => void
+}) {
   const still = useReducedMotion()
   const quiet = useSwapQuiet()
   const [opts] = useState(() => shuffle(q.options))
@@ -136,7 +153,7 @@ export function Quiz({ t, q, host, setMood, onNext }: { t: ZhText; q: ZhQuestion
         hintUsed: hintUsed.current,
       })
       // 答對了：圖放大跳一下、打勾、星星撒完、其他兩張淡掉，看一下自己選對的圖，再換下一題（FB-4：每題的慶祝 ≤ 1.5 秒）
-      await wait(CHEER_MS)
+      await wait(last ? LAST_CHEER_MS : CHEER_MS)
       if (live.current) onNext()
       return
     }

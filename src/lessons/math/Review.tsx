@@ -59,6 +59,7 @@ export function ReviewPart({ ctx }: { ctx: PartCtx }) {
         showing={ctx.demo}
         spec={{
           id: String(i),
+          last: i + 1 >= qs.length,
           format: q.kind === 'find' ? 'ma-find' : 'ma-howmany',
           // 波波頭上的泡泡（T-96）：找數字＝那個數字；有幾個＝點點 → 空的數字卡（數一數、點數字）
           ask:
