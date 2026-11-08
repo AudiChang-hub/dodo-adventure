@@ -341,6 +341,23 @@
   -webkit-tap-highlight-color: transparent;
   touch-action: manipulation;
 }
+/* T-111：主角的圖一圈淡黃框（「點這個回答」，跟課文裡的圖同一個樣子）；他點了（用指的回答了）換成綠框 */
+.zh-talk-pic {
+  position: relative;
+}
+.zh-talk-pic.cue::after,
+.zh-talk-pic.said::after {
+  content: '';
+  position: absolute;
+  inset: -6%;
+  border-radius: 30%;
+  border: max(3px, 0.6cqmin) solid rgba(241, 210, 124, 0.9);
+  animation: hint-in 0.8s var(--ease-out) both;
+  pointer-events: none;
+}
+.zh-talk-pic.said::after {
+  border-color: var(--good);
+}
 /* 大人示範的回答：比問題小、比說明大 */
 .zh-talk-model {
   margin: 0;

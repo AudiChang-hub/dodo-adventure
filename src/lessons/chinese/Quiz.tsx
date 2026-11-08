@@ -60,6 +60,7 @@ export function Quiz({ t, q, host, setMood, onNext }: { t: ZhText; q: ZhQuestion
   const shownAt = useRef(0)
   const wrongs = useRef(0)
   const hintUsed = useRef(false)
+  const led = useRef(false)
 
   /** 再問一次：題目卡跳一下（大人看到就再念一次） */
   const ask = () => setNudge((n) => n + 1)
@@ -107,6 +108,8 @@ export function Quiz({ t, q, host, setMood, onNext }: { t: ZhText; q: ZhQuestion
   const tap = async (id: string) => {
     if (!acceptRef.current || locked.current || marks[id] === 'wrong') return
     idle.poke()
+    // 第一次點的時候手正指著答案（發呆太久手出來示範了，T-111）：答案是看手的，記成一起練、不計入熟練
+    if (!taps.current.length) led.current = hintUsed.current
     taps.current.push({ pick: id, ms: Math.round(performance.now() - shownAt.current) })
     if (id === q.word) {
       locked.current = true
@@ -122,7 +125,8 @@ export function Quiz({ t, q, host, setMood, onNext }: { t: ZhText; q: ZhQuestion
         itemId: `${t.day}:${q.word}`,
         skill: `zhtext:${q.word}`,
         level: 1,
-        phase: 'quiz',
+        phase: led.current ? 'guided' : 'quiz',
+        ...(led.current ? { metrics: { led: 1 } } : {}),
         options: opts.map((o) => o.word),
         answer: q.word,
         taps: taps.current,

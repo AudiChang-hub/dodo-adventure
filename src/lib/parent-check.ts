@@ -7,7 +7,7 @@
 //   跟故事審稿（lib/review.ts）同一個做法：家長常用手機看。重置學習進度時本機、雲端一起清掉（lib/reset.ts、lib/reset-cloud.ts）。
 // 熟練的判斷和問法是純函式（單元測試在 scripts/test-heard.ts）；下面才是存取。
 import { useSyncExternalStore } from 'react'
-import { getKV, phaseOf, setKV, type Attempt } from './db'
+import { getKV, isLed, phaseOf, setKV, type Attempt } from './db'
 import { HEARD_WINDOW, choicesOf, heardNeed } from './heard'
 import { listenItem } from './listen-report'
 import { LESSON_LETTERS } from '../lessons/english/data'
@@ -29,7 +29,7 @@ export const CHECK_KV = 'check:learned'
  */
 export function heardMastered(attempts: readonly Attempt[], skill: string, since = 0): boolean {
   const mine = attempts
-    .filter((a) => a.skill === skill && a.heard === true && a.ts > since && phaseOf(a) !== 'teach' && !a.metrics?.shown && listenItem(a) && choicesOf(a) >= 2)
+    .filter((a) => a.skill === skill && a.heard === true && a.ts > since && phaseOf(a) !== 'teach' && !isLed(a) && listenItem(a) && choicesOf(a) >= 2)
     .sort((x, y) => x.ts - y.ts)
     .slice(-HEARD_WINDOW)
   if (mine.length < HEARD_WINDOW) return false

@@ -94,6 +94,11 @@ export interface QuizResult {
   shown: boolean
   /** 第一次點的時候，題目的關鍵字念完了沒（T-109）；false 是用猜的，不計入熟練、也不算錯 */
   heard: boolean
+  /**
+   * 第一次點的時候手正指著答案（發呆手出來指、示範的手停在答案上，T-111）：答案是看手的，
+   * 記成一起練（metrics.led），不計入熟練和家長區的「聽完才答」，也不給叮咚和 Yes!
+   */
+  led: boolean
 }
 
 /**
@@ -126,6 +131,8 @@ export function Quiz({ spec, host, onDone, showing }: { spec: QuizSpec; host: Pa
   /** 這一題什麼時候出來、第一次點的時候關鍵字念完了沒 */
   const qStart = useRef(performance.now())
   const heard = useRef(false)
+  /** 第一次點的時候手正指著答案（T-111） */
+  const led = useRef(false)
   const shown = useRef(!!spec.format && needsDemo(spec.format))
   const bubble = useRef<HTMLDivElement | null>(null)
   const pile = useRef<HTMLDivElement | null>(null)
@@ -239,7 +246,10 @@ export function Quiz({ spec, host, onDone, showing }: { spec: QuizSpec; host: Pa
   const tap = async (id: string) => {
     if (!armed.current || phase.current === 'done') return
     // 第一次點：題目的關鍵字念完了沒（要在 takeOver 停掉語音之前問）
-    if (!taps.current.length) heard.current = heardSince(spec.prompt[0], qStart.current)
+    if (!taps.current.length) {
+      heard.current = heardSince(spec.prompt[0], qStart.current)
+      led.current = (hint && hand > 0) || teach === 'answer'
+    }
     if (phase.current !== 'turn') takeOver()
     idle.poke()
     // 又點到剛剛點錯的：輕輕一聲，答案亮起來（有反應，不會以為壞掉）
@@ -255,12 +265,13 @@ export function Quiz({ spec, host, onDone, showing }: { spec: QuizSpec; host: Pa
       idle.stop()
       setMarks((m) => ({ ...m, [id]: 'correct' }))
       setHint(false)
-      const r = { firstTry: taps.current.length === 1, taps: taps.current, ms: Math.round(performance.now() - t0.current), hinted: hinted.current, shown: shown.current, heard: heard.current }
-      // 題型會了沒只看聽完才答的（猜對不代表懂這種題目在問什麼）
-      if (spec.format && r.heard) noteFormat(spec.format, r.firstTry)
+      const r = { firstTry: taps.current.length === 1, taps: taps.current, ms: Math.round(performance.now() - t0.current), hinted: hinted.current, shown: shown.current, heard: heard.current, led: led.current }
+      // 題型會了沒只看聽完才答、自己答的（猜對、跟著手點對都不代表懂這種題目在問什麼）
+      if (spec.format && r.heard && !r.led) noteFormat(spec.format, r.firstTry)
       // 好玩的回饋只留給「聽完才答、一次就對」（T-109）：叮咚、Yes!。
       // 沒聽完就猜對：不說 Yes!，平平地把答案再說一次（This side has more!、This is three.）；點錯過才對的：答案的綠框就好
-      const full = r.firstTry && r.heard
+      // 手正指著答案時點的（T-111）：答案是看手的，也不慶祝
+      const full = r.firstTry && r.heard && !r.led
       if (full) {
         sfx.correct()
         await say(praiseKey('bobo'))

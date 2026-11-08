@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { motion, useReducedMotion } from 'motion/react'
 import { Shell } from '../../games/Shell'
 import { Swap } from '../../ui/Scenes'
@@ -57,6 +57,9 @@ export function ChineseLessonBody({ onDone }: LessonProps) {
   const [scene, setScene] = useState<Scene | null>(null)
   const [talk, setTalk] = useState(false)
   const [answered, setAnswered] = useState(0)
+  /** 課文念完幾行（上面的進度：念課文、選圖在同一排，T-111） */
+  const [read, setRead] = useState(0)
+  const onLine = useCallback((n: number) => setRead(n), [])
   const [mood, setMood] = useState<Mood>('idle')
   const host: HostTap = useRef(null)
   const taught = useRef(false)
@@ -111,7 +114,9 @@ export function ChineseLessonBody({ onDone }: LessonProps) {
     <Shell
       station="mandarin"
       mood={mood}
-      progress={qs.length && typeof scene === 'number' ? { total: qs.length, done: answered } : undefined}
+      // 上面的進度（T-111，盲測 a35cd5e：念課文的時候看不出有進展）：課文一行一格、選圖一題一格，
+      // 大人按「下一行」亮一格，選對一題亮一格；看得出「念到哪裡、還剩多少」
+      progress={t && scene != null && scene !== 'intro' ? { total: t.lines.length + qs.length, done: (typeof scene === 'number' ? t.lines.length : read) + answered } : undefined}
       onExit={leaveLesson}
       onHost={() => host.current?.()}
       hintText={scene == null ? undefined : hintOf(scene, run, talk, typeof scene === 'number' ? qs[scene]?.options.length : undefined)}
@@ -121,7 +126,7 @@ export function ChineseLessonBody({ onDone }: LessonProps) {
           {scene === 'intro' ? (
             <Intro onStart={start} />
           ) : scene === 'read' ? (
-            <Reader t={t} run={run} host={host} goLabel={qs.length ? '去選圖' : '下課'} onTalk={setTalk} onNext={toQuiz} />
+            <Reader t={t} run={run} host={host} goLabel={qs.length ? '去選圖' : '下課'} onTalk={setTalk} onNext={toQuiz} onLine={onLine} setMood={setMood} />
           ) : (
             <Quiz key={scene} t={t} q={qs[scene]} host={host} setMood={setMood} onNext={next} />
           )}

@@ -1,6 +1,6 @@
 // 家長區「聽完才答」（T-109）：英文課、數學課要聽懂才答得出來的題目，孩子是聽完題目的關鍵字才點，還是還沒聽完就點（用猜的）。
 // 純函式，只讀作答紀錄（有 heard 欄位的才算；T-109 之前的舊紀錄沒有），家長區學習進度用。單元測試在 scripts/test-heard.ts。
-import { phaseOf, type Attempt } from './db'
+import { isLed, phaseOf, type Attempt } from './db'
 
 export type ListenLesson = 'english' | 'math'
 
@@ -44,7 +44,7 @@ export function listenItem(a: Pick<Attempt, 'game' | 'skill'>): { lesson: Listen
 }
 
 /**
- * 算一堂課最近 days 天的「聽完才答」。只算孩子自己答的（教學卡、手先示範過才答的不算：答案已經看過了）。
+ * 算一堂課最近 days 天的「聽完才答」。只算孩子自己答的（教學卡、手先示範過才答的、手正指著答案時點的都不算：答案已經看過了，T-111）。
  * 每一題只看第一次點：那一刻關鍵字念完了沒（heard）、點的對不對（firstTryCorrect）。
  */
 export function listenStats(attempts: readonly Attempt[], lesson: ListenLesson, days = 14, now = Date.now()): ListenStats {
@@ -52,7 +52,7 @@ export function listenStats(attempts: readonly Attempt[], lesson: ListenLesson, 
   const rows = new Map<string, ListenRow & { order: number }>()
   const out: ListenStats = { total: 0, heard: 0, right: 0, guessed: 0, guessedRight: 0, rows: [] }
   for (const a of attempts) {
-    if (typeof a.heard !== 'boolean' || a.ts < since || phaseOf(a) === 'teach' || a.metrics?.shown) continue
+    if (typeof a.heard !== 'boolean' || a.ts < since || phaseOf(a) === 'teach' || isLed(a)) continue
     const it = listenItem(a)
     if (!it || it.lesson !== lesson) continue
     const r = rows.get(it.label) ?? { label: it.label, order: it.order, heard: 0, right: 0, guessed: 0, guessedRight: 0, last: 0 }

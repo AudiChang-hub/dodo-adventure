@@ -35,7 +35,8 @@ export function ComparePart({ ctx }: { ctx: PartCtx }) {
       game: 'm-compare',
       itemId: `${q.a}v${q.b}${q.ask === 'less' ? '<' : '>'}`,
       skill: `compare:${q.ask}`,
-      phase: 'quiz',
+      // 手示範過、或第一次點的時候手正指著答案（T-111）：一起練，不計入熟練
+      phase: r.shown || r.led ? 'guided' : 'quiz',
       level: 1,
       options: [String(q.a), String(q.b)],
       answer: String(target),
@@ -45,7 +46,7 @@ export function ComparePart({ ctx }: { ctx: PartCtx }) {
       responseMs: r.ms,
       hintUsed: r.hinted,
       heard: r.heard,
-      metrics: { lesson: ctx.lesson.n, gap: Math.abs(q.a - q.b), ...(r.hinted ? { retaught: 1 } : {}) },
+      metrics: { lesson: ctx.lesson.n, gap: Math.abs(q.a - q.b), ...(r.hinted ? { retaught: 1 } : {}), ...(r.shown ? { shown: 1 } : r.led ? { led: 1 } : {}) },
     })
     const m = missed + (r.heard && !r.firstTry ? 1 : 0)
     const n = asked + (r.heard ? 1 : 0)

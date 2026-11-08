@@ -40,6 +40,12 @@ const ROUNDS: { big: boolean; demo: boolean; look: keyof typeof LOOKS }[] = [
 /** 描完的稱讚念完之後再停多久就換下一輪（T-110：以前 450 ms，他覺得要等很久） */
 const PRAISE_TAIL_MS = 200
 
+/**
+ * 描得好不好（只影響這一輪的回饋，T-111）：畫在跑道外面的點少於這個比例就算描得好、彩虹慶祝。
+ * 三歲運筆不準，門檻放寬：一半以上的點在跑道裡就好（跑道本身就有一個大拇指寬）。作答紀錄的 firstTryCorrect 照舊用 0.4（A5 不計入熟練）。
+ */
+const NEAT_OFF = 0.5
+
 /** 鼓勵的話最少隔多久說一次（不要一直講） */
 const CHEER_GAP_MS = 5000
 /** 偏離路徑多少點才提醒（偶爾手抖不算） */
@@ -68,6 +74,8 @@ function strokeStart(d: string) {
  *   - 下一筆的起點有一圈光往外擴，看得出要從哪裡開始；
  *   - 10 秒沒動：筆從現在描到的地方往後描一次（不出墨、不說話）；再 15 秒說一次「從綠點開始」；
  *   - 畫完：字變彩虹色、跳一下、星星（TraceFx 的 RainbowDef），不靠語言就看得出「好了」，然後自己往下走；
+ *     只有描得好（大部分在跑道裡、不是筆帶著描完，NEAT_OFF）才這樣慶祝（T-111）；描得亂：字填成這一輪的顏色、輕輕一聲，
+ *     「Let's look again!」筆在字上再描一次、念字的名字，然後照樣往下（lookAgain，不要求重描）；
  *     稱讚（Great writing!）的時候（T-110，盲測 e6ecd05：他不知道要等，去點別的）：右邊這一輪的格子馬上變成描好的顏色、
  *     下一輪的格子跳一下（接下來描它）；這時候點描字板，彩虹字再跳一下、彈一聲（不會卡住、不會多記一筆）；
  *     稱讚念完只再停 0.2 秒就換下一輪（以前 0.45 秒）。作答紀錄在稱讚之前就記好了；稱讚本身照 T-108 不能搶；
@@ -89,6 +97,10 @@ export function Trace({ letter, from = 0, onRound, onDone }: { letter: LessonLet
   const [again, setAgain] = useState<number | null>(null)
   /** 稱讚的時候點了描字板：彩虹字再跳一下（每點一次加一） */
   const [cheerTap, setCheerTap] = useState(0)
+  /** 這一輪描得好不好（描完才有）：好就彩虹慶祝；亂就平平地帶過、筆輕輕再示範一次（T-111） */
+  const [neat, setNeat] = useState(true)
+  /** 描得亂：筆輕輕再描一次給他看（字已經填滿了，筆在上面走） */
+  const [review, setReview] = useState(false)
   /** 圓點彈一下（在哪裡、第幾次） */
   const [bounce, setBounce] = useState<{ at: P2; n: number } | null>(null)
   /** 吸附：手指按在哪裡（虛線從那裡連到起點） */
@@ -258,6 +270,8 @@ export function Trace({ letter, from = 0, onRound, onDone }: { letter: LessonLet
     const rd = ROUNDS[i]
     clearTimeout(helpTimer.current)
     helped.current = false
+    setNeat(true)
+    setReview(false)
     onRound?.(i)
     const ss = rd.big ? letter.upper : letter.lower
     const ok = flow.begin(live)
@@ -314,6 +328,28 @@ export function Trace({ letter, from = 0, onRound, onDone }: { letter: LessonLet
     void finishRound()
   }
 
+  /**
+   * 描得亂的時候（T-111）：「Let's look again!」筆照筆順在填好的字上輕輕再描一次（不出墨），念出字的名字（Big S.）。
+   * 這一段不能搶（busy）；點描字板只有輕輕一聲（不會卡住、不會多記一筆）
+   */
+  const lookAgain = async (i: number) => {
+    const ss = ROUNDS[i].big ? letter.upper : letter.lower
+    const alive = () => live.current
+    setReview(true)
+    setDemo(true)
+    await say('teach.again.dodo')
+    for (let k = 0; k < ss.length; k++) {
+      if (!alive()) return
+      begin(ss, k)
+      const total = tracker.current!.samples.length - 1
+      await tween(Math.max(700, total * 18), (f) => setProg(Math.round(f * total)), alive, easeInOut)
+    }
+    if (!alive()) return
+    setDemo(false)
+    await say(nameKey(ROUNDS[i].big))
+    setReview(false)
+  }
+
   /** 這一輪描完（自己描完，或筆帶著描完）：記一筆、慶祝，往下一輪 */
   const finishRound = async () => {
     const { r: i } = cur.current
@@ -342,9 +378,19 @@ export function Trace({ letter, from = 0, onRound, onDone }: { letter: LessonLet
       hintUsed: helped.current,
       metrics: { strokes: cur.current.strokes.length, offRatio: Math.round(off * 100) / 100, ...(helped.current ? { helped: 1 } : {}) },
     })
-    // 描完一次就慶祝（A5）：字變彩虹色、跳一下、星星（畫面在下面），加上完成的音效
-    sfx.done()
-    await say('d.glyph.done')
+    // 依描的品質給回饋（T-111，盲測 a35cd5e：畫得再亂都說 Great writing、出彩虹，他看不出對不對）：
+    // - 描得好（大部分在跑道裡、不是筆帶著描完的）：照舊慶祝（A5）——字變彩虹色、跳一下、星星、完成的音效、Great writing!
+    // - 描得亂、筆帶著描完的：平平地帶過——字填成這一輪的顏色（沒有彩虹、星星），輕輕一聲，
+    //   「Let's look again!」筆在字上輕輕再描一次、念出字的名字，然後照樣往下（不要求重描：三歲描不準是正常的，不能讓他受挫、也不拖長）
+    const tidy = off < NEAT_OFF && !helped.current
+    setNeat(tidy)
+    if (tidy) {
+      sfx.done()
+      await say('d.glyph.done')
+    } else {
+      sfx.pop()
+      await lookAgain(i)
+    }
     await wait(PRAISE_TAIL_MS)
     if (!live.current) return
     if (i + 1 >= ROUNDS.length) return onDone(good.current)
@@ -421,8 +467,10 @@ export function Trace({ letter, from = 0, onRound, onDone }: { letter: LessonLet
     moved.current = false
   }
 
-  /** 這一輪描完了（不是筆的示範畫完）：彩虹字、稱讚的時候 */
-  const finished = done && !demo
+  /** 這一輪描完了（不是筆的示範畫完）：稱讚的時候、描得亂筆再描一次的時候 */
+  const finished = done && (!demo || review)
+  /** 描得好：彩虹字、跳一下、星星（描得亂只填這一輪的顏色，T-111） */
+  const rainbow = finished && neat && !review
   const st = strokeStart(strokes[stroke])
   const samples = tracker.current?.samples ?? []
   const total = Math.max(1, samples.length - 1)
@@ -435,10 +483,10 @@ export function Trace({ letter, from = 0, onRound, onDone }: { letter: LessonLet
       data-demo={demo ? '1' : undefined}
       data-accepting={hold ? 'false' : undefined}
       onPointerDown={() => {
-        // 描完、稱讚的時候碰畫面：彩虹字再跳一下（溫和的回應，不會卡住，也不會多記一筆）
+        // 描完、稱讚的時候碰畫面：彩虹字再跳一下（溫和的回應，不會卡住，也不會多記一筆）；描得亂、筆在示範時只有輕輕一聲
         if (!finished) return
         sfx.tap()
-        setCheerTap((n) => n + 1)
+        if (rainbow) setCheerTap((n) => n + 1)
       }}
     >
       {/* 兩輪：大寫、小寫，描好的變成那一輪的顏色。描完、稱讚的時候這一輪就變色，下一輪的格子跳一下（接下來描它，T-110） */}
@@ -468,14 +516,14 @@ export function Trace({ letter, from = 0, onRound, onDone }: { letter: LessonLet
                 </g>
               )}
               {/* 畫完（不是示範）：整個字變彩虹色、跳一下 */}
-              <g key={cheerTap} className={finished ? 'trace-pop' : undefined} data-trace-finished={finished ? '' : undefined}>
+              <g key={cheerTap} className={rainbow ? 'trace-pop' : undefined} data-trace-finished={finished ? '' : undefined} data-trace-neat={finished ? (neat ? '1' : '0') : undefined}>
                 {strokes.map((d, i) => (
                   <g key={i}>
                     <path d={d} fill="none" stroke={look.rim} strokeWidth={LANE + 3} strokeLinecap="round" strokeLinejoin="round" />
                     <path
                       d={d}
                       fill="none"
-                      stroke={done && !demo ? `url(#en-rainbow-${r})` : i < stroke || done ? look.lane : '#FBF8F2'}
+                      stroke={rainbow ? `url(#en-rainbow-${r})` : i < stroke || done ? look.lane : '#FBF8F2'}
                       strokeWidth={LANE}
                       strokeLinecap="round"
                       strokeLinejoin="round"
@@ -551,7 +599,7 @@ export function Trace({ letter, from = 0, onRound, onDone }: { letter: LessonLet
                 </g>
               )}
             </svg>
-            {done && !demo && (
+            {rainbow && (
               <div style={{ position: 'absolute', left: '50%', top: '50%' }}>
                 <Sparkles count={18} />
               </div>
