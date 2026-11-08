@@ -43,11 +43,16 @@ export const goodEnough = (right: number, total: number) => total === 0 || right
 export interface QuizResult {
   kind: 'big' | 'little' | 'word'
   first: boolean
+  /** 點下去的時候題目的關鍵字念完了沒（T-109）；false 是用猜的。舊的進度沒有這一欄，當作聽完了 */
+  heard?: boolean
 }
 
-/** 決定隔天重不重上：只算字母題（大寫、小寫、複習的字母），開頭音的題目不算（A6） */
+/**
+ * 決定隔天重不重上：只算字母題（大寫、小寫、複習的字母），開頭音的題目不算（A6）；
+ * 沒聽完就點的（猜的，T-109）不算對、也不算錯
+ */
 export function lessonGood(rs: QuizResult[]) {
-  const letters = rs.filter((r) => r.kind !== 'word')
+  const letters = rs.filter((r) => r.kind !== 'word' && r.heard !== false)
   return goodEnough(letters.filter((r) => r.first).length, letters.length)
 }
 

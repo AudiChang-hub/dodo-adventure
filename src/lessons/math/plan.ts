@@ -55,20 +55,21 @@ let prog: Progress = { next: 1 }
 // ── 1～5 熟練了沒（NEXT-1） ─────────────────────────────────
 
 /** 熟練判斷用到的作答欄位 */
-export type FirmAttempt = Pick<Attempt, 'skill' | 'options' | 'firstTryCorrect' | 'date' | 'ts' | 'phase'>
+export type FirmAttempt = Pick<Attempt, 'skill' | 'options' | 'firstTryCorrect' | 'date' | 'ts' | 'phase'> & Partial<Pick<Attempt, 'heard'>>
 
 /** 1～5 的「有幾個」：小複習的 How many?（count:N）和拿給波波（give:N） */
 const FIRM_SKILLS = range(1, FIRM).flatMap((n) => [`count:${n}`, `give:${n}`])
 
 /**
  * 1～5 熟練了沒（docs/全球幼教指引-3到4歲.md 第七章「什麼叫熟練」）：
- * - 只算自己答的、3 選 1 以上的題目（2 選 1 用猜的也有一半；數數那一段每一下都算對，選項是空的，不算）。
+ * - 只算自己答的、3 選 1 以上的題目（2 選 1 用猜的也有一半；數數那一段每一下都算對，選項是空的，不算）；
+ *   波波還沒說完要幾個就點的（heard: false，T-109）是用猜的，也不算。
  * - 最近 10 題至少 8 題第一次就對，而且分布在至少 3 個不同的日子。
  * - 1～5 每一個都至少有一次第一次就答對。
  */
 export function countReady(atts: readonly FirmAttempt[]): { ready: boolean; recent: number; right: number; days: number; missing: number[] } {
   const pool = atts
-    .filter((a) => phaseOf(a) === 'quiz' && a.options.length >= 3 && FIRM_SKILLS.includes(a.skill))
+    .filter((a) => phaseOf(a) === 'quiz' && a.heard !== false && a.options.length >= 3 && FIRM_SKILLS.includes(a.skill))
     .sort((x, y) => y.ts - x.ts)
   const last = pool.slice(0, 10)
   const right = last.filter((a) => a.firstTryCorrect).length

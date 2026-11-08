@@ -3,11 +3,11 @@ import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import { Emoji } from '../../art/Emoji'
 import { Hand } from '../../games/Demo'
 import { useIdle } from '../../games/idle'
-import { onBlank, useFlow } from '../../games/barge'
+import { onBlank, sayRevealing, useFlow } from '../../games/barge'
 import { localPoint, useNotYet } from '../../games/NotYet'
 import { PACE } from '../../games/pace'
 import { praiseKey, retryKey, wait } from '../../games/lines'
-import { say, sfx, stopSpeech } from '../../lib/audio'
+import { heardSince, say, sfx, stopSpeech } from '../../lib/audio'
 import { hasLine } from '../../content/lines'
 import { logAttempt } from '../../lib/record'
 import { Sparkles } from '../../ui/Sparkles'
@@ -67,9 +67,14 @@ function Ask({ q }: { q: Question }) {
  * 同一題錯兩次：手帶著做（手點答案、答案亮起來，記成一起練），然後照樣往下。所以一題最多點錯兩次，題數固定，一定上得完（T-104）。
  * 答對（T-104，AI 小男生盲測：只有 Yes 和綠框，他看不出對了）：答對的那張放大、跳一下、右上角綠色大打勾、星星，其他的淡掉；
  * 下面的進度（第四顆石頭裡的小點）亮一顆（onProgress）。跟中文課選圖（T-97）一樣不用聽懂話也看得出來。
+ * 這個慶祝只給「聽完才答、一次就對」（T-109）；沒聽完就猜對、點錯過、手帶著做的只有安靜的綠框和再念一次，進度點不亮。
+ * 點錯：輕輕一聲、那張淡掉，不搖、不打叉。
  * 字母題有一題不是一次就對：後面的小寫題改問大寫（退一級，quiz-plan.ts 的 easy）。
  * 同一天中途離開又回來（from、answers）：從下一題接著問，先重播這一題的示範（replay），不直接丟回題目（T-104）。
  * 發呆 15 秒再念一次題目、30 秒手指著答案。
+ * 關鍵字放最前面（T-109）：題目先講關鍵字（Big S!；找開頭音的圖先念 S… s, s…），選項在關鍵字開始念的那一刻才出來。
+ * 孩子點下去的那一刻關鍵字念完了沒，記成作答紀錄的 heard：沒念完就點的是猜的，不計入熟練、也不算錯（lib/record.ts）；
+ * 猜對了照樣稱讚，但稱讚後把關鍵字再念一次（Yes! Big S!），幫他把聲音和答案連起來。
  * 每一題都寫作答紀錄（家長區看得到）。onDone(每一題的種類和第一次有沒有答對)：隔天重不重上只看字母題（plan.ts 的 lessonGood）。
  */
 export function Quiz({
@@ -95,13 +100,14 @@ export function Quiz({
   const still = useReducedMotion()
   const [i, setI] = useState(start)
   /** 這一題答完了（答對的放大打勾、其他的淡掉） */
-  const [solved, setSolved] = useState(false)
+  const [solved, setSolved] = useState<'full' | 'plain' | null>(null)
   const [accept, setAccept] = useState(false)
+  /** 選項出來了沒：關鍵字開始念、或孩子搶點的時候才出來（T-109） */
+  const [opts, setOpts] = useState(false)
   const [state, setState] = useState<Record<string, 'no' | 'yes'>>({})
   const [hint, setHint] = useState(false)
   /** 輪到你了：念完題目、這一題還沒點過（T-84） */
   const [cue, setCue] = useState(false)
-  const [bump, setBump] = useState<{ id: string; n: number } | null>(null)
   /** 示範中、答錯時：手在泡泡上（ask）或答案上（answer） */
   const [show, setShow] = useState<'ask' | 'answer' | null>(null)
   const [press, setPress] = useState(0)
@@ -135,6 +141,10 @@ export function Quiz({
   const tries = useRef(0)
   const taps = useRef<{ pick: string; ms: number }[]>([])
   const t0 = useRef(0)
+  /** 這一題什麼時候開始（關鍵字要在這之後念完才算聽完） */
+  const qStart = useRef(0)
+  /** 第一次點下去的時候，關鍵字念完了沒 */
+  const heard = useRef(false)
   const results = useRef<QuizResult[]>(answers.slice(0, start))
   const idle = useIdle()
   const q = list.current[i]
@@ -142,15 +152,17 @@ export function Quiz({
   /** 輪到孩子（念完、或被搶掉）：黃框亮、開始計時 */
   const openTurn = (qk: Question) => {
     phase.current = 'turn'
+    setOpts(true)
     if (!taps.current.length) setCue(true)
     if (!t0.current) t0.current = performance.now()
-    idle.start({ repeat: () => void say(qk.prompt), hint: () => setHint(true) })
+    idle.start({ repeat: () => void say(...qk.prompt), hint: () => setHint(true) })
   }
 
   /** 孩子搶點：停掉語音；示範的手收起來（答錯的說明被搶掉時，答案的外框留著），直接輪到他 */
   const takeOver = () => {
     const was = phase.current
     flow.cut()
+    setOpts(true)
     if (was === 'demo') {
       setShow(null)
       setState({})
@@ -177,7 +189,10 @@ export function Quiz({
     setState({})
     setHint(false)
     setCue(false)
-    setSolved(false)
+    setSolved(null)
+    setOpts(false)
+    qStart.current = performance.now()
+    heard.current = false
     tries.current = 0
     taps.current = []
     t0.current = 0
@@ -193,7 +208,7 @@ export function Quiz({
       await say('teach.watch.dodo')
       if (!ok()) return
       setShow('ask')
-      await say(qk.prompt)
+      await sayRevealing(() => setOpts(true), ...qk.prompt)
       if (!ok()) return
       setShow('answer')
       await wait(650)
@@ -211,7 +226,7 @@ export function Quiz({
       await wait(400)
       if (!ok()) return
       await say('teach.turn.dodo')
-    } else await say(qk.prompt)
+    } else await sayRevealing(() => setOpts(true), ...qk.prompt)
     if (!ok()) return
     openTurn(qk)
   }
@@ -237,8 +252,10 @@ export function Quiz({
   }
 
   const choose = async (o: Opt) => {
-    setBump((b) => ({ id: o.id, n: (b?.n ?? 0) + 1 }))
-    if (!armed.current || phase.current === 'done') return void sfx.tap()
+    // 擋板時間（剛出來的 0.5 秒、答完之後）點的：很輕的一聲「嗯？」，不跳、不好玩（T-109）
+    if (!armed.current || phase.current === 'done') return void sfx.notYet()
+    // 第一次點：題目的關鍵字念完了沒（要在 takeOver 停掉語音之前問）
+    if (!taps.current.length) heard.current = heardSince(q.prompt[0], qStart.current)
     if (phase.current !== 'turn') takeOver()
     idle.poke()
     setCue(false)
@@ -260,7 +277,7 @@ export function Quiz({
       setHop((h) => h + 1)
       setShow('ask')
       const why = wrongKeys(q, o)
-      const talk = say(...(together ? [q.prompt] : why.every(hasLine) ? why : [retryKey('dodo')]))
+      const talk = say(...(together ? q.prompt : why.every(hasLine) ? why : [retryKey('dodo')]))
       await wait(800)
       if (!ok()) return
       setShow('answer')
@@ -285,18 +302,24 @@ export function Quiz({
     setHint(false)
     idle.stop()
     const first = !together && tries.current === 0
-    results.current.push({ kind: q.kind, first })
-    noteFormat(FORMAT[q.kind], first)
+    const h = heard.current
+    results.current.push({ kind: q.kind, first, heard: h })
+    // 題型會了沒只看聽完才答的（猜對不代表懂這種題目在問什麼）
+    if (h) noteFormat(FORMAT[q.kind], first)
     setState({ [q.answer]: 'yes' })
-    setSolved(true)
-    sfx.correct()
+    // 好玩的回饋只留給「聽完才答、一次就對」（T-109，家長：他把 App 當遊戲在亂試）：放大、打勾、星星、豆豆歡呼、進度點亮。
+    // 沒聽完就猜對、點錯過才對、手帶著做的：答案安靜地亮著、其他的淡掉，把關鍵字或答案再念一次，不慶祝
+    const full = first && h
+    setSolved(full ? 'full' : 'plain')
+    if (full) sfx.correct()
     void logAttempt({
       station: 'english',
       game: 'lesson-en',
       itemId: `${q.kind}:${q.answer}`,
       skill: q.skill,
-      // 答錯過（答案已經亮起來、手指著）才點對的、手帶著做的、剛看手示範過的：算一起練
-      phase: tries.current >= 1 || shown.current ? 'guided' : 'quiz',
+      // 剛看手示範過的：算一起練。第一次就點錯的算自己答、沒答對（T-109：以前也算一起練，答錯不會讓熟練度退，
+      // 2 選 1 亂點的孩子只要猜對 3 次就算熟；現在答錯會退一格，沒聽完就點的另外排除）
+      phase: shown.current ? 'guided' : 'quiz',
       level: 1,
       options: q.options.map((x) => x.id),
       answer: q.answer,
@@ -305,9 +328,12 @@ export function Quiz({
       attempts: tries.current + (together ? 0 : 1),
       responseMs: ms,
       hintUsed: hint || together,
+      heard: h,
+      ...(shown.current ? { metrics: { shown: 1 } } : {}),
     })
     onProgress?.(i + 1, results.current.slice())
-    await say(...(first ? [praiseKey('dodo'), q.yes] : [q.yes]))
+    // 聽完才答、一次就對：Yes! S… s, s…。猜對（關鍵字還沒念完就點對）：不說 Yes!，平平地把關鍵字和答案再念一次（Big S!）
+    await say(...(full ? [praiseKey('dodo'), q.yes] : first ? q.echo : [q.yes]))
     await wait(500)
     if (!live.current) return
     if (i + 1 >= list.current.length) return onDone(results.current)
@@ -334,7 +360,7 @@ export function Quiz({
       <AnimatePresence initial={false}>
         <motion.div
           key={i}
-          className={`en-options is-${q.kind} n${q.options.length}${show && !solved ? ' is-demo' : ''}${solved ? ' is-solved' : ''}`}
+          className={`en-options is-${q.kind} n${q.options.length}${show && !solved ? ' is-demo' : ''}${solved ? ' is-solved' : ''}${solved === 'plain' ? ' is-plain' : ''}`}
           data-accepting={accept ? undefined : 'false'}
           data-dim={show ? 'true' : undefined}
           initial={{ opacity: 0 }}
@@ -344,18 +370,19 @@ export function Quiz({
           {q.options.map((o, k) => (
             <motion.button
               key={o.id}
-              animate={solved && state[o.id] === 'yes' ? { scale: still ? 1.08 : [1, 1.18, 1.08], y: still ? -8 : [0, -20, -8] } : { scale: 1, y: 0 }}
+              animate={solved === 'full' && state[o.id] === 'yes' ? { scale: still ? 1.08 : [1, 1.18, 1.08], y: still ? -8 : [0, -20, -8] } : { scale: 1, y: 0 }}
               transition={{ duration: 0.55, ease: [0.22, 1, 0.36, 1] }}
               ref={(el: HTMLButtonElement | null) => {
                 if (el) tiles.current.set(o.id, el)
               }}
               type="button"
-              className={`en-opt${size(o)}${show && o.id === q.answer ? ' is-shown' : ''}${state[o.id] === 'yes' ? ' is-yes' : state[o.id] === 'no' ? ' is-no' : ''}${hint && o.id === q.answer ? ' is-hint' : ''}${cue ? ' is-cue turn-hop' : ''}`}
+              className={`en-opt${opts || solved ? '' : ' is-wait'}${size(o)}${show && o.id === q.answer ? ' is-shown' : ''}${state[o.id] === 'yes' ? ' is-yes' : state[o.id] === 'no' ? ' is-no' : ''}${hint && o.id === q.answer ? ' is-hint' : ''}${cue ? ' is-cue turn-hop' : ''}`}
               style={{ '--turn-i': k } as CSSProperties}
               aria-label={o.text ?? o.id}
               onClick={() => void choose(o)}
             >
-              <span key={bump?.id === o.id ? bump.n : 0} className={bump?.id === o.id ? (state[o.id] === 'no' ? 'en-shake' : 'en-hop') : undefined}>
+              {/* 點了不跳、點錯不搖（T-109：點錯、亂點都平平的，沒有好玩的動畫，也不打叉） */}
+              <span>
                 {o.icon ? <Emoji name={o.icon} /> : <span className="en-opt-letter">{o.text}</span>}
               </span>
               {hint && !show && k === handAt && (
@@ -364,8 +391,8 @@ export function Quiz({
                 </span>
               )}
               {/* 答對：星星撒開、右上角綠色大打勾（跟中文課選圖一樣，T-97） */}
-              {solved && state[o.id] === 'yes' && <Sparkles count={16} />}
-              {solved && state[o.id] === 'yes' && (
+              {solved === 'full' && state[o.id] === 'yes' && <Sparkles count={16} />}
+              {solved === 'full' && state[o.id] === 'yes' && (
                 <motion.span
                   className="en-yes"
                   aria-hidden="true"

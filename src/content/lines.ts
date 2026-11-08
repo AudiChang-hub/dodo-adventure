@@ -18,6 +18,7 @@ import { LEXICON, articleOf, keyOfVocab, thisIs, thisIsText } from './lexicon'
 import { COLORS, SHAPES } from './park'
 
 import { def, type Speaker } from './registry'
+import { keyword } from './keywords'
 import './lines-friends'
 import './lines-worksheet'
 // 三堂課的台詞（各課自己的檔，這裡只負責 import，npm run audio 才找得到）
@@ -80,11 +81,19 @@ def('m.intro.order', 'bobo', 'Tap the numbers. Start with one!')
 def('m.howmany', 'bobo', 'How many?')
 def('m.more', 'bobo', 'Which side has | more?')
 def('m.less', 'bobo', 'Which side has | fewer?')
+// 比多少、找數字的題目（T-109 關鍵字放最前面、句子最短）：開頭那個字是關鍵字（content/keywords.ts）
+def('m.ask.more', 'bobo', 'More! Which side?')
+def('m.ask.less', 'bobo', 'Fewer! Which side?')
+keyword('m.ask.more', 1)
+keyword('m.ask.less', 1)
 def('m.this.more', 'bobo', 'This side has more!')
 def('m.this.less', 'bobo', 'This side has fewer!')
 def('m.count.go', 'bobo', 'Tap and count with me!')
 for (let n = 1; n <= 20; n++) {
   def(`m.num.${n}`, 'bobo', `${cap(NUM[n])}!`)
+  // 題目開頭的關鍵字（Three! Where is three?、Three! Give me three!）：跟數數的「Three!」同一段音檔，
+  // 另外取一個名字，免得數數時念的 Three! 被當成「題目念完了」
+  def(`m.ask.num.${n}`, 'bobo', `${cap(NUM[n])}!`)
   def(`m.findnum.${n}`, 'bobo', `Where is | ${NUM[n]}?`)
   def(`m.total.${n}`, 'bobo', n === 1 ? 'There is | one!' : `There are | ${NUM[n]}!`)
   def(`m.thisis.${n}`, 'bobo', `This is | ${NUM[n]}.`)

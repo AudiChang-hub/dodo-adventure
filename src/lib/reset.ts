@@ -21,7 +21,7 @@ import { UNKNOWN_KV } from './words'
  * - 清掉：engine:concepts（每週新概念額度）、engine:loadDrop（負擔控制降級日）、engine:strandDrop（這一段暫停已經降過級的支線）、achieve（里程碑／貼紙／貼紙本看過）、
  *   plan:{日期}（今日冒險進度、主題輪替紀錄）、coplay:{日期}（舊版爸爸回合次數，2026-10-29 拿掉了，舊資料可能還有）、usage:{日期}（今天已玩時間）、
  *   outing.ticks（出門任務卡勾選）、outing.recall（回到 App 的回想題紀錄）、phonics:migrated（舊字母熟練度的一次性換算）、
- *   cues:seen（比較題的題目徽章教過了沒）
+ *   cues:seen（比較題的題目徽章教過了沒）、check:learned（家長在「真的學會了嗎？」按的他會／還不會，T-109）
  */
 export const KEEP_KV = new Set(['settings', UNKNOWN_KV, 'profile', 'growth'])
 

@@ -5,6 +5,7 @@ import { achieveForSync, type CardProgress, type Milestone } from './achievement
 import { wipeCloudLearning, type WipeFs, type WipeResult } from './reset-cloud'
 import { UNKNOWN_KV } from './words'
 import { mergeVerdicts, type Verdict } from './review'
+import { mergeRemoteChecks, type Check } from './parent-check'
 
 const cfg = {
   apiKey: env('VITE_FIREBASE_API_KEY'),
@@ -165,6 +166,8 @@ async function upload() {
     })
     // 故事審稿：家長可能在手機上審，平板每次同步時把決定讀回來
     await reviewRoundTrip(f, uid)
+    // 「真的學會了嗎？」的決定（T-109）：一樣，手機上按的，平板同步時讀回來
+    await checkRoundTrip(f, uid)
     set({ status: 'idle', last: Date.now() })
   } catch (e) {
     set({ status: 'error', error: friendly(e) })
@@ -181,6 +184,28 @@ async function reviewRoundTrip(f: FB, uid: string) {
   const snap = await fs.getDoc(ref)
   const merged = await mergeVerdicts(snap.data()?.verdicts as Record<string, Verdict> | undefined)
   if (JSON.stringify(merged) !== JSON.stringify(snap.data()?.verdicts ?? {})) await fs.setDoc(ref, { verdicts: merged, updated: Date.now() })
+}
+
+/** 「真的學會了嗎？」的決定（lib/parent-check.ts）：讀雲端的 users/{uid}/meta/check，和這台的合併（同一個概念以比較晚的為準），再寫回去 */
+async function checkRoundTrip(f: FB, uid: string) {
+  const { fs, store } = f
+  const ref = fs.doc(store, 'users', uid, 'meta', 'check')
+  const snap = await fs.getDoc(ref)
+  const merged = await mergeRemoteChecks(snap.data()?.checks as Record<string, Check> | undefined)
+  if (JSON.stringify(merged) !== JSON.stringify(snap.data()?.checks ?? {})) await fs.setDoc(ref, { checks: merged, updated: Date.now() })
+}
+
+/** 家長按了「他會」或「還不會」：只同步這些決定（沒登入、沒網路就略過，決定還在這台裝置上） */
+export async function syncChecks(): Promise<boolean> {
+  if (!syncConfigured || !state.user || !navigator.onLine || paused) return false
+  const f = await initSync()
+  if (!f || !state.user) return false
+  try {
+    await checkRoundTrip(f, state.user.uid)
+    return true
+  } catch {
+    return false
+  }
 }
 
 /** 審稿頁打開、家長按了通過或退回：只同步審稿的決定（沒登入、沒網路就略過，決定還在這台裝置上） */
@@ -241,6 +266,8 @@ export async function fetchCloud(): Promise<CloudBundle | null> {
     fs.getDocs(fs.query(fs.collection(store, 'users', uid, n), fs.orderBy(n === 'sessions' ? 'start' : 'ts', 'desc'), fs.limit(max)))
   const [a, s, d, meta] = await Promise.all([col('attempts', 8000), col('sessions', 400), col('drawings', 80), fs.getDoc(fs.doc(store, 'users', uid, 'meta', 'state'))])
   const rows = <T,>(snap: { docs: { data: () => unknown }[] }) => snap.docs.map((x) => ({ ...(x.data() as object), synced: 1 }) as T)
+  // 「真的學會了嗎？」：手機看雲端資料時，先把平板上按過的決定合併進來（卡片、標示才會一樣）
+  await checkRoundTrip(f, uid).catch(() => {})
   return {
     attempts: rows<Attempt>(a),
     sessions: rows<Session>(s),

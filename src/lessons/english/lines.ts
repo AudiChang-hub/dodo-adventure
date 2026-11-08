@@ -1,8 +1,9 @@
 // 英文字母課的台詞（豆豆）。content/lines.ts import 這個檔，npm run audio 才會產生音檔。
 // 字母和例字的念法（A, A, A… a, a… apple!）沿用字母森林的 ph.<字母>.says（lines-phonics.ts）；字母森林沒有的字母在這裡補。
 // key 用 ph. 開頭的字幕會把今天的字母上色、念法分三種樣子（content/subtitles.ts）；問「哪一個是 A」的用 en.where. 開頭，字幕會挖空答案。
-import { def, defBridge, hasLine } from '../../content/registry'
+import { def, defBridge, hasLine, line } from '../../content/registry'
 import { cueText } from '../../content/phonics-cue'
+import { keyword } from '../../content/keywords'
 import { lexWord, wordKey } from '../../content/lexicon'
 import { bridgeKey } from '../../content/zh-words'
 import { LESSON_LETTERS, wordId } from './data'
@@ -41,6 +42,11 @@ for (const x of LESSON_LETTERS) {
   def(`ph.${l}.little`, 'dodo', `Little | ${l}!`)
   def(`ph.${l}.words`, 'dodo', x.starts.length === 3 ? `These words start with | ${L}!` : `Find ${L} in these words!`)
   def(`ph.${l}.q.word`, 'dodo', `Which one starts with | ${L}?`)
+  // 找開頭音的圖（T-109 關鍵字放最前面）：先念字母和它的音（S… s, s…，跟答對時那一句同一段音檔），再問 Which one starts with S?。
+  // 另外取一個名字，免得答對後念的那一句也被當成「題目念完了」
+  def(`ph.${l}.ask`, 'dodo', line(`ph.${l}.sound`).text)
+  // 關鍵字是字母名和第一個音（S… s,），不用等 s, s… 全部念完（content/keywords.ts）
+  keyword(`ph.${l}.ask`, 2)
   def(`en.where.big.${L}`, 'dodo', `Where is big | ${L}?`)
   def(`en.where.little.${l}`, 'dodo', `Where is little | ${l}?`)
   def(`en.that.big.${L}`, 'dodo', `That's big | ${L}.`)

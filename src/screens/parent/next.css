@@ -204,6 +204,87 @@
   opacity: 0.6;
 }
 
+/* ── 學習進度：聽完才答（Progress.tsx 的 Listen，T-109）──────────── */
+.parent .listen {
+  margin-top: 16px;
+  padding-top: 12px;
+  border-top: 1px solid var(--paper-edge);
+}
+.parent .listen-head {
+  margin: 0 0 8px;
+  font-size: 15px;
+  font-weight: 600;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 10px;
+}
+.parent .listen-head b {
+  font-family: 'Fredoka', sans-serif;
+  font-size: 22px;
+  font-weight: 500;
+  color: #2f7a52;
+}
+.parent .listen-head small {
+  font-size: 13.5px;
+  font-weight: 400;
+  color: var(--ink-soft);
+}
+.parent .listen-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 2px;
+}
+.parent .listen-list li {
+  display: grid;
+  grid-template-columns: 120px 1fr;
+  align-items: center;
+  gap: 12px;
+  padding: 6px 2px;
+  border-bottom: 1px dashed var(--paper-edge);
+  font-size: 14.5px;
+  line-height: 1.5;
+}
+.parent .listen-list li:last-child {
+  border-bottom: 0;
+}
+.parent .listen-bar {
+  display: flex;
+  height: 10px;
+  border-radius: 99px;
+  overflow: hidden;
+  background: var(--paper);
+}
+.parent .listen-bar i {
+  display: block;
+  height: 100%;
+}
+.parent .listen-bar .is-right,
+.parent .mlegend.is-right {
+  background: #8fc9a5;
+}
+.parent .listen-bar .is-wrong,
+.parent .mlegend.is-wrong {
+  background: #f1c98a;
+}
+.parent .listen-bar .is-guess,
+.parent .mlegend.is-guess {
+  background: #d6cfc3;
+}
+.parent .listen-more summary {
+  cursor: pointer;
+  min-height: 40px;
+  display: flex;
+  align-items: center;
+  font-size: 14px;
+  color: var(--ink-soft);
+}
+.parent .listen-legend {
+  line-height: 1.7;
+}
+
 /* 手機直式（家長遠端看）：只求不壞版 */
 @media (max-width: 600px) {
   .parent .next-list li {
@@ -211,5 +292,9 @@
   }
   .parent .next-detail {
     grid-column: 2;
+  }
+  .parent .listen-list li {
+    grid-template-columns: 1fr;
+    gap: 4px;
   }
 }

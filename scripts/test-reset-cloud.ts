@@ -34,6 +34,8 @@ function makeFs(seed: Record<string, number>, failAt = -1) {
     },
   }
   docs.add('users/me/meta/state')
+  // 「真的學會了嗎？」的決定（T-109）：重置時一起刪
+  docs.add('users/me/meta/check')
   return { fs, docs, batches }
 }
 
@@ -45,8 +47,8 @@ async function main() {
   {
     const m = makeFs(SEED)
     const r = await wipeCloudLearning(m.fs, {}, 'me', { keepDrawings: false })
-    assert.deepEqual(r.deleted, { attempts: 1234, sessions: 3, growthLog: 5, chapters: 2, drawings: 10, meta: 1 })
-    assert.deepEqual(m.batches, [500, 500, 234, 3, 5, 2, 10, 1])
+    assert.deepEqual(r.deleted, { attempts: 1234, sessions: 3, growthLog: 5, chapters: 2, drawings: 10, meta: 2 })
+    assert.deepEqual(m.batches, [500, 500, 234, 3, 5, 2, 10, 2])
     assert.equal(under(m.docs, 'users/me/'), 0)
     assert.equal(under(m.docs, 'users/other/'), 8, '別的帳號不能動')
     console.log('ok 1 全部清（含畫作）', r)
@@ -63,7 +65,7 @@ async function main() {
     const m = makeFs({ 'users/me/attempts': 500 })
     const r = await wipeCloudLearning(m.fs, {}, 'me', { keepDrawings: false })
     assert.equal(r.deleted.attempts, 500)
-    assert.deepEqual(m.batches, [500, 1])
+    assert.deepEqual(m.batches, [500, 2])
     assert.equal(under(m.docs, 'users/me/'), 0)
     console.log('ok 3 剛好 500 筆')
   }
@@ -80,13 +82,13 @@ async function main() {
   {
     const m = makeFs({ 'users/me/attempts': 1200 })
     await wipeCloudLearning(m.fs, {}, 'me', { keepDrawings: false, batchSize: 9999 })
-    assert.deepEqual(m.batches, [500, 500, 200, 1])
+    assert.deepEqual(m.batches, [500, 500, 200, 2])
     console.log('ok 5 batchSize 上限 500')
   }
   {
     const m = makeFs({})
     const r = await wipeCloudLearning(m.fs, {}, 'me', { keepDrawings: false })
-    assert.deepEqual(r.deleted, { attempts: 0, sessions: 0, growthLog: 0, chapters: 0, drawings: 0, meta: 1 })
+    assert.deepEqual(r.deleted, { attempts: 0, sessions: 0, growthLog: 0, chapters: 0, drawings: 0, meta: 2 })
     console.log('ok 6 沒有資料的帳號')
   }
   {

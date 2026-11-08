@@ -59,6 +59,7 @@ const CHECKS = [
     check: (s) => ({ ok: /缺漏 0/.test(s), key: (/(教學卡上的字 \d+ 個.*缺漏 \d+)/.exec(s)?.[1] ?? '沒有結果').replace(/（[^）]*）/, '') }),
   },
   { id: 'test-english', name: '單元：英文課（開頭音不算重上、名字的字母先、答錯的說明）', cmd: ['npx', 'tsx', 'scripts/test-english.ts'], check: unit },
+  { id: 'test-heard', name: '單元：聽完才答（關鍵字念完了沒、熟練只看聽完才答、家長區統計、答案位置隨機）', cmd: ['npx', 'tsx', 'scripts/test-heard.ts'], check: unit },
   { id: 'test-lesson-sticker', name: '單元：上完一堂不定時挑貼紙（40 堂 8～14 次、間隔 ≤ 6）', cmd: ['npx', 'tsx', 'scripts/test-lesson-sticker.ts'], check: unit },
   {
     id: 'lessons-teach',

@@ -3,12 +3,12 @@ import { AnimatePresence, motion } from 'motion/react'
 import { Emoji } from '../../art/Emoji'
 import { Hand } from '../../games/Demo'
 import { WaitShield, firstFinger, localPoint, useNotYet } from '../../games/NotYet'
-import { onBlank, useFlow } from '../../games/barge'
+import { onBlank, sayRevealing, useFlow } from '../../games/barge'
 import { wait } from '../../games/lines'
 import { useIdle } from '../../games/idle'
 import { PACE } from '../../games/pace'
 import { logAttempt, logTeach } from '../../lib/record'
-import { say, sfx } from '../../lib/audio'
+import { heardSince, say, sfx } from '../../lib/audio'
 import { FADE } from '../../ui/motion'
 import { giveRounds, range, type GiveRound } from './plan'
 import { useLive, type PartCtx } from './kit'
@@ -41,6 +41,8 @@ type Where = { at: 'pile'; i: number } | { at: 'plate'; i: number }
  * - 點勾勾：剛好 → 「There are three! Yum! Thank you!」；不對（第一次）→ 說盤子裡有幾個、波波要幾個（More, please!／Too many!），
  *   東西留著讓孩子自己改；第二次 → 手把盤子改成剛好、一起數，再指勾勾，孩子點了就過。
  * - 盤子是空的就點勾勾：再說一次「Give me three!」，不算答錯。
+ * - 關鍵字放最前面（T-109）：「Three! Give me three!」，左邊的東西在「Three!」開始念的時候才出來。
+ *   第一次點勾勾交出去的時候「Three!」念完過沒有，記成作答紀錄的 heard：沒聽完就交的是猜的，不計入熟練、也不算錯。
  */
 export function GivePart({ ctx }: { ctx: PartCtx }) {
   const [round] = useState<GiveRound>(() => giveRounds(ctx.lesson)[0])
@@ -49,8 +51,15 @@ export function GivePart({ ctx }: { ctx: PartCtx }) {
   const [plate, setPlate] = useState<number[]>([])
   const [hold, setHold] = useState(true)
   const [hand, setHand] = useState<{ x: number; y: number; tap: number } | null>(null)
-  const [glad, setGlad] = useState(false)
+  /** 交出去了：full＝聽完才答、一次就對（勾勾跳一下）；plain＝平平的（勾勾變綠、不跳，T-109） */
+  const [glad, setGlad] = useState<false | 'full' | 'plain'>(false)
   const [want, setWant] = useState(0)
+  /** 左邊的東西出來了沒（T-109）：波波開始說要幾個、或孩子搶點的時候 */
+  const [things, setThings] = useState(false)
+  const reveal = () => setThings(true)
+  /** 這一段什麼時候開始（關鍵字要在這之後念完才算聽完）、第一次交出去的時候聽完了沒 */
+  const since = useRef(performance.now())
+  const heard = useRef(false)
   const live = useLive()
   /** demo 示範、intro 說明、fb 答錯的說明、help 錯兩次手幫忙放（這幾段可以搶）；turn 輪到孩子；done 交出去了 */
   const phase = useRef<'demo' | 'intro' | 'fb' | 'help' | 'turn' | 'done'>('intro')
@@ -87,9 +96,10 @@ export function GivePart({ ctx }: { ctx: PartCtx }) {
   }
 
   /** 波波說要幾個：泡泡跳一下 */
+  const askKey = `m.ask.num.${n}`
   const ask = () => {
     setWant((w) => w + 1)
-    return say(`ma.give.${n}`)
+    return sayRevealing(reveal, askKey, `ma.give.${n}`)
   }
 
   /** 手把盤子放成剛好 n 個，邊放邊數（示範、錯兩次的時候） */
@@ -111,6 +121,7 @@ export function GivePart({ ctx }: { ctx: PartCtx }) {
   /** 輪到孩子（說完、或被搶掉） */
   const open = () => {
     phase.current = 'turn'
+    setThings(true)
     if (!t0.current) t0.current = performance.now()
     idle.start({ repeat: () => void ask(), hint: nudge })
   }
@@ -119,6 +130,7 @@ export function GivePart({ ctx }: { ctx: PartCtx }) {
   const takeOver = () => {
     const was = phase.current
     flow.cut()
+    setThings(true)
     if (was === 'demo' || was === 'help') {
       setHand(null)
       setGlad(false)
@@ -146,7 +158,7 @@ export function GivePart({ ctx }: { ctx: PartCtx }) {
       if (!ok()) return
       // 手點完勾勾就收起來，不停在勾勾上（AI 小男生測試 2026-11-02 數學-2 第 4～7 步：手最後停在勾勾，他就一直點勾勾，沒去拿東西）
       setHand(null)
-      setGlad(true)
+      setGlad('full')
       // 示範只說總數，不再加「Yum! Thank you!」：輪到他之前少一句（T-108）
       await say(`m.total.${n}`)
       if (!ok()) return
@@ -227,6 +239,7 @@ export function GivePart({ ctx }: { ctx: PartCtx }) {
     if (next.length) void say(`m.num.${next.length}`)
   }
 
+  /** 交出去剛好：聽完才答、一次就對才歡呼（T-109）；沒聽完就交、改過才對的，平平地說「There are three!」就往下 */
   const finish = async (firstTry: boolean) => {
     void logAttempt({
       station: 'math',
@@ -243,16 +256,21 @@ export function GivePart({ ctx }: { ctx: PartCtx }) {
       attempts: checks.current.length,
       responseMs: Math.round(performance.now() - t0.current),
       hintUsed: helped.current,
+      heard: heard.current,
       metrics: { lesson: ctx.lesson.n, supply, ...(checks.current.length > 1 ? { retaught: 1 } : {}) },
     })
-    ctx.mood('cheer')
-    sfx.correct()
-    setGlad(true)
+    const full = firstTry && heard.current
+    if (full) {
+      ctx.mood('cheer')
+      sfx.correct()
+    }
+    setGlad(full ? 'full' : 'plain')
     // 「There is one! Yum! Thank you!」就是稱讚，不再多一句 Yes!：按完打勾到下一段能動手要快（盲測三次都說「好久喔」）
-    await say(`m.total.${n}`, 'ma.give.thanks')
+    await say(...(full ? [`m.total.${n}`, 'ma.give.thanks'] : [`m.total.${n}`]))
     // 道謝念了 4 秒，打勾跳一下、盤子亮起來早就看完了：用短的停頓接下一段（教學卡本身的節奏不動）
     await wait(PACE.NEXT_REVIEW)
-    if (live.current) ctx.done(1, firstTry ? 0 : 1)
+    // 沒聽完就交的（猜的）不算進「錯很多隔天重上」（T-109）
+    if (live.current) ctx.done(heard.current ? 1 : 0, heard.current && !firstTry ? 1 : 0)
   }
 
   const check = async () => {
@@ -269,6 +287,8 @@ export function GivePart({ ctx }: { ctx: PartCtx }) {
       sfx.gentle()
       return void ask()
     }
+    // 第一次交出去：波波說的「Three!」念完過沒有
+    if (!checks.current.length) heard.current = heardSince(askKey, since.current)
     checks.current.push({ pick: String(have), ms: Math.round(performance.now() - t0.current) })
     setHand(null)
     idle.stop()
@@ -321,7 +341,8 @@ export function GivePart({ ctx }: { ctx: PartCtx }) {
             className="ma-thing ma-give-thing"
             aria-label={plate.includes(k) ? `拿回第 ${k + 1} 個` : `拿第 ${k + 1} 個給波波`}
             initial={{ opacity: 0, left: `${p.x}%`, top: `${p.y}%` }}
-            animate={{ opacity: 1, left: `${p.x}%`, top: `${p.y}%` }}
+            animate={{ opacity: things ? 1 : 0, left: `${p.x}%`, top: `${p.y}%` }}
+            style={things ? undefined : { pointerEvents: 'none' }}
             transition={{ ...FADE, left: { duration: 0.35 }, top: { duration: 0.35 } }}
             onPointerDown={(e) => firstFinger(e.nativeEvent) && tapThing(k)}
           >
@@ -330,7 +351,7 @@ export function GivePart({ ctx }: { ctx: PartCtx }) {
         )
       })}
       {/* 答對：勾勾變成實心綠色、跳一下，在波波道謝的這段時間佔住這個位置（不能按，下一段的東西也還沒來；T-104） */}
-      <button type="button" className={`ma-give-done${glad ? ' is-done' : !hold && plate.length > 0 ? ' on' : ''}`} style={{ left: `${DONE.x}%`, top: `${DONE.y}%` }} aria-label="好了，交給波波" onPointerDown={(e) => firstFinger(e.nativeEvent) && check()}>
+      <button type="button" className={`ma-give-done${glad ? ` is-done${glad === 'plain' ? ' is-plain' : ''}` : !hold && plate.length > 0 ? ' on' : ''}`} style={{ left: `${DONE.x}%`, top: `${DONE.y}%` }} aria-label="好了，交給波波" onPointerDown={(e) => firstFinger(e.nativeEvent) && check()}>
         <svg viewBox="0 0 48 48" aria-hidden="true">
           <path d="M12 25 L21 34 L37 15" fill="none" stroke="currentColor" strokeWidth={6} strokeLinecap="round" strokeLinejoin="round" />
         </svg>

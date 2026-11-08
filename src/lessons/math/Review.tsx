@@ -5,7 +5,7 @@ import { reviewQs } from './plan'
 import { Fade, Quiz, type PartCtx, type QuizResult } from './kit'
 
 /**
- * 小複習：兩題。「Where is three?」找出今天的數字（找數字 m-find）、「How many?」數一數上面那一堆、點數字（有幾個 m-match）。
+ * 小複習：兩題。「Three! Where is three?」找出今天的數字（T-109 關鍵字放最前面）（找數字 m-find）、「How many?」數一數上面那一堆、點數字（有幾個 m-match）。
  * 兩題都是剛剛教過、數過、寫過的；一律 3 選 1，只教了 1、2 的那兩天沒有小複習（plan.ts 的 reviewQs）。
  * 兩種題型的泡泡樣子固定（數字／點點→數字卡）；這種題型還不會，手先做一次（kit.tsx 的 Quiz、../formats.ts）。
  */
@@ -13,6 +13,8 @@ export function ReviewPart({ ctx }: { ctx: PartCtx }) {
   const [qs] = useState(() => reviewQs(ctx.lesson))
   const [i, setI] = useState(0)
   const [missed, setMissed] = useState(0)
+  /** 聽完才答的有幾題（沒聽完就點的是猜的，不算進「錯很多隔天重上」，T-109） */
+  const [asked, setAsked] = useState(0)
   const q = qs[i]
   // 今天沒有小複習（只教了 1、2，index.tsx 本來就會跳過）：直接下課，不留一個空的畫面
   useEffect(() => {
@@ -36,11 +38,15 @@ export function ReviewPart({ ctx }: { ctx: PartCtx }) {
       attempts: r.taps.length,
       responseMs: r.ms,
       hintUsed: r.hinted,
-      metrics: { lesson: ctx.lesson.n, ...(r.hinted ? { retaught: 1 } : {}) },
+      heard: r.heard,
+      metrics: { lesson: ctx.lesson.n, ...(r.hinted ? { retaught: 1 } : {}), ...(r.shown ? { shown: 1 } : {}) },
     })
-    const m = missed + (r.firstTry ? 0 : 1)
+    // 一起練（手示範過）的本來就照樣算進來；沒聽完就點的不算
+    const m = missed + (r.heard && !r.firstTry ? 1 : 0)
+    const n = asked + (r.heard ? 1 : 0)
     setMissed(m)
-    if (i + 1 >= qs.length) return ctx.done(qs.length, m)
+    setAsked(n)
+    if (i + 1 >= qs.length) return ctx.done(n, m)
     setI(i + 1)
   }
 
@@ -71,7 +77,8 @@ export function ReviewPart({ ctx }: { ctx: PartCtx }) {
                 </span>
               </div>
             ),
-          prompt: [q.kind === 'find' ? `m.findnum.${q.n}` : 'm.howmany'],
+          // 關鍵字放最前面（T-109）：Three! Where is three?；How many? 本來就只有關鍵字
+          prompt: q.kind === 'find' ? [`m.ask.num.${q.n}`, `m.findnum.${q.n}`] : ['m.howmany'],
           correction: [q.kind === 'find' ? `m.thisis.${q.n}` : `m.total.${q.n}`],
           // 錯第一次：「This is four.」再問一次（Where is three?／How many?）
           wrong: (picked) => [`m.thisis.${picked}`],

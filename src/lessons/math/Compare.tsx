@@ -7,7 +7,7 @@ import { compareQs, countIcons, type CompareQ } from './plan'
 import { Fade, Quiz, type PartCtx, type QuizResult } from './kit'
 
 /**
- * 比多少（比多少 m-compare 的做法）：左右兩堆，「Which side has more?」。波波頭上的對話泡泡是徽章（一大堆／只有一個），靜音也知道問的是哪一個；泡泡很小、不能點，畫面上能點的只有兩堆。
+ * 比多少（比多少 m-compare 的做法）：左右兩堆，「More! Which side?」（T-109 關鍵字放最前面）。波波頭上的對話泡泡是徽章（一大堆／只有一個），靜音也知道問的是哪一個；泡泡很小、不能點，畫面上能點的只有兩堆。
  * 第一次問「多」或「少」先上教學卡（6 對 2，這邊比較多、這邊比較少），教過才考。
  */
 export function ComparePart({ ctx }: { ctx: PartCtx }) {
@@ -19,6 +19,8 @@ export function ComparePart({ ctx }: { ctx: PartCtx }) {
   // 要先教的題目：教學卡先上，教完才出題（跟換題同一次決定，題目不會先閃一下）
   const [card, setCard] = useState<TeachSpec | null>(() => (qs[0].teach ? teachOf(qs[0]) : null))
   const [missed, setMissed] = useState(0)
+  /** 聽完才答的有幾題（沒聽完就點的是猜的，不算進「錯很多隔天重上」，T-109） */
+  const [asked, setAsked] = useState(0)
   const q = qs[i]
 
   const taught = (ms: number) => {
@@ -42,11 +44,14 @@ export function ComparePart({ ctx }: { ctx: PartCtx }) {
       attempts: r.taps.length,
       responseMs: r.ms,
       hintUsed: r.hinted,
+      heard: r.heard,
       metrics: { lesson: ctx.lesson.n, gap: Math.abs(q.a - q.b), ...(r.hinted ? { retaught: 1 } : {}) },
     })
-    const m = missed + (r.firstTry ? 0 : 1)
+    const m = missed + (r.heard && !r.firstTry ? 1 : 0)
+    const n = asked + (r.heard ? 1 : 0)
     setMissed(m)
-    if (i + 1 >= qs.length) return ctx.done(qs.length, m)
+    setAsked(n)
+    if (i + 1 >= qs.length) return ctx.done(n, m)
     const nq = qs[i + 1]
     setI(i + 1)
     setCard(nq.teach ? teachOf(nq) : null)
@@ -63,7 +68,8 @@ export function ComparePart({ ctx }: { ctx: PartCtx }) {
           onDone={answered}
           spec={{
             id: String(i),
-            prompt: [q.ask === 'more' ? 'm.more' : 'm.less'],
+            // 關鍵字放最前面（T-109）：More! Which side?
+            prompt: [q.ask === 'more' ? 'm.ask.more' : 'm.ask.less'],
             correction: [q.ask === 'more' ? 'm.this.more' : 'm.this.less'],
             // 錯第一次：點到的那邊是比較少（多）的那邊：「This side has fewer!」再問一次
             wrong: () => [q.ask === 'more' ? 'm.this.less' : 'm.this.more'],

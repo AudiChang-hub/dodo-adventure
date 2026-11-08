@@ -9,6 +9,7 @@
  * - users/{uid}/growthLog/{id}  成長時間軸（成長系統 v3）
  * - users/{uid}/chapters/{id}   故事章節（成長系統 v3）
  * - users/{uid}/meta/state      熟練度、難度、朋友、成就，和家長設定（含生日年月）的備份；下次同步會用重置後的資料重新寫一份
+ * - users/{uid}/meta/check      家長在「真的學會了嗎？」按的他會／還不會（T-109，lib/parent-check.ts）
  */
 
 /** 用到的 firebase/firestore 函式（形狀和官方的一樣，參數放寬成 unknown） */
@@ -78,8 +79,9 @@ export async function wipeCloudLearning(
   }
   const meta = fs.writeBatch(store)
   meta.delete(fs.doc(store, 'users', uid, 'meta', 'state'))
+  meta.delete(fs.doc(store, 'users', uid, 'meta', 'check'))
   await timeout(meta.commit(), wait)
   result.batches++
-  result.deleted.meta = 1
+  result.deleted.meta = 2
   return result
 }

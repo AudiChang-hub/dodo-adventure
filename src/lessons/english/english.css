@@ -71,6 +71,11 @@
   background: color-mix(in srgb, var(--en-soft) 70%, var(--card));
   transition: background 0.4s ease;
 }
+/* 做過、但不是聽完才答一次就對（T-109）：只留一圈淡淡的框，不亮、不跳 */
+.en-steps span.is-quiz i.past {
+  background: transparent;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--en-soft) 80%, var(--card)) inset;
+}
 .en-steps span.is-quiz i.on {
   background: var(--en-deep);
   animation: en-dot 0.5s cubic-bezier(0.22, 1, 0.36, 1);
@@ -316,6 +321,12 @@
   transition: background 0.35s ease, box-shadow 0.35s ease, opacity 0.35s ease;
   touch-action: manipulation;
 }
+/* 關鍵字還沒開始念：選項先不出來、點不到（點那裡算點空白，T-109）；關鍵字一念就淡入 */
+.en-opt.is-wait {
+  opacity: 0;
+  pointer-events: none;
+  transition: none;
+}
 .en-opt > span {
   display: grid;
   place-items: center;
@@ -392,6 +403,14 @@
   background: radial-gradient(closest-side, rgba(143, 203, 170, 0.55), rgba(241, 210, 124, 0.25) 60%, transparent);
   animation: hint-in 0.5s var(--ease-out) both;
   pointer-events: none;
+}
+/* 沒聽完就猜對、點錯過才對、手帶著做的（T-109）：答案安靜地亮著（細綠框），沒有光暈、打勾、星星 */
+.en-options.is-plain .en-opt.is-yes {
+  background: var(--card);
+  box-shadow: 0 8px 0 var(--paper-edge), 0 0 0 5px color-mix(in srgb, var(--en-deep) 55%, transparent);
+}
+.en-options.is-plain .en-opt.is-yes::before {
+  content: none;
 }
 .en-yes {
   position: absolute;
@@ -500,7 +519,7 @@
   top: 45%;
 }
 
-/* 點了跳一下、點錯搖一下（只動裡面那一層） */
+/* 認字母、單字：點了要念的那一張跳一下（只動裡面那一層）；選擇題點了不跳、點錯不搖（T-109） */
 .en-hop {
   animation: en-hop 0.34s cubic-bezier(0.22, 1, 0.36, 1);
 }
@@ -509,22 +528,8 @@
     transform: translateY(-8%);
   }
 }
-.en-shake {
-  animation: en-shake 0.4s ease;
-}
-@keyframes en-shake {
-  20%,
-  60% {
-    transform: translateX(-5%);
-  }
-  40%,
-  80% {
-    transform: translateX(5%);
-  }
-}
 @media (prefers-reduced-motion: reduce) {
   .en-hop,
-  .en-shake,
   .en-steps span.is-quiz i.on {
     animation: none;
   }

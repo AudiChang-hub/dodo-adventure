@@ -3,6 +3,7 @@ import { getKV, setKV, today } from '../../lib/db'
 import { lessonRuns } from '../../lib/lesson-log'
 import { OBSERVE, OBSERVE_DAYS, OBSERVE_NEED, readiness, type LessonRun, type Observation } from '../../lib/readiness'
 import type { ParentData } from './data'
+import { afterChecks, useChecks } from '../../lib/parent-check'
 import './next.css'
 
 /** 家長每月勾的觀察（最新的在最後；只存在這台裝置） */
@@ -23,7 +24,10 @@ export function NextStep({ d }: { d: ParentData }) {
   }, [])
   const last = log[log.length - 1] ?? null
   const t = today()
-  const r = useMemo(() => readiness({ attempts: d.attempts, runs, observation: last, today: t }), [d.attempts, runs, last, t])
+  // 家長按過「還不會」的概念：只看那之後的作答（T-109，真的學會了嗎？）
+  const checks = useChecks()
+  const attempts = useMemo(() => afterChecks(d.attempts, checks), [d.attempts, checks])
+  const r = useMemo(() => readiness({ attempts, runs, observation: last, today: t }), [attempts, runs, last, t])
 
   const save = async (o: Observation) => {
     const next = [...log.filter((x) => x.date !== o.date), o].slice(-24)

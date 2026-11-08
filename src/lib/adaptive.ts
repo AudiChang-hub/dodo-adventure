@@ -1,4 +1,5 @@
 import { db, today, type Attempt, type GameLevel, type Skill } from './db'
+import { choicesOf, heardFirm, pushHeard } from './heard'
 import { MASTERED_BOX, REVIEW_DAYS, SPEED_WINDOW, dayIndexOf, isDueAt, isProtege, isSlow, overdueBy, speedCat } from './engine'
 
 // 學習引擎（2026-11-03 T-76 第 3 層簡化）：只留熟練度、到期複習、作答紀錄用到的狀態，和每個遊戲玩過幾次。
@@ -64,6 +65,10 @@ export interface SkillInput {
   responseMs: number
   hintUsed: boolean
   metrics?: Record<string, number>
+  /** 有幾個選項（聽完才答的紀錄要知道用猜的有多少機會） */
+  options?: string[]
+  /** 點下去的時候題目的關鍵字念完了沒（T-109）；false 的不會進到這裡（lib/record.ts） */
+  heard?: boolean
 }
 
 /**
@@ -98,6 +103,9 @@ export function recordSkill(key: string, firstTry: boolean, info?: SkillInput) {
     if (!m?.softHint) s.box = Math.max(0, s.box - 1)
   }
   if (info) noteSpeed({ ...info, skill: key, firstTryCorrect: firstTry })
+  // 聽完才答的最近幾次（T-109）：熟練要再看這個
+  // 字母題只算跟答案同樣大小寫的選項（一直點大的不會在找大 S 時白白升格，choicesOf）
+  if (info?.heard) s.heard = pushHeard(s.heard, firstTry, choicesOf({ skill: key, options: info.options ?? [] }))
 
   // 到期複習的排程
   if (s.box >= MASTERED_BOX) {
@@ -125,7 +133,35 @@ export function recordSkill(key: string, firstTry: boolean, info?: SkillInput) {
   void db.skills.put(s)
 }
 
-export const mastered = (key: string) => skill(key).box >= MASTERED_BOX
+/**
+ * 熟了沒：盒子 3 格以上；要聽懂才答得出來的題目（有聽完才答的紀錄）還要最近 5 次聽完才答對 4 次以上（T-109，lib/heard.ts），
+ * 免得 2 選 1 亂點連對 3 次就算熟。
+ */
+/**
+ * 家長在「真的學會了嗎？」按「還不會」（lib/parent-check.ts）：這個技能退回練習——盒子退到 1 格、聽完才答的紀錄清掉、
+ * 不排到期複習。每一個決定只退一次（checkedAt），之後照常練、照新規則再熟練。
+ */
+export function applyChecks(checks: Readonly<Record<string, { ok: boolean; at: number }>>) {
+  for (const [key, c] of Object.entries(checks)) {
+    if (c.ok) continue
+    const s = { ...skill(key) }
+    if ((s.checkedAt ?? 0) >= c.at) continue
+    s.box = Math.min(s.box, 1)
+    s.heard = []
+    s.streak = 0
+    s.checkedAt = c.at
+    delete s.rev
+    delete s.due
+    skills.set(key, s)
+    skillsVer++
+    void db.skills.put(s).catch(() => {})
+  }
+}
+
+export const mastered = (key: string) => {
+  const s = skill(key)
+  return s.box >= MASTERED_BOX && heardFirm(s.heard)
+}
 
 /**
  * 從沒在「自己答」出現過的內容：要先教才能考。

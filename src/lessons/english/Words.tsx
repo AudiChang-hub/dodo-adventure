@@ -103,16 +103,17 @@ export function Words({ letter, onDone }: { letter: LessonLetter; onDone: () => 
   }, [])
 
   const tap = async (i: number) => {
-    setBump((b) => ({ i, n: (b?.n ?? 0) + 1 }))
     // 介紹還沒念完就點：停掉介紹，直接念他點的那一個
     // 剛出來的 0.5 秒（PACE.BARGE_ARM）：上一段連點的手指先不算
-    if (intro.current && performance.now() - mountAt.current < PACE.BARGE_ARM) return void sfx.pop()
+    if (intro.current && performance.now() - mountAt.current < PACE.BARGE_ARM) return void sfx.notYet()
     if (intro.current) {
       flow.cut()
       talking.current = false
       settle.current()
     }
-    if (talking.current) return void sfx.pop()
+    if (talking.current) return void sfx.notYet()
+    // 真的要念了才跳一下；念到一半又點只有很輕的一聲「嗯？」，不跳（T-109：亂點沒有好玩的反應）
+    setBump((b) => ({ i, n: (b?.n ?? 0) + 1 }))
     talking.current = true
     setLit(i)
     await say(...(await linesOf(letter.words[i].w)))
