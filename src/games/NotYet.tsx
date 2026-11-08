@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import { sfx } from '../lib/audio'
+import { cancelRipple } from '../ui/press'
 import './notyet.css'
 
 /**
@@ -52,6 +53,8 @@ export function useNotYet() {
       sfx.notYet()
     }
     beat()
+    // 按下時 ui/press 的那一圈波紋收掉，換成「看這裡」的圈圈（不疊兩圈）
+    cancelRipple()
     setRings((r) => [...r.slice(-2), { x, y, k: now }])
     timers.current.push(window.setTimeout(() => setRings((r) => r.filter((q) => q.k !== now)), 950))
   }, [])
@@ -116,6 +119,29 @@ if (typeof window !== 'undefined') {
  * 用在作答的 onPointerDown：不是第一根手指的就不理。
  * 瀏覽器說「不是第一根」時，再確認真的有別的手指正按著（剛剛還有動靜）；沒有就照樣算數。
  */
+/** 點在選項旁邊多近算點到（px，約 6 mm：三歲手指點下去平均偏 4.5 mm，Vatavu 2015；T-112） */
+export const NEAR_PX = 32
+
+/**
+ * 點在選項旁邊一點點：找最近的那個（NEAR_PX 以內，T-112：以前點在選項外 15 px 英文、數學都毫無反應）。
+ * items：[選項, 畫面上的元素]；不在畫面上的跳過
+ */
+export function nearest<T>(items: readonly (readonly [T, Element | undefined | null])[], x: number, y: number, max = NEAR_PX): T | null {
+  let best: T | null = null
+  let bestD = max
+  for (const [o, el] of items) {
+    if (!el?.isConnected) continue
+    const r = el.getBoundingClientRect()
+    if (r.width < 2) continue
+    const d = Math.hypot(Math.max(r.left - x, 0, x - r.right), Math.max(r.top - y, 0, y - r.bottom))
+    if (d <= bestD) {
+      best = o
+      bestD = d
+    }
+  }
+  return best
+}
+
 export const firstFinger = (e: { isPrimary?: boolean; pointerType?: string; pointerId?: number }) => {
   if (e.isPrimary !== false || e.pointerType === 'mouse') return true
   const now = performance.now()

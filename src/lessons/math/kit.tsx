@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type CSSProperties, type MutableRefObject, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react'
 import { AnimatePresence, motion, useIsPresent } from 'motion/react'
 import { Hand } from '../../games/Demo'
-import { WaitShield, firstFinger, localPoint, useNotYet } from '../../games/NotYet'
+import { WaitShield, firstFinger, localPoint, nearest, useNotYet } from '../../games/NotYet'
 import { onBlank, sayRevealing, useFlow } from '../../games/barge'
 import { praiseKey, retryKey, wait } from '../../games/lines'
 import { useIdle } from '../../games/idle'
@@ -235,9 +235,21 @@ export function Quiz({ spec, host, onDone, showing }: { spec: QuizSpec; host: Pa
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  /** 念題目、示範的時候點空白：停掉語音、黃框馬上亮，不算錯 */
+  /**
+   * 點空白：選項旁邊一點點（NEAR_PX 以內，T-112：以前點在選項外 15 px 毫無反應）算點到那個選項；
+   * 念題目、示範的時候停掉語音、黃框馬上亮，不算錯。輪到他的時候點空白只有按下去的波紋（ui/press）
+   */
   const blank = (e: ReactPointerEvent<HTMLDivElement>) => {
-    if (!armed.current || phase.current === 'done' || phase.current === 'turn' || !onBlank(e.target) || !layer.current) return
+    if (!onBlank(e.target) || !layer.current || !firstFinger(e.nativeEvent)) return
+    if (opts && armed.current && phase.current !== 'done') {
+      const near = nearest(
+        spec.options.map((o) => [o.id, tiles.current.get(o.id)] as const),
+        e.clientX,
+        e.clientY,
+      )
+      if (near) return void tap(near)
+    }
+    if (!armed.current || phase.current === 'done' || phase.current === 'turn') return
     const p = localPoint(layer.current, e.clientX, e.clientY)
     notYet.ping(p.x, p.y)
     takeOver()

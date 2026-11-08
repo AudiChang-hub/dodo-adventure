@@ -8,6 +8,7 @@ import { PACE } from '../../games/pace'
 import { logTeach } from '../../lib/record'
 import type { LessonLetter } from './data'
 import { Word } from './Word'
+import { firstFinger } from '../../games/NotYet'
 
 type Lit = 'big' | 'little' | 'both' | null
 
@@ -119,7 +120,13 @@ export function Meet({ letter, review, onDone }: { letter: LessonLetter; review:
           type="button"
           className={`en-letter is-big${lit === 'big' || lit === 'both' ? ' is-lit' : ''}`}
           aria-label={`大寫 ${L}`}
-          onClick={() => void tap('big')}
+          // 手指一按下就有反應（T-112：以前用 click，手指滑一下就被取消）；鍵盤照樣可以按
+          onPointerDown={(e) => {
+            if (firstFinger(e.nativeEvent)) void tap('big')
+          }}
+          onClick={(e) => {
+            if (e.detail === 0) void tap('big')
+          }}
           initial={{ opacity: 0, y: 24 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5 }}
@@ -130,7 +137,13 @@ export function Meet({ letter, review, onDone }: { letter: LessonLetter; review:
           type="button"
           className={`en-letter is-little${lit === 'little' || lit === 'both' ? ' is-lit' : ''}`}
           aria-label={`小寫 ${l}`}
-          onClick={() => void tap('little')}
+          // 手指一按下就有反應（T-112：以前用 click，手指滑一下就被取消）；鍵盤照樣可以按
+          onPointerDown={(e) => {
+            if (firstFinger(e.nativeEvent)) void tap('little')
+          }}
+          onClick={(e) => {
+            if (e.detail === 0) void tap('little')
+          }}
           initial={{ opacity: 0, y: 24 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5, delay: 0.15 }}
@@ -142,7 +155,13 @@ export function Meet({ letter, review, onDone }: { letter: LessonLetter; review:
         type="button"
         className="en-meet-pic"
         aria-label={anchor.w}
-        onClick={() => void tap('pic')}
+        // 手指一按下就有反應（T-112：以前用 click，手指滑一下就被取消）；鍵盤照樣可以按
+          onPointerDown={(e) => {
+            if (firstFinger(e.nativeEvent)) void tap('pic')
+          }}
+          onClick={(e) => {
+            if (e.detail === 0) void tap('pic')
+          }}
         initial={false}
         animate={{ opacity: pic ? 1 : 0, y: pic ? 0 : 16 }}
         transition={{ duration: 0.5 }}

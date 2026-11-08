@@ -1,0 +1,50 @@
+/* 手指一按下就看得到反應（T-112，src/ui/press.ts）。紙感螢幕更新慢、淡的看不出來：變化要大、對比夠、一下就到位 */
+
+/* 被壓下去：縮一點、外面一圈深色框。用獨立的 scale 屬性，不跟 motion 的 transform 打架 */
+[data-pressed] {
+  scale: 0.94;
+  transition: scale 60ms ease-out;
+}
+.en-opt[data-pressed],
+.ma-tile[data-pressed],
+.tile[data-pressed] {
+  outline: 5px solid rgba(46, 42, 37, 0.42);
+  outline-offset: 3px;
+}
+
+/* 按下的地方一圈波紋：只播一次、越來越淡（不來回閃，MOTION-3） */
+.tap-layer {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 9000;
+  overflow: hidden;
+}
+.tap-ripple {
+  position: absolute;
+  width: 76px;
+  height: 76px;
+  margin: -38px 0 0 -38px;
+  border-radius: 50%;
+  border: 5px solid rgba(46, 42, 37, 0.5);
+  background: rgba(255, 251, 243, 0.35);
+  animation: tap-ripple 0.45s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+@keyframes tap-ripple {
+  from {
+    opacity: 0.9;
+    transform: scale(0.35);
+  }
+  to {
+    opacity: 0;
+    transform: scale(1);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  [data-pressed] {
+    transition: none;
+  }
+  .tap-ripple {
+    animation-duration: 0.3s;
+  }
+}

@@ -4,7 +4,7 @@ import { Emoji } from '../../art/Emoji'
 import { Hand } from '../../games/Demo'
 import { useIdle } from '../../games/idle'
 import { onBlank, sayRevealing, useFlow } from '../../games/barge'
-import { localPoint, useNotYet } from '../../games/NotYet'
+import { firstFinger, localPoint, nearest, useNotYet } from '../../games/NotYet'
 import { PACE } from '../../games/pace'
 import { praiseKey, retryKey, wait } from '../../games/lines'
 import { heardSince, say, sfx, stopSpeech } from '../../lib/audio'
@@ -263,17 +263,39 @@ export function Quiz({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  /** 念題目、示範、答錯說明的時候點空白：停掉語音、黃框馬上亮，不算錯 */
+  /**
+   * 點在選項旁邊一點點（games/NotYet 的 NEAR_PX 以內，三歲手指平均偏 4.5 mm）：算點到那個選項（T-112：以前點在外面 15 px 毫無反應）。
+   * 只看已經出來的選項（關鍵字還沒念、選項還沒出來的時候點那裡，照 T-109 算點空白）
+   */
+  const nearOpt = (x: number, y: number) =>
+    nearest(
+      q.options.map((o) => [o, tiles.current.get(o.id)] as const).filter(([, el]) => !el?.classList.contains('is-wait')),
+      x,
+      y,
+    )
+
+  /**
+   * 點空白：選項旁邊一點點的算點到選項；念題目、示範、答錯說明的時候停掉語音、黃框馬上亮，不算錯；
+   * 擋板時間（剛出來的 0.5 秒、答完之後）出「看這裡」的圈圈。輪到他的時候點空白只有按下去的波紋（ui/press）
+   */
   const blank = (e: ReactPointerEvent<HTMLDivElement>) => {
-    if (!armed.current || phase.current === 'done' || phase.current === 'turn' || !onBlank(e.target) || !layer.current) return
+    if (!onBlank(e.target) || !layer.current || !firstFinger(e.nativeEvent)) return
+    const near = nearOpt(e.clientX, e.clientY)
+    if (near) return void choose(near, e)
     const p = localPoint(layer.current, e.clientX, e.clientY)
+    if (!armed.current || phase.current === 'done') return notYet.ping(p.x, p.y)
+    if (phase.current === 'turn') return
     notYet.ping(p.x, p.y)
     takeOver()
   }
 
-  const choose = async (o: Opt) => {
-    // 擋板時間（剛出來的 0.5 秒、答完之後）點的：很輕的一聲「嗯？」，不跳、不好玩（T-109）
-    if (!armed.current || phase.current === 'done') return void sfx.notYet()
+  const choose = async (o: Opt, at?: { clientX: number; clientY: number }) => {
+    // 擋板時間（剛出來的 0.5 秒、答完之後）點的：輕輕一聲、按的地方出「看這裡」的圈圈，不跳、不好玩（T-109；T-112 加上看得見的圈圈）
+    if (!armed.current || phase.current === 'done') {
+      if (!at || !layer.current) return void sfx.notYet()
+      const p = localPoint(layer.current, at.clientX, at.clientY)
+      return notYet.ping(p.x, p.y)
+    }
     // 第一次點：題目的關鍵字念完了沒（要在 takeOver 停掉語音之前問）
     if (!taps.current.length) {
       heard.current = heardSince(q.prompt[0], qStart.current)
@@ -406,7 +428,13 @@ export function Quiz({
               className={`en-opt${opts || solved ? '' : ' is-wait'}${size(o)}${show && o.id === q.answer ? ' is-shown' : ''}${state[o.id] === 'yes' ? ' is-yes' : state[o.id] === 'no' ? ' is-no' : ''}${hint && o.id === q.answer ? ' is-hint' : ''}${cue ? ' is-cue turn-hop' : ''}`}
               style={{ '--turn-i': k } as CSSProperties}
               aria-label={o.text ?? o.id}
-              onClick={() => void choose(o)}
+              // 手指一按下就收（T-112：以前用 click，要放開才算，手指滑一下就被瀏覽器取消、毫無反應）；鍵盤（detail 0）照樣可以按
+              onPointerDown={(e) => {
+                if (firstFinger(e.nativeEvent)) void choose(o, e)
+              }}
+              onClick={(e) => {
+                if (e.detail === 0) void choose(o)
+              }}
             >
               {/* 點了不跳、點錯不搖（T-109：點錯、亂點都平平的，沒有好玩的動畫，也不打叉） */}
               <span>
