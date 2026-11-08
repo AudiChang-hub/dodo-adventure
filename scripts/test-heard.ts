@@ -266,4 +266,26 @@ ok('真的學會了嗎？：新規則熟練了才出卡；他會不再出、還�
 }
 ok('分不出大小寫、一直點大的：找大 S 不算學會（只有 S／s 兩張的題目不算進熟練，家長區、孩子端、確認卡都一樣）')
 
+// ── 手帶著做的不算（T-111，盲測 a35cd5e：找大 S／小 s 答對的 12 次有 5 次是手指著答案時點的） ──
+{
+  const days = ['2026-11-01', '2026-11-03', '2026-11-05', '2026-11-07', '2026-11-08']
+  const opt = { options: ['S', 'A', 'B'] }
+  // 每一次都是聽完才答、一次就對，但第一次點的時候手正指著答案（led）、或手先示範過（shown）、或一起練（guided）
+  const led = days.flatMap((d) => [
+    att('letter:S', 'lesson-en', true, true, 3, d, { ...opt, phase: 'guided', metrics: { led: 1 } }),
+    att('letter:S', 'lesson-en', true, true, 3, d, { ...opt, phase: 'guided', metrics: { shown: 1 } }),
+    att('letter:S', 'lesson-en', true, true, 3, d, { ...opt, metrics: { led: 1 } }),
+  ])
+  for (const a of led) assert.equal(counts(a), false, '下一步準備度：手帶著做的不算')
+  assert.equal(mastery(led, 'letter:S').recent, 0, '家長區的熟練：一題都不算')
+  assert.equal(listenStats(led, 'english', 30, Date.parse('2026-11-08T12:00:00')).total, 0, '「聽完才答」統計：不算')
+  assert.equal(heardMastered(led, 'letter:S'), false, '確認卡：不算學會')
+  assert.equal(checkCards(led, {}).length, 0, '不出確認卡')
+  // 自己答的（手沒出來）照算
+  const own = days.map((d) => att('letter:S', 'lesson-en', true, true, 3, d, opt))
+  assert.equal(counts(own[0]), true)
+  assert.equal(listenStats([...led, ...own], 'english', 30, Date.parse('2026-11-08T12:00:00')).total, own.length, '只算自己答的')
+}
+ok('手帶著做的（一起練、手示範過、第一次點的時候手正指著答案）：不計入熟練、準備度、聽完才答、確認卡；自己答的照算')
+
 console.log('ALL PASS')

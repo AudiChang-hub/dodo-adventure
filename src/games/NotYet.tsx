@@ -18,6 +18,9 @@ function beat() {
   window.dispatchEvent(new Event(NOT_YET))
 }
 
+/** 讓畫面上的恐龍輕輕點一下頭（不出聲）：例如中文課連點莫莫好幾下時，有反應但不好玩（T-111） */
+export const nod = beat
+
 /** 被點了就加一（給要「點一下頭」的東西當 key）；沒被點過是 0 */
 export function useNotYetBeat() {
   const [n, setN] = useState(0)

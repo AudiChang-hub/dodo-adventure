@@ -145,6 +145,11 @@ export function Quiz({
   const qStart = useRef(0)
   /** 第一次點下去的時候，關鍵字念完了沒 */
   const heard = useRef(false)
+  /**
+   * 第一次點下去的時候，手正指著答案（發呆 30 秒手出來指、示範的手正停在答案上）：答案是看手的，記成一起練（metrics.led），
+   * 不計入熟練、家長區的「聽完才答」，也不給完整的慶祝（T-111，盲測 a35cd5e：答對的 12 次有 5 次是手指著答案時點的）
+   */
+  const led = useRef(false)
   const results = useRef<QuizResult[]>(answers.slice(0, start))
   const idle = useIdle()
   const q = list.current[i]
@@ -193,6 +198,7 @@ export function Quiz({
     setOpts(false)
     qStart.current = performance.now()
     heard.current = false
+    led.current = false
     tries.current = 0
     taps.current = []
     t0.current = 0
@@ -255,7 +261,10 @@ export function Quiz({
     // 擋板時間（剛出來的 0.5 秒、答完之後）點的：很輕的一聲「嗯？」，不跳、不好玩（T-109）
     if (!armed.current || phase.current === 'done') return void sfx.notYet()
     // 第一次點：題目的關鍵字念完了沒（要在 takeOver 停掉語音之前問）
-    if (!taps.current.length) heard.current = heardSince(q.prompt[0], qStart.current)
+    if (!taps.current.length) {
+      heard.current = heardSince(q.prompt[0], qStart.current)
+      led.current = hint || show === 'answer'
+    }
     if (phase.current !== 'turn') takeOver()
     idle.poke()
     setCue(false)
@@ -303,13 +312,16 @@ export function Quiz({
     idle.stop()
     const first = !together && tries.current === 0
     const h = heard.current
+    /** 跟著手點的（不是剛示範過的那一題）：記成一起練 */
+    const byHand = led.current && !shown.current
     results.current.push({ kind: q.kind, first, heard: h })
-    // 題型會了沒只看聽完才答的（猜對不代表懂這種題目在問什麼）
-    if (h) noteFormat(FORMAT[q.kind], first)
+    // 題型會了沒只看聽完才答、自己答的（猜對、跟著手點對都不代表懂這種題目在問什麼）
+    if (h && !led.current) noteFormat(FORMAT[q.kind], first)
     setState({ [q.answer]: 'yes' })
     // 好玩的回饋只留給「聽完才答、一次就對」（T-109，家長：他把 App 當遊戲在亂試）：放大、打勾、星星、豆豆歡呼、進度點亮。
     // 沒聽完就猜對、點錯過才對、手帶著做的：答案安靜地亮著、其他的淡掉，把關鍵字或答案再念一次，不慶祝
-    const full = first && h
+    // 手正指著答案時點的（T-111）也一樣不慶祝：答案是看手的
+    const full = first && h && !led.current
     setSolved(full ? 'full' : 'plain')
     if (full) sfx.correct()
     void logAttempt({
@@ -319,7 +331,8 @@ export function Quiz({
       skill: q.skill,
       // 剛看手示範過的：算一起練。第一次就點錯的算自己答、沒答對（T-109：以前也算一起練，答錯不會讓熟練度退，
       // 2 選 1 亂點的孩子只要猜對 3 次就算熟；現在答錯會退一格，沒聽完就點的另外排除）
-      phase: shown.current ? 'guided' : 'quiz',
+      // 跟著手點的（第一次點的時候手正指著答案，T-111）也算一起練
+      phase: shown.current || byHand ? 'guided' : 'quiz',
       level: 1,
       options: q.options.map((x) => x.id),
       answer: q.answer,
@@ -329,7 +342,7 @@ export function Quiz({
       responseMs: ms,
       hintUsed: hint || together,
       heard: h,
-      ...(shown.current ? { metrics: { shown: 1 } } : {}),
+      ...(shown.current ? { metrics: { shown: 1 } } : byHand ? { metrics: { led: 1 } } : {}),
     })
     onProgress?.(i + 1, results.current.slice())
     // 聽完才答、一次就對：Yes! S… s, s…。猜對（關鍵字還沒念完就點對）：不說 Yes!，平平地把關鍵字和答案再念一次（Big S!）

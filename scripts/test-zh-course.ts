@@ -6,7 +6,7 @@ import { LEGACY, RUNS_PER_TEXT, applyPick, current, finishRun, migrate, nextDay,
 import { readFileSync, readdirSync, statSync } from 'node:fs'
 import { join } from 'node:path'
 import { gapOf } from '../src/lessons/chinese/cloze'
-import { ZH_TEXTS, plain, talkFor, talkOf } from '../src/lessons/chinese/data'
+import { ZH_TEXTS, linePics, plain, talkFor, talkOf } from '../src/lessons/chinese/data'
 
 const D = (i: number) => {
   const d = new Date(Date.UTC(2026, 10, 3 + i))
@@ -203,6 +203,20 @@ function main() {
     walk('src')
     assert.deepEqual(bad, [], '中文課文還有會出聲、會去要中文課文音檔的程式')
     console.log('ok 10 中文課文不出聲：src 沒有 zh-lesson、zh-math、sayClip；中文課裡沒有 say、平板內建語音、音檔路徑')
+  }
+  {
+    // T-111：每一行旁邊都有圖可以點（沒有紅字的行借前後行的主角）
+    const rabbit = ZH_TEXTS.find((t) => t.title === '龜兔賽跑')!
+    assert.deepEqual(linePics(rabbit).map((ps) => ps.map((p) => `${p.word}${p.echo ? '(借)' : ''}`)), [['兔子'], ['兔子(借)'], ['烏龜'], ['烏龜(借)']], '龜兔賽跑：沒有紅字的行借上一行的主角')
+    for (const t of ZH_TEXTS) {
+      const ps = linePics(t)
+      assert.equal(ps.length, t.lines.length)
+      for (const [i, row] of ps.entries()) {
+        assert.ok(row.length > 0, `第 ${t.day} 篇第 ${i + 1} 行沒有圖`)
+        for (const p of row) assert.ok(t.emoji[p.word], `第 ${t.day} 篇第 ${i + 1} 行的圖 ${p.word} 沒有圖檔`)
+      }
+    }
+    console.log('ok 11 每一行旁邊都有圖可以點：沒有紅字的行借上一行的主角（龜兔賽跑：跑到樹下睡大覺 → 兔子），180 篇每一行都有')
   }
   console.log('ALL PASS')
 }

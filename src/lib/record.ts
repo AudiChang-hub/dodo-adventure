@@ -1,4 +1,4 @@
-import { db, today, uid, type Attempt, type Phase } from './db'
+import { db, isLed, today, uid, type Attempt, type Phase } from './db'
 import { sessionId } from './session'
 import { mastered, recordSkill } from './adaptive'
 import { noteAttempt } from './achievements'
@@ -10,10 +10,11 @@ export type AttemptInput = Omit<Attempt, 'id' | 'ts' | 'date' | 'sessionId' | 's
  * 每一題都寫一筆紀錄。只有「自己答」會更新熟練度；
  * 教學卡與一起練也會留下紀錄（家長區看得到今天教了什麼），但另外標記階段。
  * 題目的關鍵字還沒念完就點的（heard: false，T-109）：是用猜的，不更新熟練度（不算對、也不算錯），紀錄照寫。
+ * 手帶著做的（一起練、手示範過、第一次點的時候手正指著答案，db.ts 的 isLed，T-111）：答案是看手的，也不更新熟練度。
  */
 export async function logAttempt(a: AttemptInput) {
   const was = mastered(a.skill)
-  if (a.phase === 'quiz' && a.heard !== false) recordSkill(a.skill, a.firstTryCorrect, a)
+  if (a.phase === 'quiz' && a.heard !== false && !isLed(a)) recordSkill(a.skill, a.firstTryCorrect, a)
   // 成就感：自己改正、第一次熟練（貼紙）、這一局做了什麼。要在 await 之前，接下來的稱讚才讀得到
   noteAttempt(a, !was && mastered(a.skill))
   await db.attempts.put({ ...a, id: uid(), ts: Date.now(), date: today(), sessionId: sessionId(), synced: 0 })

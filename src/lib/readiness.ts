@@ -8,7 +8,7 @@
 //   3. 最近 10 題至少對 8 題。
 //   4. 這 10 題分布在至少 3 個不同的日子（同一天答對 10 次不算）。
 //   5. 隔一段時間還記得：有一次是隔了至少 2 天沒練、再考還是第一次就答對。
-import { phaseOf, type Attempt } from './db'
+import { isLed, phaseOf, type Attempt } from './db'
 import { choicesOf } from './heard'
 
 export const RECENT = 10
@@ -30,10 +30,11 @@ const dayNo = (date: string) => {
 
 /**
  * 這一題能不能拿來判斷熟練：不是教學卡；選擇題要三選一以上（比多少例外）；
- * 題目的關鍵字還沒念完就點的（heard: false，T-109）是用猜的，不算（不算對、也不算錯）
+ * 題目的關鍵字還沒念完就點的（heard: false，T-109）是用猜的，不算（不算對、也不算錯）；
+ * 手帶著做的（一起練、手示範過、手正指著答案時點的，db.ts 的 isLed，T-111）答案是看手的，也不算
  */
-export function counts(a: Pick<Attempt, 'phase' | 'options' | 'skill' | 'heard'>): boolean {
-  if (phaseOf(a as Attempt) === 'teach' || a.heard === false) return false
+export function counts(a: Pick<Attempt, 'phase' | 'options' | 'skill' | 'heard' | 'metrics'>): boolean {
+  if (phaseOf(a as Attempt) === 'teach' || a.heard === false || isLed(a)) return false
   // 字母題的陪襯「同一個字母的另一種寫法」（找大 S 時的小 s）不算選項：一直點大的就一定對（T-109，choicesOf）
   const n = choicesOf({ skill: a.skill, options: a.options ?? [] })
   if ((a.options?.length ?? 0) === 0) return true

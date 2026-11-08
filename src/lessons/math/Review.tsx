@@ -29,7 +29,8 @@ export function ReviewPart({ ctx }: { ctx: PartCtx }) {
       game: q.kind === 'find' ? 'm-find' : 'm-match',
       itemId: String(q.n),
       skill: q.kind === 'find' ? `num:${q.n}` : `count:${q.n}`,
-      phase: r.shown ? 'guided' : 'quiz',
+      // 手示範過、或第一次點的時候手正指著答案（T-111）：一起練
+      phase: r.shown || r.led ? 'guided' : 'quiz',
       level: 1,
       options: q.options.map(String),
       answer: String(q.n),
@@ -39,7 +40,7 @@ export function ReviewPart({ ctx }: { ctx: PartCtx }) {
       responseMs: r.ms,
       hintUsed: r.hinted,
       heard: r.heard,
-      metrics: { lesson: ctx.lesson.n, ...(r.hinted ? { retaught: 1 } : {}), ...(r.shown ? { shown: 1 } : {}) },
+      metrics: { lesson: ctx.lesson.n, ...(r.hinted ? { retaught: 1 } : {}), ...(r.shown ? { shown: 1 } : r.led ? { led: 1 } : {}) },
     })
     // 一起練（手示範過）的本來就照樣算進來；沒聽完就點的不算
     const m = missed + (r.heard && !r.firstTry ? 1 : 0)

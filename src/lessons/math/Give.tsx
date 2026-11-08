@@ -74,6 +74,8 @@ export function GivePart({ ctx }: { ctx: PartCtx }) {
   const checks = useRef<{ pick: string; ms: number }[]>([])
   const t0 = useRef(0)
   const helped = useRef(false)
+  /** 第一次交出去之前，手出來指過下一步（T-111：跟著手做的不算自己會） */
+  const led = useRef(false)
   const idle = useIdle()
   const demoing = useRef(false)
   const showing = (on: boolean) => {
@@ -243,12 +245,16 @@ export function GivePart({ ctx }: { ctx: PartCtx }) {
 
   /** 交出去剛好：聽完才答、一次就對才歡呼（T-109）；沒聽完就交、改過才對的，平平地說「There are three!」就往下 */
   const finish = async (firstTry: boolean) => {
+    // 手帶著做的（T-111）：這一段手剛示範過同一個數量（shown），或第一次交出去之前手出來指過下一步（led：發呆、點波波、示範中搶點）。
+    // 記成一起練，不計入熟練和家長區的「聽完才答」，也不歡呼
+    const shownHere = !!round.demo
+    const ledHere = !shownHere && led.current
     void logAttempt({
       station: 'math',
       game: 'm-give',
       itemId: String(n),
       skill: `give:${n}`,
-      phase: 'quiz',
+      phase: shownHere || ledHere ? 'guided' : 'quiz',
       level: 1,
       // 能交出去的數量：0～supply 個（不是 2 選 1，猜中的機會很小，算進熟練判斷）
       options: range(0, supply).map(String),
@@ -259,9 +265,9 @@ export function GivePart({ ctx }: { ctx: PartCtx }) {
       responseMs: Math.round(performance.now() - t0.current),
       hintUsed: helped.current,
       heard: heard.current,
-      metrics: { lesson: ctx.lesson.n, supply, ...(checks.current.length > 1 ? { retaught: 1 } : {}) },
+      metrics: { lesson: ctx.lesson.n, supply, ...(checks.current.length > 1 ? { retaught: 1 } : {}), ...(shownHere ? { shown: 1 } : ledHere ? { led: 1 } : {}) },
     })
-    const full = firstTry && heard.current
+    const full = firstTry && heard.current && !led.current
     if (full) {
       ctx.mood('cheer')
       sfx.correct()
@@ -294,7 +300,10 @@ export function GivePart({ ctx }: { ctx: PartCtx }) {
       return void ask()
     }
     // 第一次交出去：波波說的「Three!」念完過沒有
-    if (!checks.current.length) heard.current = heardSince(askKey, since.current)
+    if (!checks.current.length) {
+      heard.current = heardSince(askKey, since.current)
+      led.current = helped.current
+    }
     checks.current.push({ pick: String(have), ms: Math.round(performance.now() - t0.current) })
     setHand(null)
     idle.stop()

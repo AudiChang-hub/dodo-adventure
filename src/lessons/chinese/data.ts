@@ -41,6 +41,29 @@ export function pieces(line: string): Piece[] {
 /** 念的文字（去掉【】） */
 export const plain = (line: string) => line.replace(/[【】]/g, '')
 
+/** 一行旁邊的一張圖：word 是哪個紅字詞；echo 是這一行自己沒有紅字、借前後行的主角來的 */
+export interface LinePic {
+  word: string
+  echo: boolean
+}
+
+/**
+ * 每一行旁邊放哪幾張圖（孩子在大人念這一行時可以點的東西）。
+ * 有紅字（而且有圖）的行：就是那幾個紅字的圖。
+ * 沒有紅字的行（180 篇裡一半以上的行，T-111：盲測 a35cd5e 三次都在念「跑到樹下睡大覺。」「爬呀爬，先到了！」這種行的時候，
+ * 孩子沒有東西可以點，只好去點莫莫、覺得好久，最後離開）：借上一行最後一個紅字的圖（通常就是這一行在講的主角：
+ * 「兔子跑得快快快，／跑到樹下睡大覺。」→ 兔子）；前面都沒有，就借後面第一個。
+ */
+export function linePics(t: ZhText): LinePic[][] {
+  const own = t.lines.map((l) => [...new Set(pieces(l).filter((p) => p.red && t.emoji[p.text]).map((p) => p.text))])
+  return own.map((ws, i) => {
+    if (ws.length) return ws.map((word) => ({ word, echo: false }))
+    for (let j = i - 1; j >= 0; j--) if (own[j].length) return [{ word: own[j][own[j].length - 1], echo: true }]
+    for (let j = i + 1; j < own.length; j++) if (own[j].length) return [{ word: own[j][0], echo: true }]
+    return []
+  })
+}
+
 // ── 選圖題 ────────────────────────────────────────────────────
 export interface ZhQuestion {
   /** 要找的字詞（課文裡的紅字：先聽過、看過才考） */

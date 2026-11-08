@@ -203,6 +203,13 @@ class AppDB extends Dexie {
 export const phaseOf = (a: Pick<Attempt, 'phase'>): Phase => a.phase ?? 'quiz'
 export const isQuiz = (a: Pick<Attempt, 'phase'>) => phaseOf(a) === 'quiz'
 
+/**
+ * 手帶著做的（T-111，盲測 a35cd5e：英文找大 S／小 s 答對的 12 次有 5 次是手指著答案時點的）：
+ * 一起練（guided）、手先示範過這一題（metrics.shown）、第一次點的時候手正指著答案（metrics.led）。
+ * 答案是看手的，分不出懂不懂：不計入熟練度、下一步準備度、家長區的「聽完才答」和「真的學會了嗎？」。
+ */
+export const isLed = (a: Pick<Attempt, 'phase' | 'metrics'>) => phaseOf(a) === 'guided' || !!a.metrics?.shown || !!a.metrics?.led
+
 export const db = new AppDB()
 
 export async function getKV<T>(key: string, fallback: T): Promise<T> {
