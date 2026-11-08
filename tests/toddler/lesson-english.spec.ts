@@ -318,9 +318,10 @@ test.describe('英文字母課', () => {
       await k.drag(pts, { stepMs: 16, label: '描小 s（按偏 15 mm、畫一半）' })
       await k.wait(500)
       // 跑道填了多少：這一筆的彩色跑道是 pathLength 的那一條，stroke-dasharray 的第一個數字是描到哪裡
+      // （跑道發亮的那一層也有 pathLength，跳過，T-113：描到一半放手會亮）
       const prog = await page.evaluate(() => {
         const boards = [...document.querySelectorAll('.en-trace-board')]
-        const lane = boards[boards.length - 1].querySelector('path[pathLength]')
+        const lane = [...boards[boards.length - 1].querySelectorAll('path[pathLength]')].find((x) => !x.closest('[data-trace-glow]'))
         const [a] = (lane?.getAttribute('stroke-dasharray') ?? '0').split(' ').map(Number)
         return { at: a, total: Number(lane?.getAttribute('pathLength') ?? 1) }
       })
@@ -382,7 +383,7 @@ test.describe('英文字母課', () => {
       const filled = () =>
         page.evaluate(() => {
           const boards = [...document.querySelectorAll('.en-trace-board')]
-          const lane = boards[boards.length - 1].querySelector('path[pathLength]')
+          const lane = [...boards[boards.length - 1].querySelectorAll('path[pathLength]')].find((x) => !x.closest('[data-trace-glow]'))
           const [a] = (lane?.getAttribute('stroke-dasharray') ?? '0').split(' ').map(Number)
           return a / Number(lane?.getAttribute('pathLength') ?? 1)
         })
