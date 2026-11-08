@@ -32,6 +32,12 @@ export interface Attempt {
   hintUsed: boolean
   /** 畫畫類的額外指標，例如偏離路徑的平均距離 */
   metrics?: Record<string, number>
+  /**
+   * 點下去（第一次作答）的那一刻，題目的關鍵字念完了沒（T-109，lib/heard.ts）。
+   * false＝還沒聽完就點（用猜的）：不計入熟練、也不算錯。只有要聽懂才答得出來的題目有（英文課、數學課的選擇題、拿給波波）；
+   * 其他題目和 T-109 之前的舊紀錄沒有這個欄位
+   */
+  heard?: boolean
   /** 主題式冒險的主題（content/themes.ts 的 id）；自由探索、舊資料沒有 */
   theme?: string
   synced: 0 | 1
@@ -69,6 +75,11 @@ export interface Skill {
    * 只有支線與階梯在讀，T-76 第 3 層拿掉以後不再寫（舊資料留著）
    */
   firmAt?: number
+  /**
+   * 最近幾次「聽完才答」（T-109，lib/heard.ts 的 pushHeard）：答對記 +選項數、答錯記 −選項數。
+   * 有這一欄的技能，熟練要再加上「最近 5 次聽完才答對 4 次以上」；T-109 之前的舊資料、不用聽的題目沒有，照盒子判斷
+   */
+  heard?: number[]
 }
 
 /** 程度校準（第一次玩的 2–3 題探測）的一題 */

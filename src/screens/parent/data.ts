@@ -108,7 +108,7 @@ export function download(name: string, content: string, type: string) {
 }
 
 export function toCSV(rows: Attempt[]): string {
-  const cols = ['date', 'ts', 'station', 'game', 'phase', 'itemId', 'skill', 'level', 'answer', 'options', 'taps', 'firstTryCorrect', 'attempts', 'responseMs', 'hintUsed', 'metrics'] as const
+  const cols = ['date', 'ts', 'station', 'game', 'phase', 'itemId', 'skill', 'level', 'answer', 'options', 'taps', 'firstTryCorrect', 'heard', 'attempts', 'responseMs', 'hintUsed', 'metrics'] as const
   const esc = (v: unknown) => {
     const s = typeof v === 'object' ? JSON.stringify(v) : String(v ?? '')
     return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s

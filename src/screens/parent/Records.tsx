@@ -106,6 +106,8 @@ export function Records({ d }: { d: ParentData }) {
                   <td style={{ color: 'var(--ink-soft)' }}>{a.taps.length ? a.taps.map((t) => t.pick).join(' → ') : a.metrics ? Object.entries(a.metrics).map(([k, v]) => `${k} ${v}`).join('、') : '—'}</td>
                   <td>
                     <Result a={a} />
+                    {/* 題目的關鍵字還沒念完就點（T-109）：算猜的，不計入熟練 */}
+                    {a.heard === false && <span className="chip guess" title="波波還沒說完題目的關鍵字就點了，算猜的，不計入熟練">沒聽完</span>}
                   </td>
                   <td>{(a.responseMs / 1000).toFixed(1)} 秒</td>
                   <td>{a.level}</td>

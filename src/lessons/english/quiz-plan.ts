@@ -16,12 +16,18 @@ export interface Question {
   kind: 'big' | 'little' | 'word'
   /** 這一題問的字母（複習題是以前學的字母） */
   L: string
-  prompt: string
+  /**
+   * 題目（T-109：關鍵字放最前面，Big S!；找開頭音的圖先念 S… s, s… 再問 Which one starts with S?）。
+   * 第一句就是關鍵字：孩子點下去的時候這一句念完了沒，記成作答紀錄的 heard
+   */
+  prompt: string[]
   answer: string
   options: Opt[]
   skill: string
   /** 答對之後念的那一句 */
   yes: string
+  /** 沒聽完就點、猜對了：稱讚之後把關鍵字和答案再念一次（Yes! Big S!、Yes! Sun. S… s, s…） */
+  echo: string[]
   /**
    * 小寫題的退一級（T-100，準則 LOAD-5「big 先於 small、答錯自動變簡單」、指引 EN-4「4 歲才認得一些小寫」）：
    * 這一堂大寫題第一次沒答對、或中途離開又回來，小寫題改問同一個字母的大寫
@@ -60,7 +66,7 @@ function letterOptions(X: string, big: boolean, taught: string[], learned: strin
 /**
  * 出今天的選擇題（4 題）。問的都是今天剛教過的字母、單字，或以前上過的字母（複習）；干擾選項也一樣只用教過的。
  * seq：這一輪的字母順序（plan.ts；名字的字母先上時不是 A→Z），「以前上過」照它算。
- * 1. Where is big A?（大寫）  2. Where is little a?（小寫）  3. Which one starts with A?（圖）
+ * 1. Big A!（大寫）  2. Little a!（小寫）  3. A… a, a… Which one starts with A?（圖）（T-109：關鍵字放最前面、句子最短）
  * 4. 以前學過的字母複習一題（第一天沒有以前的字母，就再問一題今天的單字）。
  * 圖的題目要有以前學過的字當陪襯：第一天沒有，就改問字母。
  * 選項數：前三個字母 2 選 1，之後 3 選 1（教過的不夠就少一個）。
@@ -75,11 +81,12 @@ export function makeQuiz(letter: LessonLetter, idx: number, seq = ORDER, bigOnly
   const letterQ = (X: string, big: boolean): Question => ({
     kind: big ? 'big' : 'little',
     L: X,
-    prompt: big ? `en.where.big.${X}` : `en.where.little.${X.toLowerCase()}`,
+    prompt: [big ? `ph.${X.toLowerCase()}.big` : `ph.${X.toLowerCase()}.little`],
     answer: X,
     options: letterOptions(X, big, taught, learned, n),
     skill: `letter:${big ? X : X.toLowerCase()}`,
     yes: `ph.${X.toLowerCase()}.sound`,
+    echo: [big ? `ph.${X.toLowerCase()}.big` : `ph.${X.toLowerCase()}.little`],
   })
   const wordQ = (ans: string): Question | null => {
     // 干擾的圖：以前學過的字母的字，不是今天字母開頭、圖也不一樣
@@ -93,11 +100,12 @@ export function makeQuiz(letter: LessonLetter, idx: number, seq = ORDER, bigOnly
     return {
       kind: 'word',
       L,
-      prompt: `ph.${l}.q.word`,
+      prompt: [`ph.${l}.ask`, `ph.${l}.q.word`],
       answer: wordId(ans),
       options: shuffle([a, ...others]).map((w) => ({ id: wordId(w.w), icon: w.icon })),
       skill: `phonics:${l}`,
       yes: `ph.word.${wordId(ans)}`,
+      echo: [`ph.word.${wordId(ans)}`, `ph.${l}.sound`],
     }
   }
   const little = (X: string): Question => ({ ...letterQ(X, false), easy: letterQ(X, true) })

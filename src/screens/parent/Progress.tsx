@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from 'react'
 import { getKV, phaseOf, type Attempt } from '../../lib/db'
 import { mastery, recentRate, type Mastery } from '../../lib/readiness'
+import { listenLine, listenStats, type ListenLesson, type ListenRow } from '../../lib/listen-report'
+import { HEARD_MIN_RIGHT, HEARD_WINDOW } from '../../lib/heard'
 import type { ParentData } from './data'
 import './next.css'
 
@@ -44,6 +46,73 @@ function Row({ title, cells }: { title: string; cells: { label: string; m: Maste
 
 const pct = (r: { n: number; right: number }) => (r.n ? `${Math.round((100 * r.right) / r.n)}%` : '—')
 
+/** 聽完才答看幾天 */
+const LISTEN_DAYS = 14
+/** 先列幾種題目，其他的收在「還有幾種」 */
+const LISTEN_ROWS = 6
+
+/** 一種題目：名字、聽完才答／沒聽完就點的長條、那一句中文 */
+function ListenItem({ r }: { r: ListenRow }) {
+  const n = r.heard + r.guessed
+  const w = (x: number) => `${(100 * x) / Math.max(1, n)}%`
+  return (
+    <li>
+      <span className="listen-bar" aria-hidden="true">
+        <i className="is-right" style={{ width: w(r.right) }} />
+        <i className="is-wrong" style={{ width: w(r.heard - r.right) }} />
+        <i className="is-guess" style={{ width: w(r.guessed) }} />
+      </span>
+      <span className="listen-text">{listenLine(r)}</span>
+    </li>
+  )
+}
+
+/**
+ * 聽完才答（T-109，家長：孩子常常沒聽波波說完就點，看起來都是用猜的）：
+ * 波波／豆豆念完題目的關鍵字（Big S 的「S」、More 的「More」）才點的叫「聽完才答」，看得出他是不是真的聽懂；
+ * 還沒念完就點的是猜的，不計入熟練、也不算錯。
+ */
+function Listen({ A, lesson }: { A: readonly Attempt[]; lesson: ListenLesson }) {
+  const st = useMemo(() => listenStats(A, lesson, LISTEN_DAYS), [A, lesson])
+  if (!st.total)
+    return (
+      <div className="listen">
+        <p className="listen-head">
+          聽完才答 <small>最近 {LISTEN_DAYS} 天還沒有紀錄（這次更新之後才開始記）</small>
+        </p>
+      </div>
+    )
+  const head = st.rows.slice(0, LISTEN_ROWS)
+  const rest = st.rows.slice(LISTEN_ROWS)
+  return (
+    <div className="listen">
+      <p className="listen-head">
+        聽完才答 <b>{Math.round((100 * st.heard) / st.total)}%</b>
+        <small>
+          最近 {LISTEN_DAYS} 天 {st.total} 題：聽完才答 {st.heard} 題
+          {st.heard ? `，對 ${st.right} 題（${Math.round((100 * st.right) / st.heard)}%）` : ''}；沒聽完就點 {st.guessed} 題
+          {st.guessed ? `（猜對 ${st.guessedRight} 題）` : ''}
+        </small>
+      </p>
+      <ul className="listen-list">
+        {head.map((r) => (
+          <ListenItem key={r.label} r={r} />
+        ))}
+      </ul>
+      {rest.length > 0 && (
+        <details className="listen-more">
+          <summary>還有 {rest.length} 種題目</summary>
+          <ul className="listen-list">
+            {rest.map((r) => (
+              <ListenItem key={r.label} r={r} />
+            ))}
+          </ul>
+        </details>
+      )}
+    </div>
+  )
+}
+
 /** 這幾題有沒有描過（描字不是選擇題，只看有沒有自己描完） */
 const traced = (attempts: readonly Attempt[], skill: string) => attempts.some((a) => a.skill === skill && phaseOf(a) === 'quiz')
 
@@ -78,6 +147,13 @@ export function Progress({ d }: { d: ParentData }) {
         <span className="mlegend is-none">· 還沒開始</span>
         熟練要三選一以上、第一次就答對，最近 10 題至少對 8 題、分在 3 天以上、隔兩天再考還記得。滑過格子（手機長按）看還差什麼。
       </p>
+      <p className="sub listen-legend">
+        <span className="mlegend is-right">聽完才答、對</span>
+        <span className="mlegend is-wrong">聽完才答、錯</span>
+        <span className="mlegend is-guess">沒聽完就點</span>
+        「沒聽完就點」是波波還沒說完題目的關鍵字（Big S 的「S」、More 的「More」）就點了，算猜的：不計入熟練，也不算錯。
+        孩子端的熟練只看聽完才答的，最近 {HEARD_WINDOW} 次要對 {HEARD_MIN_RIGHT} 次以上（2 選 1 用猜的做到的機會不到 2 成）。
+      </p>
 
       <div className="card">
         <h3>英文字母</h3>
@@ -87,6 +163,7 @@ export function Progress({ d }: { d: ParentData }) {
           「哪個是 A 開頭」的單字選圖：最近 {words.n} 題第一次就對 <b>{pct(words)}</b>
         </p>
         <p className="mline">描過的字母：{writtenL.length ? writtenL.join(' ') : <span className="empty">還沒有</span>}</p>
+        <Listen A={A} lesson="english" />
       </div>
 
       <div className="card">
@@ -102,6 +179,7 @@ export function Progress({ d }: { d: ParentData }) {
           ]}
         />
         <p className="mline">寫過的數字：{writtenN.length ? writtenN.join(' ') : <span className="empty">還沒有</span>}</p>
+        <Listen A={A} lesson="math" />
       </div>
 
       <div className="card">

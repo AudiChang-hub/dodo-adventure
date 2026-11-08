@@ -27,9 +27,12 @@ const dayNo = (date: string) => {
   return Math.round(Date.UTC(y, m - 1, d) / 86_400_000)
 }
 
-/** 這一題能不能拿來判斷熟練：不是教學卡；選擇題要三選一以上（比多少例外） */
-export function counts(a: Pick<Attempt, 'phase' | 'options' | 'skill'>): boolean {
-  if (phaseOf(a as Attempt) === 'teach') return false
+/**
+ * 這一題能不能拿來判斷熟練：不是教學卡；選擇題要三選一以上（比多少例外）；
+ * 題目的關鍵字還沒念完就點的（heard: false，T-109）是用猜的，不算（不算對、也不算錯）
+ */
+export function counts(a: Pick<Attempt, 'phase' | 'options' | 'skill' | 'heard'>): boolean {
+  if (phaseOf(a as Attempt) === 'teach' || a.heard === false) return false
   const n = a.options?.length ?? 0
   return n === 0 || n >= MIN_OPTIONS || BINARY(a.skill)
 }

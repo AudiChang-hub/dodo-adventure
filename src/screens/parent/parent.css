@@ -126,6 +126,11 @@
   background: #e6dff2;
   color: #4f3f80;
 }
+.parent .chip.guess {
+  margin-left: 4px;
+  background: #ece6dc;
+  color: #6b645a;
+}
 
 /* 教學階段：教學／一起練／自己答。用形狀＋字區分，不只靠顏色 */
 .parent .phase {

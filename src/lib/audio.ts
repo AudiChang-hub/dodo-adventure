@@ -1,5 +1,7 @@
 import { line, plainText, segments, type Line, type Speaker } from '../content/lines'
 import { clipName, segmentGap } from './clip'
+import { keywordWords } from '../content/keywords'
+import { KeywordClock, keywordEnd } from './heard'
 
 const BASE = import.meta.env.BASE_URL
 
@@ -159,7 +161,20 @@ let token = 0
 /** 正在進行的那一次 say 的 token；0 表示現在沒在說話（給「點字幕重播」判斷） */
 let busy = 0
 
+// ── 關鍵字念完了沒（T-109，lib/heard.ts）────────────────────
+const kw = new KeywordClock()
+
+/**
+ * 這一題開始（since，performance.now 毫秒）以後，題目 key 的關鍵字有沒有完整念完過。
+ * 孩子點下去的那一刻問：還沒念完就點的記成「沒聽完」（猜的），不計入熟練、也不算錯。
+ */
+export const heardSince = (key: string, since: number) => kw.heardSince(key, since)
+
+/** AudioContext 時間 t（秒）在喇叭播出來時，對應的 performance.now（毫秒） */
+const perfAt = (t: number) => performance.now() + (t - audioClock()) * 1000
+
 function halt() {
+  kw.cut()
   token++
   busy = 0
   current?.stop()
@@ -216,6 +231,9 @@ async function playLine(key: string, l: Line, my: number) {
   if (my !== token) return
   // 中文三明治的中文（BreezyVoice）是額外的：音檔還沒產生或載入失敗就跳過，只唸英文；英文缺檔才退回平板內建語音
   if (bufs.some((b, i) => !b && segs[i].role !== 'zh')) return speakFallback(key, l, my)
+  // 關鍵字在第幾段、那一段開頭之後幾毫秒念完（中文三明治的中文不算字）
+  const segWords = names.map((n, i) => (segs[i].role === 'zh' ? [] : (times[n] ?? null)))
+  const kwAt = keywordEnd(segWords, keywordWords(key))
   let played = 0
   for (let i = 0; i < bufs.length; i++) {
     if (my !== token) return
@@ -225,9 +243,15 @@ async function playLine(key: string, l: Line, my: number) {
     if (my !== token) return
     const words = times[names[i]] ?? null
     const dur = audibleDuration(buf, words)
-    await playBuffer(buf, l.speaker, dur, (at) => emit({ type: 'seg', key, line: l, seg: i, at, dur, words }))
+    await playBuffer(buf, l.speaker, dur, (at) => {
+      if (kwAt?.seg === i) kw.schedule(key, perfAt(at + Math.min(kwAt.ms / 1000, dur)))
+      emit({ type: 'seg', key, line: l, seg: i, at, dur, words })
+    })
   }
-  if (my === token) emit({ type: 'end', key })
+  if (my === token) {
+    kw.end(key)
+    emit({ type: 'end', key })
+  }
 }
 
 /** Edge TTS 的音檔結尾約有 1.1 秒靜音，會讓「目標字前停 0.1 秒」變成停一秒多，也拖長教學卡 */
@@ -294,6 +318,7 @@ function speakFallback(key: string, l: Line, my: number): Promise<void> {
     u.pitch = l.speaker === 'momo' ? 1 : 1.25
     const done = () => {
       if (my === token) {
+        kw.end(key)
         stopLevel()
         emit({ type: 'end', key })
       }

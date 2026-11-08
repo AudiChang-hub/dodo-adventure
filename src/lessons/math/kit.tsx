@@ -2,11 +2,11 @@ import { useEffect, useRef, useState, type CSSProperties, type MutableRefObject,
 import { AnimatePresence, motion, useIsPresent } from 'motion/react'
 import { Hand } from '../../games/Demo'
 import { WaitShield, firstFinger, localPoint, useNotYet } from '../../games/NotYet'
-import { onBlank, useFlow } from '../../games/barge'
+import { onBlank, sayRevealing, useFlow } from '../../games/barge'
 import { praiseKey, retryKey, wait } from '../../games/lines'
 import { useIdle } from '../../games/idle'
 import { PACE } from '../../games/pace'
-import { say, sfx } from '../../lib/audio'
+import { heardSince, say, sfx } from '../../lib/audio'
 import { useRoute } from '../../lib/nav'
 import { needsDemo, noteFormat, type Format } from '../formats'
 import { DUR, EASE, FADE } from '../../ui/motion'
@@ -57,6 +57,10 @@ export function useLive() {
 export interface QuizSpec {
   /** 題目換了就重來（Swap 的 id） */
   id: string
+  /**
+   * 題目（T-109：關鍵字放最前面，More! Which side?、Three! Where is three?）。第一句是關鍵字：
+   * 孩子第一次點的時候這一句念完了沒，記成 QuizResult.heard；選項在這一句開始念的那一刻才出來
+   */
   prompt: string[]
   options: { id: string; view: ReactNode; label: string }[]
   answer: string
@@ -88,6 +92,8 @@ export interface QuizResult {
   hinted: boolean
   /** 這一題手先示範過（算一起練） */
   shown: boolean
+  /** 第一次點的時候，題目的關鍵字念完了沒（T-109）；false 是用猜的，不計入熟練、也不算錯 */
+  heard: boolean
 }
 
 /**
@@ -98,6 +104,8 @@ export interface QuizResult {
  * 閒置：15 秒再念一次題目 → 再 15 秒答案亮起來、手點一下（不說話）。
  * 題型還不會（spec.format，../formats.ts）：先示範——Watch me! → 手指泡泡（要找的樣子；How many? 指要數的那一堆）、念題目 → 手點答案、說出答案 → Your turn!（選項不換位置）
  * （T-96：盲測裡題目全是英文，他等到手出來才知道要做什麼）。
+ * 關鍵字放最前面（T-109）：選項在題目第一句（關鍵字）開始念的時候才出來；第一次點的時候關鍵字念完了沒記成 heard。
+ * 沒念完就點對（猜對）：稱讚之後把答案再說一次（Yes! This side has more!），幫他把聲音和答案連起來。
  */
 export function Quiz({ spec, host, onDone, showing }: { spec: QuizSpec; host: PartCtx['host']; onDone: (r: QuizResult) => void; showing?: PartCtx['demo'] }) {
   const [marks, setMarks] = useState<Record<string, 'wrong' | 'correct'>>({})
@@ -111,6 +119,12 @@ export function Quiz({ spec, host, onDone, showing }: { spec: QuizSpec; host: Pa
   /** 示範中：手在泡泡（有要數的那一堆就指那一堆）上、或在答案上 */
   const [teach, setTeach] = useState<'ask' | 'answer' | null>(null)
   const [press, setPress] = useState(0)
+  /** 選項出來了沒（T-109）：題目的關鍵字開始念、或孩子搶點的時候 */
+  const [opts, setOpts] = useState(false)
+  const reveal = () => setOpts(true)
+  /** 這一題什麼時候出來、第一次點的時候關鍵字念完了沒 */
+  const qStart = useRef(performance.now())
+  const heard = useRef(false)
   const shown = useRef(!!spec.format && needsDemo(spec.format))
   const bubble = useRef<HTMLDivElement | null>(null)
   const pile = useRef<HTMLDivElement | null>(null)
@@ -130,6 +144,7 @@ export function Quiz({ spec, host, onDone, showing }: { spec: QuizSpec; host: Pa
   /** 輪到孩子（念完、或被搶掉）：黃框亮、開始計時 */
   const openTurn = () => {
     phase.current = 'turn'
+    setOpts(true)
     if (!taps.current.length) setReady(true)
     if (!t0.current) t0.current = performance.now()
     idle.start({ repeat: () => void say(...spec.prompt), hint: show })
@@ -139,6 +154,7 @@ export function Quiz({ spec, host, onDone, showing }: { spec: QuizSpec; host: Pa
   const takeOver = () => {
     const was = phase.current
     flow.cut()
+    setOpts(true)
     if (was === 'demo') {
       setTeach(null)
       setMarks({})
@@ -156,7 +172,7 @@ export function Quiz({ spec, host, onDone, showing }: { spec: QuizSpec; host: Pa
       await say('teach.watch.bobo')
       if (!ok()) return
       setTeach('ask')
-      await say(...spec.prompt)
+      await sayRevealing(reveal, ...spec.prompt)
       if (!ok()) return
       setTeach('answer')
       await wait(650)
@@ -175,7 +191,7 @@ export function Quiz({ spec, host, onDone, showing }: { spec: QuizSpec; host: Pa
       await wait(400)
       if (!ok()) return
       await say('teach.turn.bobo')
-    } else await say(...spec.prompt)
+    } else await sayRevealing(reveal, ...spec.prompt)
     if (!ok()) return
     openTurn()
   }
@@ -221,6 +237,8 @@ export function Quiz({ spec, host, onDone, showing }: { spec: QuizSpec; host: Pa
 
   const tap = async (id: string) => {
     if (!armed.current || phase.current === 'done') return
+    // 第一次點：題目的關鍵字念完了沒（要在 takeOver 停掉語音之前問）
+    if (!taps.current.length) heard.current = heardSince(spec.prompt[0], qStart.current)
     if (phase.current !== 'turn') takeOver()
     idle.poke()
     // 又點到剛剛點錯的：輕輕一聲，答案亮起來（有反應，不會以為壞掉）
@@ -237,9 +255,11 @@ export function Quiz({ spec, host, onDone, showing }: { spec: QuizSpec; host: Pa
       setMarks((m) => ({ ...m, [id]: 'correct' }))
       setHint(false)
       sfx.correct()
-      const r = { firstTry: taps.current.length === 1, taps: taps.current, ms: Math.round(performance.now() - t0.current), hinted: hinted.current, shown: shown.current }
-      if (spec.format) noteFormat(spec.format, r.firstTry)
-      await say(praiseKey('bobo'))
+      const r = { firstTry: taps.current.length === 1, taps: taps.current, ms: Math.round(performance.now() - t0.current), hinted: hinted.current, shown: shown.current, heard: heard.current }
+      // 題型會了沒只看聽完才答的（猜對不代表懂這種題目在問什麼）
+      if (spec.format && r.heard) noteFormat(spec.format, r.firstTry)
+      // 猜對（關鍵字還沒念完就點對）：Yes! 之後把答案再說一次（This side has more!、This is three.）
+      await say(praiseKey('bobo'), ...(r.firstTry && !r.heard ? spec.correction : []))
       await wait(r.firstTry ? PACE.NEXT_REVIEW : PACE.NEXT_NEW)
       if (live.current) onDone(r)
       return
@@ -300,11 +320,12 @@ export function Quiz({ spec, host, onDone, showing }: { spec: QuizSpec; host: Pa
               if (el) tiles.current.set(o.id, el)
             }}
             className={`tile ma-tile${spec.wide ? ' wide' : ''}${teach && o.id === spec.answer ? ' is-shown' : ''}${marks[o.id] === 'correct' ? ' correct' : ''}${hint && o.id === spec.answer && marks[o.id] !== 'correct' ? ' hint' : ''}${ready && !hint ? ' cue turn-hop' : ''}`}
-            style={{ '--turn-i': i } as CSSProperties}
             aria-label={o.label}
             initial={{ y: 24, opacity: 0 }}
-            animate={marks[o.id] === 'wrong' ? { x: [0, -10, 10, 0], opacity: 0.45, y: 0 } : { y: 0, opacity: 1 }}
-            transition={marks[o.id] === 'wrong' ? { duration: 0.4 } : { ...FADE, delay: i * 0.06 }}
+            // 關鍵字還沒開始念：先不出來、點不到（點那裡算點空白，T-109）
+            animate={!opts ? { y: 24, opacity: 0 } : marks[o.id] === 'wrong' ? { x: [0, -10, 10, 0], opacity: 0.45, y: 0 } : { y: 0, opacity: 1 }}
+            transition={!opts ? { duration: 0 } : marks[o.id] === 'wrong' ? { duration: 0.4 } : { ...FADE, delay: i * 0.06 }}
+            style={{ '--turn-i': i, pointerEvents: opts ? undefined : 'none' } as CSSProperties}
             onPointerDown={(e) => firstFinger(e.nativeEvent) && tap(o.id)}
           >
             <div className="tile-in">{o.view}</div>

@@ -316,6 +316,12 @@
   transition: background 0.35s ease, box-shadow 0.35s ease, opacity 0.35s ease;
   touch-action: manipulation;
 }
+/* 關鍵字還沒開始念：選項先不出來、點不到（點那裡算點空白，T-109）；關鍵字一念就淡入 */
+.en-opt.is-wait {
+  opacity: 0;
+  pointer-events: none;
+  transition: none;
+}
 .en-opt > span {
   display: grid;
   place-items: center;

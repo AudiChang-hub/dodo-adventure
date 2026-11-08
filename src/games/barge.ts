@@ -1,5 +1,5 @@
 import { useRef } from 'react'
-import { hushSpeech } from '../lib/audio'
+import { hushSpeech, onSpeech, say } from '../lib/audio'
 
 /**
  * 搶點（T-108，家長真人試玩：三歲等不及，波波話還沒講完就點，點了沒反應、被擋，整個很卡）。
@@ -30,3 +30,19 @@ export function useFlow() {
 
 /** 這一下點在空白處（不是按鈕、不是畫布）：給作答區容器的 onPointerDown 判斷用 */
 export const onBlank = (target: EventTarget | null) => !(target instanceof Element && target.closest('button, [role="button"], canvas'))
+
+/**
+ * 念題目，選項跟著關鍵字一起出來（T-109：關鍵字放在題目最前面，孩子還沒聽到關鍵字之前幾乎沒有東西可點）。
+ * 第一句（關鍵字）真的開始播的那一刻呼叫 reveal；念完、被打斷、音檔載不到也會呼叫一次（保險，選項不會一直不出來）。
+ */
+export async function sayRevealing(reveal: () => void, ...keys: string[]) {
+  const off = onSpeech((e) => {
+    if ((e.type === 'seg' || e.type === 'whole') && e.key === keys[0]) reveal()
+  })
+  try {
+    await say(...keys)
+  } finally {
+    off()
+    reveal()
+  }
+}
