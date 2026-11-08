@@ -1,5 +1,5 @@
 import { db, today, type Attempt, type GameLevel, type Skill } from './db'
-import { heardFirm, pushHeard } from './heard'
+import { choicesOf, heardFirm, pushHeard } from './heard'
 import { MASTERED_BOX, REVIEW_DAYS, SPEED_WINDOW, dayIndexOf, isDueAt, isProtege, isSlow, overdueBy, speedCat } from './engine'
 
 // 學習引擎（2026-11-03 T-76 第 3 層簡化）：只留熟練度、到期複習、作答紀錄用到的狀態，和每個遊戲玩過幾次。
@@ -104,7 +104,8 @@ export function recordSkill(key: string, firstTry: boolean, info?: SkillInput) {
   }
   if (info) noteSpeed({ ...info, skill: key, firstTryCorrect: firstTry })
   // 聽完才答的最近幾次（T-109）：熟練要再看這個
-  if (info?.heard) s.heard = pushHeard(s.heard, firstTry, info.options?.length ?? 0)
+  // 字母題只算跟答案同樣大小寫的選項（一直點大的不會在找大 S 時白白升格，choicesOf）
+  if (info?.heard) s.heard = pushHeard(s.heard, firstTry, choicesOf({ skill: key, options: info.options ?? [] }))
 
   // 到期複習的排程
   if (s.box >= MASTERED_BOX) {

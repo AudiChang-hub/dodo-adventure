@@ -6,7 +6,7 @@ import '../src/content/lines'
 import { hasLine, line } from '../src/content/registry'
 import { keywordWords } from '../src/content/keywords'
 import type { Attempt } from '../src/lib/db'
-import { GUESS_CEILING, HEARD_WINDOW, KeywordClock, guessTail, heardFirm, heardNeed, keywordEnd, pushHeard } from '../src/lib/heard'
+import { GUESS_CEILING, HEARD_WINDOW, KeywordClock, choicesOf, guessTail, heardFirm, heardNeed, keywordEnd, pushHeard } from '../src/lib/heard'
 import { listenLine, listenStats } from '../src/lib/listen-report'
 import { counts, mastery } from '../src/lib/readiness'
 import { lessonLetter, LESSON_LETTERS } from '../src/lessons/english/data'
@@ -78,7 +78,8 @@ ok('點下去那一刻：關鍵字念完才算聽完；話停在關鍵字中間�
   let hw: number[] | undefined
   for (const r of [true, true, false, true, true, true]) hw = pushHeard(hw, r, 2)
   assert.deepEqual(hw, [2, -2, 2, 2, 2], '只留最近 5 次')
-  assert.equal(pushHeard(undefined, true, 1), undefined, '只有一個選項的不記')
+  assert.deepEqual(pushHeard(undefined, true, 1), [], '只有一個選項的不記，但從此照聽完才答判斷（不再只看盒子）')
+  assert.equal(heardFirm(pushHeard(undefined, true, 1)), false)
 }
 ok('熟練只看聽完才答的：最近 5 次對 4 次以上（2 選 1 亂猜做到的機會 19%）；只有一個選項的不算')
 
@@ -206,5 +207,24 @@ ok('題目的關鍵字放在最前面：Big S!、Little s!、S… s, s… Which 
   }
 }
 ok('正確答案的位置每個都差不多（英文三種題目、比多少、小複習）')
+
+// ── 9. 分不出大小寫、一直點大的（盲測 e6ecd05 第 1 點）不會被當成學會 ────────────
+{
+  // 字母題的陪襯「同一個字母的另一種寫法」不算選項
+  assert.equal(choicesOf({ skill: 'letter:S', options: ['S', 'S:little'] }), 1, '找大 S、只有 S 和 s：一直點大的就一定對')
+  assert.equal(choicesOf({ skill: 'letter:S', options: ['S', 'A', 'S:little'] }), 2)
+  assert.equal(choicesOf({ skill: 'num:3', options: ['3', '1', '5'] }), 3)
+  // 一個一直點大的孩子：找大 S（S／s）每次都對、找小 s（s／S）每次都錯，都是聽完才點的
+  const bigS = range(1, 8).map((i) => att('letter:S', 'lesson-en', true, true, 2, `2026-11-0${(i % 7) + 1}`, { options: ['S', 'S:little'] }))
+  const littleS = range(1, 8).map((i) => att('letter:s', 'lesson-en', false, true, 2, `2026-11-0${(i % 7) + 1}`, { options: ['S', 'S:big'] }))
+  const xs = [...bigS, ...littleS]
+  assert.equal(mastery(xs, 'letter:S').recent, 0, '家長區的熟練：只有 S／s 兩張的題目不算')
+  // 孩子端的熟練：只有一個真正選項的題目不記、技能從此照聽完才答判斷，盒子再高也不算熟
+  let hw: number[] | undefined
+  for (const a of bigS) hw = pushHeard(hw, a.firstTryCorrect, choicesOf(a))
+  assert.deepEqual(hw, [])
+  assert.equal(heardFirm(hw), false, '孩子端：一直點大的，找大 S 不算熟')
+}
+ok('分不出大小寫、一直點大的：找大 S 不算學會（只有 S／s 兩張的題目不算進熟練，家長區、孩子端都一樣）')
 
 console.log('ALL PASS')

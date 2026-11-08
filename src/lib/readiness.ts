@@ -9,6 +9,7 @@
 //   4. 這 10 題分布在至少 3 個不同的日子（同一天答對 10 次不算）。
 //   5. 隔一段時間還記得：有一次是隔了至少 2 天沒練、再考還是第一次就答對。
 import { phaseOf, type Attempt } from './db'
+import { choicesOf } from './heard'
 
 export const RECENT = 10
 export const NEED_RIGHT = 8
@@ -33,8 +34,10 @@ const dayNo = (date: string) => {
  */
 export function counts(a: Pick<Attempt, 'phase' | 'options' | 'skill' | 'heard'>): boolean {
   if (phaseOf(a as Attempt) === 'teach' || a.heard === false) return false
-  const n = a.options?.length ?? 0
-  return n === 0 || n >= MIN_OPTIONS || BINARY(a.skill)
+  // 字母題的陪襯「同一個字母的另一種寫法」（找大 S 時的小 s）不算選項：一直點大的就一定對（T-109，choicesOf）
+  const n = choicesOf({ skill: a.skill, options: a.options ?? [] })
+  if ((a.options?.length ?? 0) === 0) return true
+  return n >= MIN_OPTIONS || BINARY(a.skill)
 }
 
 export interface Mastery {

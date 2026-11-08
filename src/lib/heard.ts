@@ -115,8 +115,22 @@ export function heardFirm(hw: readonly number[] | undefined): boolean {
   return need != null && last.filter((x) => x > 0).length >= need
 }
 
-/** 記一次聽完才答（只留最近 HEARD_WINDOW 次）；只有一個選項的不記（猜都猜得中） */
-export function pushHeard(hw: readonly number[] | undefined, right: boolean, options: number): number[] | undefined {
-  if (options < 2) return hw ? [...hw] : hw
+/**
+ * 記一次聽完才答（只留最近 HEARD_WINDOW 次）。只有一個真正的選項的（猜都猜得中）不記，
+ * 但這個技能從此照聽完才答判斷（回傳空的紀錄，不再退回只看盒子），免得「一直點大的」在找大 S 時白白升格。
+ */
+export function pushHeard(hw: readonly number[] | undefined, right: boolean, options: number): number[] {
+  if (options < 2) return hw ? [...hw] : []
   return [...(hw ?? []), right ? options : -options].slice(-HEARD_WINDOW)
+}
+
+/**
+ * 這一題真正有幾個選項可以猜（T-109 盲測第 1 點：他分不出大小寫，問小的也點大的）。
+ * 字母題的陪襯裡有「同一個字母的另一種寫法」（找大 S 時的小 s，id 是 S:little）：一直點大的（或一直點小的）就一定對，
+ * 所以只算跟答案同樣大小寫的那幾張。第一天只有 S 和 s 兩張：真正的選項只有 1 個，不算進熟練。
+ * 其他題目照選項數；不是選擇題（數數、描字，選項是空的）回傳 0。
+ */
+export function choicesOf(a: { skill: string; options: readonly string[] }): number {
+  if (a.skill.startsWith('letter:')) return a.options.filter((id) => !id.includes(':')).length
+  return a.options.length
 }
