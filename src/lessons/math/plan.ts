@@ -214,7 +214,7 @@ function otherSide(base: number, gap: number, cap: number, easy: boolean, used: 
 }
 
 /**
- * 比多少：三題，數量差距先大後小。先只問「哪邊比較多」；「多」熟了才問「哪邊比較少」，第一次問「少」前先示範「這邊比較少」。
+ * 比多少：兩題（T-112：以前三題，換成多寫一次數字），數量差距先大後小。先只問「哪邊比較多」；「多」熟了才問「哪邊比較少」，第一次問「少」前先示範「這邊比較少」。
  * 一邊盡量是今天的數字（數過、寫過的那個數量）；數量不超過開放的範圍（還沒開 6 就在 5 以內）。
  */
 /**
@@ -227,8 +227,8 @@ export const moreFirm = () => skill('compare:more').streak >= COMPARE_STREAK
 export function compareQs(l: Lesson): CompareQ[] {
   const moreOk = moreFirm()
   const cap = Math.min(LAST, Math.max(FIRM, l.max))
-  const gaps = l.mode === 'mix' ? [3, 2, 1] : [4, 3, 2]
-  const asks: CompareQ['ask'][] = moreOk ? ['more', 'less', pick(['more', 'less'] as const)] : ['more', 'more', 'more']
+  const gaps = l.mode === 'mix' ? [3, 1] : [4, 2]
+  const asks: CompareQ['ask'][] = moreOk ? ['more', 'less'] : ['more', 'more']
   const taught = new Set<string>()
   const used = new Set<string>()
   return gaps.map((g, i) => {
@@ -247,10 +247,11 @@ export function compareQs(l: Lesson): CompareQ[] {
 }
 
 /**
- * 寫數字：描幾次（A5，AI 小男生測試 #2）：新的數字描一次就慶祝；複習兩次，第二次換一個樣子（Write.tsx 的 LOOKS）。
+ * 寫數字：描幾次（A5，AI 小男生測試 #2）：一律兩次，第二次換一個樣子（Write.tsx 的 LOOKS），每一次描完就慶祝。
+ * T-112（家長：「手寫的比例可以多一些」）：新的數字以前只描一次，改成兩次，比多少少一題來換，一堂不變長。
  * 寫數字不是 3 歲的目標（MA-9），描得好不好不影響明天上什麼（partDone）。
  */
-export const writeReps = (l: Lesson) => (l.mode === 'new' ? 1 : 2)
+export const writeReps = (_l: Lesson) => 2
 
 export interface ReviewQ {
   kind: 'find' | 'howmany'

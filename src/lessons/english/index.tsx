@@ -11,7 +11,7 @@ import { lexWord, wordKey } from '../../content/lexicon'
 import { lessonLetter, type LessonLetter } from './data'
 import { lessonGood, loadProgress, markDone, markStage, markStarted, planFor, type QuizResult, type TodayPlan } from './plan'
 import { Meet } from './Meet'
-import { Trace } from './Trace'
+import { Trace, WRITE_ROUNDS } from './Trace'
 import { Words } from './Words'
 import { Quiz } from './Quiz'
 import { makeQuiz, type Question } from './quiz-plan'
@@ -19,8 +19,9 @@ import { loadFormats } from '../formats'
 import '../../games/coplay.css'
 import './english.css'
 
-type Stage = 'meet' | 'trace' | 'words' | 'quiz' | 'end'
-const STEPS: Stage[] = ['meet', 'trace', 'words', 'quiz']
+type Stage = 'meet' | 'trace' | 'words' | 'write' | 'quiz' | 'end'
+/** 一堂的段落（T-112：單字之後加「寫寫看」，選擇題減成 2～3 題，手寫的時間變多、一堂不變長） */
+const STEPS: Stage[] = ['meet', 'trace', 'words', 'write', 'quiz']
 
 /** 給大人看的一行陪玩小字（A10，角落、不收點擊；跟數學課的 HINT、中文課的 parentTip 一樣） */
 function hintOf(stage: Stage, x: LessonLetter, q?: Question) {
@@ -33,6 +34,8 @@ function hintOf(stage: Stage, x: LessonLetter, q?: Question) {
     case 'words':
       // 不問「家裡有沒有」：第一個字可能是 snake、volcano 這種家裡沒有的（AI 小男生測試 2026-11-02）
       return zh ? `跟他一起說：${zh}、${x.words[0].w}` : `跟他一起找：還有什麼是 ${x.L} 開頭的？`
+    case 'write':
+      return `換他自己寫：從綠點開始描一次大的 ${x.L}；描歪沒關係，不用重來`
     case 'quiz':
       // 每一題直接寫「現在請他點哪一個」（T-107 真人試玩：大人聽完英文也不知道這一段要做什麼）
       if (q?.kind === 'big') return `找字母：請他點大的 ${q.L}（大卡片）`
@@ -46,10 +49,11 @@ function hintOf(stage: Stage, x: LessonLetter, q?: Question) {
 
 /**
  * 英文字母課（豆豆）：照學校的順序，一堂約 5 分鐘。
- * 認字母 → 描字（大寫、小寫各一次）→ 單字範例（三個字，中文三明治）→ 選擇（4 題）→ 上完（下課畫面、不定時的貼紙由 LessonScreen 處理）。
+ * 認字母 → 描字（大寫、小寫各一次）→ 單字範例（三個字，中文三明治）→ 寫寫看（自己再描一次大寫，T-112）→ 選擇（第一天 2 題、之後 3 題）
+ * → 上完（下課畫面、不定時的貼紙由 LessonScreen 處理）。
  * 一天一個新字母（名字的字母先、再 A→Z），同一天再進來複習今天的字母；字母題錯很多就隔天重上（./plan.ts）。
  * 右上角一行給大人的陪玩小字（hintOf）。
- * 段落之間在原地淡入淡出，不縮放、不跳整頁卡片；上面四顆小石頭是進度。左上角返回鍵回首頁（中途離開隔天重上同一個字母）。
+ * 段落之間在原地淡入淡出，不縮放、不跳整頁卡片；上面五顆小石頭是進度。左上角返回鍵回首頁（中途離開隔天重上同一個字母）。
  * 同一天中途離開又回來：從離開的那一段接著上，做過的段落石頭已經亮著，描字大寫描過了就只描小寫（T-95；./plan.ts 的 markStage）。
  */
 /** 這一題算不算「聽完才答、一次就對」（舊的進度沒有 heard，當作聽完了） */
@@ -62,7 +66,7 @@ export function EnglishLesson({ onDone }: LessonProps) {
   const [traceFrom, setTraceFrom] = useState(0)
   /** 選擇題：同一天回來從第幾題接著問、前面答完的（T-104） */
   const [quizAt, setQuizAt] = useState<{ from: number; answers: QuizResult[]; replay: boolean }>({ from: 0, answers: [], replay: false })
-  /** 選擇題答完幾題（第四顆石頭裡的小點） */
+  /** 選擇題答完幾題（最後一顆石頭裡的小點） */
   const [quizDone, setQuizDone] = useState(0)
   /** 哪幾題是聽完才答、一次就對（這幾顆小點才亮，T-109） */
   const [earned, setEarned] = useState<boolean[]>([])
@@ -139,7 +143,7 @@ export function EnglishLesson({ onDone }: LessonProps) {
           <HomeIcon />
         </BackButton>
       </div>
-      {/* 進度：四顆小石頭（認字母、描字、單字、選擇），走過的變成今天的字母；選擇題那一顆拉長，一題一顆小點（T-104） */}
+      {/* 進度：五顆小石頭（認字母、描字、單字、寫寫看、選擇），走過的變成今天的字母；選擇題那一顆拉長，一題一顆小點（T-104） */}
       <div className="en-steps" aria-hidden="true">
         {STEPS.map((s, i) =>
           s === 'quiz' && stage === 'quiz' ? (
@@ -177,7 +181,8 @@ export function EnglishLesson({ onDone }: LessonProps) {
             >
               {stage === 'meet' && <Meet letter={letter} review={plan!.review} onDone={() => next('trace')} />}
               {stage === 'trace' && <Trace letter={letter} from={traceFrom} onRound={(i) => i > 0 && void markStage(plan!, 'trace', i)} onDone={() => next('words')} />}
-              {stage === 'words' && <Words letter={letter} onDone={() => next('quiz')} />}
+              {stage === 'words' && <Words letter={letter} onDone={() => next('write')} />}
+              {stage === 'write' && <Trace letter={letter} rounds={WRITE_ROUNDS} onDone={() => next('quiz')} />}
               {stage === 'quiz' && (
                 <Quiz qs={qs.current} from={quizAt.from} answers={quizAt.answers} replay={quizAt.replay} onProgress={progress} onDone={(rs) => void finish(rs)} />
               )}

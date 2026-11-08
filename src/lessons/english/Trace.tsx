@@ -26,25 +26,54 @@ const VIEW_H = 140
 const LOOKS = {
   green: { rim: '#CFE3D6', lane: '#8FCBAA', dot: '#4E9A72', dash: '#9DB5A6', tag: '#4E9A72' },
   blue: { rim: '#D3E2F1', lane: '#9DC2E5', dot: '#4E9A72', dash: '#9AB0C6', tag: '#3E7DB6' },
+  /** 寫寫看（T-112，單字之後自己再描一次）：換一個暖色，看得出是新的一段 */
+  coral: { rim: '#F5DCD3', lane: '#F2AE9C', dot: '#4E9A72', dash: '#C9A297', tag: '#C8604A' },
 } as const
 
 /**
  * 描字的回合（A5，全球幼教指引：3～4 歲描字只示範、不求多）：大寫一次、小寫一次，每一次都先示範、描完就慶祝。
  * 以前是大寫兩次、小寫兩次，AI 小男生每次到第二遍就無聊、按返回。兩輪換顏色，看得出是新的一輪。
  */
-const ROUNDS: { big: boolean; demo: boolean; look: keyof typeof LOOKS }[] = [
+export interface TraceRound {
+  big: boolean
+  demo: boolean
+  look: keyof typeof LOOKS
+}
+const ROUNDS: TraceRound[] = [
   { big: true, demo: true, look: 'green' },
   { big: false, demo: true, look: 'blue' },
 ]
+
+/**
+ * 寫寫看（T-112，家長：「手寫的比例可以多一些」）：單字之後、選擇題之前，自己再描一次大寫。
+ * 前面描字段已經看過兩次示範，這一次不示範，只說 Big S! Start at the green dot! Go this way!；換暖色，看得出是新的一段。
+ * 回饋、沒描上的處理跟描字段一樣（寬鬆、正面，最多重試一次就往下）。
+ */
+export const WRITE_ROUNDS: TraceRound[] = [{ big: true, demo: false, look: 'coral' }]
 
 /** 描完的稱讚念完之後再停多久就換下一輪（T-110：以前 450 ms，他覺得要等很久） */
 const PRAISE_TAIL_MS = 200
 
 /**
- * 描得好不好（只影響這一輪的回饋，T-111）：畫在跑道外面的點少於這個比例就算描得好、彩虹慶祝。
- * 三歲運筆不準，門檻放寬：一半以上的點在跑道裡就好（跑道本身就有一個大拇指寬）。作答紀錄的 firstTryCorrect 照舊用 0.4（A5 不計入熟練）。
+ * 描得好不好（只影響這一輪的回饋，T-111；T-112 放寬 0.5 → 0.75）：自己描完、畫在跑道外面的點少於這個比例 → 彩虹＋Great writing!。
+ * 量測（T-112，盲測軌跡重播）：歷次 AI 小男生自己描完的 22 輪 offRatio 是 0～0.31；合成的手抖（左右晃到兩倍跑道半寬）
+ * 照樣描得完，offRatio 0.36～0.69。要描完本來就得照著跑道的順序走，所以描完的幾乎都算「大致照著線」；
+ * 只有一路貼在跑道外面描（四分之三以上的點在外面）才是平平的 You drew it!。
  */
-const NEAT_OFF = 0.5
+const NEAT_OFF = 0.75
+/** 作答紀錄（熟練）的門檻：不變，而且要自己描完、中間沒有「沒描上」那一次（回饋寬鬆、熟練照樣嚴格） */
+const GOOD_OFF = 0.4
+
+/**
+ * 一次「沒描上」（T-112）：這一下畫了一大段（墨水長度 ≥ 這一筆的 40%、至少 30 單位），進度卻幾乎沒動（< 這一筆的 25%）。
+ * 盲測 b637ff7 seed 3：從綠點往右下畫、跳過 S 上面的彎，一大段墨水、進度 1%，被說兩次 Almost 就離開了。
+ * 拖到一半放手、進度有跟著走的（歷次盲測 32～59%）不算，照舊從斷掉的地方接著描。
+ */
+const MESSY_INK = 0.4
+const MESSY_INK_MIN = 30
+const MESSY_GAIN = 0.25
+/** 第幾次沒描上就由筆帶著描完、往下走（最多重試一次，不卡關） */
+const MAX_TRIES = 2
 
 /** 鼓勵的話最少隔多久說一次（不要一直講） */
 const CHEER_GAP_MS = 5000
@@ -69,13 +98,16 @@ function strokeStart(d: string) {
  *   - 起點附近按下去吸到起點（SNAP_MM，3 歲手指的偏差），圓點那邊亮一圈、有一條虛線從手指連過去；
  *   - 描到一半放手：綠點移到斷掉的地方、一圈光往外擴（TraceFx 的 ResumeDot），從那裡（或從起點沿著描好的部分）接著描，進度不歸零；
  *     不說話（盲測：Keep going! 他聽不懂，T-95）；
- *   - 一直偏離跑道：圓點彈一下，豆豆說一句（最少隔 5 秒）；
+ *   - 一直偏離跑道：圓點彈一下、還沒描的跑道亮兩下（不說話；以前說 Almost! Follow the line!，T-112 拿掉）；
+ *   - 畫了一大段卻沒描上（MESSY_*，T-112）：那條線淡掉。第一次「Nice try!」、跑道亮兩下、筆從他描到的地方輕輕帶到終點，再讓他描；
+ *     第二次「You drew it!」、筆帶著描完，往下一輪（最多重試一次，不卡關；不說 Almost、不讓他覺得錯了）；
  *   - 按得太遠（吸不到）：圓點彈一下；連兩次再說一次「從綠點開始」；
  *   - 下一筆的起點有一圈光往外擴，看得出要從哪裡開始；
  *   - 10 秒沒動：筆從現在描到的地方往後描一次（不出墨、不說話）；再 15 秒說一次「從綠點開始」；
  *   - 畫完：字變彩虹色、跳一下、星星（TraceFx 的 RainbowDef），不靠語言就看得出「好了」，然後自己往下走；
- *     只有描得好（大部分在跑道裡、不是筆帶著描完，NEAT_OFF）才這樣慶祝（T-111）；描得亂：字填成這一輪的顏色、輕輕一聲，
- *     「Let's look again!」筆在字上再描一次、念字的名字，然後照樣往下（lookAgain，不要求重描）；
+ *     自己描完（照著跑道的順序走完，NEAT_OFF 0.75 以內）就這樣慶祝（T-111、T-112 放寬）；筆帶著描完、或描完但大多在跑道外：
+ *     字填成這一輪的顏色、輕輕一聲、「You drew it!」（先肯定他有畫），自己描完的再由筆在字上輕輕描一次，念字的名字，照樣往下（drewIt）；
+ *     作答紀錄照樣嚴格：自己描完、offRatio < 0.4、沒有沒描上的那一次，才算描好（GOOD_OFF）；
  *     稱讚（Great writing!）的時候（T-110，盲測 e6ecd05：他不知道要等，去點別的）：右邊這一輪的格子馬上變成描好的顏色、
  *     下一輪的格子跳一下（接下來描它）；這時候點描字板，彩虹字再跳一下、彈一聲（不會卡住、不會多記一筆）；
  *     稱讚念完只再停 0.2 秒就換下一輪（以前 0.45 秒）。作答紀錄在稱讚之前就記好了；稱讚本身照 T-108 不能搶；
@@ -84,9 +116,22 @@ function strokeStart(d: string) {
  *   - 還剩哪一段（T-106）：描到一半，還沒描的跑道輕輕亮、小點往終點流（RestGuide），終點有星星，描過一半輕輕晃（GoalStar）。
  * from：同一天回來接著上時，從第幾輪開始（大寫描過了就只描小寫）；onRound 每一輪開始時告訴外面（記下接續點）。
  */
-export function Trace({ letter, from = 0, onRound, onDone }: { letter: LessonLetter; from?: number; onRound?: (round: number) => void; onDone: (good: number) => void }) {
+export function Trace({
+  letter,
+  rounds = ROUNDS,
+  from = 0,
+  onRound,
+  onDone,
+}: {
+  letter: LessonLetter
+  /** 這一段描哪幾輪（描字段：大寫、小寫；寫寫看：大寫一輪、不示範） */
+  rounds?: TraceRound[]
+  from?: number
+  onRound?: (round: number) => void
+  onDone: (good: number) => void
+}) {
   const [r, setR] = useState(from)
-  const round = ROUNDS[r]
+  const round = rounds[r]
   const look = LOOKS[round.look]
   const strokes = round.big ? letter.upper : letter.lower
   const [stroke, setStroke] = useState(0)
@@ -99,8 +144,10 @@ export function Trace({ letter, from = 0, onRound, onDone }: { letter: LessonLet
   const [cheerTap, setCheerTap] = useState(0)
   /** 這一輪描得好不好（描完才有）：好就彩虹慶祝；亂就平平地帶過、筆輕輕再示範一次（T-111） */
   const [neat, setNeat] = useState(true)
-  /** 描得亂：筆輕輕再描一次給他看（字已經填滿了，筆在上面走） */
+  /** 沒描上、亂畫的時候：字填滿、You drew it!、筆輕輕再描一次給他看 */
   const [review, setReview] = useState(false)
+  /** 還沒描的跑道亮兩下（每次加一，T-112：偏離跑道、沒描上的時候只用畫面引導，不說 Almost） */
+  const [glow, setGlow] = useState(0)
   /** 圓點彈一下（在哪裡、第幾次） */
   const [bounce, setBounce] = useState<{ at: P2; n: number } | null>(null)
   /** 吸附：手指按在哪裡（虛線從那裡連到起點） */
@@ -131,6 +178,16 @@ export function Trace({ letter, from = 0, onRound, onDone }: { letter: LessonLet
   const helpTimer = useRef(0)
   /** 這一輪是筆帶著描完的 */
   const helped = useRef(false)
+  /** 這一輪沒描上幾次（MESSY_*） */
+  const tries = useRef(0)
+  /** 已經說過 You drew it!（第二次沒描上，筆帶著描完之前先說） */
+  const affirmed = useRef(false)
+  /** 這一下（按下到放開）：墨水多長（描字板單位）、上一點、按下時進度到哪 */
+  const inkLen = useRef(0)
+  const inkLast = useRef<P2 | null>(null)
+  const dragFrom = useRef(0)
+  /** 按下去時描的是哪一筆（這一下描完一筆、換到下一筆的，不算沒描上） */
+  const dragT = useRef<PathTracker | null>(null)
   const cur = useRef({ r: from, strokes, stroke: 0 })
   cur.current = { r, strokes, stroke }
 
@@ -267,11 +324,14 @@ export function Trace({ letter, from = 0, onRound, onDone }: { letter: LessonLet
   }
 
   const start = async (i: number) => {
-    const rd = ROUNDS[i]
+    const rd = rounds[i]
     clearTimeout(helpTimer.current)
     helped.current = false
+    tries.current = 0
+    affirmed.current = false
     setNeat(true)
     setReview(false)
+    setGlow(0)
     onRound?.(i)
     const ss = rd.big ? letter.upper : letter.lower
     const ok = flow.begin(live)
@@ -329,25 +389,61 @@ export function Trace({ letter, from = 0, onRound, onDone }: { letter: LessonLet
   }
 
   /**
-   * 描得亂的時候（T-111）：「Let's look again!」筆照筆順在填好的字上輕輕再描一次（不出墨），念出字的名字（Big S.）。
+   * 筆帶著描完、或描完但大多在跑道外（T-111；T-112 改成先肯定）：「You drew it!」，自己描完的再由筆照筆順在填好的字上
+   * 輕輕描一次（不出墨；筆剛帶著描完的就不再描），念出字的名字（Big S.）。
    * 這一段不能搶（busy）；點描字板只有輕輕一聲（不會卡住、不會多記一筆）
    */
-  const lookAgain = async (i: number) => {
-    const ss = ROUNDS[i].big ? letter.upper : letter.lower
+  const drewIt = async (i: number) => {
+    const ss = rounds[i].big ? letter.upper : letter.lower
     const alive = () => live.current
     setReview(true)
-    setDemo(true)
-    await say('teach.again.dodo')
-    for (let k = 0; k < ss.length; k++) {
-      if (!alive()) return
-      begin(ss, k)
-      const total = tracker.current!.samples.length - 1
-      await tween(Math.max(700, total * 18), (f) => setProg(Math.round(f * total)), alive, easeInOut)
+    if (!affirmed.current) await say('d.glyph.drew')
+    if (!helped.current) {
+      setDemo(true)
+      for (let k = 0; k < ss.length; k++) {
+        if (!alive()) return
+        begin(ss, k)
+        const total = tracker.current!.samples.length - 1
+        await tween(Math.max(700, total * 18), (f) => setProg(Math.round(f * total)), alive, easeInOut)
+      }
     }
     if (!alive()) return
     setDemo(false)
-    await say(nameKey(ROUNDS[i].big))
+    await say(nameKey(rounds[i].big))
     setReview(false)
+  }
+
+  /** 這一下是不是「畫了一大段卻沒描上」（MESSY_*） */
+  const isMessy = (t: PathTracker, ink: number) => {
+    const n = t.samples.length - 1
+    return t === dragT.current && !t.done && ink >= Math.max(MESSY_INK_MIN, n * 2 * MESSY_INK) && (t.progress - dragFrom.current) / n < MESSY_GAIN
+  }
+
+  /**
+   * 沒描上（T-112）：先肯定他有畫，只用畫面引導，不說 Almost。
+   * 第一次：Nice try!、還沒描的跑道亮兩下、筆從他描到的地方輕輕帶到終點（不出墨），再讓他描。
+   * 第二次：You drew it!，筆帶著描完（helpFinish，記成筆帶著的），往下一輪。
+   */
+  const missed = async () => {
+    idle.poke()
+    misses.current = 0
+    // 這幾秒不要再插「從綠點開始」
+    cheeredAt.current = performance.now()
+    if (++tries.current < MAX_TRIES) {
+      setGlow((g) => g + 1)
+      void say('d.glyph.try')
+      void showAgain()
+      return
+    }
+    busy.current = true
+    setHold(true)
+    idle.stop()
+    clearTimeout(helpTimer.current)
+    affirmed.current = true
+    await say('d.glyph.drew')
+    if (!live.current) return
+    busy.current = false
+    void helpFinish()
   }
 
   /** 這一輪描完（自己描完，或筆帶著描完）：記一筆、慶祝，往下一輪 */
@@ -358,9 +454,10 @@ export function Trace({ letter, from = 0, onRound, onDone }: { letter: LessonLet
     busy.current = true
     setHold(true)
     idle.stop()
-    const g = glyphOf(ROUNDS[i].big)
+    const g = glyphOf(rounds[i].big)
     const off = devs.current.reduce((a, d) => a + d.offRatio, 0) / devs.current.length
-    const ok = off < 0.4 && !helped.current
+    // 熟練照樣嚴格（T-112 只放寬回饋）：自己描完、大部分在跑道裡、中間沒有沒描上的那一次
+    const ok = off < GOOD_OFF && !helped.current && !tries.current
     if (ok) good.current++
     void logAttempt({
       station: 'english',
@@ -376,12 +473,17 @@ export function Trace({ letter, from = 0, onRound, onDone }: { letter: LessonLet
       attempts: 1,
       responseMs: Math.round(performance.now() - t0.current),
       hintUsed: helped.current,
-      metrics: { strokes: cur.current.strokes.length, offRatio: Math.round(off * 100) / 100, ...(helped.current ? { helped: 1 } : {}) },
+      metrics: {
+        strokes: cur.current.strokes.length,
+        offRatio: Math.round(off * 100) / 100,
+        ...(helped.current ? { helped: 1 } : {}),
+        ...(tries.current ? { tries: tries.current } : {}),
+      },
     })
-    // 依描的品質給回饋（T-111，盲測 a35cd5e：畫得再亂都說 Great writing、出彩虹，他看不出對不對）：
-    // - 描得好（大部分在跑道裡、不是筆帶著描完的）：照舊慶祝（A5）——字變彩虹色、跳一下、星星、完成的音效、Great writing!
-    // - 描得亂、筆帶著描完的：平平地帶過——字填成這一輪的顏色（沒有彩虹、星星），輕輕一聲，
-    //   「Let's look again!」筆在字上輕輕再描一次、念出字的名字，然後照樣往下（不要求重描：三歲描不準是正常的，不能讓他受挫、也不拖長）
+    // 依描的品質給回饋（T-111；T-112 放寬，盲測 b637ff7：連兩次被說不對就離開了）：
+    // - 自己描完（照著跑道的順序走完，NEAT_OFF 以內；沒描上一次、重描描完的也算）：彩虹、跳一下、星星、完成的音效、Great writing!（A5）
+    // - 筆帶著描完、描完但大多在跑道外：字填成這一輪的顏色，輕輕一聲，先肯定他有畫（You drew it!），
+    //   筆在字上輕輕再描一次、念出字的名字，然後照樣往下（不要求重描：三歲描不準是正常的，不能讓他受挫、也不拖長）
     const tidy = off < NEAT_OFF && !helped.current
     setNeat(tidy)
     if (tidy) {
@@ -389,11 +491,11 @@ export function Trace({ letter, from = 0, onRound, onDone }: { letter: LessonLet
       await say('d.glyph.done')
     } else {
       sfx.pop()
-      await lookAgain(i)
+      await drewIt(i)
     }
     await wait(PRAISE_TAIL_MS)
     if (!live.current) return
-    if (i + 1 >= ROUNDS.length) return onDone(good.current)
+    if (i + 1 >= rounds.length) return onDone(good.current)
     setR(i + 1)
     void start(i + 1)
   }
@@ -407,6 +509,10 @@ export function Trace({ letter, from = 0, onRound, onDone }: { letter: LessonLet
     setAgain(null)
     moved.current = false
     strayed.current = 0
+    inkLen.current = 0
+    inkLast.current = p
+    dragFrom.current = t.progress
+    dragT.current = t
     // 接著描、描到一半又從起點重新開始、或起點附近吸過去（track.ts 的 penDown）
     const how = t.penDown(p, snapUnits())
     drawing.current = !!how
@@ -427,6 +533,9 @@ export function Trace({ letter, from = 0, onRound, onDone }: { letter: LessonLet
     const t = tracker.current
     if (!t || busy.current || phase.current !== 'turn') return
     idle.poke()
+    // 墨水長度（不管有沒有描上，按得太遠的那一下也算）：放開時判斷是不是畫了一大段卻沒描上
+    if (inkLast.current) inkLen.current += Math.hypot(p.x - inkLast.current.x, p.y - inkLast.current.y)
+    inkLast.current = p
     if (!drawing.current) return
     if (t.feed(p)) {
       moved.current = true
@@ -437,9 +546,9 @@ export function Trace({ letter, from = 0, onRound, onDone }: { letter: LessonLet
         void strokeDone()
       }
     } else if (t.lastDev > LANE * 1.3 && ++strayed.current === STRAY_POINTS) {
-      // 一直畫在跑道外面：圓點彈一下、叫他回到線上
+      // 一直畫在跑道外面：圓點彈一下、還沒描的跑道亮兩下（只用畫面，不說話，T-112）
       bump()
-      cheer('d.glyph.back')
+      setGlow((g) => g + 1)
     }
   }
   /** 描到大部分就放手（LIFT_FINISH）：剩下的一小段很快補滿，接著跟描到底一樣 */
@@ -457,10 +566,23 @@ export function Trace({ letter, from = 0, onRound, onDone }: { letter: LessonLet
 
   const onUp = () => {
     const t = tracker.current
-    if (drawing.current && t && !t.done && t.progress > 0 && !busy.current) {
-      // 描到大部分就放手：算描完（T-101）；描到一半放手：圓點在停下來的地方彈一下（之後綠點一直在那裡閃，ResumeDot），不說話
-      if (t.ratio >= LIFT_FINISH) void fillRest(t)
-      else bump()
+    const len = inkLen.current
+    const was = inkLast.current
+    inkLen.current = 0
+    inkLast.current = null
+    const open = !!t && !t.done && !busy.current && phase.current === 'turn'
+    if (open && drawing.current && t.progress > 0 && t.ratio >= LIFT_FINISH) {
+      // 描到大部分就放手：算描完（T-101）
+      void fillRest(t)
+    } else if (open && was && isMessy(t, len)) {
+      // 畫了一大段卻沒描上：那條線淡掉，Nice try! ＋跑道亮、筆帶一次；第二次就帶著描完往下走（T-112）
+      drawing.current = false
+      moved.current = false
+      ink.current?.fadeLast(200)
+      return void missed()
+    } else if (open && drawing.current && t.progress > 0) {
+      // 描到一半放手：圓點在停下來的地方彈一下（之後綠點一直在那裡閃，ResumeDot），不說話
+      bump()
     }
     drawing.current = false
     if (!moved.current) ink.current?.fadeLast()
@@ -475,6 +597,17 @@ export function Trace({ letter, from = 0, onRound, onDone }: { letter: LessonLet
   const samples = tracker.current?.samples ?? []
   const total = Math.max(1, samples.length - 1)
   const tip = samples[Math.min(prog, samples.length - 1)] ?? st
+
+  /**
+   * 還沒描的那一段跑道亮兩下（T-112，偏離跑道、沒描上的時候只用畫面引導，不說 Almost）：從描到的地方到終點。
+   * 亮兩下用 CSS 動畫（english.css 的 en-trace-glow，只動透明度、播一次就停）；換 key 重新播。暖黃色，跟描好的綠色分得開
+   */
+  const glowLane = (w: number, color: string) =>
+    glow > 0 && (
+      <g key={`glow-${glow}-${w}`} className="en-trace-glow" data-trace-glow="">
+        <path d={strokes[stroke]} fill="none" stroke={color} strokeWidth={w} strokeLinecap="round" strokeLinejoin="round" pathLength={total} strokeDasharray={`0 ${prog} ${total + 5} 0`} />
+      </g>
+    )
 
   return (
     // data-demo、data-accepting：三歲模擬測試看得到「示範中」「還不能畫」（tests/toddler/probe.js 的 teaching()）
@@ -491,7 +624,7 @@ export function Trace({ letter, from = 0, onRound, onDone }: { letter: LessonLet
     >
       {/* 兩輪：大寫、小寫，描好的變成那一輪的顏色。描完、稱讚的時候這一輪就變色，下一輪的格子跳一下（接下來描它，T-110） */}
       <div className="en-trace-rounds" aria-hidden="true">
-        {ROUNDS.map((x, i) => (
+        {rounds.map((x, i) => (
           <span
             key={i}
             className={i < r || (i === r && finished) ? 'is-done' : i === r ? 'is-now' : i === r + 1 && finished ? 'is-now turn-hop' : ''}
@@ -515,6 +648,7 @@ export function Trace({ letter, from = 0, onRound, onDone }: { letter: LessonLet
                   <line x1="2" x2="98" y1={LINES.bottom} y2={LINES.bottom} />
                 </g>
               )}
+              {!done && glowLane(LANE + 14, '#FFEDB0')}
               {/* 畫完（不是示範）：整個字變彩虹色、跳一下 */}
               <g key={cheerTap} className={rainbow ? 'trace-pop' : undefined} data-trace-finished={finished ? '' : undefined} data-trace-neat={finished ? (neat ? '1' : '0') : undefined}>
                 {strokes.map((d, i) => (
@@ -533,6 +667,8 @@ export function Trace({ letter, from = 0, onRound, onDone }: { letter: LessonLet
               </g>
               {!done && (
                 <>
+                  {/* 還沒描的那一段跑道亮兩下（偏離跑道、沒描上的時候，T-112）：跑道中間亮黃，外圈的光暈在跑道下面（glowLane） */}
+                  {glowLane(LANE - 6, '#FFE07A')}
                   <path d={strokes[stroke]} fill="none" stroke={look.lane} strokeWidth={LANE} strokeLinecap="round" strokeLinejoin="round" pathLength={total} strokeDasharray={`${prog} ${total + 5}`} />
                   <path d={strokes[stroke]} fill="none" stroke={look.dash} strokeWidth={1.2} strokeDasharray="3 3" strokeLinecap="round" />
                   {/* 這一筆的起點：一圈光往外擴（每一筆開始時兩次），看得出要從哪裡開始 */}

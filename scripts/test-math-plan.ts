@@ -73,10 +73,12 @@ function main() {
       }
   }
   console.log('ok 6 拿給波波：1～5、不超過教過的、東西比要的多')
-  assert.equal(writeReps(L('new', 3, 3)), 1)
+  // T-112：手寫多一些，新的數字也描兩次；比多少減成兩題來換
+  assert.equal(writeReps(L('new', 3, 3)), 2)
+  for (const l of [L('new', 3, 3), L('review', 3, 3), L('mix', 3, 10)]) assert.equal(compareQs(l).length, 2)
   assert.equal(writeReps(L('review', 3, 3)), 2)
   assert.equal(writeReps(L('mix', 3, 10)), 2)
-  console.log('ok 7 寫數字：新的描一次、複習最多兩次')
+  console.log('ok 7 寫數字：一律描兩次（T-112）；比多少兩題')
   assert.equal(lineUp(3, false), true)
   assert.equal(lineUp(3, true), false)
   assert.equal(lineUp(6, true), true)

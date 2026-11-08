@@ -31,7 +31,7 @@ export interface EnglishProgress {
 }
 
 /** 英文課的段落（index.tsx 的 STEPS） */
-export type LessonStage = 'meet' | 'trace' | 'words' | 'quiz'
+export type LessonStage = 'meet' | 'trace' | 'words' | 'write' | 'quiz'
 
 /** 新帳號的字母順序：孩子的英文名字（只在 .env.local，不進 repo）裡的字母先，沒設就 A→Z */
 export const nameOrder = () => orderFor(env('VITE_CHILD_NAME_EN'))

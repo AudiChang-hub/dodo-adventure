@@ -10,6 +10,7 @@ import { loadAchievements } from './lib/achievements'
 import { startSession } from './lib/session'
 import { installGuards } from './lib/lock'
 import { installFirstGesture } from './lib/boot'
+import { installPress } from './ui/press'
 import { initSync } from './lib/sync'
 import { installPromptCapture } from './lib/install'
 import { initUpdates } from './lib/update'
@@ -26,6 +27,8 @@ if (!import.meta.env.DEV) initAudioCache()
 if (import.meta.env.DEV) import('./lib/nav').then((m) => Object.assign(window, { __go: m.go }))
 installGuards()
 installFirstGesture()
+// 手指一按下就看得到反應（T-112）
+installPress()
 
 // 成就（貼紙本）要在熟練度載入之後：第一次會把已經熟的技能補成貼紙
 // 失敗時交給 index.html 顯示給家長看的說明；卡住不動時那邊也會逾時處理，不會一片白

@@ -13,6 +13,7 @@ import { bridgeKey, zhClip, zhWord } from '../../content/zh-words'
 import { getSettings } from '../../lib/settings'
 import { wordId, type LessonLetter } from './data'
 import { Word } from './Word'
+import { firstFinger } from '../../games/NotYet'
 
 /** 產生好的中文音檔（public/audio/zh/index.json）：沒產生的詞只念英文，不留一段空白 */
 let zhReady: Promise<Set<string>> | null = null
@@ -131,7 +132,13 @@ export function Words({ letter, onDone }: { letter: LessonLetter; onDone: () => 
           type="button"
           className={`en-word-card${lit === i ? ' is-lit' : ''}`}
           aria-label={w.w}
-          onClick={() => void tap(i)}
+          // 手指一按下就有反應（T-112：以前用 click，手指滑一下就被取消）；鍵盤照樣可以按
+          onPointerDown={(e) => {
+            if (firstFinger(e.nativeEvent)) void tap(i)
+          }}
+          onClick={(e) => {
+            if (e.detail === 0) void tap(i)
+          }}
           initial={{ opacity: 0, y: 16 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.45, delay: 0.1 + i * 0.12 }}

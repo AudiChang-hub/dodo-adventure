@@ -115,9 +115,18 @@ ok('T-95 同一天中途離開又回來：從離開的那一段（描字第幾�
   assert.deepEqual(mid.resume, { stage: 'quiz', round: 2, answers })
   // 描字那一段不帶選擇題的結果
   assert.deepEqual(planFor({ idx: 0, seq: ORDER, date: d, done: false, good: false, stage: 'trace', round: 1, answers }, d).resume, { stage: 'trace', round: 1 })
-  // 選擇題的題數固定（4 題），不會因為答錯變多
-  for (let idx = 0; idx < 26; idx++) assert.equal(makeQuiz(lessonLetter(idx), idx).length, 4)
+  // 選擇題的題數固定，不會因為答錯變多（T-112：最多 3 題；第一天沒有以前學過的字母，只問大寫、小寫 2 題）
+  for (let idx = 0; idx < 26; idx++) assert.equal(makeQuiz(lessonLetter(idx), idx).length, idx === 0 ? 2 : 3)
+  for (const first of 'SBA') {
+    const seq = orderFor(first)
+    const day1 = makeQuiz(lessonLetter(0, seq), 0, seq)
+    assert.deepEqual(day1.map((q) => q.kind), ['big', 'little'], `第一天是 ${first}：只問大寫、小寫`)
+  }
+  // 第三題單日問圖、雙日複習以前的字母，兩種都會出現
+  const thirds = Array.from({ length: 25 }, (_, k) => makeQuiz(lessonLetter(k + 1), k + 1)[2])
+  assert.ok(thirds.filter((q) => q.kind === 'word').length >= 10, '單日要有找開頭音的圖')
+  assert.ok(thirds.filter((q, k) => q.kind === 'big' && q.L !== lessonLetter(k + 1).L).length >= 10, '雙日要有複習以前的字母')
 }
-ok('T-104 選擇題答完幾題、結果記下來，同一天回來從下一題接著問；題數固定 4 題')
+ok('T-104、T-112 選擇題答完幾題、結果記下來，同一天回來從下一題接著問；題數固定（第一天 2 題、之後 3 題），不再重複問同一題')
 
 console.log('ALL PASS')
