@@ -5,6 +5,7 @@ import { Hand } from '../games/Demo'
 import { HomeIcon } from '../games/Shell'
 import { useTaps } from '../ui/tap'
 import { sfx } from '../lib/audio'
+import { Sparkles } from '../ui/Sparkles'
 import type { Speaker } from '../content/lines'
 
 /** 多久沒點房子，示範的手在房子上點一下 */
@@ -19,6 +20,8 @@ const BYE_MS = 20_000
  * 不會卡住：一出現就可以點房子（跟首頁的門一樣，按下放開就算）；3 秒沒點，手在房子上點一下給他看；
  * 20 秒都沒碰畫面就自己回首頁。返回鍵也是回首頁（LessonScreen 的 useBack）。
  * 點恐龍（畫面上最吸引他的東西）恐龍跳一下，不會離開（AI 小男生測試：點了沒反應，T-87）。
+ * T-110（盲測 e6ecd05：中文課下課連點 4 次恐龍，覺得沒反應）：跳得高一點、身體壓扁再伸長、頭上冒幾顆星星、彈一聲，
+ * 跳完手在房子上點一下（下一步在那裡）；點空白處（後面淡掉的課）恐龍也一樣跳一下，不會什麼都沒有。
  * 動作只有出現時、被點到時跳一下（MOTION-1/2/3：不循環、不閃）。
  */
 export function LessonBye({ host, onDone }: { host: Speaker; onDone: () => void }) {
@@ -28,6 +31,22 @@ export function LessonBye({ host, onDone }: { host: Speaker; onDone: () => void 
   const [hop, setHop] = useState(0)
   const done = useRef(false)
   const lastTouch = useRef(performance.now())
+  const handTimers = useRef<number[]>([])
+  /** 手在房子上點一下：出來 → 點 → 收起來 */
+  const pointHome = (after: number) => {
+    handTimers.current.forEach(clearTimeout)
+    handTimers.current = [
+      window.setTimeout(() => setHand(1), after),
+      window.setTimeout(() => setHand(2), after + 700),
+      window.setTimeout(() => setHand(0), after + 1700),
+    ]
+  }
+  /** 恐龍跳一下（點恐龍、點空白處都是），跳完手指著房子 */
+  const bounce = () => {
+    sfx.boing()
+    setHop((n) => n + 1)
+    pointHome(600)
+  }
   const finish = () => {
     if (done.current) return
     done.current = true
@@ -36,16 +55,12 @@ export function LessonBye({ host, onDone }: { host: Speaker; onDone: () => void 
 
   useEffect(() => {
     sfx.pop()
-    const h = window.setTimeout(() => setHand(1), HAND_MS)
-    const ht = window.setTimeout(() => setHand(2), HAND_MS + 700)
-    const hh = window.setTimeout(() => setHand(0), HAND_MS + 1700)
+    pointHome(HAND_MS)
     const idle = window.setInterval(() => {
       if (performance.now() - lastTouch.current > BYE_MS) finish()
     }, 1000)
     return () => {
-      clearTimeout(h)
-      clearTimeout(ht)
-      clearTimeout(hh)
+      handTimers.current.forEach(clearTimeout)
       clearInterval(idle)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -54,9 +69,12 @@ export function LessonBye({ host, onDone }: { host: Speaker; onDone: () => void 
   return (
     <div
       className="lesson-bye"
-      onPointerDown={() => {
+      onPointerDown={(e) => {
         lastTouch.current = performance.now()
-        setHand(0)
+        const el = e.target instanceof Element ? e.target : null
+        // 點空白處（後面淡掉的課、恐龍旁邊）：恐龍跳一下；點恐龍、房子各自處理
+        if (!el?.closest('.lb-host, .lb-home')) bounce()
+        else setHand(0)
       }}
     >
       <motion.div
@@ -65,14 +83,22 @@ export function LessonBye({ host, onDone }: { host: Speaker; onDone: () => void 
         initial={{ y: 30, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
         transition={{ type: 'spring', stiffness: 200, damping: 22 }}
-        {...tap('dino', () => {
-          sfx.tap()
-          setHop((n) => n + 1)
-        })}
+        {...tap('dino', bounce)}
       >
-        <motion.div key={hop} animate={hop ? { y: [0, -22, 0] } : undefined} transition={{ duration: 0.45, ease: 'easeOut' }}>
+        <motion.div
+          key={hop}
+          style={{ transformOrigin: '50% 100%' }}
+          // 先壓扁、跳高、在空中伸長、落地再壓一下（一次就停）
+          animate={hop ? { y: [0, 6, -46, 0, 0], scaleY: [1, 0.86, 1.08, 0.92, 1], scaleX: [1, 1.1, 0.95, 1.06, 1] } : undefined}
+          transition={{ duration: 0.7, times: [0, 0.15, 0.5, 0.8, 1], ease: 'easeOut' }}
+        >
           <Dino who={host} mood="cheer" size="100%" />
         </motion.div>
+        {hop > 0 && (
+          <div key={hop} style={{ position: 'absolute', left: '55%', top: '18%', pointerEvents: 'none' }}>
+            <Sparkles count={8} />
+          </div>
+        )}
       </motion.div>
       <motion.button
         className="lb-home turn-hop"

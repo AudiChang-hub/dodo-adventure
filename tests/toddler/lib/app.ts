@@ -63,6 +63,8 @@ export interface Snap {
   voices: number
   speaking: boolean
   cheer: boolean
+  /** 一局結束、慶祝看完，停在作品上等他點大房子（T-110，src/games/PlayGame 的 Resting） */
+  rest: boolean
   overlay: boolean
   bootFail: boolean
   rootEmpty: boolean
@@ -85,6 +87,7 @@ export const snap = (page: Page): Promise<Snap> =>
       voices: T.voices.length,
       speaking: T.voices.some((v) => v.stopped == null && v.end > n),
       cheer: !!document.querySelector('.cheer'),
+      rest: !!document.querySelector('[data-resting]'),
       overlay: !!document.querySelector('.overlay-layer, .gate-backdrop'),
       bootFail: !!document.querySelector('#boot.boot-failed, .boot-failed'),
       rootEmpty: (document.getElementById('root')?.childElementCount ?? 0) === 0,

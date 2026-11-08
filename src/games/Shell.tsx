@@ -17,6 +17,12 @@ import './coplay.css'
  */
 export const Cheering = createContext(false)
 
+/**
+ * 一局結束、慶祝也看完了，停在遊戲畫面上（T-110：畫畫完成後點畫面任何地方都會被帶回首頁，他只是想再看一下自己的畫）：
+ * 有值的時候遊戲要放一顆大房子，點房子才呼叫它回去；點別的地方不離開。PlayGame 給。
+ */
+export const Resting = createContext<(() => void) | null>(null)
+
 /** 現在在玩哪個遊戲（陪玩提示要依遊戲 id 挑）：路由帶著遊戲 id；學校的一堂課沒有 */
 function usePlayingGame(): string | null {
   const r = useRoute()
