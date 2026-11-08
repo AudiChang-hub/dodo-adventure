@@ -80,6 +80,12 @@ async function waitStage(page: Page, want: string, ms = 60_000) {
   return false
 }
 
+/** 單字念完會到「寫寫看」（T-112，自己再描一次大寫）：描完才到選擇題；回傳有沒有走過去 */
+async function passWrite(k: Toddler) {
+  if (!(await waitStage(k.page, 'write', 60_000))) return (await stageOf(k.page)) === 'quiz'
+  return traceRound(k)
+}
+
 /** 描字：等到可以畫，沿著現在這一筆（虛線）從頭描到尾；描完一回合（右邊的 A A a a 多一個綠的）就回傳 */
 async function traceRound(k: Toddler) {
   const page = k.page
@@ -521,6 +527,7 @@ test.describe('英文字母課', () => {
         if (b) await k.tap({ x: b.x + b.width / 2, y: b.y + b.height / 2 }, '單字卡')
         await k.wait(900)
       }
+      await passWrite(k)
       const toQuiz = await waitStage(page, 'quiz', 60_000)
       c.outcome('單字念完到選擇', toQuiz, toQuiz ? '' : `停在 ${await stageOf(page)}`)
       if (!toQuiz) await c.once('words-stuck', '卡死', '單字念完沒有往下走到選擇', `停在 ${await stageOf(page)}`)
@@ -723,6 +730,7 @@ test.describe('英文字母課', () => {
           }),
       )
       if (!(await enter(k, c))) return
+      await passWrite(k)
       const toQuiz = await waitStage(page, 'quiz', 60_000)
       c.outcome('從單字走到選擇題', toQuiz, toQuiz ? '' : `停在 ${await stageOf(page)}`)
       if (!toQuiz) return void (await c.once('to-quiz', '卡死', '單字念完沒有往下走到選擇', `停在 ${await stageOf(page)}`))
@@ -823,6 +831,7 @@ test.describe('英文字母課', () => {
       k.behavior = '從單字接著上'
       await seedEnglish(page, { stage: 'words' })
       if (!(await enter(k, c))) return
+      await passWrite(k)
       const toQuiz = await waitStage(page, 'quiz', 60_000)
       if (!toQuiz) return void (await c.once('to-quiz', '卡死', '單字念完沒有往下走到選擇', `停在 ${await stageOf(page)}`))
       k.behavior = '只點大的'

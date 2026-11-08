@@ -26,16 +26,30 @@ const VIEW_H = 140
 const LOOKS = {
   green: { rim: '#CFE3D6', lane: '#8FCBAA', dot: '#4E9A72', dash: '#9DB5A6', tag: '#4E9A72' },
   blue: { rim: '#D3E2F1', lane: '#9DC2E5', dot: '#4E9A72', dash: '#9AB0C6', tag: '#3E7DB6' },
+  /** 寫寫看（T-112，單字之後自己再描一次）：換一個暖色，看得出是新的一段 */
+  coral: { rim: '#F5DCD3', lane: '#F2AE9C', dot: '#4E9A72', dash: '#C9A297', tag: '#C8604A' },
 } as const
 
 /**
  * 描字的回合（A5，全球幼教指引：3～4 歲描字只示範、不求多）：大寫一次、小寫一次，每一次都先示範、描完就慶祝。
  * 以前是大寫兩次、小寫兩次，AI 小男生每次到第二遍就無聊、按返回。兩輪換顏色，看得出是新的一輪。
  */
-const ROUNDS: { big: boolean; demo: boolean; look: keyof typeof LOOKS }[] = [
+export interface TraceRound {
+  big: boolean
+  demo: boolean
+  look: keyof typeof LOOKS
+}
+const ROUNDS: TraceRound[] = [
   { big: true, demo: true, look: 'green' },
   { big: false, demo: true, look: 'blue' },
 ]
+
+/**
+ * 寫寫看（T-112，家長：「手寫的比例可以多一些」）：單字之後、選擇題之前，自己再描一次大寫。
+ * 前面描字段已經看過兩次示範，這一次不示範，只說 Big S! Start at the green dot! Go this way!；換暖色，看得出是新的一段。
+ * 回饋、沒描上的處理跟描字段一樣（寬鬆、正面，最多重試一次就往下）。
+ */
+export const WRITE_ROUNDS: TraceRound[] = [{ big: true, demo: false, look: 'coral' }]
 
 /** 描完的稱讚念完之後再停多久就換下一輪（T-110：以前 450 ms，他覺得要等很久） */
 const PRAISE_TAIL_MS = 200
@@ -102,9 +116,22 @@ function strokeStart(d: string) {
  *   - 還剩哪一段（T-106）：描到一半，還沒描的跑道輕輕亮、小點往終點流（RestGuide），終點有星星，描過一半輕輕晃（GoalStar）。
  * from：同一天回來接著上時，從第幾輪開始（大寫描過了就只描小寫）；onRound 每一輪開始時告訴外面（記下接續點）。
  */
-export function Trace({ letter, from = 0, onRound, onDone }: { letter: LessonLetter; from?: number; onRound?: (round: number) => void; onDone: (good: number) => void }) {
+export function Trace({
+  letter,
+  rounds = ROUNDS,
+  from = 0,
+  onRound,
+  onDone,
+}: {
+  letter: LessonLetter
+  /** 這一段描哪幾輪（描字段：大寫、小寫；寫寫看：大寫一輪、不示範） */
+  rounds?: TraceRound[]
+  from?: number
+  onRound?: (round: number) => void
+  onDone: (good: number) => void
+}) {
   const [r, setR] = useState(from)
-  const round = ROUNDS[r]
+  const round = rounds[r]
   const look = LOOKS[round.look]
   const strokes = round.big ? letter.upper : letter.lower
   const [stroke, setStroke] = useState(0)
@@ -297,7 +324,7 @@ export function Trace({ letter, from = 0, onRound, onDone }: { letter: LessonLet
   }
 
   const start = async (i: number) => {
-    const rd = ROUNDS[i]
+    const rd = rounds[i]
     clearTimeout(helpTimer.current)
     helped.current = false
     tries.current = 0
@@ -367,7 +394,7 @@ export function Trace({ letter, from = 0, onRound, onDone }: { letter: LessonLet
    * 這一段不能搶（busy）；點描字板只有輕輕一聲（不會卡住、不會多記一筆）
    */
   const drewIt = async (i: number) => {
-    const ss = ROUNDS[i].big ? letter.upper : letter.lower
+    const ss = rounds[i].big ? letter.upper : letter.lower
     const alive = () => live.current
     setReview(true)
     if (!affirmed.current) await say('d.glyph.drew')
@@ -382,7 +409,7 @@ export function Trace({ letter, from = 0, onRound, onDone }: { letter: LessonLet
     }
     if (!alive()) return
     setDemo(false)
-    await say(nameKey(ROUNDS[i].big))
+    await say(nameKey(rounds[i].big))
     setReview(false)
   }
 
@@ -427,7 +454,7 @@ export function Trace({ letter, from = 0, onRound, onDone }: { letter: LessonLet
     busy.current = true
     setHold(true)
     idle.stop()
-    const g = glyphOf(ROUNDS[i].big)
+    const g = glyphOf(rounds[i].big)
     const off = devs.current.reduce((a, d) => a + d.offRatio, 0) / devs.current.length
     // 熟練照樣嚴格（T-112 只放寬回饋）：自己描完、大部分在跑道裡、中間沒有沒描上的那一次
     const ok = off < GOOD_OFF && !helped.current && !tries.current
@@ -468,7 +495,7 @@ export function Trace({ letter, from = 0, onRound, onDone }: { letter: LessonLet
     }
     await wait(PRAISE_TAIL_MS)
     if (!live.current) return
-    if (i + 1 >= ROUNDS.length) return onDone(good.current)
+    if (i + 1 >= rounds.length) return onDone(good.current)
     setR(i + 1)
     void start(i + 1)
   }
@@ -597,7 +624,7 @@ export function Trace({ letter, from = 0, onRound, onDone }: { letter: LessonLet
     >
       {/* 兩輪：大寫、小寫，描好的變成那一輪的顏色。描完、稱讚的時候這一輪就變色，下一輪的格子跳一下（接下來描它，T-110） */}
       <div className="en-trace-rounds" aria-hidden="true">
-        {ROUNDS.map((x, i) => (
+        {rounds.map((x, i) => (
           <span
             key={i}
             className={i < r || (i === r && finished) ? 'is-done' : i === r ? 'is-now' : i === r + 1 && finished ? 'is-now turn-hop' : ''}
