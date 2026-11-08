@@ -213,6 +213,15 @@
   box-shadow: 0 6px 0 #8fc0a2;
   animation: ma-give-done 520ms cubic-bezier(0.34, 1.56, 0.64, 1);
 }
+/* 道謝說完、換下一段之前（T-110）：勾勾淡掉、縮一點，下一段的教學卡出來時那裡已經沒有可以再按的勾勾 */
+.ma-give-done.is-done.is-gone {
+  opacity: 0;
+  scale: 0.8;
+  pointer-events: none;
+  transition:
+    opacity 0.3s var(--ease-out),
+    scale 0.3s var(--ease-out);
+}
 /* 沒聽完就交、改過才對（T-109）：勾勾變綠就好，不跳 */
 .ma-give-done.is-done.is-plain {
   animation: none;

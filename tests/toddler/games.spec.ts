@@ -54,6 +54,28 @@ for (const g of selected()) {
           if (!(await enterGame(k, c, g))) break
           continue
         }
+        if (s.rest) {
+          // 慶祝看完、停在作品上（T-110）：先點一下畫紙（不該離開），再點大房子回去
+          k.behavior = '停在作品上'
+          const at = (sel: string) =>
+            page.evaluate((sel) => {
+              const r = document.querySelector(sel)?.getBoundingClientRect()
+              return r ? { x: r.left + r.width / 2, y: r.top + r.height / 2 } : null
+            }, sel)
+          const paper = await at('.tool-room')
+          if (paper) await k.tap(paper, '作品')
+          await k.wait(800)
+          const stay = await snap(page)
+          c.outcome('停在作品上點畫紙不會離開', stay.live === `play-${g.id}` && stay.rest, `點畫紙後在 ${stay.live}`)
+          if (stay.live !== `play-${g.id}`) await c.once('rest-stay', '困惑', '停在作品上點畫紙就被帶走了', `到 ${stay.live}`)
+          const house = await at('[data-resting] .draw-home')
+          if (house) await k.tap({ ...house, nav: true }, '大房子')
+          const live = await waitLive(page, (l) => l === 'home', 4000)
+          c.outcome('停在作品上點房子 → 首頁', live === 'home', `到 ${live}`)
+          if (live !== 'home') await c.once('rest-home', '無法返回', '停在作品上點大房子沒有回首頁', `停在 ${live}`)
+          k.behavior = '亂玩'
+          continue
+        }
         if (s.cheer && !cheerSeen) {
           cheerSeen = true
           // 慶祝中按首頁
@@ -172,6 +194,6 @@ for (const g of selected()) {
 /** 確定在遊戲裡（玩完了、被帶走就再進去） */
 async function ensureIn(k: Toddler, c: Checker, g: (typeof import('./catalog'))['GAMES'][number]) {
   const s = await snap(k.page)
-  if (s.live === `play-${g.id}` && !s.cheer) return true
+  if (s.live === `play-${g.id}` && !s.cheer && !s.rest) return true
   return enterGame(k, c, g)
 }

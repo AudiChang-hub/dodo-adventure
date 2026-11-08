@@ -54,6 +54,17 @@
     transform 0.25s var(--ease-out),
     box-shadow 0.25s var(--ease-out);
 }
+/* 可點範圍比看到的格子大一圈（準則 TOUCH-1：≥ 10 px）：往外延伸到格子間距的一半（至少 10 px），
+   格子之間、格子和畫紙之間不再有點了沒反應的縫，點歪一點就選到最近的那一格。
+   T-110（盲測 e6ecd05 畫畫第 9 步）：1280×800 手指落在粉紅色左邊 7 px、上面 4 px（1053,644），以前是空白處、沒有任何回應。
+   延伸的範圍不會蓋到畫紙：兩欄時畫紙和格子之間至少 26 px、三欄時至少 38 px（1280×800、1200×786、1100×620、1000×560 量過） */
+.tool::before {
+  content: '';
+  position: absolute;
+  inset: calc(-1 * max(10px, var(--tool-gap, 34px) / 2));
+  /* 圓角小一點：斜角點歪（盲測那一下就是左上角外面）也算 */
+  border-radius: 12px;
+}
 /* 選到的那一個：粗外框、靜態放大一點點（≤ 1.1 倍，DRAW-5） */
 .tool.on {
   transform: scale(1.08);
@@ -113,4 +124,45 @@
   40% {
     transform: scale(0.92);
   }
+}
+
+/* 畫完、慶祝完，停在作品上（T-110）：工具收起來，同一欄的正中間換成一顆大房子，點了才回首頁。
+   跟下課畫面的房子（lessons.css 的 .lb-home）同一種圓鈕；在畫面中段，不在最下面 2 cm（TOUCH-5） */
+.draw-home-col {
+  position: absolute;
+  right: 14px;
+  top: 0;
+  bottom: 4%;
+  width: calc(2 * 92px + 34px);
+  z-index: 3;
+  display: grid;
+  place-items: center;
+}
+.draw-home {
+  position: relative;
+  width: clamp(140px, 22vmin, 196px);
+  aspect-ratio: 1;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: var(--card, #fbf8f2);
+  box-shadow:
+    0 7px 0 var(--paper-edge, #e6dccb),
+    0 0 0 10px rgba(241, 210, 124, 0.45),
+    0 22px 34px -20px rgba(46, 42, 37, 0.35);
+  touch-action: manipulation;
+}
+.draw-home > svg {
+  width: 58%;
+  height: auto;
+}
+.draw-home:active {
+  box-shadow:
+    0 2px 0 var(--paper-edge, #e6dccb),
+    0 0 0 10px rgba(241, 210, 124, 0.45);
+}
+.draw-home-hand {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
 }

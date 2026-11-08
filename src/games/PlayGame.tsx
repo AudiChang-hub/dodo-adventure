@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type ReactElement } from 'react'
 import { game } from '../content/games'
-import { Cheering, type GameProps, type GameResult } from './Shell'
+import { Cheering, Resting, type GameProps, type GameResult } from './Shell'
 import { Celebrate } from '../ui/Celebrate'
 import { beginRound, endRound, type RoundSummary } from '../lib/achievements'
 import { useBack } from '../lib/nav'
@@ -22,6 +22,11 @@ export function PlayGame(props: GameProps) {
   // 成就感：在遊戲自己的 markPlayed 之前記下開局的難度；結束時先回顧這一局、慶祝里程碑，再交回去
   useState(() => beginRound(g.id))
   const [cheer, setCheer] = useState<{ r: GameResult; s: RoundSummary } | null>(null)
+  /**
+   * 慶祝看完了：停在遊戲畫面上（作品還在），遊戲放一顆大房子，點房子才交回去（T-110）。
+   * 以前慶祝一結束（或點一下跳過）就回首頁：孩子點畫上的星星想再看一下，就被帶走了。
+   */
+  const [rest, setRest] = useState(false)
   const ended = useRef(false)
   /** 已經交回去了（站點或冒險的下一段）：只交一次，慶祝自己結束和返回鍵不會各交一次 */
   const handed = useRef(false)
@@ -34,11 +39,12 @@ export function PlayGame(props: GameProps) {
     if (ended.current) return
     ended.current = true
     const s = endRound(g.id)
-    if (!s.things.length && !s.milestones.length) return finish(r)
     setCheer({ r, s })
+    // 沒有東西可以回顧：不蓋慶祝，直接停在作品上等他點房子
+    if (!s.things.length && !s.milestones.length) setRest(true)
   }
   /**
-   * 返回（返回鍵、Android 的返回手勢）：玩到一半就回上一層，已經答的題目都記下了（logAttempt 每題當下就寫）。
+   * 返回（返回鍵、Android 的返回手勢、停下來時的大房子）：玩到一半就回上一層，已經答的題目都記下了（logAttempt 每題當下就寫）。
    * 慶祝中返回當作看完慶祝：這一局照樣算完成，不會因為返回少一站。已經交回去了就交給外層（冒險）處理。
    * 慶祝蓋著遊戲時，返回鍵還是在遮罩上面（Shell 讀 Cheering），點一下就離開，不是只跳過這一段慶祝。
    */
@@ -57,9 +63,11 @@ export function PlayGame(props: GameProps) {
   }, [])
   if (!C) return null
   return (
-    <Cheering.Provider value={!!cheer}>
-      <C key={g.id} {...props} gameId={g.id} onDone={onDone} onExit={exit} />
-      {cheer && <Celebrate summary={cheer.s} onDone={() => finish(cheer.r)} />}
+    <Cheering.Provider value={!!cheer && !rest}>
+      <Resting.Provider value={rest ? () => void exit() : null}>
+        <C key={g.id} {...props} gameId={g.id} onDone={onDone} onExit={exit} />
+      </Resting.Provider>
+      {cheer && !rest && <Celebrate summary={cheer.s} onDone={() => setRest(true)} />}
     </Cheering.Provider>
   )
 }

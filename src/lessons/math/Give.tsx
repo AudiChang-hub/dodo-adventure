@@ -53,6 +53,8 @@ export function GivePart({ ctx }: { ctx: PartCtx }) {
   const [hand, setHand] = useState<{ x: number; y: number; tap: number } | null>(null)
   /** 交出去了：full＝聽完才答、一次就對（勾勾跳一下）；plain＝平平的（勾勾變綠、不跳，T-109） */
   const [glad, setGlad] = useState<false | 'full' | 'plain'>(false)
+  /** 道謝說完、要換下一段了：交出去的勾勾淡掉（T-110） */
+  const [gone, setGone] = useState(false)
   const [want, setWant] = useState(0)
   /** 左邊的東西出來了沒（T-109）：波波開始說要幾個、或孩子搶點的時候 */
   const [things, setThings] = useState(false)
@@ -267,6 +269,10 @@ export function GivePart({ ctx }: { ctx: PartCtx }) {
     setGlad(full ? 'full' : 'plain')
     // 「There is one! Yum! Thank you!」就是稱讚，不再多一句 Yes!：按完打勾到下一段能動手要快（盲測三次都說「好久喔」）
     await say(...(full ? [`m.total.${n}`, 'ma.give.thanks'] : [`m.total.${n}`]))
+    // 道謝說完，綠色勾勾先淡掉再換下一段（T-110，盲測 e6ecd05 數學第 6、7 步）：
+    // 勾勾一直亮著，他以為還要再按一次；下一段的教學卡（整張卡就是「再聽一次」）剛好蓋在勾勾的位置，
+    // 那一下就點到教學卡、把波波正在講的教學句搶掉了。勾勾不在了，就不會對著原來的位置再按。
+    setGone(true)
     // 道謝念了 4 秒，打勾跳一下、盤子亮起來早就看完了：用短的停頓接下一段（教學卡本身的節奏不動）
     await wait(PACE.NEXT_REVIEW)
     // 沒聽完就交的（猜的）不算進「錯很多隔天重上」（T-109）
@@ -351,7 +357,7 @@ export function GivePart({ ctx }: { ctx: PartCtx }) {
         )
       })}
       {/* 答對：勾勾變成實心綠色、跳一下，在波波道謝的這段時間佔住這個位置（不能按，下一段的東西也還沒來；T-104） */}
-      <button type="button" className={`ma-give-done${glad ? ` is-done${glad === 'plain' ? ' is-plain' : ''}` : !hold && plate.length > 0 ? ' on' : ''}`} style={{ left: `${DONE.x}%`, top: `${DONE.y}%` }} aria-label="好了，交給波波" onPointerDown={(e) => firstFinger(e.nativeEvent) && check()}>
+      <button type="button" className={`ma-give-done${glad ? ` is-done${glad === 'plain' ? ' is-plain' : ''}${gone ? ' is-gone' : ''}` : !hold && plate.length > 0 ? ' on' : ''}`} style={{ left: `${DONE.x}%`, top: `${DONE.y}%` }} aria-label="好了，交給波波" onPointerDown={(e) => firstFinger(e.nativeEvent) && check()}>
         <svg viewBox="0 0 48 48" aria-hidden="true">
           <path d="M12 25 L21 34 L37 15" fill="none" stroke="currentColor" strokeWidth={6} strokeLinecap="round" strokeLinejoin="round" />
         </svg>

@@ -37,6 +37,9 @@ const ROUNDS: { big: boolean; demo: boolean; look: keyof typeof LOOKS }[] = [
   { big: false, demo: true, look: 'blue' },
 ]
 
+/** 描完的稱讚念完之後再停多久就換下一輪（T-110：以前 450 ms，他覺得要等很久） */
+const PRAISE_TAIL_MS = 200
+
 /** 鼓勵的話最少隔多久說一次（不要一直講） */
 const CHEER_GAP_MS = 5000
 /** 偏離路徑多少點才提醒（偶爾手抖不算） */
@@ -65,6 +68,9 @@ function strokeStart(d: string) {
  *   - 下一筆的起點有一圈光往外擴，看得出要從哪裡開始；
  *   - 10 秒沒動：筆從現在描到的地方往後描一次（不出墨、不說話）；再 15 秒說一次「從綠點開始」；
  *   - 畫完：字變彩虹色、跳一下、星星（TraceFx 的 RainbowDef），不靠語言就看得出「好了」，然後自己往下走；
+ *     稱讚（Great writing!）的時候（T-110，盲測 e6ecd05：他不知道要等，去點別的）：右邊這一輪的格子馬上變成描好的顏色、
+ *     下一輪的格子跳一下（接下來描它）；這時候點描字板，彩虹字再跳一下、彈一聲（不會卡住、不會多記一筆）；
+ *     稱讚念完只再停 0.2 秒就換下一輪（以前 0.45 秒）。作答紀錄在稱讚之前就記好了；稱讚本身照 T-108 不能搶；
  *   - 輪到他描 45 秒還沒描完（HELP_MS）：筆帶著把剩下的描完、照樣慶祝（不算自己描好）；
  *   - 描到這一筆的 60% 以上就放手（LIFT_FINISH，T-101、T-106）：剩下的一段補滿，算他描完（照常慶祝、往下走）；
  *   - 還剩哪一段（T-106）：描到一半，還沒描的跑道輕輕亮、小點往終點流（RestGuide），終點有星星，描過一半輕輕晃（GoalStar）。
@@ -81,6 +87,8 @@ export function Trace({ letter, from = 0, onRound, onDone }: { letter: LessonLet
   const [demo, setDemo] = useState(false)
   const [hold, setHold] = useState(true)
   const [again, setAgain] = useState<number | null>(null)
+  /** 稱讚的時候點了描字板：彩虹字再跳一下（每點一次加一） */
+  const [cheerTap, setCheerTap] = useState(0)
   /** 圓點彈一下（在哪裡、第幾次） */
   const [bounce, setBounce] = useState<{ at: P2; n: number } | null>(null)
   /** 吸附：手指按在哪裡（虛線從那裡連到起點） */
@@ -337,7 +345,7 @@ export function Trace({ letter, from = 0, onRound, onDone }: { letter: LessonLet
     // 描完一次就慶祝（A5）：字變彩虹色、跳一下、星星（畫面在下面），加上完成的音效
     sfx.done()
     await say('d.glyph.done')
-    await wait(450)
+    await wait(PRAISE_TAIL_MS)
     if (!live.current) return
     if (i + 1 >= ROUNDS.length) return onDone(good.current)
     setR(i + 1)
@@ -413,6 +421,8 @@ export function Trace({ letter, from = 0, onRound, onDone }: { letter: LessonLet
     moved.current = false
   }
 
+  /** 這一輪描完了（不是筆的示範畫完）：彩虹字、稱讚的時候 */
+  const finished = done && !demo
   const st = strokeStart(strokes[stroke])
   const samples = tracker.current?.samples ?? []
   const total = Math.max(1, samples.length - 1)
@@ -420,11 +430,25 @@ export function Trace({ letter, from = 0, onRound, onDone }: { letter: LessonLet
 
   return (
     // data-demo、data-accepting：三歲模擬測試看得到「示範中」「還不能畫」（tests/toddler/probe.js 的 teaching()）
-    <div className="en-trace" data-demo={demo ? '1' : undefined} data-accepting={hold ? 'false' : undefined}>
-      {/* 兩輪：大寫、小寫，描好的變成那一輪的顏色 */}
+    <div
+      className="en-trace"
+      data-demo={demo ? '1' : undefined}
+      data-accepting={hold ? 'false' : undefined}
+      onPointerDown={() => {
+        // 描完、稱讚的時候碰畫面：彩虹字再跳一下（溫和的回應，不會卡住，也不會多記一筆）
+        if (!finished) return
+        sfx.tap()
+        setCheerTap((n) => n + 1)
+      }}
+    >
+      {/* 兩輪：大寫、小寫，描好的變成那一輪的顏色。描完、稱讚的時候這一輪就變色，下一輪的格子跳一下（接下來描它，T-110） */}
       <div className="en-trace-rounds" aria-hidden="true">
         {ROUNDS.map((x, i) => (
-          <span key={i} className={i < r ? 'is-done' : i === r ? 'is-now' : ''} style={{ '--round': LOOKS[x.look].tag } as CSSProperties}>
+          <span
+            key={i}
+            className={i < r || (i === r && finished) ? 'is-done' : i === r ? 'is-now' : i === r + 1 && finished ? 'is-now turn-hop' : ''}
+            style={{ '--round': LOOKS[x.look].tag } as CSSProperties}
+          >
             {x.big ? letter.L : letter.l}
           </span>
         ))}
@@ -444,7 +468,7 @@ export function Trace({ letter, from = 0, onRound, onDone }: { letter: LessonLet
                 </g>
               )}
               {/* 畫完（不是示範）：整個字變彩虹色、跳一下 */}
-              <g className={done && !demo ? 'trace-pop' : undefined} data-trace-finished={done && !demo ? '' : undefined}>
+              <g key={cheerTap} className={finished ? 'trace-pop' : undefined} data-trace-finished={finished ? '' : undefined}>
                 {strokes.map((d, i) => (
                   <g key={i}>
                     <path d={d} fill="none" stroke={look.rim} strokeWidth={LANE + 3} strokeLinecap="round" strokeLinejoin="round" />
