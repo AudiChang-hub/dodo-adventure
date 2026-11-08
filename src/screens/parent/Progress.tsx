@@ -3,6 +3,9 @@ import { getKV, phaseOf, type Attempt } from '../../lib/db'
 import { mastery, recentRate, type Mastery } from '../../lib/readiness'
 import { listenLine, listenStats, type ListenLesson, type ListenRow } from '../../lib/listen-report'
 import { HEARD_MIN_RIGHT, HEARD_WINDOW } from '../../lib/heard'
+import { afterChecks, confirmed, useChecks } from '../../lib/parent-check'
+import { listenItem } from '../../lib/listen-report'
+import './check.css'
 import type { ParentData } from './data'
 import './next.css'
 
@@ -14,10 +17,11 @@ type State = 'ok' | 'learning' | 'none'
 const stateOf = (m: Mastery): State => (m.ok ? 'ok' : m.recent ? 'learning' : 'none')
 
 /** 一格：熟練打勾；練習中寫最近幾題對幾題；還沒開始是淡的。滑過去（長按）看還差什麼 */
-function Cell({ label, m }: { label: string; m: Mastery }) {
+function Cell({ label, m, parent }: { label: string; m: Mastery; parent?: boolean }) {
   const s = stateOf(m)
+  const tip = s === 'ok' ? '熟練了' : s === 'learning' ? `還差：${m.need}` : '還沒開始'
   return (
-    <div className={`mcell is-${s}`} title={s === 'ok' ? '熟練了' : s === 'learning' ? `還差：${m.need}` : '還沒開始'}>
+    <div className={`mcell is-${s}${parent ? ' is-parent' : ''}`} title={parent ? `${tip}（家長確認過他會）` : tip}>
       <b>{label}</b>
       <small>{s === 'ok' ? '✓' : s === 'learning' ? `${m.right}/${m.recent}` : '·'}</small>
     </div>
@@ -25,7 +29,7 @@ function Cell({ label, m }: { label: string; m: Mastery }) {
 }
 
 /** 一排 1～10、A～Z 的格子 */
-function Row({ title, cells }: { title: string; cells: { label: string; m: Mastery }[] }) {
+function Row({ title, cells }: { title: string; cells: { label: string; m: Mastery; parent?: boolean }[] }) {
   const ok = cells.filter((c) => c.m.ok).length
   return (
     <div className="mrow">
@@ -45,6 +49,19 @@ function Row({ title, cells }: { title: string; cells: { label: string; m: Maste
 }
 
 const pct = (r: { n: number; right: number }) => (r.n ? `${Math.round((100 * r.right) / r.n)}%` : '—')
+
+/** 技能屬於數學課的哪一個遊戲（家長確認過的列表用） */
+const gameOf = (skill: string) => ({ compare: 'm-compare', num: 'm-find', count: 'm-match', give: 'm-give' })[skill.split(':')[0]] ?? ''
+
+/** 家長在「真的學會了嗎？」按過「他會」的（T-109） */
+function Confirmed({ labels }: { labels: string[] }) {
+  if (!labels.length) return null
+  return (
+    <p className="mline mline-parent">
+      家長確認過他會：<b>{labels.join('、')}</b>
+    </p>
+  )
+}
 
 /** 聽完才答看幾天 */
 const LISTEN_DAYS = 14
@@ -121,7 +138,13 @@ const traced = (attempts: readonly Attempt[], skill: string) => attempts.some((a
  * 三選一以上、第一次就答對，最近 10 題至少對 8 題、分在 3 天以上、隔兩天再考還記得。
  */
 export function Progress({ d }: { d: ParentData }) {
-  const A = d.attempts
+  // 家長按過「還不會」的概念：熟練只看那之後的作答（T-109，真的學會了嗎？）
+  const checks = useChecks()
+  const A = useMemo(() => afterChecks(d.attempts, checks), [d.attempts, checks])
+  const ok = new Set(confirmed(checks))
+  /** 家長確認過的（找 S 開頭的圖、比多少… 沒有格子的也列出來） */
+  const okLabels = (lesson: 'english' | 'math') =>
+    [...ok].map((k) => listenItem({ skill: k, game: k.startsWith('letter:') || k.startsWith('phonics:') ? 'lesson-en' : gameOf(k) })).filter((x) => x?.lesson === lesson).map((x) => x!.label)
   const m = useMemo(() => {
     const cache = new Map<string, Mastery>()
     return (skill: string) => cache.get(skill) ?? (cache.set(skill, mastery(A, skill)), cache.get(skill)!)
@@ -145,6 +168,7 @@ export function Progress({ d }: { d: ParentData }) {
         三堂課學到哪裡。<span className="mlegend is-ok">✓ 熟練</span>
         <span className="mlegend is-learning">8/10 練習中（最近幾題對幾題）</span>
         <span className="mlegend is-none">· 還沒開始</span>
+        <span className="mlegend is-parent">家長確認過</span>
         熟練要三選一以上、第一次就答對，最近 10 題至少對 8 題、分在 3 天以上、隔兩天再考還記得。滑過格子（手機長按）看還差什麼。
       </p>
       <p className="sub listen-legend">
@@ -157,29 +181,31 @@ export function Progress({ d }: { d: ParentData }) {
 
       <div className="card">
         <h3>英文字母</h3>
-        <Row title="認大寫" cells={LETTERS.map((L) => ({ label: L, m: m(`letter:${L}`) }))} />
-        <Row title="認小寫" cells={LETTERS.map((L) => ({ label: L.toLowerCase(), m: m(`letter:${L.toLowerCase()}`) }))} />
+        <Row title="認大寫" cells={LETTERS.map((L) => ({ label: L, m: m(`letter:${L}`), parent: ok.has(`letter:${L}`) }))} />
+        <Row title="認小寫" cells={LETTERS.map((L) => ({ label: L.toLowerCase(), m: m(`letter:${L.toLowerCase()}`), parent: ok.has(`letter:${L.toLowerCase()}`) }))} />
         <p className="mline">
           「哪個是 A 開頭」的單字選圖：最近 {words.n} 題第一次就對 <b>{pct(words)}</b>
         </p>
         <p className="mline">描過的字母：{writtenL.length ? writtenL.join(' ') : <span className="empty">還沒有</span>}</p>
-        <Listen A={A} lesson="english" />
+        <Confirmed labels={okLabels('english')} />
+        <Listen A={d.attempts} lesson="english" />
       </div>
 
       <div className="card">
         <h3>數學數字</h3>
-        <Row title="有幾個（數數）" cells={NUMBERS.map((n) => ({ label: String(n), m: m(`count:${n}`) }))} />
-        <Row title="找數字" cells={NUMBERS.map((n) => ({ label: String(n), m: m(`num:${n}`) }))} />
-        <Row title="拿給波波" cells={NUMBERS.map((n) => ({ label: String(n), m: m(`give:${n}`) }))} />
+        <Row title="有幾個（數數）" cells={NUMBERS.map((n) => ({ label: String(n), m: m(`count:${n}`), parent: ok.has(`count:${n}`) }))} />
+        <Row title="找數字" cells={NUMBERS.map((n) => ({ label: String(n), m: m(`num:${n}`), parent: ok.has(`num:${n}`) }))} />
+        <Row title="拿給波波" cells={NUMBERS.map((n) => ({ label: String(n), m: m(`give:${n}`), parent: ok.has(`give:${n}`) }))} />
         <Row
           title="比多少（只有兩邊可以選，要 10 題對 9 題）"
           cells={[
-            { label: '多', m: m('compare:more') },
-            { label: '少', m: m('compare:less') },
+            { label: '多', m: m('compare:more'), parent: ok.has('compare:more') },
+            { label: '少', m: m('compare:less'), parent: ok.has('compare:less') },
           ]}
         />
         <p className="mline">寫過的數字：{writtenN.length ? writtenN.join(' ') : <span className="empty">還沒有</span>}</p>
-        <Listen A={A} lesson="math" />
+        <Confirmed labels={okLabels('math')} />
+        <Listen A={d.attempts} lesson="math" />
       </div>
 
       <div className="card">

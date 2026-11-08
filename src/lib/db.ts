@@ -80,6 +80,8 @@ export interface Skill {
    * 有這一欄的技能，熟練要再加上「最近 5 次聽完才答對 4 次以上」；T-109 之前的舊資料、不用聽的題目沒有，照盒子判斷
    */
   heard?: number[]
+  /** 家長在「真的學會了嗎？」按「還不會」、這個技能已經退回練習的那一次（lib/parent-check.ts 的 Check.at） */
+  checkedAt?: number
 }
 
 /** 程度校準（第一次玩的 2–3 題探測）的一題 */

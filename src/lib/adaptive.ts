@@ -137,6 +137,27 @@ export function recordSkill(key: string, firstTry: boolean, info?: SkillInput) {
  * 熟了沒：盒子 3 格以上；要聽懂才答得出來的題目（有聽完才答的紀錄）還要最近 5 次聽完才答對 4 次以上（T-109，lib/heard.ts），
  * 免得 2 選 1 亂點連對 3 次就算熟。
  */
+/**
+ * 家長在「真的學會了嗎？」按「還不會」（lib/parent-check.ts）：這個技能退回練習——盒子退到 1 格、聽完才答的紀錄清掉、
+ * 不排到期複習。每一個決定只退一次（checkedAt），之後照常練、照新規則再熟練。
+ */
+export function applyChecks(checks: Readonly<Record<string, { ok: boolean; at: number }>>) {
+  for (const [key, c] of Object.entries(checks)) {
+    if (c.ok) continue
+    const s = { ...skill(key) }
+    if ((s.checkedAt ?? 0) >= c.at) continue
+    s.box = Math.min(s.box, 1)
+    s.heard = []
+    s.streak = 0
+    s.checkedAt = c.at
+    delete s.rev
+    delete s.due
+    skills.set(key, s)
+    skillsVer++
+    void db.skills.put(s).catch(() => {})
+  }
+}
+
 export const mastered = (key: string) => {
   const s = skill(key)
   return s.box >= MASTERED_BOX && heardFirm(s.heard)

@@ -8,6 +8,7 @@ import { keywordWords } from '../src/content/keywords'
 import type { Attempt } from '../src/lib/db'
 import { GUESS_CEILING, HEARD_WINDOW, KeywordClock, choicesOf, guessTail, heardFirm, heardNeed, keywordEnd, pushHeard } from '../src/lib/heard'
 import { listenLine, listenStats } from '../src/lib/listen-report'
+import { afterChecks, askFor, checkCards, heardMastered, mergeChecks } from '../src/lib/parent-check'
 import { counts, mastery } from '../src/lib/readiness'
 import { lessonLetter, LESSON_LETTERS } from '../src/lessons/english/data'
 import { lessonGood } from '../src/lessons/english/plan'
@@ -208,6 +209,39 @@ ok('題目的關鍵字放在最前面：Big S!、Little s!、S… s, s… Which 
 }
 ok('正確答案的位置每個都差不多（英文三種題目、比多少、小複習）')
 
+// ── 8. 真的學會了嗎？（家長確認卡）────────────────────────────
+{
+  const day = (d: number) => `2026-11-0${d}`
+  // 找大 S：聽完才答 5 次對 4 次 → 出卡；之前猜的、示範過的不算
+  const real = [true, true, false, true, true].map((ok, i) => att('letter:S', 'lesson-en', ok, true, 2, day(1 + (i % 3))))
+  const noise = [att('letter:S', 'lesson-en', true, false, 2, day(4)), att('letter:S', 'lesson-en', true, true, 2, day(4), { metrics: { shown: 1 } })]
+  assert.equal(heardMastered([...real.slice(0, 4), ...noise], 'letter:S'), false, '聽完才答只有 4 次：還不算（猜的、示範過的不算）')
+  assert.equal(heardMastered([...real, ...noise], 'letter:S'), true, '最近 5 次聽完才答對 4 次')
+  assert.equal(heardMastered([true, false, true, false, true].map((ok) => att('compare:more', 'm-compare', ok, true, 2)), 'compare:more'), false, '2 選 1 對 3 次不算')
+  const all = [...real, ...noise]
+  const cards = checkCards(all, {})
+  assert.deepEqual(cards.map((c) => c.skill), ['letter:S'])
+  assert.equal(cards[0].label, '找大 S')
+  assert.match(cards[0].ask, /Where is big S\?/)
+  // 他會：不再出卡
+  assert.equal(checkCards(all, { 'letter:S': { ok: true, at: Date.now() } }).length, 0, '按過「他會」不再出')
+  // 還不會：只看之後的作答；之後又熟練了才再出
+  const at = Math.max(...all.map((a) => a.ts)) + 1
+  const no = { 'letter:S': { ok: false, at } }
+  assert.equal(checkCards(all, no).length, 0, '按「還不會」：退回練習，卡收起來')
+  assert.equal(afterChecks(all, no).filter((a) => a.skill === 'letter:S').length, 0, '家長區的熟練只看「還不會」之後的作答')
+  const again = range(1, 5).map(() => att('letter:S', 'lesson-en', true, true, 2, day(6)))
+  assert.equal(checkCards([...all, ...again], no).length, 1, '之後又熟練了：卡再出來')
+  // 兩台裝置合併：比較晚的為準
+  const m = mergeChecks({ 'letter:S': { ok: true, at: 10 }, 'num:3': { ok: false, at: 5 } }, { 'letter:S': { ok: false, at: 20 }, 'num:3': { ok: true, at: 1 }, bad: { ok: 'x', at: 3 } as never })
+  assert.deepEqual(m, { 'letter:S': { ok: false, at: 20 }, 'num:3': { ok: false, at: 5 } })
+  // 每一種概念都有中文的問法
+  for (const k of ['letter:S', 'letter:s', 'phonics:s', 'compare:more', 'compare:less', 'num:3', 'count:4', 'give:3']) assert.ok(!/照 App 裡的問法/.test(askFor(k)), k)
+  assert.match(askFor('give:3'), /Give me three!/)
+  assert.match(askFor('phonics:s'), /Which one starts with S\?/)
+}
+ok('真的學會了嗎？：新規則熟練了才出卡；他會不再出、還不會退回練習（之後又熟練才再出）；兩台裝置以比較晚的為準')
+
 // ── 9. 分不出大小寫、一直點大的（盲測 e6ecd05 第 1 點）不會被當成學會 ────────────
 {
   // 字母題的陪襯「同一個字母的另一種寫法」不算選項
@@ -218,13 +252,18 @@ ok('正確答案的位置每個都差不多（英文三種題目、比多少、�
   const bigS = range(1, 8).map((i) => att('letter:S', 'lesson-en', true, true, 2, `2026-11-0${(i % 7) + 1}`, { options: ['S', 'S:little'] }))
   const littleS = range(1, 8).map((i) => att('letter:s', 'lesson-en', false, true, 2, `2026-11-0${(i % 7) + 1}`, { options: ['S', 'S:big'] }))
   const xs = [...bigS, ...littleS]
+  assert.equal(heardMastered(xs, 'letter:S'), false, '確認卡：一直點大的，找大 S 不算學會')
+  assert.equal(checkCards(xs, {}).length, 0, '不出確認卡')
   assert.equal(mastery(xs, 'letter:S').recent, 0, '家長區的熟練：只有 S／s 兩張的題目不算')
   // 孩子端的熟練：只有一個真正選項的題目不記、技能從此照聽完才答判斷，盒子再高也不算熟
   let hw: number[] | undefined
   for (const a of bigS) hw = pushHeard(hw, a.firstTryCorrect, choicesOf(a))
   assert.deepEqual(hw, [])
   assert.equal(heardFirm(hw), false, '孩子端：一直點大的，找大 S 不算熟')
+  // 有別的大寫字母當陪襯（S、A、s）：一直點大的只剩一半機會，5 次要對 4 次才算
+  const mixed = [true, true, true, true, false].map((ok) => att('letter:S', 'lesson-en', ok, true, 3, '2026-11-08', { options: ['S', 'A', 'S:little'] }))
+  assert.equal(heardMastered(mixed, 'letter:S'), true, '真的認得：S／A／s 五次對四次')
 }
-ok('分不出大小寫、一直點大的：找大 S 不算學會（只有 S／s 兩張的題目不算進熟練，家長區、孩子端都一樣）')
+ok('分不出大小寫、一直點大的：找大 S 不算學會（只有 S／s 兩張的題目不算進熟練，家長區、孩子端、確認卡都一樣）')
 
 console.log('ALL PASS')

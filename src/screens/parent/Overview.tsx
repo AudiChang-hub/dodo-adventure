@@ -3,6 +3,7 @@ import { game } from '../../content/games'
 import { lastDays, minutesByDay, pct, skillLabel, STATION_NAME, type ParentData } from './data'
 import { isScored } from '../../lib/engine'
 import { NextStep } from './NextStep'
+import { LearnedCheck } from './LearnedCheck'
 
 /**
  * 今天新教了什麼：今天的教學紀錄（不含答錯後的重教），每個技能一筆，
@@ -79,6 +80,7 @@ export function Overview({ d }: { d: ParentData }) {
     <>
       <h2>總覽</h2>
       <p className="sub">{d.source === 'cloud' ? '資料來源：雲端' : '資料來源：這台裝置'}</p>
+      <LearnedCheck d={d} />
       <NextStep d={d} />
       {/* 四張數字卡：平板橫向一排放得下，手機自動換行 */}
       <div className="grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))' }}>

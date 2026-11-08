@@ -1,0 +1,123 @@
+/* ── 真的學會了嗎？（LearnedCheck.tsx，T-109）──────────────────── */
+.parent .lcheck {
+  margin: 0 0 18px;
+  padding: 18px 20px 16px;
+  border-radius: var(--radius-lg, 22px);
+  background: #fff8e8;
+  box-shadow: 0 0 0 1px #f0dfb4 inset;
+}
+.parent .lcheck h3 {
+  margin: 0 0 12px;
+  font-size: 18px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 12px;
+}
+.parent .lcheck h3 small {
+  font-size: 13.5px;
+  font-weight: 400;
+  color: var(--ink-soft);
+  line-height: 1.55;
+}
+.parent .lcheck-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 12px;
+}
+.parent .lcheck-card {
+  display: grid;
+  /* 名字、問法、按鈕、小字：問法長短不一，按鈕對齊在同一條線上 */
+  grid-template-rows: auto 1fr auto auto;
+  gap: 8px;
+  padding: 14px 16px 12px;
+  border-radius: 16px;
+  background: var(--card);
+  box-shadow: 0 4px 0 #efe2c4;
+}
+.parent .lcheck-what {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 700;
+}
+.parent .lcheck-ask {
+  margin: 0;
+  font-size: 14.5px;
+  line-height: 1.65;
+}
+.parent .lcheck-btns {
+  display: flex;
+  gap: 10px;
+  margin-top: 4px;
+}
+.parent .lcheck-btns button {
+  flex: 1;
+  min-height: 48px;
+  border: 0;
+  border-radius: 14px;
+  font: inherit;
+  font-size: 16px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.parent .lcheck-yes {
+  background: #dcefe3;
+  color: #2f6b49;
+  box-shadow: 0 4px 0 #b9dcc5;
+}
+.parent .lcheck-no {
+  background: var(--paper);
+  color: var(--ink);
+  box-shadow: 0 4px 0 var(--paper-edge);
+}
+.parent .lcheck-btns button:active {
+  translate: 0 2px;
+  box-shadow: none;
+}
+.parent .lcheck-btns button:disabled {
+  opacity: 0.6;
+}
+.parent .lcheck-note,
+.parent .lcheck-more {
+  margin: 0;
+  font-size: 12.5px;
+  color: var(--ink-soft);
+}
+.parent .lcheck-more {
+  margin-top: 10px;
+}
+
+/* 學習進度：家長確認過（右上角一個小小的綠點打勾） */
+.parent .mcell.is-parent {
+  position: relative;
+}
+.parent .mcell.is-parent::after,
+.parent .mlegend.is-parent::before {
+  content: '✓';
+  display: grid;
+  place-items: center;
+  width: 15px;
+  height: 15px;
+  border-radius: 50%;
+  background: #2f7a52;
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1;
+}
+.parent .mcell.is-parent::after {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+}
+.parent .mlegend.is-parent {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.parent .mline-parent b {
+  color: #2f7a52;
+}
