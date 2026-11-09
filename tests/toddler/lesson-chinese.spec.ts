@@ -197,7 +197,12 @@ async function readAll(k: Toddler, c: Checker) {
 
 /** 選圖：一題一題答對（每題連點答案幾下）直到下課 */
 async function answerAll(k: Toddler, c: Checker, spam = 3) {
-  for (let i = 0; i < 8; i++) {
+  for (let i = 0; i < 20; i++) {
+    // 答完一題停著等「下一步」的大箭頭（T-118）：孩子點了箭頭（boot 的 autoNext）才換題；這時候不去點已經答對的那張
+    if (await k.page.$('.next-step')) {
+      await k.wait(800)
+      continue
+    }
     const s = await waitFor(k, (s) => s.cheer || (s.quiz && s.accepting), 25_000)
     if (!s) return false
     if (s.cheer) return true
@@ -210,7 +215,11 @@ async function answerAll(k: Toddler, c: Checker, spam = 3) {
 
 /** 選圖一題一題答對，停在「找一樣的字」 */
 async function toGlyph(k: Toddler, c: Checker) {
-  for (let i = 0; i < 8; i++) {
+  for (let i = 0; i < 20; i++) {
+    if (await k.page.$('.next-step')) {
+      await k.wait(800)
+      continue
+    }
     const s = await waitFor(k, (s) => s.cheer || s.glyph || (s.quiz && s.accepting), 25_000)
     if (!s || s.cheer) break
     if (s.glyph) return true
