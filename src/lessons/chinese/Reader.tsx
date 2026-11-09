@@ -20,6 +20,11 @@ const NEXT_LOCK_MS = 900
 /** 亮的那一行，紅字的圖放大到幾倍（孩子的眼睛跟著大人念到哪裡，圖是他看得懂的東西） */
 const BIG = 1.25
 
+/** 念過的行，圖淡一點（亮的那一行的圖才是現在要點的，T-114） */
+const PAST_OPACITY = 0.5
+/** 亮的那一行的圖一直沒被點：每隔這麼久自己輕輕跳一下（PHASE-7 小班段 8 秒），不出聲（大人在念） */
+const CUE_AGAIN_MS = 8000
+
 /** 點莫莫：這麼久之內，前幾下會跳、彈一聲（之後只點一下頭、不出聲，不會變成一直點莫莫的遊戲） */
 const MOMO_WINDOW_MS = 8000
 const MOMO_PLAY = 2
@@ -74,6 +79,11 @@ function Bits({ n }: { n: number }) {
  *   - 點這一行的字也算點了這一行的圖；
  *   - 每一行第一次點到圖：那張圖撒一把星星（看得出「我點到了」）；同一行再點只跳一下、輕輕一聲（不會變成一直點的遊戲）；
  *   - 上面的進度（Lesson 傳給 Shell）：念完一行亮一格，聽得出、看得出「念到哪裡、還有多少」（onLine）。
+ * - 媽媽念的時候孩子有事做（T-114，盲測 940c8cd 中文 seed 1：「我一直點好久了，我不要玩了」）：
+ *   - 亮的那一行的圖整圈發亮（暖黃光暈），念過的行的圖淡下去，看得出「現在點這個」；還是點得到，點了照樣有反應；
+ *   - 亮的那一行的圖一直沒被點：每 8 秒自己輕輕跳一下（不出聲）；
+ *   - 點課本上的空白處（沒點中圖，盲測 seed 2 第 3、4 步）：當作點了亮的那一行的圖，每一下照樣輪替動作；
+ *   - 陪玩小字寫「念到這行時請他點亮起來的圖」。
  * - 點莫莫（T-111）：莫莫開心跳一下、彈一聲，亮的那一行的圖再亮黃框、跳一下（莫莫在說「看這裡」），8 秒內第 3 下起只點一下頭。
  * - 第 2 次上同一篇（run = 2，現況對照 A3）：每一行最後一個紅字框起來、上面一個「停」字，提醒大人念到這裡停一下，讓他接。
  * - 最後一行念完按「念完了」：「聊一聊」卡片（對話式共讀，T-102）：3 歲問得出來的一題（誰、什麼、哪裡，./talk.json），
@@ -136,6 +146,8 @@ export function Reader({
   const tapsOf = useRef(new Map<string, number>())
   /** 現在在動的那張圖：哪一張、第幾下（換 key 重播）、什麼動作（ACTS） */
   const [act, setAct] = useState<{ key: string; n: number; kind: Act } | null>(null)
+  /** 亮的那一行的圖沒被點：第幾次自己跳一下（換行從 0 開始） */
+  const [cueTick, setCueTick] = useState(0)
   /** 點莫莫：聊一聊的主角再亮黃框、跳一下（第幾次） */
   const [look, setLook] = useState(0)
   const momoTaps = useRef<number[]>([])
@@ -221,6 +233,24 @@ export function Reader({
     setTalkReady(true)
   }
 
+  // 亮的那一行的圖一直沒被點：每 8 秒自己輕輕跳一下（點了就停；換一行重新算）
+  const curKeys = talk ? '' : linePics(t)[cur].map((p) => `${cur}:${p.word}`).join('|')
+  const curTouched = curKeys.split('|').some((k) => touched.has(k))
+  useEffect(() => {
+    setCueTick(0)
+    if (!curKeys || curTouched || still) return
+    const k = window.setInterval(() => setCueTick((n) => n + 1), CUE_AGAIN_MS)
+    return () => clearInterval(k)
+  }, [curKeys, curTouched, still])
+
+  /** 點在課本的空白處（沒點中圖、不是大人的按鈕）：當作點了亮的那一行的圖 */
+  const tapBlank = (e: React.PointerEvent) => {
+    if (talk || left.current || !firstFinger(e.nativeEvent)) return
+    if ((e.target as Element).closest('button, .zh-controls, .zh-talk')) return
+    const p = pics[cur]?.[0]
+    if (p) tapWord(p.word, cur)
+  }
+
   // 上面的進度：念完幾行（聊一聊的時候整篇都念完了）
   useEffect(() => {
     onLine?.(talk ? t.lines.length : cur)
@@ -271,7 +301,13 @@ export function Reader({
   const tk = talkFor(t)
   const more = talkOf(t.parentTip).rest
   return (
-    <div className={`zh-read${talk ? ' talking' : ''}`} data-run={times} data-at={talk ? 'talk' : cur} style={{ '--units': units, '--rows': rows } as CSSProperties}>
+    <div
+      className={`zh-read${talk ? ' talking' : ''}`}
+      data-run={times}
+      data-at={talk ? 'talk' : cur}
+      style={{ '--units': units, '--rows': rows } as CSSProperties}
+      onPointerDown={tapBlank}
+    >
       <motion.article className="zh-page" initial={still ? false : { y: 14 }} animate={{ y: 0 }} transition={{ duration: 0.5, ease: EASE.out }}>
         <h2 className="zh-title">{t.title}</h2>
         <div className="zh-lines">
@@ -286,6 +322,7 @@ export function Reader({
                 onPointerDown={(e) => {
                   // 點這一行的字（不是紅字、不是圖）：當作點了這一行的第一張圖（T-111）
                   if (!seen || !pics[i].length || !firstFinger(e.nativeEvent)) return
+                  e.stopPropagation()
                   tapWord(pics[i][0].word, i)
                 }}
               >
@@ -322,6 +359,7 @@ export function Reader({
                   {pics[i].map(({ word, echo }, j) => {
                     const key = `${i}:${word}`
                     const popped = pop?.w === word
+                    const again = on && cueTick > 0 && act?.key !== key
                     return (
                       <motion.button
                         key={word}
@@ -339,7 +377,7 @@ export function Reader({
                               ? { opacity: 1, scale: on ? [BIG, BIG * 1.22, BIG] : [1, 1.4, 1.12], y: 0 }
                               : on
                                 ? { opacity: 1, scale: BIG, y: 0 }
-                                : { opacity: 1, scale: 1, y: 0 }
+                                : { opacity: talk ? 1 : PAST_OPACITY, scale: 1, y: 0 }
                         }
                         transition={{ duration: still ? 0 : popped ? 0.6 : 0.45, ease: EASE.out }}
                         onPointerDown={(e) => {
@@ -347,7 +385,12 @@ export function Reader({
                           if (firstFinger(e.nativeEvent)) tapWord(word, i)
                         }}
                       >
-                        <span key={act?.key === key ? act.n : 0} className={`zh-pic-in${act?.key === key ? ` act-${act.kind}` : ''}`} data-act={act?.key === key ? act.kind : undefined}>
+                        <span
+                          key={act?.key === key ? `a${act.n}` : again ? `c${cueTick}` : 0}
+                          className={`zh-pic-in${act?.key === key ? ` act-${act.kind}` : again ? ' act-hop' : ''}`}
+                          data-act={act?.key === key ? act.kind : undefined}
+                          data-cue-again={again ? cueTick : undefined}
+                        >
                           <Pic name={t.emoji[word]!} />
                         </span>
                         {burst?.key === key && <Sparkles key={burst.n} count={10} />}

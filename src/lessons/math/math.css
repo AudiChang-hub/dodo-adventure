@@ -206,6 +206,49 @@
   color: var(--good);
   box-shadow: 0 6px 0 #b9dcc5, 0 0 0 4px var(--good) inset;
 }
+/* 勾勾輕輕跳一下：多拿的退回去以後、點偏的時候（T-114，按這裡交給波波）。一次就停 */
+.ma-give-done.on.poke {
+  animation: ma-give-poke 640ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+@keyframes ma-give-poke {
+  0%,
+  100% {
+    translate: -50% 0;
+    scale: 1;
+  }
+  35% {
+    translate: -50% -14%;
+    scale: 1.12;
+  }
+  70% {
+    translate: -50% 0;
+    scale: 0.97;
+  }
+}
+/* 多拿的那一個（T-114）：飛進盤子、搖一搖、淡一點，然後自己退回原位（Give.tsx 的 BACK_MS） */
+.ma-give-thing.is-extra {
+  animation: ma-give-extra 520ms ease-in-out 360ms both;
+}
+@keyframes ma-give-extra {
+  0%,
+  100% {
+    rotate: 0deg;
+  }
+  20% {
+    rotate: -16deg;
+  }
+  45% {
+    rotate: 14deg;
+  }
+  70% {
+    rotate: -9deg;
+  }
+}
+.ma-give-thing.is-extra > svg {
+  opacity: 0.6;
+  transition: opacity 0.3s var(--ease-out) 0.35s;
+}
+
 /* 答對：實心綠色、白勾、跳一下（T-104：結果佔住這個位置，不是馬上換成別的東西） */
 .ma-give-done.is-done {
   background: var(--good);
