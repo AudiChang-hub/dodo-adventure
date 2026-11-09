@@ -98,12 +98,31 @@ ok('A16 問大寫、點了同一個字母的小寫：That\'s little f. → Find 
   assert.equal(left.review, false)
   assert.equal(left.idx, 4)
   assert.equal(planFor({ idx: 4, seq: ORDER, date: d, done: false, good: false, stage: 'meet' }, d).resume, undefined)
-  assert.equal(planFor({ idx: 4, seq: ORDER, date: d, done: true, good: true, stage: 'quiz' }, d).resume, undefined)
+  // 今天上完了、沒有複習到一半：從頭複習
+  assert.equal(planFor({ idx: 4, seq: ORDER, date: d, done: true, good: true }, d).resume, undefined)
   const tomorrow = planFor({ idx: 4, seq: ORDER, date: d, done: false, good: false, stage: 'quiz' }, '2026-11-04')
   assert.equal(tomorrow.resume, undefined)
   assert.equal(tomorrow.repeat, true)
 }
 ok('T-95 同一天中途離開又回來：從離開的那一段（描字第幾輪）接著上；上完了是複習、隔天照原本的排課（重上，從頭）')
+
+{
+  // T-116（盲測 69bfad5 英文 seed 3：最後一題做完他馬上按返回，算上完了；之後每次回來都是複習，複習到一半離開不記，
+  // 第 2～4 次回來都從 Let's practice 重來）：複習到一半離開，同一天回來從離開的那一段接著複習，「上完了」和好不好不動
+  const d = '2026-11-09'
+  const rv = planFor({ idx: 0, seq: ORDER, date: d, done: true, good: true, stage: 'trace', round: 1 }, d)
+  assert.equal(rv.review, true)
+  assert.deepEqual(rv.resume, { stage: 'trace', round: 1 })
+  const rq = planFor({ idx: 0, seq: ORDER, date: d, done: true, good: false, stage: 'quiz', round: 1, answers: [{ kind: 'big', first: true }] }, d)
+  assert.equal(rq.review, true)
+  assert.deepEqual(rq.resume, { stage: 'quiz', round: 1, answers: [{ kind: 'big', first: true }] })
+  // 複習走到「認識字母」不算（從頭）；隔天照原本的排課
+  assert.equal(planFor({ idx: 0, seq: ORDER, date: d, done: true, good: true, stage: 'meet' }, d).resume, undefined)
+  const next = planFor({ idx: 0, seq: ORDER, date: d, done: true, good: true, stage: 'trace', round: 1 }, '2026-11-10')
+  assert.equal(next.idx, 1)
+  assert.equal(next.resume, undefined)
+}
+ok('T-116 複習到一半離開：同一天回來從離開的那一段接著複習；隔天照常換下一個字母')
 
 {
   const d = '2026-11-06'

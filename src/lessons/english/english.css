@@ -398,6 +398,18 @@
 .en-opt.is-hint {
   box-shadow: 0 8px 0 var(--paper-edge), 0 0 0 8px color-mix(in srgb, var(--en-deep) 55%, transparent);
 }
+/* 點錯一次、等他點答案（T-116）：答案亮暖黃光（靜態，跟中文課亮的圖同一種光），大手停在上面；跳一下由 Quiz 的 BECKON 負責 */
+.en-opt.is-beckon {
+  background: #fffaf0;
+  box-shadow:
+    0 8px 0 var(--paper-edge),
+    0 0 0 8px rgba(241, 210, 124, 0.9),
+    0 0 36px 14px rgba(255, 214, 120, 0.7);
+  opacity: 1;
+}
+.en-options.is-demo .en-opt.is-beckon {
+  opacity: 1;
+}
 .en-opt-hand {
   position: absolute;
   inset: 0;

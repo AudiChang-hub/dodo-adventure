@@ -21,6 +21,11 @@ const FORMAT: Record<Question['kind'], Format> = { big: 'en-big', little: 'en-li
 /** 大寫或小寫題有一題不是一次就對：後面的小寫題改問大寫（退一級，LOAD-5） */
 const missedLetter = (rs: QuizResult[]) => rs.some((r) => r.kind !== 'word' && !r.first)
 
+/** 點錯一次、等他點答案：答案每隔這麼久再跳一下、手再按一下（T-116） */
+const BECKON_MS = 4000
+/** 最多再跳幾次（紙感螢幕不一直動，MOTION-2） */
+const BECKON_MAX = 3
+
 /** 小小的畫框（找開頭的圖：「S → 一張圖」） */
 function Frame() {
   return (
@@ -64,6 +69,9 @@ function Ask({ q }: { q: Question }) {
  * 念完題目、開始收作答：每張選項一圈淡黃框、依序輕輕跳一下（輪到你了，靜音也看得出來；點了第一下就收起來）。
  * 答錯：手從泡泡（要找的樣子）移到答案上點一下，同時說出點的是什麼、要找的是什麼（That's big B. Find big A!），
  * 之後答案留著外框和手，點了才往下（一起練，不算答對）。聽不懂英文也看得出「要的是這個」（T-100）。
+ * 等他點的時候（T-116，盲測 69bfad5 英文 seed 3：點錯小 s 後手指向大 S，他沒有跟著點，「我一直點大的，一直都一樣」就離開）：
+ * 以前說明念完大手就收起來，只剩答案卡角落一隻小手。現在大手留在答案上，答案亮暖黃光、跳兩下，手跟著按一下；
+ * 每 BECKON_MS 沒點就再跳一下、手再按一下（最多 BECKON_MAX 次，之後靜止，MOTION-2）；點空白處也會再跳一下。
  * 同一題錯兩次：手帶著做（手點答案、答案亮起來，記成一起練），然後照樣往下。所以一題最多點錯兩次，題數固定，一定上得完（T-104）。
  * 答對（T-104，AI 小男生盲測：只有 Yes 和綠框，他看不出對了）：答對的那張放大、跳一下、右上角綠色大打勾、星星，其他的淡掉；
  * 下面的進度（第四顆石頭裡的小點）亮一顆（onProgress）。跟中文課選圖（T-97）一樣不用聽懂話也看得出來。
@@ -125,6 +133,10 @@ export function Quiz({
   }
   /** 泡泡跳一下（答錯時：先看要找的樣子） */
   const [hop, setHop] = useState(0)
+  /** 點錯一次以後等他點：大手留在答案上、答案亮暖黃光、跳一下（T-116） */
+  const [beckon, setBeckon] = useState(false)
+  /** 答案跳一下、手按一下（點空白處時也叫） */
+  const nudge = useRef<() => void>(() => {})
   const layer = useRef<HTMLDivElement | null>(null)
   const bubble = useRef<HTMLDivElement | null>(null)
   const tiles = useRef(new Map<string, HTMLElement>())
@@ -186,8 +198,9 @@ export function Quiz({
       setShow(null)
       setState({})
     } else if (was === 'fb') {
-      setShow(null)
-      setHint(true)
+      // 答錯的說明被搶掉：手直接停到答案上等他點（T-116）
+      setShow('answer')
+      setBeckon(true)
     }
     openTurn(list.current[cur.current])
   }
@@ -207,6 +220,7 @@ export function Quiz({
     }, PACE.BARGE_ARM)
     setState({})
     setHint(false)
+    setBeckon(false)
     setCue(false)
     setSolved(null)
     setOpts(false)
@@ -284,7 +298,8 @@ export function Quiz({
     if (near) return void choose(near, e)
     const p = localPoint(layer.current, e.clientX, e.clientY)
     if (!armed.current || phase.current === 'done') return notYet.ping(p.x, p.y)
-    if (phase.current === 'turn') return
+    // 點錯過、等他點答案：點空白處，答案再跳一下、手再按一下（「點這裡」）
+    if (phase.current === 'turn') return void (beckon && nudge.current())
     notYet.ping(p.x, p.y)
     takeOver()
   }
@@ -319,6 +334,7 @@ export function Quiz({
       // 手從泡泡（要找的樣子）移到答案上點一下，同時說明點的是什麼、要找的是什麼；之後答案留著外框和手。
       // 第二次錯：一樣手從泡泡到答案，這次手直接幫他點下去（一起做），這一題就算完（不再等他點，T-104）。
       setHint(false)
+      setBeckon(false)
       setHop((h) => h + 1)
       setShow('ask')
       const why = wrongKeys(q, o)
@@ -332,8 +348,8 @@ export function Quiz({
       await talk
       if (!ok()) return
       if (together) return void complete(true, ms)
-      setShow(null)
-      setHint(true)
+      // 大手留在答案上（不收起來）、答案亮起來跳一下，等他點（T-116）
+      setBeckon(true)
       phase.current = 'turn'
       return
     }
@@ -345,6 +361,9 @@ export function Quiz({
     phase.current = 'done'
     setAccept(false)
     setHint(false)
+    setBeckon(false)
+    // 自己點對的：等他點的那隻大手收起來（手帶著做的照舊留著，跟著念答案）
+    if (!together) setShow(null)
     idle.stop()
     const first = !together && tries.current === 0
     const h = heard.current
@@ -376,7 +395,7 @@ export function Quiz({
       firstTryCorrect: first,
       attempts: tries.current + (together ? 0 : 1),
       responseMs: ms,
-      hintUsed: hint || together,
+      hintUsed: hint || beckon || together,
       heard: h,
       ...(shown.current ? { metrics: { shown: 1 } } : byHand ? { metrics: { led: 1 } } : {}),
     })
@@ -403,6 +422,27 @@ export function Quiz({
     setI(i + 1)
     void ask(i + 1)
   }
+
+  // 等他點答案（T-116）：答案跳兩下、手按一下；之後每 4 秒再一次，最多 3 次（減少動態效果時只亮、不跳）
+  useEffect(() => {
+    if (!beckon) {
+      nudge.current = () => {}
+      return
+    }
+    const el = tiles.current.get(q.answer)
+    nudge.current = () => {
+      if (!live.current) return
+      setPress((p) => p + 1)
+      if (!still) el?.animate([{ translate: '0 0' }, { translate: '0 -22px', offset: 0.35 }, { translate: '0 0' }], { duration: 560, easing: 'cubic-bezier(.22,1,.36,1)', iterations: 1 })
+    }
+    if (!still) el?.animate([{ translate: '0 0' }, { translate: '0 -22px', offset: 0.35 }, { translate: '0 0' }], { duration: 560, easing: 'cubic-bezier(.22,1,.36,1)', iterations: 2 })
+    let n = 0
+    const k = window.setInterval(() => {
+      if (++n > BECKON_MAX) return clearInterval(k)
+      nudge.current()
+    }, BECKON_MS)
+    return () => clearInterval(k)
+  }, [beckon, q.answer, still])
 
   const handAt = q.options.findIndex((o) => o.id === q.answer)
   /** 字母題：大寫放大卡、小寫放小卡 */
@@ -433,7 +473,7 @@ export function Quiz({
                 if (el) tiles.current.set(o.id, el)
               }}
               type="button"
-              className={`en-opt${opts || solved ? '' : ' is-wait'}${size(o)}${show && o.id === q.answer ? ' is-shown' : ''}${state[o.id] === 'yes' ? ' is-yes' : state[o.id] === 'no' ? ' is-no' : ''}${hint && o.id === q.answer ? ' is-hint' : ''}${cue ? ' is-cue turn-hop' : ''}`}
+              className={`en-opt${opts || solved ? '' : ' is-wait'}${size(o)}${show && o.id === q.answer ? ' is-shown' : ''}${state[o.id] === 'yes' ? ' is-yes' : state[o.id] === 'no' ? ' is-no' : ''}${hint && o.id === q.answer ? ' is-hint' : ''}${beckon && o.id === q.answer ? ' is-beckon' : ''}${cue ? ' is-cue turn-hop' : ''}`}
               style={{ '--turn-i': k } as CSSProperties}
               aria-label={o.text ?? o.id}
               // 手指一按下就收（T-112：以前用 click，要放開才算，手指滑一下就被瀏覽器取消、毫無反應）；鍵盤（detail 0）照樣可以按
