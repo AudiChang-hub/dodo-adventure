@@ -10,5 +10,6 @@ import _p1_a04 from './p1-a04.json'
 import _P01 from './P01.json'
 import _p1_a05 from './p1-a05.json'
 import _A06 from './A06.json'
+import _F02 from './F02.json'
 
-export const WEEKLY_DRAFTS: StoryDraft[] = [_J02 as unknown as StoryDraft, _p1_a02 as unknown as StoryDraft, _A02 as unknown as StoryDraft, _p1_a03 as unknown as StoryDraft, _A04 as unknown as StoryDraft, _p1_a04 as unknown as StoryDraft, _P01 as unknown as StoryDraft, _p1_a05 as unknown as StoryDraft, _A06 as unknown as StoryDraft]
+export const WEEKLY_DRAFTS: StoryDraft[] = [_J02 as unknown as StoryDraft, _p1_a02 as unknown as StoryDraft, _A02 as unknown as StoryDraft, _p1_a03 as unknown as StoryDraft, _A04 as unknown as StoryDraft, _p1_a04 as unknown as StoryDraft, _P01 as unknown as StoryDraft, _p1_a05 as unknown as StoryDraft, _A06 as unknown as StoryDraft, _F02 as unknown as StoryDraft]
