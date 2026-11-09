@@ -55,8 +55,8 @@
 
 - 三歲測試要涵蓋三歲孩子的操作：亂點、連點、多指、搶在示範時操作、隨時返回、發呆、拖到一半放手。每個畫面都要 1 步就能回到上一層。
 - 只出現一次的問題，先用同一個 seed 重跑（`--seed N`，預設會自動重跑 2 次），確認是穩定重現還是偶發。
-- CPU 要節制：
-  - 用 `nice` 啟動，最多 2 個 workers，例如 `nice -n 19 npm run test:toddler -- --changed --workers 2`。
+- 執行測試：
+  - 不用 `nice`，worker 數交給 `test:toddler` 自動決定，例如 `npm run test:toddler -- --changed main`。只有大量生成語音時才要降低優先權、限制執行緒數。
   - 三歲測試和 AI 小男生測試共用排隊鎖（`%TEMP%\dodo-toddler`），不要加 `--no-lock`。
   - 停測試只停自己啟動時記下的 PID（`taskkill /PID <pid> /T /F`），不要用指令字串比對。
 
