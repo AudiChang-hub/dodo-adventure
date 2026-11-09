@@ -23,7 +23,7 @@ export { chapterHash, draftChapters, draftId, draftTitle, draftZh, normalizeDraf
 /** 審稿佇列裡的劇本（G-9，content/story/weekly/）：要家長通過才會進孩子端（lib/review.ts） */
 export const WEEKLY: StoryDraft[] = WEEKLY_DRAFTS.map(normalizeDraft)
 const WEEKLY_CH = new Map(WEEKLY.flatMap((d) => draftChapters(d).map((c) => [c.id, d] as const)))
-/** 這一章是審稿佇列裡的（要家長通過才能播）；手寫的示範章節、通用章節是 null */
+/** 這一章是審稿佇列（每週新故事）裡的：家長在「本週新故事」撤下的不播（lib/review.ts）；手寫的示範章節、通用章節是 null */
 export const weeklyOf = (chapterId: string): StoryDraft | null => WEEKLY_CH.get(chapterId) ?? null
 export const weeklyById = (id: string) => WEEKLY.find((d) => draftId(d) === id) ?? null
 
@@ -81,6 +81,9 @@ for (const d of WEEKLY) {
   if (!season) part.seasons.push((season = { id: d.season ?? `p${part.no}-s1`, zh: '', arcs: [] }))
   season.arcs.push(d.arc.id)
 }
+// 故事時間照第一輪的順序講（審稿佇列的接在手寫的後面放進來，這裡排回 CLASSIC_ROUND 的順序；不在第一輪的照原本的順序排在最後）
+const roundAt = (id: string) => ((CLASSIC_ROUND as readonly string[]).indexOf(id) + 1 || Infinity)
+CLASSICS.sort((a, b) => roundAt(a.id) - roundAt(b.id))
 // 長篇的篇照篇號排（審稿佇列的篇可能比手寫的早寫好）
 for (const p of PARTS) for (const se of p.seasons) se.arcs.sort((a, b) => (ARCS.find((x) => x.id === a)?.no ?? 0) - (ARCS.find((x) => x.id === b)?.no ?? 0))
 

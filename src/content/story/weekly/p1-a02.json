@@ -1,0 +1,585 @@
+{
+ "type": "arc",
+ "rev": 1,
+ "week": "2026-11-09",
+ "by": "ai",
+ "notes": [
+  "故事世界 §4.1 第 2 篇：每天出門找一首歌唱給蛋聽，蛋跟著咕嚕咕嚕；講完魔法屋多了一個小鼓。",
+  "小班段各章獨立，開場提一句昨天。"
+ ],
+ "cast": [],
+ "season": "p1-s1",
+ "house": {
+  "id": "music-drum",
+  "zh": "音樂角和一個小鼓",
+  "room": "living",
+  "pic": "drum",
+  "at": {
+   "x": 860,
+   "y": 560,
+   "w": 70
+  }
+ },
+ "arc": {
+  "id": "p1-a02",
+  "part": 1,
+  "no": 2,
+  "title": "The Egg Loves to Sing",
+  "zh": "蛋喜歡唱歌",
+  "icon": "drum",
+  "band": "small",
+  "houseAdds": "music-drum",
+  "chapters": [
+   {
+    "id": "p1-a02-c1",
+    "door": "birthday",
+    "intro": [
+     {
+      "who": "dodo",
+      "en": "Good morning, little | egg!",
+      "pic": "@rainbow-egg",
+      "zh": "早安，小蛋！",
+      "stage": {
+       "scene": "魔法屋客廳的蛋窩",
+       "on": [
+        "dodo",
+        "egg"
+       ]
+      }
+     },
+     {
+      "who": "dodo",
+      "en": "Let's sing for the egg today!",
+      "pic": "@rainbow-egg",
+      "zh": "今天我們唱歌給蛋聽！",
+      "stage": {
+       "scene": "魔法屋客廳",
+       "on": [
+        "dodo",
+        "egg"
+       ]
+      }
+     },
+     {
+      "who": "all",
+      "en": "Knock, knock! Open, magic door!",
+      "pic": "door",
+      "zh": "叩叩！魔法門，打開！",
+      "stage": {
+       "scene": "魔法屋門廊，今天的門打開",
+       "on": [
+        "dodo",
+        "bobo",
+        "momo"
+       ]
+      }
+     }
+    ],
+    "stops": [
+     null,
+     null,
+     {
+      "generic": [
+       {
+        "who": "dodo",
+        "en": "Sing a song for the | egg!",
+        "pic": "birthday-cake+@rainbow-egg",
+        "zh": "唱一首歌給蛋聽！",
+        "stage": {
+         "scene": "生日派對，蛋糕旁邊",
+         "on": [
+          "dodo",
+          "egg",
+          "cake"
+         ]
+        }
+       }
+      ]
+     }
+    ],
+    "end": [
+     {
+      "who": "momo",
+      "en": "Home to the Magic House.",
+      "pic": "house-with-garden",
+      "zh": "回魔法屋囉。",
+      "stage": {
+       "scene": "魔法屋門口",
+       "on": [
+        "dodo",
+        "bobo",
+        "momo"
+       ]
+      }
+     },
+     {
+      "who": "egg",
+      "en": "Gurgle, gurgle!",
+      "pic": "@rainbow-egg",
+      "zh": "咕嚕咕嚕！",
+      "stage": {
+       "scene": "魔法屋客廳的蛋窩",
+       "on": [
+        "egg"
+       ]
+      }
+     },
+     {
+      "who": "momo",
+      "en": "The egg sings, too!",
+      "pic": "@rainbow-egg",
+      "zh": "蛋也在唱歌！",
+      "stage": {
+       "scene": "魔法屋客廳的蛋窩",
+       "on": [
+        "egg",
+        "momo"
+       ]
+      }
+     }
+    ],
+    "kind": "epic",
+    "part": 1,
+    "arc": "p1-a02",
+    "chapter": 1,
+    "band": "small",
+    "faith": null
+   },
+   {
+    "id": "p1-a02-c2",
+    "door": "rain",
+    "intro": [
+     {
+      "who": "bobo",
+      "en": "The egg loves our songs!",
+      "pic": "@rainbow-egg",
+      "zh": "蛋好喜歡我們的歌！",
+      "stage": {
+       "scene": "魔法屋客廳的蛋窩",
+       "on": [
+        "bobo",
+        "egg"
+       ]
+      }
+     },
+     {
+      "who": "bobo",
+      "en": "Let's find a new song.",
+      "pic": "@rainbow-egg",
+      "zh": "我們去找一首新的歌。",
+      "stage": {
+       "scene": "魔法屋客廳",
+       "on": [
+        "bobo",
+        "egg"
+       ]
+      }
+     },
+     {
+      "who": "all",
+      "en": "Knock, knock! Open, magic door!",
+      "pic": "door",
+      "zh": "叩叩！魔法門，打開！",
+      "stage": {
+       "scene": "魔法屋門廊，今天的門打開",
+       "on": [
+        "dodo",
+        "bobo",
+        "momo"
+       ]
+      }
+     }
+    ],
+    "stops": [
+     {
+      "generic": [
+       {
+        "who": "bobo",
+        "en": "Drip, drop! The rain sings, too!",
+        "pic": "cloud-with-rain+@rainbow-egg",
+        "zh": "滴答、滴答！雨也在唱歌！",
+        "stage": {
+         "scene": "下雨天，灰灰的雲下面",
+         "on": [
+          "bobo",
+          "egg",
+          "cloud"
+         ]
+        }
+       }
+      ]
+     }
+    ],
+    "end": [
+     {
+      "who": "bobo",
+      "en": "Home to the Magic House.",
+      "pic": "house-with-garden",
+      "zh": "回魔法屋囉。",
+      "stage": {
+       "scene": "魔法屋門口",
+       "on": [
+        "dodo",
+        "bobo",
+        "momo"
+       ]
+      }
+     },
+     {
+      "who": "egg",
+      "en": "Gurgle, gurgle!",
+      "pic": "@rainbow-egg",
+      "zh": "咕嚕咕嚕！",
+      "stage": {
+       "scene": "魔法屋客廳的蛋窩",
+       "on": [
+        "egg"
+       ]
+      }
+     }
+    ],
+    "kind": "epic",
+    "part": 1,
+    "arc": "p1-a02",
+    "chapter": 2,
+    "band": "small",
+    "faith": null
+   },
+   {
+    "id": "p1-a02-c3",
+    "door": "zoo",
+    "intro": [
+     {
+      "who": "momo",
+      "en": "Who sings at the zoo?",
+      "pic": "@rainbow-egg",
+      "zh": "動物園裡誰會唱歌？",
+      "stage": {
+       "scene": "魔法屋客廳",
+       "on": [
+        "momo",
+        "egg"
+       ]
+      }
+     },
+     {
+      "who": "momo",
+      "en": "Let's listen, little egg.",
+      "pic": "@rainbow-egg",
+      "zh": "小蛋，我們來聽一聽。",
+      "stage": {
+       "scene": "魔法屋客廳",
+       "on": [
+        "momo",
+        "egg"
+       ]
+      }
+     },
+     {
+      "who": "all",
+      "en": "Knock, knock! Open, magic door!",
+      "pic": "door",
+      "zh": "叩叩！魔法門，打開！",
+      "stage": {
+       "scene": "魔法屋門廊，今天的門打開",
+       "on": [
+        "dodo",
+        "bobo",
+        "momo"
+       ]
+      }
+     }
+    ],
+    "stops": [
+     null,
+     null,
+     null,
+     {
+      "generic": [
+       {
+        "who": "momo",
+        "en": "The birds sing! Tweet, tweet!",
+        "pic": "bird+@rainbow-egg",
+        "zh": "小鳥在唱歌！啾啾！",
+        "stage": {
+         "scene": "動物園的大樹",
+         "on": [
+          "bird",
+          "egg",
+          "momo"
+         ]
+        }
+       }
+      ]
+     }
+    ],
+    "end": [
+     {
+      "who": "momo",
+      "en": "Home to the Magic House.",
+      "pic": "house-with-garden",
+      "zh": "回魔法屋囉。",
+      "stage": {
+       "scene": "魔法屋門口",
+       "on": [
+        "dodo",
+        "bobo",
+        "momo"
+       ]
+      }
+     },
+     {
+      "who": "egg",
+      "en": "Gurgle, gurgle!",
+      "pic": "@rainbow-egg",
+      "zh": "咕嚕咕嚕！",
+      "stage": {
+       "scene": "魔法屋客廳的蛋窩",
+       "on": [
+        "egg"
+       ]
+      }
+     },
+     {
+      "who": "momo",
+      "en": "The egg loves bird songs.",
+      "pic": "@rainbow-egg",
+      "zh": "蛋好喜歡小鳥的歌。",
+      "stage": {
+       "scene": "魔法屋客廳的蛋窩",
+       "on": [
+        "egg",
+        "momo"
+       ]
+      }
+     }
+    ],
+    "kind": "epic",
+    "part": 1,
+    "arc": "p1-a02",
+    "chapter": 3,
+    "band": "small",
+    "faith": null
+   },
+   {
+    "id": "p1-a02-c4",
+    "door": "ocean",
+    "intro": [
+     {
+      "who": "bobo",
+      "en": "The egg wants a sea song.",
+      "pic": "@rainbow-egg",
+      "zh": "蛋想聽大海的歌。",
+      "stage": {
+       "scene": "魔法屋客廳",
+       "on": [
+        "bobo",
+        "egg"
+       ]
+      }
+     },
+     {
+      "who": "dodo",
+      "en": "Splash! Let's go!",
+      "pic": "@rainbow-egg",
+      "zh": "嘩啦！出發！",
+      "stage": {
+       "scene": "魔法屋門廊",
+       "on": [
+        "dodo",
+        "egg"
+       ]
+      }
+     },
+     {
+      "who": "all",
+      "en": "Knock, knock! Open, magic door!",
+      "pic": "door",
+      "zh": "叩叩！魔法門，打開！",
+      "stage": {
+       "scene": "魔法屋門廊，今天的門打開",
+       "on": [
+        "dodo",
+        "bobo",
+        "momo"
+       ]
+      }
+     }
+    ],
+    "stops": [
+     null,
+     {
+      "generic": [
+       {
+        "who": "momo",
+        "en": "Little fish sing, too!",
+        "pic": "tropical-fish+@rainbow-egg",
+        "zh": "小魚也在唱歌！",
+        "stage": {
+         "scene": "海上，小船旁邊游過小魚",
+         "on": [
+          "fish",
+          "egg",
+          "momo"
+         ]
+        }
+       }
+      ]
+     }
+    ],
+    "end": [
+     {
+      "who": "momo",
+      "en": "Home to the Magic House.",
+      "pic": "house-with-garden",
+      "zh": "回魔法屋囉。",
+      "stage": {
+       "scene": "魔法屋門口",
+       "on": [
+        "dodo",
+        "bobo",
+        "momo"
+       ]
+      }
+     },
+     {
+      "who": "egg",
+      "en": "Gurgle, gurgle!",
+      "pic": "@rainbow-egg",
+      "zh": "咕嚕咕嚕！",
+      "stage": {
+       "scene": "魔法屋客廳的蛋窩",
+       "on": [
+        "egg"
+       ]
+      }
+     }
+    ],
+    "kind": "epic",
+    "part": 1,
+    "arc": "p1-a02",
+    "chapter": 4,
+    "band": "small",
+    "faith": null
+   },
+   {
+    "id": "p1-a02-c5",
+    "door": "bedtime",
+    "intro": [
+     {
+      "who": "dodo",
+      "en": "Bang, bang! A little drum!",
+      "pic": "drum",
+      "zh": "咚咚！一個小鼓！",
+      "stage": {
+       "scene": "魔法屋客廳",
+       "on": [
+        "dodo",
+        "drum"
+       ]
+      }
+     },
+     {
+      "who": "dodo",
+      "en": "A drum for the egg!",
+      "pic": "drum+@rainbow-egg",
+      "zh": "給蛋的鼓！",
+      "stage": {
+       "scene": "魔法屋客廳",
+       "on": [
+        "dodo",
+        "drum",
+        "egg"
+       ]
+      }
+     },
+     {
+      "who": "all",
+      "en": "Knock, knock! Open, magic door!",
+      "pic": "door",
+      "zh": "叩叩！魔法門，打開！",
+      "stage": {
+       "scene": "魔法屋門廊，今天的門打開",
+       "on": [
+        "dodo",
+        "bobo",
+        "momo"
+       ]
+      }
+     }
+    ],
+    "stops": [
+     null,
+     null,
+     null,
+     {
+      "generic": [
+       {
+        "who": "momo",
+        "en": "A soft song for the | egg.",
+        "pic": "crescent-moon+@rainbow-egg",
+        "zh": "一首輕輕的歌給蛋聽。",
+        "stage": {
+         "scene": "晚上的臥室，窗外有月亮",
+         "on": [
+          "momo",
+          "egg",
+          "moon"
+         ]
+        }
+       }
+      ]
+     }
+    ],
+    "end": [
+     {
+      "who": "momo",
+      "en": "Look! A drum for our house!",
+      "pic": "drum+@rainbow-egg",
+      "zh": "看！家裡多了一個鼓！",
+      "stage": {
+       "scene": "魔法屋客廳的音樂角",
+       "on": [
+        "drum",
+        "egg"
+       ]
+      }
+     },
+     {
+      "who": "egg",
+      "en": "Gurgle, gurgle…",
+      "pic": "drum+@rainbow-egg",
+      "zh": "咕嚕咕嚕…",
+      "stage": {
+       "scene": "魔法屋客廳的音樂角",
+       "on": [
+        "egg",
+        "drum"
+       ]
+      }
+     },
+     {
+      "who": "momo",
+      "en": "Good night, little egg.",
+      "pic": "@egg-nest+zzz",
+      "zh": "晚安，小蛋。",
+      "stage": {
+       "scene": "魔法屋客廳，蛋在蛋窩裡睡著",
+       "on": [
+        "egg",
+        "momo"
+       ]
+      }
+     }
+    ],
+    "houseAdds": "music-drum",
+    "kind": "epic",
+    "part": 1,
+    "arc": "p1-a02",
+    "chapter": 5,
+    "band": "small",
+    "faith": null
+   }
+  ]
+ }
+}

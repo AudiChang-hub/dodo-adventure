@@ -1,0 +1,531 @@
+{
+ "type": "arc",
+ "rev": 1,
+ "week": "2026-11-16",
+ "by": "ai",
+ "notes": [
+  "故事世界 §4.1 第 3 篇：每扇門後面都找紅色的東西給蛋看，蛋的紅色斑點亮一下；講完窗邊多了紅色小花。",
+  "紅色的東西照門排：紅蘋果、消防車、氣球、瓢蟲、紅色小花。"
+ ],
+ "cast": [],
+ "season": "p1-s1",
+ "house": {
+  "id": "red-flower",
+  "zh": "窗邊的紅色小花",
+  "room": "living",
+  "pic": "tulip",
+  "at": {
+   "x": 640,
+   "y": 470,
+   "w": 60
+  }
+ },
+ "arc": {
+  "id": "p1-a03",
+  "part": 1,
+  "no": 3,
+  "title": "The Egg Loves Red",
+  "zh": "蛋喜歡紅色",
+  "icon": "red-apple",
+  "band": "small",
+  "houseAdds": "red-flower",
+  "chapters": [
+   {
+    "id": "p1-a03-c1",
+    "door": "fruit",
+    "intro": [
+     {
+      "who": "momo",
+      "en": "The egg has a red spot.",
+      "pic": "@rainbow-egg",
+      "zh": "蛋有一個紅色的斑點。",
+      "stage": {
+       "scene": "魔法屋客廳的蛋窩",
+       "on": [
+        "momo",
+        "egg"
+       ]
+      }
+     },
+     {
+      "who": "momo",
+      "en": "The egg loves red things!",
+      "pic": "@rainbow-egg",
+      "zh": "蛋喜歡紅色的東西！",
+      "stage": {
+       "scene": "魔法屋客廳",
+       "on": [
+        "momo",
+        "egg"
+       ]
+      }
+     },
+     {
+      "who": "all",
+      "en": "Knock, knock! Open, magic door!",
+      "pic": "door",
+      "zh": "叩叩！魔法門，打開！",
+      "stage": {
+       "scene": "魔法屋門廊，今天的門打開",
+       "on": [
+        "dodo",
+        "bobo",
+        "momo"
+       ]
+      }
+     }
+    ],
+    "stops": [
+     null,
+     {
+      "generic": [
+       {
+        "who": "momo",
+        "en": "Look, egg! Red | apples!",
+        "pic": "red-apple+@rainbow-egg",
+        "zh": "蛋，你看！紅蘋果！",
+        "stage": {
+         "scene": "水果市場的蘋果攤",
+         "on": [
+          "momo",
+          "egg",
+          "apple"
+         ]
+        }
+       }
+      ]
+     }
+    ],
+    "end": [
+     {
+      "who": "momo",
+      "en": "Home to the Magic House.",
+      "pic": "house-with-garden",
+      "zh": "回魔法屋囉。",
+      "stage": {
+       "scene": "魔法屋門口",
+       "on": [
+        "dodo",
+        "bobo",
+        "momo"
+       ]
+      }
+     },
+     {
+      "who": "egg",
+      "en": "Gurgle, gurgle!",
+      "pic": "@rainbow-egg",
+      "zh": "咕嚕咕嚕！",
+      "stage": {
+       "scene": "魔法屋客廳的蛋窩",
+       "on": [
+        "egg"
+       ]
+      }
+     }
+    ],
+    "kind": "epic",
+    "part": 1,
+    "arc": "p1-a03",
+    "chapter": 1,
+    "band": "small",
+    "faith": null
+   },
+   {
+    "id": "p1-a03-c2",
+    "door": "fire",
+    "intro": [
+     {
+      "who": "dodo",
+      "en": "Red apples! What else is red?",
+      "pic": "red-apple",
+      "zh": "紅蘋果！還有什麼是紅色的？",
+      "stage": {
+       "scene": "魔法屋客廳",
+       "on": [
+        "dodo",
+        "egg",
+        "apple"
+       ]
+      }
+     },
+     {
+      "who": "all",
+      "en": "Knock, knock! Open, magic door!",
+      "pic": "door",
+      "zh": "叩叩！魔法門，打開！",
+      "stage": {
+       "scene": "魔法屋門廊，今天的門打開",
+       "on": [
+        "dodo",
+        "bobo",
+        "momo"
+       ]
+      }
+     }
+    ],
+    "stops": [
+     {
+      "generic": [
+       {
+        "who": "dodo",
+        "en": "A big red fire | truck!",
+        "pic": "fire-engine+@rainbow-egg",
+        "zh": "一輛紅色的大消防車！",
+        "stage": {
+         "scene": "消防隊，紅色的消防車前面",
+         "on": [
+          "dodo",
+          "egg",
+          "fire-truck"
+         ]
+        }
+       }
+      ]
+     }
+    ],
+    "end": [
+     {
+      "who": "dodo",
+      "en": "Home to the Magic House.",
+      "pic": "house-with-garden",
+      "zh": "回魔法屋囉。",
+      "stage": {
+       "scene": "魔法屋門口",
+       "on": [
+        "dodo",
+        "bobo",
+        "momo"
+       ]
+      }
+     },
+     {
+      "who": "egg",
+      "en": "Gurgle, gurgle!",
+      "pic": "@rainbow-egg",
+      "zh": "咕嚕咕嚕！",
+      "stage": {
+       "scene": "魔法屋客廳的蛋窩",
+       "on": [
+        "egg"
+       ]
+      }
+     },
+     {
+      "who": "dodo",
+      "en": "The red spot glows!",
+      "pic": "@rainbow-egg",
+      "zh": "紅色的斑點亮了！",
+      "stage": {
+       "scene": "魔法屋客廳的蛋窩",
+       "on": [
+        "egg",
+        "dodo"
+       ]
+      }
+     }
+    ],
+    "kind": "epic",
+    "part": 1,
+    "arc": "p1-a03",
+    "chapter": 2,
+    "band": "small",
+    "faith": null
+   },
+   {
+    "id": "p1-a03-c3",
+    "door": "birthday",
+    "intro": [
+     {
+      "who": "bobo",
+      "en": "More red things! Let's count!",
+      "pic": "@rainbow-egg",
+      "zh": "還要更多紅色的東西！我們來數！",
+      "stage": {
+       "scene": "魔法屋客廳",
+       "on": [
+        "bobo",
+        "egg"
+       ]
+      }
+     },
+     {
+      "who": "all",
+      "en": "Knock, knock! Open, magic door!",
+      "pic": "door",
+      "zh": "叩叩！魔法門，打開！",
+      "stage": {
+       "scene": "魔法屋門廊，今天的門打開",
+       "on": [
+        "dodo",
+        "bobo",
+        "momo"
+       ]
+      }
+     }
+    ],
+    "stops": [
+     null,
+     {
+      "generic": [
+       {
+        "who": "bobo",
+        "en": "One, two, three red | balloons!",
+        "pic": "balloon+@rainbow-egg",
+        "zh": "一、二、三個紅氣球！",
+        "stage": {
+         "scene": "生日派對，三個紅氣球",
+         "on": [
+          "bobo",
+          "egg",
+          "balloons"
+         ]
+        }
+       }
+      ]
+     }
+    ],
+    "end": [
+     {
+      "who": "bobo",
+      "en": "Home to the Magic House.",
+      "pic": "house-with-garden",
+      "zh": "回魔法屋囉。",
+      "stage": {
+       "scene": "魔法屋門口",
+       "on": [
+        "dodo",
+        "bobo",
+        "momo"
+       ]
+      }
+     },
+     {
+      "who": "egg",
+      "en": "Gurgle, gurgle!",
+      "pic": "@rainbow-egg",
+      "zh": "咕嚕咕嚕！",
+      "stage": {
+       "scene": "魔法屋客廳的蛋窩",
+       "on": [
+        "egg"
+       ]
+      }
+     }
+    ],
+    "kind": "epic",
+    "part": 1,
+    "arc": "p1-a03",
+    "chapter": 3,
+    "band": "small",
+    "faith": null
+   },
+   {
+    "id": "p1-a03-c4",
+    "door": "picnic",
+    "intro": [
+     {
+      "who": "momo",
+      "en": "Red apples, red truck, red balloons…",
+      "pic": "red-apple+balloon",
+      "zh": "紅蘋果、紅色的車、紅氣球…",
+      "stage": {
+       "scene": "魔法屋客廳",
+       "on": [
+        "momo",
+        "egg"
+       ]
+      }
+     },
+     {
+      "who": "momo",
+      "en": "What is red at the park?",
+      "pic": "@rainbow-egg",
+      "zh": "公園裡什麼是紅色的？",
+      "stage": {
+       "scene": "魔法屋客廳",
+       "on": [
+        "momo",
+        "egg"
+       ]
+      }
+     },
+     {
+      "who": "all",
+      "en": "Knock, knock! Open, magic door!",
+      "pic": "door",
+      "zh": "叩叩！魔法門，打開！",
+      "stage": {
+       "scene": "魔法屋門廊，今天的門打開",
+       "on": [
+        "dodo",
+        "bobo",
+        "momo"
+       ]
+      }
+     }
+    ],
+    "stops": [
+     null,
+     {
+      "generic": [
+       {
+        "who": "momo",
+        "en": "A big red | strawberry!",
+        "pic": "strawberry+@rainbow-egg",
+        "zh": "一顆紅色的大草莓！",
+        "stage": {
+         "scene": "公園野餐墊上的草莓",
+         "on": [
+          "momo",
+          "egg",
+          "strawberry"
+         ]
+        }
+       }
+      ]
+     }
+    ],
+    "end": [
+     {
+      "who": "momo",
+      "en": "Home to the Magic House.",
+      "pic": "house-with-garden",
+      "zh": "回魔法屋囉。",
+      "stage": {
+       "scene": "魔法屋門口",
+       "on": [
+        "dodo",
+        "bobo",
+        "momo"
+       ]
+      }
+     },
+     {
+      "who": "egg",
+      "en": "Gurgle, gurgle!",
+      "pic": "@rainbow-egg",
+      "zh": "咕嚕咕嚕！",
+      "stage": {
+       "scene": "魔法屋客廳的蛋窩",
+       "on": [
+        "egg"
+       ]
+      }
+     }
+    ],
+    "kind": "epic",
+    "part": 1,
+    "arc": "p1-a03",
+    "chapter": 4,
+    "band": "small",
+    "faith": null
+   },
+   {
+    "id": "p1-a03-c5",
+    "door": "farm",
+    "intro": [
+     {
+      "who": "dodo",
+      "en": "One more red thing, please!",
+      "pic": "@rainbow-egg",
+      "zh": "再一樣紅色的東西就好！",
+      "stage": {
+       "scene": "魔法屋客廳",
+       "on": [
+        "dodo",
+        "egg"
+       ]
+      }
+     },
+     {
+      "who": "all",
+      "en": "Knock, knock! Open, magic door!",
+      "pic": "door",
+      "zh": "叩叩！魔法門，打開！",
+      "stage": {
+       "scene": "魔法屋門廊，今天的門打開",
+       "on": [
+        "dodo",
+        "bobo",
+        "momo"
+       ]
+      }
+     }
+    ],
+    "stops": [
+     null,
+     null,
+     null,
+     null,
+     {
+      "generic": [
+       {
+        "who": "bobo",
+        "en": "Look! A little red | flower!",
+        "pic": "tulip+@rainbow-egg",
+        "zh": "看！一朵紅色的小花！",
+        "stage": {
+         "scene": "農場的菜園邊，一朵紅花",
+         "on": [
+          "bobo",
+          "egg",
+          "flower"
+         ]
+        }
+       }
+      ]
+     }
+    ],
+    "end": [
+     {
+      "who": "momo",
+      "en": "Our house has a red | flower!",
+      "pic": "tulip+house-with-garden",
+      "zh": "我們家有一朵紅色的花了！",
+      "stage": {
+       "scene": "魔法屋客廳的窗邊",
+       "on": [
+        "flower",
+        "egg"
+       ]
+      }
+     },
+     {
+      "who": "egg",
+      "en": "Gurgle, gurgle…",
+      "pic": "tulip+@rainbow-egg",
+      "zh": "咕嚕咕嚕…",
+      "stage": {
+       "scene": "魔法屋客廳的蛋窩",
+       "on": [
+        "egg",
+        "flower"
+       ]
+      }
+     },
+     {
+      "who": "momo",
+      "en": "Good night, little egg.",
+      "pic": "@egg-nest+zzz",
+      "zh": "晚安，小蛋。",
+      "stage": {
+       "scene": "魔法屋客廳，蛋在蛋窩裡睡著",
+       "on": [
+        "egg",
+        "momo"
+       ]
+      }
+     }
+    ],
+    "houseAdds": "red-flower",
+    "kind": "epic",
+    "part": 1,
+    "arc": "p1-a03",
+    "chapter": 5,
+    "band": "small",
+    "faith": null
+   }
+  ]
+ }
+}

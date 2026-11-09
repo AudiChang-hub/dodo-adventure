@@ -1,0 +1,234 @@
+{
+ "type": "classic",
+ "rev": 1,
+ "week": "2026-11-30",
+ "by": "ai",
+ "cast": [
+  "Crocodile"
+ ],
+ "notes": [
+  "原典鱷魚想吃猴子的心，改成鱷魚想要猴子樹上的蘋果（故事世界 §5.3）。",
+  "猴子說「蘋果在我的樹上」回到樹上，是實話，不是騙人；最後兩個說好輪流分蘋果。",
+  "鱷魚用波波的聲音（大大的、慢慢的），猴子用豆豆的聲音。",
+  "原典的果子是蒲桃（rose apple），這裡用孩子學過的 apple（蘋果）。"
+ ],
+ "classic": {
+  "id": "P01",
+  "source": "印度《五卷書》第四卷",
+  "zh": "猴子與鱷魚",
+  "band": "small",
+  "faith": "panchatantra",
+  "chapter": {
+   "id": "classic-p01",
+   "look": {
+    "zh": "猴子與鱷魚（故事時間）",
+    "host": "momo",
+    "icon": "open-book",
+    "title": "Monkey and Crocodile",
+    "scene": "park",
+    "tint": "#E3EEDF",
+    "deep": "#6E9A6A",
+    "ground": "#C8DDBF",
+    "stops": [
+     "monkey",
+     "crocodile",
+     "crocodile",
+     "red-apple",
+     "monkey"
+    ],
+    "finale": [
+     "monkey",
+     "red-apple",
+     "crocodile"
+    ]
+   },
+   "stops": [
+    {
+     "generic": [
+      {
+       "who": "momo",
+       "en": "Here is a little | monkey.",
+       "pic": "monkey",
+       "zh": "這是一隻小猴子。",
+       "stage": {
+        "scene": "河邊的蘋果樹",
+        "on": [
+         "monkey",
+         "apple-tree"
+        ]
+       }
+      },
+      {
+       "who": "momo",
+       "en": "Monkey lives in an apple tree.",
+       "pic": "monkey+red-apple",
+       "zh": "猴子住在蘋果樹上。",
+       "stage": {
+        "scene": "河邊的蘋果樹",
+        "on": [
+         "monkey",
+         "apple-tree"
+        ]
+       }
+      }
+     ]
+    },
+    {
+     "generic": [
+      {
+       "who": "momo",
+       "en": "Crocodile swims in the river.",
+       "pic": "crocodile",
+       "zh": "鱷魚在河裡游泳。",
+       "stage": {
+        "scene": "河邊，蘋果樹在岸上",
+        "on": [
+         "crocodile",
+         "monkey",
+         "apple-tree"
+        ]
+       }
+      },
+      {
+       "who": "bobo",
+       "en": "I want apples, too!",
+       "pic": "crocodile+red-apple",
+       "zh": "我也想要蘋果！",
+       "stage": {
+        "scene": "河邊",
+        "on": [
+         "crocodile",
+         "monkey"
+        ]
+       }
+      }
+     ]
+    },
+    {
+     "generic": [
+      {
+       "who": "bobo",
+       "en": "Hop on my back!",
+       "pic": "crocodile+monkey",
+       "zh": "跳到我的背上來！",
+       "stage": {
+        "scene": "河邊",
+        "on": [
+         "crocodile",
+         "monkey"
+        ]
+       }
+      },
+      {
+       "who": "momo",
+       "en": "Swish, swish! Off they go.",
+       "pic": "crocodile+monkey",
+       "zh": "咻咻！他們出發了。",
+       "stage": {
+        "scene": "河的中間，猴子坐在鱷魚背上",
+        "on": [
+         "crocodile",
+         "monkey"
+        ]
+       }
+      }
+     ]
+    },
+    {
+     "generic": [
+      {
+       "who": "bobo",
+       "en": "Give me all the apples!",
+       "pic": "crocodile+red-apple",
+       "zh": "蘋果全部給我！",
+       "stage": {
+        "scene": "河的中間",
+        "on": [
+         "crocodile",
+         "monkey"
+        ]
+       }
+      },
+      {
+       "who": "dodo",
+       "en": "They are in my tree!",
+       "pic": "monkey+red-apple",
+       "zh": "蘋果在我的樹上呀！",
+       "stage": {
+        "scene": "河的中間，遠遠的蘋果樹",
+        "on": [
+         "monkey",
+         "crocodile",
+         "apple-tree"
+        ]
+       }
+      }
+     ]
+    },
+    {
+     "generic": [
+      {
+       "who": "momo",
+       "en": "Back to the tree. Hop!",
+       "pic": "monkey+red-apple",
+       "zh": "回到樹邊。跳！",
+       "stage": {
+        "scene": "河邊的蘋果樹",
+        "on": [
+         "monkey",
+         "apple-tree",
+         "crocodile"
+        ]
+       }
+      },
+      {
+       "who": "dodo",
+       "en": "Let's share. My turn, your turn!",
+       "pic": "red-apple+crocodile",
+       "zh": "我們來分。換我、換你！",
+       "stage": {
+        "scene": "河邊的蘋果樹下",
+        "on": [
+         "monkey",
+         "crocodile",
+         "red-apple"
+        ]
+       }
+      }
+     ]
+    }
+   ],
+   "kind": "classic",
+   "part": 1,
+   "arc": "classic",
+   "chapter": 1,
+   "band": "small",
+   "faith": "panchatantra",
+   "intro": [
+    {
+     "who": "momo",
+     "en": "Story time! Open the old book.",
+     "pic": "open-book",
+     "key": "story.classic.open.0",
+     "zh": "故事時間！打開舊書。"
+    },
+    {
+     "who": "momo",
+     "en": "Long ago, people told this story.",
+     "pic": "open-book",
+     "key": "story.classic.open.1",
+     "zh": "很久以前，人們講過這個故事。"
+    }
+   ],
+   "end": [
+    {
+     "who": "momo",
+     "en": "The end. Close the old book.",
+     "pic": "closed-book",
+     "key": "story.classic.close",
+     "zh": "故事講完了。闔上舊書。"
+    }
+   ]
+  }
+ }
+}

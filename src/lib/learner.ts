@@ -1,5 +1,5 @@
 // 學習快照（G-9）：每週產生故事時，寫作簡報要知道孩子學過哪些字、各支線在第幾階、有哪些朋友、故事講到哪裡。
-// 家長在家長區「故事審稿」按「下載學習快照」，存成 scripts/.cache/learner.json 給 scripts/story-brief.ts、check-story.ts 讀。
+// 家長在家長區「本週新故事」按「下載學習快照」，存成 scripts/.cache/learner.json 給 scripts/story-brief.ts、check-story.ts 讀。
 //
 // 只放學習的狀態，不放名字、生日、作答紀錄（快照不進 repo，放在 gitignored 的 scripts/.cache/）。
 import { db, today } from './db'

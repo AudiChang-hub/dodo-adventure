@@ -1,7 +1,8 @@
 // 每週故事流程（G-9，docs/成長系統設計.md §3.6.4）：
 //   寫作簡報（story-brief）→ 寫劇本（AI 或人貼進來）→ 自動檢查（check-story）→ 不合格就帶著原因退回重寫（最多 3 次）
 //   → 放進審稿佇列（src/content/story/weekly/）→ 打包新用到的圖示 → 產生語音（edge-tts 的 Ana，跟現有流程一樣）。
-// 之後 PM 照平常的流程 build、deploy；家長在家長區「故事審稿」逐章試聽，按通過（或退回並寫一句原因）。只有通過的章節會進孩子端。
+// 之後 PM 照平常的流程 build、deploy，故事就直接給孩子聽（T-120 起：家長 2026-11-09「不用審稿，我相信你」，通過 check-story 就上線，
+// 不用等家長按通過；每週日的排程 dodo-weekly-stories 跑完、部署之後就上線）。家長在家長區「本週新故事」試聽，不喜歡的撤下（附一句原因）。
 //
 // 用法（在 repo 根目錄，PM 手動或用 Windows 工作排程器每週日晚上跑）：
 //   npx tsx scripts/story-weekly.ts --writer claude                 用 Claude Code（claude -p）寫劇本；不需要在 repo 放任何金鑰
@@ -9,8 +10,9 @@
 //   npx tsx scripts/story-weekly.ts --writer paste                  人寫：簡報寫好就停下來，把劇本存成提示的檔名後再跑一次同一個指令
 //   npx tsx scripts/story-weekly.ts --writer file:a.json,b.json     用現成的劇本（第 1 次用 a、退回重寫用 b…；驗收、測試用）
 // 其他參數：
-//   --what arc|classic|both|feedback（預設 both；feedback 只重寫家長退回的）、--arc 3、--classic J02：寫哪一篇、哪一則
-//   --feedback 審稿結果.json：家長在審稿頁「匯出審稿結果」的檔案；退回的章節照家長的原因重寫（只重寫退回的那份劇本）
+//   --what arc|classic|both|feedback（預設 both；feedback 只重寫家長撤下的）、--arc 3、--classic J02：寫哪一篇、哪一則
+//   --feedback 撤下原因.json：家長在「本週新故事」按「匯出撤下的原因」的檔案；撤下的章節照家長的原因重寫（只重寫撤下的那份劇本），
+//     重寫的新版通過 check-story 就直接上線
 //   --learner 學習快照.json（預設 scripts/.cache/learner.json）、--week 2026-11-02、--max 3（最多寫幾次）
 //   --no-audio：不產生語音（沒有網路、沒有 Python 時）；之後再跑 npm run audio
 // 結束碼：0 全部進佇列；1 有劇本寫了 3 次還不合格（沒放進佇列）；3 等人貼劇本（--writer paste）
@@ -112,7 +114,7 @@ function writeIndex() {
   writeFileSync(
     join(QUEUE, 'index.ts'),
     `// 審稿佇列：每週自動產生的劇本（由 scripts/story-weekly.ts 產生這個檔案，不要手改）。
-// 每一份劇本是同一個資料夾裡的 JSON；家長在家長區「故事審稿」通過的章節才會進孩子端（lib/review.ts）。
+// 每一份劇本是同一個資料夾裡的 JSON；通過自動檢查就直接進孩子端，家長在家長區「本週新故事」撤下的不播（lib/review.ts）。
 import type { StoryDraft } from '../draft'
 ${ds.map(({ f }) => `import ${ident(f)} from './${f}'`).join('\n')}
 
@@ -176,7 +178,7 @@ function main() {
   const fb = opt('--feedback')
   if (fb) {
     const ex = JSON.parse(readFileSync(fb, 'utf8')) as { kind: string; verdicts: { id: string; ok: boolean; reason?: string; current: boolean }[] }
-    if (ex.kind !== 'story-review') throw new Error(`${fb} 不是審稿結果（家長區「故事審稿」→「匯出審稿結果」）`)
+    if (ex.kind !== 'story-review') throw new Error(`${fb} 不是撤下的原因（家長區「本週新故事」→「匯出撤下的原因」）`)
     const byDraft = new Map<string, { chapter: string; reason: string }[]>()
     for (const v of ex.verdicts.filter((x) => !x.ok && x.current)) {
       const d = WEEKLY.find((x) => draftChapters(x).some((c) => c.id === v.id))
@@ -187,7 +189,7 @@ function main() {
       const d = weeklyById(id)!
       jobs.push({ type: d.type, redoOf: d, parent })
     }
-    say(`家長退回：${byDraft.size ? [...byDraft.entries()].map(([id, p]) => `${id}（${p.length} 章）`).join('、') : '沒有'}`)
+    say(`家長撤下：${byDraft.size ? [...byDraft.entries()].map(([id, p]) => `${id}（${p.length} 章）`).join('、') : '沒有'}`)
   }
   // --what feedback：只重寫家長退回的，不寫新的
   if (what !== 'feedback') {
@@ -213,7 +215,7 @@ function main() {
     }
     const first = job.type === 'arc' ? arcBrief(bo) : classicBrief(bo)
     const id = first.meta.id
-    say(`\n## ${job.type === 'arc' ? '長篇' : '故事時間'} ${id}〈${first.meta.title}〉${job.redoOf ? '：家長退回，重寫' : ''}`)
+    say(`\n## ${job.type === 'arc' ? '長篇' : '故事時間'} ${id}〈${first.meta.title}〉${job.redoOf ? '：家長撤下，重寫' : ''}`)
     if (!job.redoOf && writtenIds().has(id) && !flag('--force')) {
       say(`  已經寫好了（手寫的或審稿佇列裡已經有 ${id}），跳過；要重寫用 --force`)
       continue
@@ -263,14 +265,14 @@ function main() {
       }
       continue
     }
-    if (enqueue(done, warnPics)) say(`  ✓ 放進審稿佇列：${QUEUE}/${id}.json（${draftChapters(done).length} 章${done.type === 'classic' && done.classic.faith ? `，宗教經典 ${done.classic.faith}：家長要逐章通過` : ''}）`)
+    if (enqueue(done, warnPics)) say(`  ✓ 放進審稿佇列，部署之後直接上線：${QUEUE}/${id}.json（${draftChapters(done).length} 章${done.type === 'classic' && done.classic.faith ? `，宗教經典 ${done.classic.faith}` : ''}）`)
     else failed++
   }
 
   say(`\n## 下一步`)
   if (waiting) say(`- 有 ${waiting} 份劇本等人寫（看上面的檔名），寫好之後再跑一次同一個指令。`)
   say('- PM：npx tsc -b、npm run test:toddler -- --quick，commit 之後 npm run deploy。')
-  say('- 家長：家長區「故事審稿」逐章試聽，按通過，或退回並寫一句原因。退回的用「匯出審稿結果」存檔，下次跑 --feedback 那個檔。')
+  say('- 家長：不用按通過，部署之後孩子就聽得到。家長區「本週新故事」可以試聽，不喜歡的撤下並寫一句原因；用「匯出撤下的原因」存檔，下次跑 --feedback 那個檔。')
   writeFileSync(join(out, 'report.md'), log.join('\n') + '\n')
   console.log(`\n報告：${join(out, 'report.md')}`)
   process.exit(failed ? 1 : waiting ? 3 : 0)

@@ -137,7 +137,7 @@ export function SettingsPanel({ onChanged }: { onChanged: () => void }) {
         </Field>
         <Field
           label="故事（試播）"
-          hint="開啟後，首頁的「故事」每天先講《彩虹蛋之旅》的下一章（家長在故事審稿通過的才講），每週還有一章莫莫講的故事時間；沒有新的章節時講 12 扇門的通用故事。關閉時只講通用故事。講過的都在書架上，點一本就重聽。"
+          hint="開啟後，首頁的「故事」每天先講《彩虹蛋之旅》的下一章（每週的新故事通過自動檢查就講，家長在「本週新故事」撤下的不講），每週還有一章莫莫講的故事時間；沒有新的章節時講 12 扇門的通用故事。關閉時只講通用故事。講過的都在書架上，點一本就重聽。"
         >
           <select value={s.story ? 'on' : 'off'} onChange={(e) => set({ story: e.target.value === 'on' })}>
             <option value="off">關閉</option>

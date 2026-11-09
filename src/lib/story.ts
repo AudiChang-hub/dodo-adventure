@@ -80,7 +80,7 @@ function epicAt(st: StoryState): { arc: Arc; chapter: Chapter } | null {
     next = 0
   }
   if (!arcs[i]) return null
-  // 下一章還沒通過審稿（或被退回）：先講通用章節，等家長通過再接著講
+  // 下一章家長撤下了（本週新故事）：先講通用章節，重寫好或家長放回再接著講
   const chapter = arcs[i].chapters[next]
   return playable(chapter) ? { arc: arcs[i], chapter } : null
 }
@@ -271,7 +271,7 @@ async function evergreenDoor(date: string): Promise<ThemeId> {
 /**
  * 今天的新章節（故事書一打開就先講）：
  * - 今天已經記了一章：講完了回傳 null（直接進書架）；還沒講完就是那一章（中途離開過，接著講）。
- * - 還沒有：照原本的規則挑（一週一章故事時間、長篇的下一章；家長在故事審稿通過的才講），都沒有就講一扇門的通用章節，
+ * - 還沒有：照原本的規則挑（一週一章故事時間、長篇的下一章；家長在本週新故事撤下的不講），都沒有就講一扇門的通用章節，
  *   記一筆還沒講完的，回傳它。
  */
 export async function todaysStory(date = today()): Promise<ToldChapter | null> {

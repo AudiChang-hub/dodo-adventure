@@ -1,0 +1,227 @@
+{
+ "type": "classic",
+ "rev": 1,
+ "week": "2026-11-09",
+ "by": "ai",
+ "cast": [
+  "Rabbit"
+ ],
+ "notes": [
+  "原典兔子跳進火裡把自己當食物，這一段拿掉（故事世界 §5.3）。改成兔子把自己最好的紅蘿蔔分給又累又餓的老人。",
+  "原典的老人是天神變的，這裡只說是一位老人，不說他是誰；畫面上是一般的老爺爺，沒有光環。",
+  "原典是老人把兔子的樣子畫在月亮上：保留，最後一起抬頭看月亮上的兔子。"
+ ],
+ "classic": {
+  "id": "J02",
+  "source": "佛教本生經（Sasa Jātaka，本生經第 316 則）",
+  "zh": "兔子與月亮",
+  "band": "small",
+  "faith": "jataka",
+  "chapter": {
+   "id": "classic-j02",
+   "look": {
+    "zh": "兔子與月亮（故事時間）",
+    "host": "momo",
+    "icon": "open-book",
+    "title": "Rabbit and the Moon",
+    "scene": "night",
+    "tint": "#E4E3EE",
+    "deep": "#7D7AA6",
+    "ground": "#CFCDE0",
+    "stops": [
+     "rabbit",
+     "old-man",
+     "carrot",
+     "rabbit",
+     "crescent-moon"
+    ],
+    "finale": [
+     "crescent-moon",
+     "rabbit"
+    ]
+   },
+   "stops": [
+    {
+     "generic": [
+      {
+       "who": "momo",
+       "en": "Here is a little | rabbit.",
+       "pic": "rabbit",
+       "zh": "這是一隻小兔子。",
+       "stage": {
+        "scene": "晚上的草地，大樹旁",
+        "on": [
+         "rabbit"
+        ]
+       }
+      },
+      {
+       "who": "momo",
+       "en": "Rabbit lives by a tree.",
+       "pic": "rabbit+deciduous-tree",
+       "zh": "兔子住在一棵樹旁邊。",
+       "stage": {
+        "scene": "晚上的草地，大樹旁",
+        "on": [
+         "rabbit",
+         "tree"
+        ]
+       }
+      }
+     ]
+    },
+    {
+     "generic": [
+      {
+       "who": "momo",
+       "en": "One night, an old man comes.",
+       "pic": "old-man+crescent-moon",
+       "zh": "有一天晚上，來了一位老爺爺。",
+       "stage": {
+        "scene": "晚上的草地，月亮在天上",
+        "on": [
+         "old-man",
+         "rabbit"
+        ]
+       }
+      },
+      {
+       "who": "bobo",
+       "en": "I am tired and hungry.",
+       "pic": "old-man",
+       "zh": "我好累、好餓。",
+       "stage": {
+        "scene": "晚上的草地",
+        "on": [
+         "old-man",
+         "rabbit"
+        ]
+       }
+      }
+     ]
+    },
+    {
+     "generic": [
+      {
+       "who": "momo",
+       "en": "Rabbit has yummy | carrots.",
+       "pic": "carrot+rabbit",
+       "zh": "兔子有好吃的紅蘿蔔。",
+       "stage": {
+        "scene": "大樹下，兔子的紅蘿蔔",
+        "on": [
+         "rabbit",
+         "carrot"
+        ]
+       }
+      },
+      {
+       "who": "dodo",
+       "en": "Here! Take my best carrots.",
+       "pic": "rabbit+carrot",
+       "zh": "給你！拿我最好的紅蘿蔔。",
+       "stage": {
+        "scene": "大樹下",
+        "on": [
+         "rabbit",
+         "old-man",
+         "carrot"
+        ]
+       }
+      }
+     ]
+    },
+    {
+     "generic": [
+      {
+       "who": "bobo",
+       "en": "Thank you, little Rabbit!",
+       "pic": "old-man+carrot",
+       "zh": "謝謝你，小兔子！",
+       "stage": {
+        "scene": "大樹下",
+        "on": [
+         "old-man",
+         "rabbit"
+        ]
+       }
+      },
+      {
+       "who": "momo",
+       "en": "Rabbit is so kind.",
+       "pic": "rabbit",
+       "zh": "兔子好善良。",
+       "stage": {
+        "scene": "大樹下",
+        "on": [
+         "rabbit"
+        ]
+       }
+      }
+     ]
+    },
+    {
+     "generic": [
+      {
+       "who": "momo",
+       "en": "He draws Rabbit on the moon.",
+       "pic": "crescent-moon+rabbit",
+       "zh": "老爺爺把兔子畫在月亮上。",
+       "stage": {
+        "scene": "晚上的天空，大大的月亮",
+        "on": [
+         "old-man",
+         "moon"
+        ]
+       }
+      },
+      {
+       "who": "momo",
+       "en": "Look up! There is | Rabbit!",
+       "pic": "crescent-moon+rabbit",
+       "zh": "抬頭看！兔子在那裡！",
+       "stage": {
+        "scene": "晚上的草地，月亮上有兔子的樣子",
+        "on": [
+         "rabbit",
+         "moon"
+        ]
+       }
+      }
+     ]
+    }
+   ],
+   "kind": "classic",
+   "part": 1,
+   "arc": "classic",
+   "chapter": 1,
+   "band": "small",
+   "faith": "jataka",
+   "intro": [
+    {
+     "who": "momo",
+     "en": "Story time! Open the old book.",
+     "pic": "open-book",
+     "key": "story.classic.open.0",
+     "zh": "故事時間！打開舊書。"
+    },
+    {
+     "who": "momo",
+     "en": "Long ago, people told this story.",
+     "pic": "open-book",
+     "key": "story.classic.open.1",
+     "zh": "很久以前，人們講過這個故事。"
+    }
+   ],
+   "end": [
+    {
+     "who": "momo",
+     "en": "The end. Close the old book.",
+     "pic": "closed-book",
+     "key": "story.classic.close",
+     "zh": "故事講完了。闔上舊書。"
+    }
+   ]
+  }
+ }
+}

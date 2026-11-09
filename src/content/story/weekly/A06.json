@@ -1,0 +1,232 @@
+{
+ "type": "classic",
+ "rev": 1,
+ "week": "2026-12-07",
+ "by": "ai",
+ "cast": [
+  "Goat",
+  "Goats"
+ ],
+ "notes": [
+  "原典兩隻山羊在橋上互不相讓、一起掉進河裡，改成兩隻停下來，想到「輪流過」（故事世界 §5.3）。",
+  "小班段一句一個動作，不用 first、then：用「You go. I can wait.」講輪流。",
+  "白山羊用豆豆的聲音、棕山羊用波波的聲音。"
+ ],
+ "classic": {
+  "id": "A06",
+  "source": "伊索寓言",
+  "zh": "兩隻山羊過橋",
+  "band": "small",
+  "faith": null,
+  "chapter": {
+   "id": "classic-a06",
+   "look": {
+    "zh": "兩隻山羊過橋（故事時間）",
+    "host": "momo",
+    "icon": "open-book",
+    "title": "Two Goats and a Bridge",
+    "scene": "valley",
+    "tint": "#E6EDE3",
+    "deep": "#7E9C78",
+    "ground": "#CFDDC8",
+    "stops": [
+     "bridge-at-night",
+     "goat",
+     "goat",
+     "goat",
+     "goat"
+    ],
+    "finale": [
+     "goat",
+     "bridge-at-night"
+    ]
+   },
+   "stops": [
+    {
+     "generic": [
+      {
+       "who": "momo",
+       "en": "Here is a tiny bridge.",
+       "pic": "bridge-at-night",
+       "zh": "這裡有一座小小的橋。",
+       "stage": {
+        "scene": "山谷，小河上一座窄窄的木橋",
+        "on": [
+         "bridge"
+        ]
+       }
+      },
+      {
+       "who": "momo",
+       "en": "A white goat comes this way.",
+       "pic": "goat+bridge-at-night",
+       "zh": "一隻白山羊從這邊走來。",
+       "stage": {
+        "scene": "小橋的左邊",
+        "on": [
+         "white-goat",
+         "bridge"
+        ]
+       }
+      }
+     ]
+    },
+    {
+     "generic": [
+      {
+       "who": "momo",
+       "en": "A brown goat comes that way.",
+       "pic": "goat+bridge-at-night",
+       "zh": "一隻棕山羊從那邊走來。",
+       "stage": {
+        "scene": "小橋的右邊",
+        "on": [
+         "white-goat",
+         "bridge",
+         "brown-goat"
+        ]
+       }
+      },
+      {
+       "who": "bobo",
+       "en": "Uh-oh! The bridge is tiny!",
+       "pic": "bridge-at-night+goat",
+       "zh": "哎呀！橋好小！",
+       "stage": {
+        "scene": "小橋的中間，兩隻山羊面對面",
+        "on": [
+         "white-goat",
+         "bridge",
+         "brown-goat"
+        ]
+       }
+      }
+     ]
+    },
+    {
+     "generic": [
+      {
+       "who": "momo",
+       "en": "Both goats stop. Hmm…",
+       "pic": "goat+goat",
+       "zh": "兩隻山羊停下來。嗯…",
+       "stage": {
+        "scene": "小橋的中間",
+        "on": [
+         "white-goat",
+         "brown-goat"
+        ]
+       }
+      },
+      {
+       "who": "dodo",
+       "en": "Let's take turns!",
+       "pic": "goat",
+       "zh": "我們輪流！",
+       "stage": {
+        "scene": "小橋的中間",
+        "on": [
+         "white-goat",
+         "brown-goat"
+        ]
+       }
+      }
+     ]
+    },
+    {
+     "generic": [
+      {
+       "who": "bobo",
+       "en": "You go. I can wait.",
+       "pic": "goat+bridge-at-night",
+       "zh": "你先走。我可以等。",
+       "stage": {
+        "scene": "棕山羊退回岸上",
+        "on": [
+         "brown-goat",
+         "bridge",
+         "white-goat"
+        ]
+       }
+      },
+      {
+       "who": "momo",
+       "en": "Hop, hop! The white goat goes.",
+       "pic": "goat+bridge-at-night",
+       "zh": "跳、跳！白山羊過橋了。",
+       "stage": {
+        "scene": "白山羊走過小橋",
+        "on": [
+         "white-goat",
+         "bridge"
+        ]
+       }
+      }
+     ]
+    },
+    {
+     "generic": [
+      {
+       "who": "momo",
+       "en": "Now the brown goat goes.",
+       "pic": "goat+bridge-at-night",
+       "zh": "現在換棕山羊過橋。",
+       "stage": {
+        "scene": "棕山羊走過小橋",
+        "on": [
+         "brown-goat",
+         "bridge"
+        ]
+       }
+      },
+      {
+       "who": "dodo",
+       "en": "Hooray! Thank you, friend!",
+       "pic": "goat+goat",
+       "zh": "耶！謝謝你，朋友！",
+       "stage": {
+        "scene": "小橋的兩邊，兩隻山羊都過去了",
+        "on": [
+         "white-goat",
+         "brown-goat",
+         "bridge"
+        ]
+       }
+      }
+     ]
+    }
+   ],
+   "kind": "classic",
+   "part": 1,
+   "arc": "classic",
+   "chapter": 1,
+   "band": "small",
+   "faith": null,
+   "intro": [
+    {
+     "who": "momo",
+     "en": "Story time! Open the old book.",
+     "pic": "open-book",
+     "key": "story.classic.open.0",
+     "zh": "故事時間！打開舊書。"
+    },
+    {
+     "who": "momo",
+     "en": "Long ago, people told this story.",
+     "pic": "open-book",
+     "key": "story.classic.open.1",
+     "zh": "很久以前，人們講過這個故事。"
+    }
+   ],
+   "end": [
+    {
+     "who": "momo",
+     "en": "The end. Close the old book.",
+     "pic": "closed-book",
+     "key": "story.classic.close",
+     "zh": "故事講完了。闔上舊書。"
+    }
+   ]
+  }
+ }
+}
