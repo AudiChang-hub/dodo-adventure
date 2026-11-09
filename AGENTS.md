@@ -9,6 +9,7 @@
   - 三堂課：英文字母（豆豆）、中文課文（莫莫）、數學數字（波波），程式在 `src/lessons/`，介面約定見 [src/lessons/README.md](src/lessons/README.md)。
   - 故事：`src/screens/StoryBook.tsx`。
   - 畫畫：自由畫畫 `d-free`，程式在 `src/games/draw/`。
+- 已經停做的功能不要恢復：地圖、冒險、魔法屋、貼紙本、程式車庫、爸爸回合、成長系統、第 3 階段遊戲，以及中文課文和數學的中文語音。家長沒有明確要求，就不要提議做回來。
 - 語音：
   - 全部用英文（edge-tts，`en-US-AnaNeural`）。
   - 中文只出現在英文單字三明治（Apple → 蘋果 → Apple）。
@@ -48,7 +49,7 @@
 | 打包 | `npm run build` |
 | 部署到 GitHub Pages | `node scripts/deploy.mjs` |
 
-**PM 的上線流程**：同一批合併完，依序跑 `npm run audio` → `npm run verify` → `npm run test:toddler`（完整版）→ `npm run build` → `node scripts/deploy.mjs`。上線後交給 AI 小男生測試員盲測。
+**PM 的上線流程**：同一批合併完，依序跑 `npm run audio` → `npm run verify` → `npm run test:toddler -- --changed main`（每批至少跑一次完整版）→ `npm run build` → `node scripts/deploy.mjs`。上線後交給 AI 小男生測試員盲測。
 
 ## 測試規則
 
