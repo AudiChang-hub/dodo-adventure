@@ -1,32 +1,12 @@
 // 故事時間的手繪角色（T-119 樣張，家長 2026-11-09 選了「全部改成手繪」）：自己畫的原創造型，不照任何繪本、卡通。
 // 畫風（跟三隻恐龍 art/Dino.tsx 同一套）：淡色平塗、外框是同色系深一階、粗線圓角；不用漸層、不用細紋理（紙感螢幕，準則 DISPLAY）。
 // 每個角色一個元件、幾個姿勢；座標是自己的 viewBox，頁面用 <Place> 擺位置、縮放。還沒接進 App（只給 tests/layout/story-art 預覽）。
-import type { ReactNode } from 'react'
+import { Eye, INK, MOUTH, TONGUE, CHEEK, line } from './kit'
 
-export const INK = '#2E2A25'
-const CHEEK = '#F2A9A0'
-const MOUTH = '#7A3E3A'
-const TONGUE = '#E9908C'
-/** 角色的外框粗細（自己的座標；頁面縮放 0.7～1.3 倍，畫面上約 3.5～6.5 px） */
-export const W = 5
-
-const line = (stroke: string, w = W) => ({ stroke, strokeWidth: w, strokeLinejoin: 'round' as const, strokeLinecap: 'round' as const })
-
-/** 一個角色的大小（viewBox），頁面擺位置要用 */
+/** 一個角色的大小（viewBox） */
 export interface Box {
   w: number
   h: number
-}
-
-function Eye({ x, y, r = 6, shut, happy }: { x: number; y: number; r?: number; shut?: boolean; happy?: boolean }) {
-  if (shut) return <path d={`M${x - r * 1.3} ${y} Q${x} ${y + r * 1.4} ${x + r * 1.3} ${y}`} fill="none" {...line(INK, 4)} />
-  if (happy) return <path d={`M${x - r * 1.3} ${y + 2} Q${x} ${y - r * 1.6} ${x + r * 1.3} ${y + 2}`} fill="none" {...line(INK, 4.5)} />
-  return (
-    <g>
-      <ellipse cx={x} cy={y} rx={r * 0.85} ry={r * 1.15} fill={INK} />
-      <circle cx={x + r * 0.3} cy={y - r * 0.45} r={r * 0.33} fill="#fff" />
-    </g>
-  )
 }
 
 // ── 兔子：奶油白、一隻耳朵折下來、脖子上一條珊瑚色圍巾（認得出是同一隻） ─────────────
@@ -223,41 +203,6 @@ export function Tree() {
 }
 export const TREE_BOX: Box = { w: 330, h: 300 }
 
-/** 雲：同樣先畫有框的圓、再蓋沒框的 */
-export function Cloud({ x, y, k = 1 }: { x: number; y: number; k?: number }) {
-  const c: [number, number, number][] = [
-    [0, 10, 26],
-    [32, -6, 32],
-    [66, 10, 26],
-  ]
-  return (
-    <g transform={`translate(${x} ${y}) scale(${k})`}>
-      <rect x={-20} y={8} width={106} height={28} rx={14} fill="#FBF8F2" {...line('#B9C9D3', 4)} />
-      {c.map(([cx, cy, r], i) => (
-        <circle key={`o${i}`} cx={cx} cy={cy} r={r} fill="#FBF8F2" {...line('#B9C9D3', 4)} />
-      ))}
-      {c.map(([cx, cy, r], i) => (
-        <circle key={`i${i}`} cx={cx} cy={cy} r={r - 2} fill="#FBF8F2" />
-      ))}
-      <rect x={-18} y={10} width={102} height={24} rx={12} fill="#FBF8F2" />
-    </g>
-  )
-}
-
-export function Sun({ x, y, r = 46 }: { x: number; y: number; r?: number }) {
-  return (
-    <g>
-      <g {...line('#D9B45A', 6)}>
-        {[0, 45, 90, 135, 180, 225, 270, 315].map((a) => {
-          const t = (a * Math.PI) / 180
-          return <path key={a} d={`M${x + Math.cos(t) * (r + 12)} ${y + Math.sin(t) * (r + 12)} L${x + Math.cos(t) * (r + 26)} ${y + Math.sin(t) * (r + 26)}`} />
-        })}
-      </g>
-      <circle cx={x} cy={y} r={r} fill="#F6DE96" {...line('#D9B45A', 5)} />
-    </g>
-  )
-}
-
 /** 起點、終點的拱門：兩根柱子、上面一條大格子的布（格子大，不是細紋理） */
 export function Banner({ w = 300 }: { w?: number }) {
   const cell = w / 6
@@ -297,15 +242,3 @@ export function Ark() {
   )
 }
 export const ARK_BOX: Box = { w: 420, h: 290 }
-
-/** 把一個角色擺到頁面上：x、y 是腳底的中間；k 是縮放；flip 左右翻 */
-export function Place({ x, y, k = 1, box, flip, children, id, hop, delay = 0 }: { x: number; y: number; k?: number; box: Box; flip?: boolean; children: ReactNode; id?: string; hop?: number; delay?: number }) {
-  return (
-    <g transform={`translate(${x - (box.w * k) / 2} ${y - box.h * k})`}>
-      {/* 跳一下：外面一層 g 負責（CSS 的 transform 不會蓋掉擺位置的 transform 屬性）；delay：兩隻一起跳時錯開一點 */}
-      <g className={hop ? 'sb-hop' : undefined} key={hop} data-actor={id} style={delay ? { animationDelay: `${delay}ms` } : undefined}>
-        <g transform={`scale(${k})${flip ? ` translate(${box.w} 0) scale(-1 1)` : ''}`}>{children}</g>
-      </g>
-    </g>
-  )
-}

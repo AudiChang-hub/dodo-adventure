@@ -106,7 +106,8 @@ export function normalizeDraft(d: StoryDraft): StoryDraft {
  * 只看會念、會畫出來的內容，家長看的中文意思、版本號改了不用重審。
  */
 export function chapterHash(c: Chapter): string {
-  const strip = (b: Beat) => [b.who, b.en, b.pic ?? '', b.key ?? '']
+  // 插畫擺法（T-119）也算畫出來的內容；沒有擺法的舊章節指紋不變
+  const strip = (b: Beat) => [b.who, b.en, b.pic ?? '', b.key ?? '', ...(b.art ? [JSON.stringify(b.art)] : [])]
   const stop = (s: StopBeats | null) => s && [s.generic.map(strip), ...(['lang', 'num', 'think', 'hand'] as const).map((t) => s[t]?.map(strip) ?? null)]
   return fnv1a(JSON.stringify([c.id, c.door ?? '', c.look ?? null, c.intro.map(strip), c.stops.map(stop), c.finale?.map(strip) ?? null, c.end.map(strip), c.houseAdds ?? '']))
 }

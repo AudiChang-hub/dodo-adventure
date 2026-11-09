@@ -1,0 +1,23 @@
+/* 故事插畫（T-119）：念到名字的角色跳一下，只跳一次（準則 MOTION-2：不循環）；減少動態效果時不跳 */
+.sb-hop {
+  animation: sb-hop 0.55s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+@keyframes sb-hop {
+  0% {
+    transform: translateY(0);
+  }
+  38% {
+    transform: translateY(-22px);
+  }
+  70% {
+    transform: translateY(2px);
+  }
+  100% {
+    transform: translateY(0);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .sb-hop {
+    animation: none;
+  }
+}

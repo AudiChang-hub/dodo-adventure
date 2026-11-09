@@ -12,12 +12,14 @@ import { LEXICON } from '../../src/content/lexicon'
 import { THEMES } from '../../src/content/themes'
 import { EMOJI } from '../../src/art/emoji.generated'
 import { STORY_ART, TWO, artParts } from '../../src/content/story/art'
+import { problemsOf as artProblems } from '../../src/art/storybook/layout'
+import { ITEMS } from '../../src/art/storybook/meta'
 import { allChapters, doorStop, draftChapters, weeklyOf, type Beat, type Chapter, type StopBeats, type StoryDraft } from '../../src/content/story'
 import { OPEN_BOOK, CLOSE_BOOK } from '../../src/content/story/classics/fixed'
 import { BASIC_WORDS } from './basic-words'
 import type { LearnerSnapshot } from '../../src/lib/learner'
 
-export type Category = 'long' | 'word' | 'topic' | 'brand' | 'private' | 'emph' | 'faith' | 'format'
+export type Category = 'long' | 'word' | 'topic' | 'brand' | 'private' | 'emph' | 'faith' | 'art' | 'format'
 
 export const CATEGORY_ZH: Record<Category, string> = {
   long: '太長',
@@ -27,6 +29,7 @@ export const CATEGORY_ZH: Record<Category, string> = {
   private: '個人資料（真名、生日、學校）',
   emph: '加重的字不在句尾',
   faith: '宗教類違規',
+  art: '插畫擺法',
   format: '格式',
 }
 
@@ -309,6 +312,8 @@ export function checkChapter(ch: Chapter, opts: CheckOpts, extra: { cast?: strin
       else add('format', `書的樣子的圖 ${p} 不存在`)
     }
   if (ch.look && ch.look.stops.length !== 5) add('format', `書的樣子要有 5 站的圖（look.stops），現在 ${ch.look.stops.length} 張`)
+  // 角色庫沒有的新角色：一章最多 1 個（新角色要家長看過、之後補畫進角色庫）
+  const newChars = new Set<string>()
   for (const [where, bs] of segs) {
     if (!Array.isArray(bs)) {
       add('format', '這一段不是句子的陣列', where)
@@ -318,6 +323,18 @@ export function checkChapter(ch: Chapter, opts: CheckOpts, extra: { cast?: strin
       if (!WHO.has(b.who)) add('format', `${quote(b)} 說話的人 ${b.who} 不存在（只能是 dodo、bobo、momo、egg、all、friend）`, where)
       if (/[㐀-鿿]/.test(b.en)) add('format', `${quote(b)} 故事裡不出現中文（中文只寫在 zh，給家長看）`, where)
       if (opts.draft && !b.zh) add('format', `${quote(b)} 缺家長看的中文意思（zh）`, where)
+      // 插畫擺法（T-119）：角色要在角色庫裡、一頁最多 3 個角色、不能太小、不能疊在一起。
+      // 每週新劇本每一句都要寫；沒寫的照 pic 自動排一頁（只提醒）。角色庫沒有的新角色用 Fluent Emoji 代替（家長 2026-11-09：不用審稿，自動檢查過就用）
+      if (b.art) {
+        const ap = artProblems(b.art)
+        for (const m of ap.blocking) add('art', `${quote(b)} 插畫：${m}`, where)
+        for (const id of ap.newChars) {
+          newChars.add(id)
+          const e = b.art.cast.concat(b.art.back ?? []).find((c) => c.who === id)?.emoji ?? ''
+          if (!EMOJI[e] && !inIconify(e)) add('art', `${quote(b)} 新角色 ${id} 的 emoji「${e}」不存在（Fluent Emoji 的名字）`, where)
+          else add('art', `${quote(b)} 新角色 ${id}：角色庫還沒有，先用 Fluent Emoji「${e}」代替`, where, true)
+        }
+      } else if (opts.draft) add('art', `${quote(b)} 沒有插畫擺法（art），先照 pic 自動排一頁`, where, true)
       for (const p of (b.pic ?? '').split('+').filter(Boolean)) {
         if (seenPics.has(p)) continue
         seenPics.add(p)
@@ -333,6 +350,8 @@ export function checkChapter(ch: Chapter, opts: CheckOpts, extra: { cast?: strin
       }
     }
   }
+
+  if (newChars.size > 1) add('art', `新角色 ${[...newChars].join('、')}：一章最多 1 個角色庫沒有的新角色（其他請改用角色庫裡的：${Object.keys(ITEMS).filter((k) => ITEMS[k].kind === 'char').join('、')}）`)
 
   // ── 太長：一句、一段、一章 ──
   for (const [where, bs] of segs) {
