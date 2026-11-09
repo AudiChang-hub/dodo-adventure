@@ -1,0 +1,577 @@
+{
+ "type": "arc",
+ "rev": 1,
+ "week": "2026-11-30",
+ "by": "ai",
+ "notes": [
+  "故事世界 §4.1 第 5 篇：moo、oink、roar、ribbit、quack，蛋都跟著咕嚕；講完院子多了鴨子池塘。",
+  "最後一章長頸鹿「什麼都不說」：好笑的小意外，不是取笑。"
+ ],
+ "cast": [],
+ "season": "p1-s1",
+ "house": {
+  "id": "duck-pond",
+  "zh": "院子的鴨子池塘",
+  "room": "yard",
+  "pic": "duck",
+  "at": {
+   "x": 1040,
+   "y": 640,
+   "w": 80
+  }
+ },
+ "arc": {
+  "id": "p1-a05",
+  "part": 1,
+  "no": 5,
+  "title": "The Egg Loves Animal Sounds",
+  "zh": "蛋喜歡動物的叫聲",
+  "icon": "duck",
+  "band": "small",
+  "houseAdds": "duck-pond",
+  "chapters": [
+   {
+    "id": "p1-a05-c1",
+    "door": "farm",
+    "intro": [
+     {
+      "who": "bobo",
+      "en": "Moo! Oink! Hear that, egg?",
+      "pic": "@rainbow-egg",
+      "zh": "哞！齁齁！蛋，你聽到了嗎？",
+      "stage": {
+       "scene": "魔法屋客廳",
+       "on": [
+        "bobo",
+        "egg"
+       ]
+      }
+     },
+     {
+      "who": "bobo",
+      "en": "The egg loves animal sounds!",
+      "pic": "@rainbow-egg",
+      "zh": "蛋喜歡動物的叫聲！",
+      "stage": {
+       "scene": "魔法屋客廳的蛋窩",
+       "on": [
+        "bobo",
+        "egg"
+       ]
+      }
+     },
+     {
+      "who": "all",
+      "en": "Knock, knock! Open, magic door!",
+      "pic": "door",
+      "zh": "叩叩！魔法門，打開！",
+      "stage": {
+       "scene": "魔法屋門廊，今天的門打開",
+       "on": [
+        "dodo",
+        "bobo",
+        "momo"
+       ]
+      }
+     }
+    ],
+    "stops": [
+     null,
+     null,
+     null,
+     {
+      "generic": [
+       {
+        "who": "bobo",
+        "en": "Oink, oink! Hello, | pigs!",
+        "pic": "pig+@rainbow-egg",
+        "zh": "齁齁！哈囉，小豬！",
+        "stage": {
+         "scene": "農場的泥巴地",
+         "on": [
+          "bobo",
+          "pig",
+          "egg"
+         ]
+        }
+       },
+       {
+        "who": "egg",
+        "en": "Gurgle, gurgle!",
+        "pic": "pig+@rainbow-egg",
+        "zh": "咕嚕咕嚕！",
+        "stage": {
+         "scene": "農場的泥巴地",
+         "on": [
+          "egg",
+          "pig"
+         ]
+        }
+       }
+      ]
+     }
+    ],
+    "end": [
+     {
+      "who": "bobo",
+      "en": "Home to the Magic House.",
+      "pic": "house-with-garden",
+      "zh": "回魔法屋囉。",
+      "stage": {
+       "scene": "魔法屋門口",
+       "on": [
+        "dodo",
+        "bobo",
+        "momo"
+       ]
+      }
+     },
+     {
+      "who": "momo",
+      "en": "Good night, little egg.",
+      "pic": "@egg-nest+zzz",
+      "zh": "晚安，小蛋。",
+      "stage": {
+       "scene": "魔法屋客廳，蛋在蛋窩裡睡著",
+       "on": [
+        "egg",
+        "momo"
+       ]
+      }
+     }
+    ],
+    "kind": "epic",
+    "part": 1,
+    "arc": "p1-a05",
+    "chapter": 1,
+    "band": "small",
+    "faith": null
+   },
+   {
+    "id": "p1-a05-c2",
+    "door": "zoo",
+    "intro": [
+     {
+      "who": "dodo",
+      "en": "What do zoo animals say?",
+      "pic": "@rainbow-egg",
+      "zh": "動物園的動物怎麼叫？",
+      "stage": {
+       "scene": "魔法屋客廳",
+       "on": [
+        "dodo",
+        "egg"
+       ]
+      }
+     },
+     {
+      "who": "all",
+      "en": "Knock, knock! Open, magic door!",
+      "pic": "door",
+      "zh": "叩叩！魔法門，打開！",
+      "stage": {
+       "scene": "魔法屋門廊，今天的門打開",
+       "on": [
+        "dodo",
+        "bobo",
+        "momo"
+       ]
+      }
+     }
+    ],
+    "stops": [
+     null,
+     null,
+     null,
+     null,
+     {
+      "generic": [
+       {
+        "who": "dodo",
+        "en": "Roar! Hello, big | lion!",
+        "pic": "lion+@rainbow-egg",
+        "zh": "吼！哈囉，大獅子！",
+        "stage": {
+         "scene": "動物園的獅子區",
+         "on": [
+          "dodo",
+          "lion",
+          "egg"
+         ]
+        }
+       },
+       {
+        "who": "egg",
+        "en": "Gurgle!",
+        "pic": "lion+@rainbow-egg",
+        "zh": "咕嚕！",
+        "stage": {
+         "scene": "動物園的獅子區",
+         "on": [
+          "egg",
+          "lion"
+         ]
+        }
+       }
+      ]
+     }
+    ],
+    "end": [
+     {
+      "who": "dodo",
+      "en": "Home to the Magic House.",
+      "pic": "house-with-garden",
+      "zh": "回魔法屋囉。",
+      "stage": {
+       "scene": "魔法屋門口",
+       "on": [
+        "dodo",
+        "bobo",
+        "momo"
+       ]
+      }
+     },
+     {
+      "who": "egg",
+      "en": "Gurgle, gurgle!",
+      "pic": "@rainbow-egg",
+      "zh": "咕嚕咕嚕！",
+      "stage": {
+       "scene": "魔法屋客廳的蛋窩",
+       "on": [
+        "egg"
+       ]
+      }
+     }
+    ],
+    "kind": "epic",
+    "part": 1,
+    "arc": "p1-a05",
+    "chapter": 2,
+    "band": "small",
+    "faith": null
+   },
+   {
+    "id": "p1-a05-c3",
+    "door": "rain",
+    "intro": [
+     {
+      "who": "bobo",
+      "en": "Who says ribbit, ribbit?",
+      "pic": "@rainbow-egg",
+      "zh": "誰會呱呱叫？",
+      "stage": {
+       "scene": "魔法屋客廳",
+       "on": [
+        "bobo",
+        "egg"
+       ]
+      }
+     },
+     {
+      "who": "all",
+      "en": "Knock, knock! Open, magic door!",
+      "pic": "door",
+      "zh": "叩叩！魔法門，打開！",
+      "stage": {
+       "scene": "魔法屋門廊，今天的門打開",
+       "on": [
+        "dodo",
+        "bobo",
+        "momo"
+       ]
+      }
+     }
+    ],
+    "stops": [
+     null,
+     null,
+     {
+      "generic": [
+       {
+        "who": "bobo",
+        "en": "Ribbit, ribbit! Hello, | frog!",
+        "pic": "frog+@rainbow-egg",
+        "zh": "呱呱！哈囉，青蛙！",
+        "stage": {
+         "scene": "下雨天的水窪邊",
+         "on": [
+          "bobo",
+          "frog",
+          "egg"
+         ]
+        }
+       },
+       {
+        "who": "egg",
+        "en": "Gurgle, gurgle!",
+        "pic": "frog+@rainbow-egg",
+        "zh": "咕嚕咕嚕！",
+        "stage": {
+         "scene": "下雨天的水窪邊",
+         "on": [
+          "egg",
+          "frog"
+         ]
+        }
+       }
+      ]
+     }
+    ],
+    "end": [
+     {
+      "who": "bobo",
+      "en": "Home to the Magic House.",
+      "pic": "house-with-garden",
+      "zh": "回魔法屋囉。",
+      "stage": {
+       "scene": "魔法屋門口",
+       "on": [
+        "dodo",
+        "bobo",
+        "momo"
+       ]
+      }
+     },
+     {
+      "who": "momo",
+      "en": "The egg loves frog sounds.",
+      "pic": "@rainbow-egg",
+      "zh": "蛋喜歡青蛙的叫聲。",
+      "stage": {
+       "scene": "魔法屋客廳的蛋窩",
+       "on": [
+        "egg",
+        "momo"
+       ]
+      }
+     }
+    ],
+    "kind": "epic",
+    "part": 1,
+    "arc": "p1-a05",
+    "chapter": 3,
+    "band": "small",
+    "faith": null
+   },
+   {
+    "id": "p1-a05-c4",
+    "door": "picnic",
+    "intro": [
+     {
+      "who": "momo",
+      "en": "Quack, quack! Who is that?",
+      "pic": "duck",
+      "zh": "呱呱！那是誰？",
+      "stage": {
+       "scene": "魔法屋客廳",
+       "on": [
+        "momo",
+        "egg"
+       ]
+      }
+     },
+     {
+      "who": "all",
+      "en": "Knock, knock! Open, magic door!",
+      "pic": "door",
+      "zh": "叩叩！魔法門，打開！",
+      "stage": {
+       "scene": "魔法屋門廊，今天的門打開",
+       "on": [
+        "dodo",
+        "bobo",
+        "momo"
+       ]
+      }
+     }
+    ],
+    "stops": [
+     {
+      "generic": [
+       {
+        "who": "momo",
+        "en": "Quack, quack! Hello, | ducks!",
+        "pic": "duck+@rainbow-egg",
+        "zh": "呱呱！哈囉，鴨子！",
+        "stage": {
+         "scene": "公園的小池塘邊",
+         "on": [
+          "momo",
+          "ducks",
+          "egg"
+         ]
+        }
+       },
+       {
+        "who": "egg",
+        "en": "Gurgle!",
+        "pic": "duck+@rainbow-egg",
+        "zh": "咕嚕！",
+        "stage": {
+         "scene": "公園的小池塘邊",
+         "on": [
+          "egg",
+          "ducks"
+         ]
+        }
+       }
+      ]
+     }
+    ],
+    "end": [
+     {
+      "who": "momo",
+      "en": "Home to the Magic House.",
+      "pic": "house-with-garden",
+      "zh": "回魔法屋囉。",
+      "stage": {
+       "scene": "魔法屋門口",
+       "on": [
+        "dodo",
+        "bobo",
+        "momo"
+       ]
+      }
+     },
+     {
+      "who": "momo",
+      "en": "The egg wants a duck pond!",
+      "pic": "duck+@rainbow-egg",
+      "zh": "蛋想要一個鴨子池塘！",
+      "stage": {
+       "scene": "魔法屋客廳的蛋窩",
+       "on": [
+        "egg",
+        "momo"
+       ]
+      }
+     }
+    ],
+    "kind": "epic",
+    "part": 1,
+    "arc": "p1-a05",
+    "chapter": 4,
+    "band": "small",
+    "faith": null
+   },
+   {
+    "id": "p1-a05-c5",
+    "door": "bus",
+    "intro": [
+     {
+      "who": "dodo",
+      "en": "Moo, oink, roar, ribbit, quack!",
+      "pic": "@rainbow-egg",
+      "zh": "哞、齁齁、吼、呱呱、呱呱！",
+      "stage": {
+       "scene": "魔法屋客廳",
+       "on": [
+        "dodo",
+        "egg"
+       ]
+      }
+     },
+     {
+      "who": "egg",
+      "en": "Gurgle, gurgle!",
+      "pic": "@rainbow-egg",
+      "zh": "咕嚕咕嚕！",
+      "stage": {
+       "scene": "魔法屋客廳的蛋窩",
+       "on": [
+        "egg"
+       ]
+      }
+     },
+     {
+      "who": "all",
+      "en": "Knock, knock! Open, magic door!",
+      "pic": "door",
+      "zh": "叩叩！魔法門，打開！",
+      "stage": {
+       "scene": "魔法屋門廊，今天的門打開",
+       "on": [
+        "dodo",
+        "bobo",
+        "momo"
+       ]
+      }
+     }
+    ],
+    "stops": [
+     null,
+     null,
+     null,
+     null,
+     {
+      "generic": [
+       {
+        "who": "momo",
+        "en": "Giraffe says… nothing! Shh!",
+        "pic": "giraffe+@rainbow-egg",
+        "zh": "長頸鹿說…什麼都沒說！噓！",
+        "stage": {
+         "scene": "動物園門口，高高的長頸鹿",
+         "on": [
+          "momo",
+          "giraffe",
+          "egg"
+         ]
+        }
+       }
+      ]
+     }
+    ],
+    "end": [
+     {
+      "who": "momo",
+      "en": "Look! A pond for the | ducks!",
+      "pic": "duck+@rainbow-egg",
+      "zh": "看！一個鴨子池塘！",
+      "stage": {
+       "scene": "魔法屋院子的鴨子池塘",
+       "on": [
+        "ducks",
+        "egg"
+       ]
+      }
+     },
+     {
+      "who": "egg",
+      "en": "Gurgle, gurgle…",
+      "pic": "duck+@rainbow-egg",
+      "zh": "咕嚕咕嚕…",
+      "stage": {
+       "scene": "魔法屋院子的鴨子池塘",
+       "on": [
+        "egg",
+        "ducks"
+       ]
+      }
+     },
+     {
+      "who": "momo",
+      "en": "Good night, little egg.",
+      "pic": "@egg-nest+zzz",
+      "zh": "晚安，小蛋。",
+      "stage": {
+       "scene": "魔法屋客廳，蛋在蛋窩裡睡著",
+       "on": [
+        "egg",
+        "momo"
+       ]
+      }
+     }
+    ],
+    "houseAdds": "duck-pond",
+    "kind": "epic",
+    "part": 1,
+    "arc": "p1-a05",
+    "chapter": 5,
+    "band": "small",
+    "faith": null
+   }
+  ]
+ }
+}

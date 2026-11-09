@@ -81,6 +81,9 @@ for (const d of WEEKLY) {
   if (!season) part.seasons.push((season = { id: d.season ?? `p${part.no}-s1`, zh: '', arcs: [] }))
   season.arcs.push(d.arc.id)
 }
+// 故事時間照第一輪的順序講（審稿佇列的接在手寫的後面放進來，這裡排回 CLASSIC_ROUND 的順序；不在第一輪的照原本的順序排在最後）
+const roundAt = (id: string) => ((CLASSIC_ROUND as readonly string[]).indexOf(id) + 1 || Infinity)
+CLASSICS.sort((a, b) => roundAt(a.id) - roundAt(b.id))
 // 長篇的篇照篇號排（審稿佇列的篇可能比手寫的早寫好）
 for (const p of PARTS) for (const se of p.seasons) se.arcs.sort((a, b) => (ARCS.find((x) => x.id === a)?.no ?? 0) - (ARCS.find((x) => x.id === b)?.no ?? 0))
 

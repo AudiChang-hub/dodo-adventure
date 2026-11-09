@@ -110,10 +110,12 @@ const nextFor = (done: string[], band: 'small' | 'middle' | 'big') => {
   }
   return null
 }
-need(CLASSICS.map((c) => c.id).join() === 'A01,B01', `故事時間的順序應該是 A01、B01（實際 ${CLASSICS.map((c) => c.id)}）`)
-need(nextFor([], 'small') === 'classic-a01' && nextFor(['A01'], 'small') === 'classic-b01' && nextFor(['A01', 'B01'], 'small') === null, '故事時間：小班段應該先龜兔賽跑、再挪亞方舟，講完就沒有')
-need(nextFor(['A01', 'B01'], 'middle') === 'classic-b01-m', '故事時間：到了中班段，挪亞方舟要講長大版')
-need(nextFor(['A01', 'B01', 'B01@middle'], 'big') === null, '故事時間：大班段沒有新的版本，長大版講過就不再講')
+// T-120 起：手寫的 A01、B01 加上審稿佇列的 J02、A02、A04、P01、A06，照 CLASSIC_ROUND 排（審稿佇列的不會排到手寫的後面）
+const ROUND = ['A01', 'J02', 'A02', 'B01', 'A04', 'P01', 'A06']
+need(CLASSICS.map((c) => c.id).join() === ROUND.join(), `故事時間的順序應該是 ${ROUND.join('、')}（實際 ${CLASSICS.map((c) => c.id)}）`)
+need(ROUND.every((id, i) => nextFor(ROUND.slice(0, i), 'small') === `classic-${id.toLowerCase()}`) && nextFor(ROUND, 'small') === null, '故事時間：小班段應該照第一輪的順序一則一則講，講完就沒有')
+need(nextFor(ROUND, 'middle') === 'classic-b01-m', '故事時間：到了中班段，挪亞方舟要講長大版')
+need(nextFor([...ROUND, 'B01@middle'], 'big') === null, '故事時間：大班段沒有新的版本，長大版講過就不再講')
 for (const c of CLASSICS) for (const ch of [c.chapter, ...Object.values(c.grown ?? {})]) need(ch!.faith === c.faith, `${ch!.id}：faith 要和 ${c.id} 一樣`)
 need(CLASSICS.find((c) => c.id === 'B01')?.faith === 'bible', '挪亞方舟要標 faith: bible')
 

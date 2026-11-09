@@ -1,0 +1,228 @@
+{
+ "type": "classic",
+ "rev": 1,
+ "week": "2026-11-23",
+ "by": "ai",
+ "cast": [
+  "Crow"
+ ],
+ "notes": [
+  "原典烏鴉快渴死了，改成「好渴好渴」（故事世界 §5.3）。",
+  "一顆一顆丟石頭正好數數：one 到 five。",
+  "Fluent Emoji 沒有烏鴉，畫面先用小鳥（bird），T-119 的手繪角色畫成黑色的鳥；水罐用古代的陶罐（amphora）。"
+ ],
+ "classic": {
+  "id": "A04",
+  "source": "伊索寓言",
+  "zh": "烏鴉喝水",
+  "band": "small",
+  "faith": null,
+  "chapter": {
+   "id": "classic-a04",
+   "look": {
+    "zh": "烏鴉喝水（故事時間）",
+    "host": "momo",
+    "icon": "open-book",
+    "title": "Crow and the Jar",
+    "scene": "park",
+    "tint": "#EAE7DC",
+    "deep": "#8C8366",
+    "ground": "#D8D2BC",
+    "stops": [
+     "bird",
+     "amphora",
+     "rock",
+     "amphora",
+     "bird"
+    ],
+    "finale": [
+     "bird",
+     "droplet"
+    ]
+   },
+   "stops": [
+    {
+     "generic": [
+      {
+       "who": "momo",
+       "en": "Here is Crow, a black | bird.",
+       "pic": "bird",
+       "zh": "這是烏鴉，一隻黑色的鳥。",
+       "stage": {
+        "scene": "大太陽下的院子",
+        "on": [
+         "crow"
+        ]
+       }
+      },
+      {
+       "who": "momo",
+       "en": "Crow is so thirsty.",
+       "pic": "bird+sun",
+       "zh": "烏鴉好渴好渴。",
+       "stage": {
+        "scene": "大太陽下的院子",
+        "on": [
+         "crow",
+         "sun"
+        ]
+       }
+      }
+     ]
+    },
+    {
+     "generic": [
+      {
+       "who": "momo",
+       "en": "Look! Water in a tall jar.",
+       "pic": "amphora+droplet",
+       "zh": "看！高高的罐子裡有水。",
+       "stage": {
+        "scene": "院子，地上一個高高的陶罐",
+        "on": [
+         "crow",
+         "jar"
+        ]
+       }
+      },
+      {
+       "who": "momo",
+       "en": "The water is way down.",
+       "pic": "amphora",
+       "zh": "水在好下面。",
+       "stage": {
+        "scene": "陶罐裡面，水在底下",
+        "on": [
+         "crow",
+         "jar"
+        ]
+       }
+      }
+     ]
+    },
+    {
+     "generic": [
+      {
+       "who": "dodo",
+       "en": "Hmm… let me try!",
+       "pic": "bird+rock",
+       "zh": "嗯…我來試試看！",
+       "stage": {
+        "scene": "院子，地上有小石頭",
+        "on": [
+         "crow",
+         "stones"
+        ]
+       }
+      },
+      {
+       "who": "momo",
+       "en": "Crow drops a stone. Splash!",
+       "pic": "rock+amphora",
+       "zh": "烏鴉丟下一顆石頭。噗通！",
+       "stage": {
+        "scene": "陶罐旁邊",
+        "on": [
+         "crow",
+         "jar",
+         "stones"
+        ]
+       }
+      }
+     ]
+    },
+    {
+     "generic": [
+      {
+       "who": "momo",
+       "en": "One, two, three, four, five | stones!",
+       "pic": "rock+amphora",
+       "zh": "一、二、三、四、五顆石頭！",
+       "stage": {
+        "scene": "陶罐旁邊",
+        "on": [
+         "crow",
+         "jar",
+         "stones"
+        ]
+       }
+      },
+      {
+       "who": "momo",
+       "en": "Up, up comes the water!",
+       "pic": "amphora+droplet",
+       "zh": "水上來、上來了！",
+       "stage": {
+        "scene": "陶罐裡面，水升到上面",
+        "on": [
+         "crow",
+         "jar"
+        ]
+       }
+      }
+     ]
+    },
+    {
+     "generic": [
+      {
+       "who": "dodo",
+       "en": "Drink, drink! Yummy water!",
+       "pic": "bird+droplet",
+       "zh": "喝一口、喝一口！好好喝的水！",
+       "stage": {
+        "scene": "陶罐旁邊",
+        "on": [
+         "crow",
+         "jar"
+        ]
+       }
+      },
+      {
+       "who": "momo",
+       "en": "Crow is so happy.",
+       "pic": "bird",
+       "zh": "烏鴉好開心。",
+       "stage": {
+        "scene": "大太陽下的院子",
+        "on": [
+         "crow"
+        ]
+       }
+      }
+     ]
+    }
+   ],
+   "kind": "classic",
+   "part": 1,
+   "arc": "classic",
+   "chapter": 1,
+   "band": "small",
+   "faith": null,
+   "intro": [
+    {
+     "who": "momo",
+     "en": "Story time! Open the old book.",
+     "pic": "open-book",
+     "key": "story.classic.open.0",
+     "zh": "故事時間！打開舊書。"
+    },
+    {
+     "who": "momo",
+     "en": "Long ago, people told this story.",
+     "pic": "open-book",
+     "key": "story.classic.open.1",
+     "zh": "很久以前，人們講過這個故事。"
+    }
+   ],
+   "end": [
+    {
+     "who": "momo",
+     "en": "The end. Close the old book.",
+     "pic": "closed-book",
+     "key": "story.classic.close",
+     "zh": "故事講完了。闔上舊書。"
+    }
+   ]
+  }
+ }
+}

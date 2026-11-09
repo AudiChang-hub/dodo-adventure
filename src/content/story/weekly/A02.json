@@ -1,0 +1,226 @@
+{
+ "type": "classic",
+ "rev": 1,
+ "week": "2026-11-16",
+ "by": "ai",
+ "cast": [],
+ "notes": [
+  "獵人拿掉：只說獅子身上有一張網子，畫面只畫網子、不畫獵人；獅子沒有受傷，只是出不來（故事世界 §5.3）。",
+  "原典獅子抓住老鼠、老鼠求饒，改成老鼠跑過去不小心碰到獅子，說對不起。",
+  "結尾不說教，用老鼠自己的一句「Little friends help, too.」收。"
+ ],
+ "classic": {
+  "id": "A02",
+  "source": "伊索寓言",
+  "zh": "獅子與老鼠",
+  "band": "small",
+  "faith": null,
+  "chapter": {
+   "id": "classic-a02",
+   "look": {
+    "zh": "獅子與老鼠（故事時間）",
+    "host": "momo",
+    "icon": "open-book",
+    "title": "Lion and Mouse",
+    "scene": "park",
+    "tint": "#F1E8D2",
+    "deep": "#B08A4A",
+    "ground": "#E0D2AE",
+    "stops": [
+     "lion",
+     "mouse-face",
+     "goal-net",
+     "mouse-face",
+     "lion"
+    ],
+    "finale": [
+     "lion",
+     "mouse-face"
+    ]
+   },
+   "stops": [
+    {
+     "generic": [
+      {
+       "who": "momo",
+       "en": "Here is a big | lion.",
+       "pic": "lion",
+       "zh": "這是一隻大獅子。",
+       "stage": {
+        "scene": "草原，大樹下",
+        "on": [
+         "lion"
+        ]
+       }
+      },
+      {
+       "who": "momo",
+       "en": "Zzz… Lion takes a nap.",
+       "pic": "lion+zzz",
+       "zh": "呼嚕…獅子在睡午覺。",
+       "stage": {
+        "scene": "草原，大樹下",
+        "on": [
+         "lion",
+         "tree"
+        ]
+       }
+      }
+     ]
+    },
+    {
+     "generic": [
+      {
+       "who": "momo",
+       "en": "A little mouse runs by.",
+       "pic": "mouse-face+lion",
+       "zh": "一隻小老鼠跑過去。",
+       "stage": {
+        "scene": "草原，大樹下",
+        "on": [
+         "mouse",
+         "lion"
+        ]
+       }
+      },
+      {
+       "who": "dodo",
+       "en": "Oops! Sorry, Lion!",
+       "pic": "mouse-face+lion",
+       "zh": "哎呀！對不起，獅子！",
+       "stage": {
+        "scene": "草原，大樹下",
+        "on": [
+         "mouse",
+         "lion"
+        ]
+       }
+      }
+     ]
+    },
+    {
+     "generic": [
+      {
+       "who": "momo",
+       "en": "Uh-oh! A net on Lion!",
+       "pic": "lion+goal-net",
+       "zh": "哎呀！網子纏住獅子了。",
+       "stage": {
+        "scene": "草原",
+        "on": [
+         "lion",
+         "net"
+        ]
+       }
+      },
+      {
+       "who": "bobo",
+       "en": "Uh-oh! Can you help me?",
+       "pic": "lion+goal-net",
+       "zh": "哎呀！你可以幫我嗎？",
+       "stage": {
+        "scene": "草原",
+        "on": [
+         "lion",
+         "net"
+        ]
+       }
+      }
+     ]
+    },
+    {
+     "generic": [
+      {
+       "who": "momo",
+       "en": "Mouse comes. Nibble, nibble!",
+       "pic": "mouse-face+goal-net",
+       "zh": "老鼠來了。咬一咬、咬一咬！",
+       "stage": {
+        "scene": "草原",
+        "on": [
+         "mouse",
+         "net",
+         "lion"
+        ]
+       }
+      },
+      {
+       "who": "momo",
+       "en": "Pop! Lion is out!",
+       "pic": "lion+mouse-face",
+       "zh": "啵！獅子出來了！",
+       "stage": {
+        "scene": "草原",
+        "on": [
+         "lion",
+         "mouse"
+        ]
+       }
+      }
+     ]
+    },
+    {
+     "generic": [
+      {
+       "who": "bobo",
+       "en": "Thank you, little | mouse!",
+       "pic": "lion+mouse-face",
+       "zh": "謝謝你，小老鼠！",
+       "stage": {
+        "scene": "草原，大樹下",
+        "on": [
+         "lion",
+         "mouse"
+        ]
+       }
+      },
+      {
+       "who": "dodo",
+       "en": "Little friends help, too!",
+       "pic": "mouse-face+lion",
+       "zh": "小小的朋友也會幫忙！",
+       "stage": {
+        "scene": "草原，大樹下",
+        "on": [
+         "mouse",
+         "lion"
+        ]
+       }
+      }
+     ]
+    }
+   ],
+   "kind": "classic",
+   "part": 1,
+   "arc": "classic",
+   "chapter": 1,
+   "band": "small",
+   "faith": null,
+   "intro": [
+    {
+     "who": "momo",
+     "en": "Story time! Open the old book.",
+     "pic": "open-book",
+     "key": "story.classic.open.0",
+     "zh": "故事時間！打開舊書。"
+    },
+    {
+     "who": "momo",
+     "en": "Long ago, people told this story.",
+     "pic": "open-book",
+     "key": "story.classic.open.1",
+     "zh": "很久以前，人們講過這個故事。"
+    }
+   ],
+   "end": [
+    {
+     "who": "momo",
+     "en": "The end. Close the old book.",
+     "pic": "closed-book",
+     "key": "story.classic.close",
+     "zh": "故事講完了。闔上舊書。"
+    }
+   ]
+  }
+ }
+}

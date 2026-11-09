@@ -1,0 +1,560 @@
+{
+ "type": "arc",
+ "rev": 1,
+ "week": "2026-11-23",
+ "by": "ai",
+ "notes": [
+  "故事世界 §4.1 第 4 篇：每天數到 5，蛋就晃一下；講完魔法屋多了一串五顆的大珠子。",
+  "數的東西都是學過的圖卡單字：牛、猴子、魚、星星；波波太用力積木倒了（好笑，不危險）。",
+  "五顆珠子的圖用算盤（abacus），Fluent Emoji 沒有一串珠子；手繪時畫成五顆大珠子。"
+ ],
+ "cast": [],
+ "season": "p1-s1",
+ "house": {
+  "id": "five-beads",
+  "zh": "一串五顆的大珠子",
+  "room": "living",
+  "pic": "abacus",
+  "at": {
+   "x": 760,
+   "y": 540,
+   "w": 64
+  }
+ },
+ "arc": {
+  "id": "p1-a04",
+  "part": 1,
+  "no": 4,
+  "title": "The Egg Loves to Count",
+  "zh": "蛋喜歡數數",
+  "icon": "abacus",
+  "band": "small",
+  "houseAdds": "five-beads",
+  "chapters": [
+   {
+    "id": "p1-a04-c1",
+    "door": "farm",
+    "intro": [
+     {
+      "who": "bobo",
+      "en": "Let's count! One, two, three… yes!",
+      "pic": "@rainbow-egg",
+      "zh": "我們來數！一、二、三…對了！",
+      "stage": {
+       "scene": "魔法屋客廳",
+       "on": [
+        "bobo",
+        "egg"
+       ]
+      }
+     },
+     {
+      "who": "bobo",
+      "en": "The egg loves counting, too!",
+      "pic": "@rainbow-egg",
+      "zh": "蛋也喜歡數數！",
+      "stage": {
+       "scene": "魔法屋客廳的蛋窩",
+       "on": [
+        "bobo",
+        "egg"
+       ]
+      }
+     },
+     {
+      "who": "all",
+      "en": "Knock, knock! Open, magic door!",
+      "pic": "door",
+      "zh": "叩叩！魔法門，打開！",
+      "stage": {
+       "scene": "魔法屋門廊，今天的門打開",
+       "on": [
+        "dodo",
+        "bobo",
+        "momo"
+       ]
+      }
+     }
+    ],
+    "stops": [
+     null,
+     {
+      "generic": [
+       {
+        "who": "bobo",
+        "en": "One, two, three, four, five | cows!",
+        "pic": "cow+@rainbow-egg",
+        "zh": "一、二、三、四、五頭牛！",
+        "stage": {
+         "scene": "農場的草地，五頭牛排一排",
+         "on": [
+          "bobo",
+          "cows",
+          "egg"
+         ]
+        }
+       }
+      ]
+     }
+    ],
+    "end": [
+     {
+      "who": "bobo",
+      "en": "Home to the Magic House.",
+      "pic": "house-with-garden",
+      "zh": "回魔法屋囉。",
+      "stage": {
+       "scene": "魔法屋門口",
+       "on": [
+        "dodo",
+        "bobo",
+        "momo"
+       ]
+      }
+     },
+     {
+      "who": "momo",
+      "en": "Five! The egg wobbles!",
+      "pic": "@rainbow-egg",
+      "zh": "五！蛋晃了一下！",
+      "stage": {
+       "scene": "魔法屋客廳的蛋窩",
+       "on": [
+        "egg",
+        "momo"
+       ]
+      }
+     },
+     {
+      "who": "egg",
+      "en": "Gurgle, gurgle!",
+      "pic": "@rainbow-egg",
+      "zh": "咕嚕咕嚕！",
+      "stage": {
+       "scene": "魔法屋客廳的蛋窩",
+       "on": [
+        "egg"
+       ]
+      }
+     }
+    ],
+    "kind": "epic",
+    "part": 1,
+    "arc": "p1-a04",
+    "chapter": 1,
+    "band": "small",
+    "faith": null
+   },
+   {
+    "id": "p1-a04-c2",
+    "door": "zoo",
+    "intro": [
+     {
+      "who": "bobo",
+      "en": "Five cows! Let's count more!",
+      "pic": "cow",
+      "zh": "五頭牛！我們再數多一點！",
+      "stage": {
+       "scene": "魔法屋客廳",
+       "on": [
+        "bobo",
+        "egg"
+       ]
+      }
+     },
+     {
+      "who": "all",
+      "en": "Knock, knock! Open, magic door!",
+      "pic": "door",
+      "zh": "叩叩！魔法門，打開！",
+      "stage": {
+       "scene": "魔法屋門廊，今天的門打開",
+       "on": [
+        "dodo",
+        "bobo",
+        "momo"
+       ]
+      }
+     }
+    ],
+    "stops": [
+     null,
+     null,
+     {
+      "generic": [
+       {
+        "who": "bobo",
+        "en": "One, two, three, four, five | monkeys!",
+        "pic": "monkey+@rainbow-egg",
+        "zh": "一、二、三、四、五隻猴子！",
+        "stage": {
+         "scene": "動物園的猴子樹",
+         "on": [
+          "bobo",
+          "monkeys",
+          "egg"
+         ]
+        }
+       }
+      ]
+     }
+    ],
+    "end": [
+     {
+      "who": "bobo",
+      "en": "Home to the Magic House.",
+      "pic": "house-with-garden",
+      "zh": "回魔法屋囉。",
+      "stage": {
+       "scene": "魔法屋門口",
+       "on": [
+        "dodo",
+        "bobo",
+        "momo"
+       ]
+      }
+     },
+     {
+      "who": "momo",
+      "en": "Five! The egg wobbles!",
+      "pic": "@rainbow-egg",
+      "zh": "五！蛋晃了一下！",
+      "stage": {
+       "scene": "魔法屋客廳的蛋窩",
+       "on": [
+        "egg",
+        "momo"
+       ]
+      }
+     },
+     {
+      "who": "egg",
+      "en": "Gurgle, gurgle!",
+      "pic": "@rainbow-egg",
+      "zh": "咕嚕咕嚕！",
+      "stage": {
+       "scene": "魔法屋客廳的蛋窩",
+       "on": [
+        "egg"
+       ]
+      }
+     }
+    ],
+    "kind": "epic",
+    "part": 1,
+    "arc": "p1-a04",
+    "chapter": 2,
+    "band": "small",
+    "faith": null
+   },
+   {
+    "id": "p1-a04-c3",
+    "door": "ocean",
+    "intro": [
+     {
+      "who": "momo",
+      "en": "Let's count at the sea!",
+      "pic": "@rainbow-egg",
+      "zh": "我們到海上數數！",
+      "stage": {
+       "scene": "魔法屋客廳",
+       "on": [
+        "momo",
+        "egg"
+       ]
+      }
+     },
+     {
+      "who": "all",
+      "en": "Knock, knock! Open, magic door!",
+      "pic": "door",
+      "zh": "叩叩！魔法門，打開！",
+      "stage": {
+       "scene": "魔法屋門廊，今天的門打開",
+       "on": [
+        "dodo",
+        "bobo",
+        "momo"
+       ]
+      }
+     }
+    ],
+    "stops": [
+     null,
+     {
+      "generic": [
+       {
+        "who": "momo",
+        "en": "One, two, three, four, five | fish.",
+        "pic": "tropical-fish+@rainbow-egg",
+        "zh": "一、二、三、四、五條魚。",
+        "stage": {
+         "scene": "海上，小船旁邊游過五條魚",
+         "on": [
+          "momo",
+          "fish",
+          "egg"
+         ]
+        }
+       }
+      ]
+     }
+    ],
+    "end": [
+     {
+      "who": "momo",
+      "en": "Home to the Magic House.",
+      "pic": "house-with-garden",
+      "zh": "回魔法屋囉。",
+      "stage": {
+       "scene": "魔法屋門口",
+       "on": [
+        "dodo",
+        "bobo",
+        "momo"
+       ]
+      }
+     },
+     {
+      "who": "momo",
+      "en": "Five! The egg wobbles!",
+      "pic": "@rainbow-egg",
+      "zh": "五！蛋晃了一下！",
+      "stage": {
+       "scene": "魔法屋客廳的蛋窩",
+       "on": [
+        "egg",
+        "momo"
+       ]
+      }
+     }
+    ],
+    "kind": "epic",
+    "part": 1,
+    "arc": "p1-a04",
+    "chapter": 3,
+    "band": "small",
+    "faith": null
+   },
+   {
+    "id": "p1-a04-c4",
+    "door": "build",
+    "intro": [
+     {
+      "who": "bobo",
+      "en": "Let's count the blocks!",
+      "pic": "brick",
+      "zh": "我們來數積木！",
+      "stage": {
+       "scene": "魔法屋客廳",
+       "on": [
+        "bobo",
+        "egg"
+       ]
+      }
+     },
+     {
+      "who": "all",
+      "en": "Knock, knock! Open, magic door!",
+      "pic": "door",
+      "zh": "叩叩！魔法門，打開！",
+      "stage": {
+       "scene": "魔法屋門廊，今天的門打開",
+       "on": [
+        "dodo",
+        "bobo",
+        "momo"
+       ]
+      }
+     }
+    ],
+    "stops": [
+     null,
+     {
+      "generic": [
+       {
+        "who": "bobo",
+        "en": "One, two, three, four, five!",
+        "pic": "brick+@rainbow-egg",
+        "zh": "一、二、三、四、五！",
+        "stage": {
+         "scene": "工地，波波疊了五塊積木",
+         "on": [
+          "bobo",
+          "blocks",
+          "egg"
+         ]
+        }
+       },
+       {
+        "who": "bobo",
+        "en": "Oops! Too big! Boom!",
+        "pic": "brick",
+        "zh": "哎呀！太用力了！轟！",
+        "stage": {
+         "scene": "工地，積木倒了，大家笑",
+         "on": [
+          "bobo",
+          "blocks",
+          "egg"
+         ]
+        }
+       }
+      ]
+     }
+    ],
+    "end": [
+     {
+      "who": "momo",
+      "en": "Home to the Magic House.",
+      "pic": "house-with-garden",
+      "zh": "回魔法屋囉。",
+      "stage": {
+       "scene": "魔法屋門口",
+       "on": [
+        "dodo",
+        "bobo",
+        "momo"
+       ]
+      }
+     },
+     {
+      "who": "egg",
+      "en": "Gurgle, gurgle!",
+      "pic": "@rainbow-egg",
+      "zh": "咕嚕咕嚕！",
+      "stage": {
+       "scene": "魔法屋客廳的蛋窩",
+       "on": [
+        "egg"
+       ]
+      }
+     }
+    ],
+    "kind": "epic",
+    "part": 1,
+    "arc": "p1-a04",
+    "chapter": 4,
+    "band": "small",
+    "faith": null
+   },
+   {
+    "id": "p1-a04-c5",
+    "door": "bedtime",
+    "intro": [
+     {
+      "who": "momo",
+      "en": "Five cows, five monkeys, five fish…",
+      "pic": "@rainbow-egg",
+      "zh": "五頭牛、五隻猴子、五條魚…",
+      "stage": {
+       "scene": "魔法屋客廳",
+       "on": [
+        "momo",
+        "egg"
+       ]
+      }
+     },
+     {
+      "who": "dodo",
+      "en": "And five big beads!",
+      "pic": "abacus",
+      "zh": "還有五顆大珠子！",
+      "stage": {
+       "scene": "魔法屋客廳",
+       "on": [
+        "dodo",
+        "beads"
+       ]
+      }
+     },
+     {
+      "who": "all",
+      "en": "Knock, knock! Open, magic door!",
+      "pic": "door",
+      "zh": "叩叩！魔法門，打開！",
+      "stage": {
+       "scene": "魔法屋門廊，今天的門打開",
+       "on": [
+        "dodo",
+        "bobo",
+        "momo"
+       ]
+      }
+     }
+    ],
+    "stops": [
+     null,
+     null,
+     null,
+     {
+      "generic": [
+       {
+        "who": "momo",
+        "en": "Count the stars! One, two, three…",
+        "pic": "star+@rainbow-egg",
+        "zh": "數星星！一、二、三…",
+        "stage": {
+         "scene": "晚上的臥室窗外，三顆星星",
+         "on": [
+          "momo",
+          "egg",
+          "stars"
+         ]
+        }
+       }
+      ]
+     }
+    ],
+    "end": [
+     {
+      "who": "momo",
+      "en": "Five big beads for the | egg!",
+      "pic": "abacus+@rainbow-egg",
+      "zh": "五顆大珠子給蛋！",
+      "stage": {
+       "scene": "魔法屋客廳的蛋窩旁",
+       "on": [
+        "beads",
+        "egg"
+       ]
+      }
+     },
+     {
+      "who": "egg",
+      "en": "Gurgle, gurgle…",
+      "pic": "abacus+@rainbow-egg",
+      "zh": "咕嚕咕嚕…",
+      "stage": {
+       "scene": "魔法屋客廳的蛋窩",
+       "on": [
+        "egg",
+        "beads"
+       ]
+      }
+     },
+     {
+      "who": "momo",
+      "en": "Good night, little egg.",
+      "pic": "@egg-nest+zzz",
+      "zh": "晚安，小蛋。",
+      "stage": {
+       "scene": "魔法屋客廳，蛋在蛋窩裡睡著",
+       "on": [
+        "egg",
+        "momo"
+       ]
+      }
+     }
+    ],
+    "houseAdds": "five-beads",
+    "kind": "epic",
+    "part": 1,
+    "arc": "p1-a04",
+    "chapter": 5,
+    "band": "small",
+    "faith": null
+   }
+  ]
+ }
+}
