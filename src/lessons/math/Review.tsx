@@ -2,7 +2,8 @@ import { useEffect, useState } from 'react'
 import { VisualView } from '../../ui/Visual'
 import { logAttempt } from '../../lib/record'
 import { reviewQs } from './plan'
-import { Fade, Quiz, type PartCtx, type QuizResult } from './kit'
+import { Fade, Quiz, useLive, type PartCtx, type QuizResult } from './kit'
+import { nextStep } from '../../ui/NextStep'
 
 /**
  * 小複習：兩題。「Three! Where is three?」找出今天的數字（T-109 關鍵字放最前面）（找數字 m-find）、「How many?」數一數上面那一堆、點數字（有幾個 m-match）。
@@ -16,6 +17,7 @@ export function ReviewPart({ ctx }: { ctx: PartCtx }) {
   /** 聽完才答的有幾題（沒聽完就點的是猜的，不算進「錯很多隔天重上」，T-109） */
   const [asked, setAsked] = useState(0)
   const q = qs[i]
+  const live = useLive()
   // 今天沒有小複習（只教了 1、2，index.tsx 本來就會跳過）：直接下課，不留一個空的畫面
   useEffect(() => {
     if (!qs.length) ctx.done(0, 0)
@@ -23,7 +25,7 @@ export function ReviewPart({ ctx }: { ctx: PartCtx }) {
   }, [])
   if (!q) return null
 
-  const answered = (r: QuizResult) => {
+  const answered = async (r: QuizResult) => {
     void logAttempt({
       station: 'math',
       game: q.kind === 'find' ? 'm-find' : 'm-match',
@@ -48,6 +50,8 @@ export function ReviewPart({ ctx }: { ctx: PartCtx }) {
     setMissed(m)
     setAsked(n)
     if (i + 1 >= qs.length) return ctx.done(n, m)
+    // 停在答完的這一題，等孩子點「下一步」才換題（T-118：不自己換）
+    if (!(await nextStep()) || !live.current) return
     setI(i + 1)
   }
 

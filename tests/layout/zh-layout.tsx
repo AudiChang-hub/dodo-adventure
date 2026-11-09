@@ -19,10 +19,13 @@ declare global {
   interface Window {
     zhLayout: (day: number, run: number, line: number) => void
     zhDays: number[]
+    /** 每一篇有幾行（check-zh-layout 照這個量，不拿畫面上前一篇的行數，T-118） */
+    zhLines: Record<number, number>
   }
 }
 
 window.zhDays = ZH_TEXTS.map((t) => t.day)
+window.zhLines = Object.fromEntries(ZH_TEXTS.map((t) => [t.day, t.lines.length]))
 window.zhLayout = (day, run, line) => {
   const t = ZH_TEXTS.find((x) => x.day === day)!
   flushSync(() =>

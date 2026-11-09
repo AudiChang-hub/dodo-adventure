@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
+import { NEXT_HINT, cancelNextStep, nextStep, useNextPending } from '../../ui/NextStep'
 import { Shell } from '../../games/Shell'
 import { WaitShield } from '../../games/NotYet'
 import { wait } from '../../games/lines'
@@ -62,6 +63,7 @@ export function MathLesson({ onDone }: LessonProps) {
   const replay = useRef<Promise<void> | null>(null)
   const live = useLive()
   const flow = useFlow()
+  const pending = useNextPending()
   /** 開場時點大數字：停掉語音，直接開始第一段（T-108） */
   const skipOpen = useRef<(() => void) | null>(null)
 
@@ -97,11 +99,15 @@ export function MathLesson({ onDone }: LessonProps) {
       }
       go(lesson.part)
     }
+    let atGate = false
     skipOpen.current = () => {
       // 剛進課的 0.5 秒：從首頁一直連點進來的手指先不算
       if (performance.now() - at < PACE.BARGE_ARM) return
+      // 開場說完、停著等「下一步」：點別的地方不算開始（T-118：只有點大箭頭才往下，大箭頭會跳一下提醒）
+      if (atGate) return
       flow.cut()
       replay.current = null
+      cancelNextStep()
       proceed()
     }
     const t = window.setTimeout(async () => {
@@ -123,6 +129,9 @@ export function MathLesson({ onDone }: LessonProps) {
       host.current = null
       await replayed()
       if (!ok()) return
+      // 開場說完：停在今天的數字上，等孩子點「下一步」才開始數（T-118：不自己換；開場念的時候點畫面照舊直接開始）
+      atGate = true
+      if (!(await nextStep()) || !ok()) return
       proceed()
     }, 0)
     host.current = () => {
@@ -162,7 +171,11 @@ export function MathLesson({ onDone }: LessonProps) {
       void partDone(p, asked, missed)
       if (p + 1 < PARTS.length && skip(p + 1, lesson)) void partDone(p + 1, 0, 0)
       if (p + 1 >= PARTS.length || skip(p + 1, lesson)) void finish()
-      else go(p + 1)
+      // 這一段做完：停在做完的樣子，等孩子點「下一步」才換下一段（T-118，家長：每一段都要自己點下一步）。進度已經記下了
+      else
+        void nextStep().then((ok) => {
+          if (ok && live.current && partRef.current === p) go(p + 1)
+        })
     },
     mood: setMood,
     demo: setDemo,
@@ -182,7 +195,7 @@ export function MathLesson({ onDone }: LessonProps) {
       onExit={leaveLesson}
       onHost={() => host.current?.()}
       demo={demo}
-      hintText={HINT[name ?? 'open'](lesson.n)}
+      hintText={pending ? NEXT_HINT : HINT[name ?? 'open'](lesson.n)}
     >
       <div className={`ma-lesson ma-${name ?? (over ? 'over' : 'open')}`} data-lesson-part={name ?? (over ? 'over' : 'open')}>
         {/* 右上角：今天的數字（開場在正中間，開始上課就掛到這裡；數到最後一個、寫好一次就跳一下） */}

@@ -4,7 +4,8 @@ import { CueArt, VisualView } from '../../ui/Visual'
 import { logAttempt, logTeach } from '../../lib/record'
 import type { TeachSpec } from '../../content/games'
 import { compareQs, countIcons, type CompareQ } from './plan'
-import { Fade, Quiz, type PartCtx, type QuizResult } from './kit'
+import { Fade, Quiz, useLive, type PartCtx, type QuizResult } from './kit'
+import { nextStep } from '../../ui/NextStep'
 
 /**
  * 比多少（比多少 m-compare 的做法）：左右兩堆，「More! Which side?」（T-109 關鍵字放最前面）。波波頭上的對話泡泡是徽章（一大堆／只有一個），靜音也知道問的是哪一個；泡泡很小、不能點，畫面上能點的只有兩堆。
@@ -28,7 +29,8 @@ export function ComparePart({ ctx }: { ctx: PartCtx }) {
     setCard(null)
   }
 
-  const answered = (r: QuizResult) => {
+  const live = useLive()
+  const answered = async (r: QuizResult) => {
     const target = q.ask === 'more' ? Math.max(q.a, q.b) : Math.min(q.a, q.b)
     void logAttempt({
       station: 'math',
@@ -53,6 +55,8 @@ export function ComparePart({ ctx }: { ctx: PartCtx }) {
     setMissed(m)
     setAsked(n)
     if (i + 1 >= qs.length) return ctx.done(n, m)
+    // 停在答完的這一題，等孩子點「下一步」才換題（T-118：不自己換）
+    if (!(await nextStep()) || !live.current) return
     const nq = qs[i + 1]
     setI(i + 1)
     setCard(nq.teach ? teachOf(nq) : null)

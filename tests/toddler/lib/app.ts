@@ -11,10 +11,30 @@ const PROBE = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'pro
  * 開 App、寫好測試用的設定，進到首頁。
  * lessonSticker：下一堂上完有沒有挑貼紙（平時平均每 3～4 堂一次、不固定，src/lib/lesson-sticker.ts）；沒給就照 App 自己抽
  */
-export async function boot(page: Page, seed: number, opts: { to?: 'home'; settings?: Record<string, unknown>; lessonSticker?: boolean } = {}) {
+/**
+ * autoNext（預設開）：課程做完一段停下來時，右下角的「下一步」大箭頭出來 1.5 秒後，孩子就點它（T-118）。
+ * 大部分測試測的是別的事，前提是孩子會點大箭頭往下走；要測「孩子不點大箭頭、亂點別處」的，傳 autoNext: false 自己處理。
+ */
+export async function boot(page: Page, seed: number, opts: { to?: 'home'; settings?: Record<string, unknown>; lessonSticker?: boolean; autoNext?: boolean } = {}) {
   await page.addInitScript((seed) => {
     if (!sessionStorage.getItem('toddler.seed')) sessionStorage.setItem('toddler.seed', String(seed))
   }, seed)
+  if (opts.autoNext !== false)
+    await page.addInitScript(() => {
+      // 大箭頭連續出現 1.5 秒就點（點了還在，再過 1.5 秒再點）。不用「同一個元素只點一次」：箭頭收起來又出來時可能是同一個元素
+      let since = 0
+      window.setInterval(() => {
+        const b = document.querySelector('.next-step')
+        if (!b) return void (since = 0)
+        if (!since) return void (since = Date.now())
+        if (Date.now() - since < 1500) return
+        since = Date.now()
+        const r = b.getBoundingClientRect()
+        const o = { bubbles: true, cancelable: true, isPrimary: true, pointerId: 77, pointerType: 'touch', clientX: r.left + r.width / 2, clientY: r.top + r.height / 2 }
+        b.dispatchEvent(new PointerEvent('pointerdown', o))
+        b.dispatchEvent(new PointerEvent('pointerup', o))
+      }, 250)
+    })
   await page.addInitScript({ path: PROBE })
   await page.goto(BASE)
   await page.waitForSelector('.scene', { timeout: 20_000 })

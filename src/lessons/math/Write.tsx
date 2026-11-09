@@ -1,3 +1,4 @@
+import { nextStep } from '../../ui/NextStep'
 import { useEffect, useRef, useState } from 'react'
 import { motion } from 'motion/react'
 import { Ink, type InkHandle } from '../../games/draw/Ink'
@@ -325,6 +326,8 @@ export function WritePart({ ctx }: { ctx: PartCtx }) {
     // 描得好不好不算進「錯很多隔天重上」（plan.ts 的 partDone 也不算寫數字這一段）
     const next = kRef.current + 1
     if (next >= reps) return ctx.done(reps, 0)
+    // 停在做完的樣子，等孩子點「下一步」才換下一個（T-118：不自己換）
+    if (!(await nextStep()) || !live.current) return
     kRef.current = next
     setK(next)
     start(next)

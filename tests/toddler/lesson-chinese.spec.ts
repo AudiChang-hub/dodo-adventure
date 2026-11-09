@@ -3,7 +3,7 @@ import { fileURLToPath } from 'node:url'
 import { test, expect, type Page } from '@playwright/test'
 import { attempts, boot, homeButton, settle, snap } from './lib/app'
 import { Toddler, hashSeed, type Pt } from './lib/toddler'
-import { Checker, alive, checkDoubleRecords, doorAt, pressBack, toHome, toddlerStep, waitLive } from './lib/flows'
+import { Checker, alive, checkDoubleRecords, doorAt, ignoreNext, pressBack, toHome, toddlerStep, waitLive } from './lib/flows'
 
 /**
  * 中文課（src/lessons/chinese/）：親子共讀（2026-11-03 起 App 不出聲，大人念）。第一次有給大人的說明卡 → 念課文（一次亮一行，大人按「下一行」）
@@ -19,12 +19,12 @@ const LIVE = 'lesson-chinese'
 /** 後面的一篇（家長挑「今天上這篇」）：跟第 1 篇不一樣的課文長度、紅字 */
 const LATE_DAY = 170
 
-async function setup(page: Page, info: Parameters<Parameters<typeof test>[2]>[1], name: string, lessonSticker?: boolean) {
+async function setup(page: Page, info: Parameters<Parameters<typeof test>[2]>[1], name: string, lessonSticker?: boolean, autoNext = true) {
   const seed = hashSeed(BASE_SEED, 'lesson-chinese', name, info.project.name)
   const k = new Toddler(page, info, seed, info.project.name)
   const c = new Checker(k, page)
   k.where = `中文課／${name}`
-  await boot(page, seed, { to: 'home', lessonSticker })
+  await boot(page, seed, { to: 'home', lessonSticker, autoNext })
   await k.init()
   return { k, c }
 }
@@ -225,6 +225,25 @@ async function toGlyph(k: Toddler, c: Checker) {
 }
 
 test.describe('中文課', () => {
+
+  test('選圖答對一題不點大箭頭（T-118）：亂點、連點、手掌壓、發呆 30 秒，不會自己換題、返回鍵點得到；點了才換', async ({ page }, info) => {
+    test.skip(!want('lesson-chinese-next'))
+    test.setTimeout(4 * 60_000)
+    const { k, c } = await setup(page, info, '不點大箭頭', false, false)
+    try {
+      await putKV(page, 'zhLesson:introSeen', true)
+      if (!(await enter(k, c))) return
+      if (!(await readAll(k, c))) return
+      const cue = await page.waitForSelector('.zh-quiz .tile.cue', { timeout: 30_000 }).catch(() => null)
+      if (!cue) return void (await c.once('next-cue', '卡死', '念完課文沒有出現選圖', ''))
+      const ans = (await points(page, '.zh-quiz .tile[data-answer]'))[0]
+      await k.tap(ans, '點對的那張')
+      await ignoreNext(k, c, '選圖答對第一題', () => page.evaluate(() => document.querySelector('.zh-glyph') ? 'glyph' : (document.querySelector('.zh-ask-word')?.textContent ?? null)))
+      await c.flush()
+    } finally {
+      finish(k, c, '不點大箭頭')
+    }
+  })
 
   test('親子共讀走完一堂：說明卡、大人還沒按下一行時亂點、連點下一行、聊一聊、連點選項，下課', async ({ page }, info) => {
     test.skip(!want('lesson-chinese-play'))
@@ -558,7 +577,7 @@ test.describe('中文課', () => {
     }
   })
 
-  test('下課挑貼紙（T-90）：點一下手馬上示範「再點一下」；收進貼紙本後停在那一頁，點房子才回首頁', async ({ page }, info) => {
+  test('下課挑貼紙（T-90）：點一下手馬上示範「再點一下」；收進貼紙本後停在那一頁，點大箭頭去晚安道別、點房子才回首頁', async ({ page }, info) => {
     test.skip(!want('lesson-chinese-sticker'))
     test.setTimeout(6 * 60_000)
     const { k, c } = await setup(page, info, '挑貼紙', true)
@@ -601,24 +620,29 @@ test.describe('中文課', () => {
       const ms = Date.now() - t0
       c.outcome('點一下：手馬上在那一張示範再點一下', !!s, s ? `${(ms / 1000).toFixed(1)} 秒內出現` : '2.5 秒內沒有出現')
       if (!s) await c.once('st-hand', '困惑', '點了一張貼紙，手沒有馬上示範「再點一下」', '')
-      // 再點同一張：收下 → 貼紙本那一頁 → 房子
+      // 再點同一張：收下 → 貼紙本那一頁，右下角「下一步」的大箭頭（T-118：不再 20 秒自己回首頁）
       await k.wait(1200)
       await k.tap(opt, '再點同一張')
-      s = await until((s) => s.home, 10_000)
-      c.outcome('收進貼紙本以後出現房子', !!s, s ? '房子' : '10 秒內沒有出現')
-      if (!s) return void (await c.once('st-home', '卡死', '貼紙收進本子以後沒有出現回首頁的房子', ''))
-      await k.wait(2000)
-      let live = (await snap(page)).live
+      const arrow = await page.waitForSelector('.next-step', { timeout: 10_000 }).catch(() => null)
       s = await pk()
-      c.outcome('停在貼紙本那一頁，沒有自己跑回首頁', live !== 'home' && s.book, `在 ${live}、${s.book ? '看得到貼紙本' : '貼紙本不見了'}`)
-      if (live === 'home') await c.once('st-fast', '困惑', '貼紙收進本子以後很快就自己回首頁', '')
-      s = await until((s) => s.homeHand, 4000)
-      c.outcome('沒點房子：手在房子上示範', !!s, s ? '手出現' : '沒有出現')
-      const h = (await points(page, '.pk-home'))[0]
+      c.outcome('收進貼紙本以後：停在那一頁，出現大箭頭', !!arrow && s.book, arrow ? (s.book ? '' : '貼紙本不見了') : '10 秒內沒有出現大箭頭')
+      if (!arrow) return void (await c.once('st-next', '卡死', '貼紙收進本子以後沒有出現「下一步」的大箭頭', ''))
+      // 孩子點大箭頭（boot 的 autoNext）→ 晚安道別；點恐龍 → 睡著 → 房子 → 首頁
+      let live = (await snap(page)).live
+      const bye = await page.waitForSelector('.lesson-bye', { timeout: 8000 }).catch(() => null)
+      c.outcome('點大箭頭 → 晚安道別', !!bye, bye ? '' : `停在 ${live}`)
+      if (!bye) return void (await c.once('st-bye', '卡死', '貼紙本點了大箭頭沒有到晚安道別', ''))
+      await k.wait(1500)
+      const dino = (await points(page, '.lb-host'))[0]
+      if (dino) await k.tap(dino, '恐龍')
+      const house = await page.waitForSelector('.lb-home', { timeout: 8000 }).catch(() => null)
+      c.outcome('點恐龍：睡著、房子出來', !!house, house ? '' : '房子沒有出來')
+      await k.wait(1200)
+      const h = (await points(page, '.lb-home'))[0]
       if (h) await k.tap(h, '房子')
       live = await waitLive(page, (l) => l === 'home', 4000)
       c.outcome('點房子 → 首頁', live === 'home', `到 ${live}`)
-      if (live !== 'home') await c.once('st-home-tap', '無法返回', '點貼紙本旁邊的房子沒有回首頁', `停在 ${live}`)
+      if (live !== 'home') await c.once('st-home-tap', '無法返回', '晚安道別點房子沒有回首頁', `停在 ${live}`)
       await c.flush()
     } finally {
       finish(k, c, '挑貼紙')
