@@ -7,7 +7,7 @@ import assert from 'node:assert/strict'
 import '../src/content/lines'
 import { hasLine } from '../src/content/registry'
 import { ORDER, lessonLetter, orderFor, wordId, LESSON_LETTERS } from '../src/lessons/english/data'
-import { lessonGood, planFor, type EnglishProgress } from '../src/lessons/english/plan'
+import { doneRecord, lessonGood, planFor, startedRecord, type EnglishProgress } from '../src/lessons/english/plan'
 import { makeQuiz, wrongKeys } from '../src/lessons/english/quiz-plan'
 
 let n = 0
@@ -147,5 +147,27 @@ ok('T-116 複習到一半離開：同一天回來從離開的那一段接著複�
   assert.ok(thirds.filter((q, k) => q.kind === 'big' && q.L !== lessonLetter(k + 1).L).length >= 10, '雙日要有複習以前的字母')
 }
 ok('T-104、T-112 選擇題答完幾題、結果記下來，同一天回來從下一題接著問；題數固定（第一天 2 題、之後 3 題），不再重複問同一題')
+
+{
+  // T-122（盲測 ca0d1e1 英文 seed 2 第 24 步：最後一題答完、慶祝的時候他按返回離開，這堂算上完了；
+  // 同一天回來變成複習，又從 Let's practice 重來）：上完但還沒跟恐龍說完晚安就離開，同一天回來直接回到晚安道別
+  const d = '2026-11-09'
+  const pl = planFor({ idx: 0, seq: ORDER, date: d, done: false, good: false, stage: 'quiz', round: 1 }, d)
+  const back = planFor(doneRecord(pl, true, null, d), d)
+  assert.equal(back.review, true)
+  assert.deepEqual(back.resume, { stage: 'end', round: 0 })
+  // 複習上完也一樣回到晚安道別；「上完了」和好不好照舊
+  const rv = planFor({ idx: 0, seq: ORDER, date: d, done: true, good: true }, d)
+  const rec = doneRecord(rv, false, { idx: 0, seq: ORDER, date: d, done: true, good: true }, d)
+  assert.equal(rec.good, true)
+  assert.deepEqual(planFor(rec, d).resume, { stage: 'end', round: 0 })
+  // 回到晚安道別那一次就清掉：再出去、再進來是從頭複習（不會每次進來都只有晚安）
+  assert.equal(startedRecord(planFor(rec, d), rec, d)?.stage, undefined)
+  assert.equal(planFor(startedRecord(planFor(rec, d), rec, d)!, d).resume, undefined)
+  // 隔天照常換下一個字母
+  assert.equal(planFor(rec, '2026-11-10').idx, 1)
+  assert.equal(planFor(rec, '2026-11-10').resume, undefined)
+}
+ok('T-122 上完了、還沒說完晚安就離開：同一天回來回到晚安道別，不從 Let’s practice 重來')
 
 console.log('ALL PASS')

@@ -9,6 +9,7 @@ import { firstFinger } from '../games/NotYet'
  * 一堂課裡每做完一段、一題，畫面停在「完成了」的樣子，右下角出現一顆大大的箭頭；孩子點了才往下。他不點就一直等，不自己走。
  * - 用圖示不用字：綠色圓鈕、白色往右的粗箭頭（聽不懂英文也看得懂）。
  * - 出來時跳一下；2.5 秒沒點，手來點一下給他看；之後每 8 秒（PHASE-7 小班段）箭頭再跳一下、手再點一下。
+ *   nextStep({ cue: true })：一出來（0.65 秒）就跳一下、手點一下，2.5 秒再一次（T-122，英文選擇題答完）。
  * - 點別的地方（返回鍵以外）：箭頭跳一下、手點一下（「點這裡」）。
  * - 剛出來的 0.5 秒不收（上一題連點的手指不會一下就跳過，PACE.BARGE_ARM）。
  * - 減少動態效果時只出現、不跳。
@@ -22,16 +23,22 @@ const FIRST_HAND_MS = 2500
 /** 之後每隔多久再提醒一次（PHASE-7 小班段 8 秒） */
 const AGAIN_MS = 8000
 
-type Pending = { resolve: (ok: boolean) => void; at: number }
+/** cue：一出來（收得到的時候）箭頭就跳、手就點，不等 2.5 秒（T-122，英文選擇題答完：他看不出做完了、該點哪裡） */
+const CUE_MS = ARM_MS + 150
+
+type Pending = { resolve: (ok: boolean) => void; at: number; cue: boolean }
 let pending: Pending | null = null
 const subs = new Set<() => void>()
 const emit = () => subs.forEach((f) => f())
 
-/** 停下來等孩子點「下一步」：點了回傳 true；課被關掉（離開、換課）回傳 false */
-export function nextStep(): Promise<boolean> {
+/**
+ * 停下來等孩子點「下一步」：點了回傳 true；課被關掉（離開、換課）回傳 false。
+ * cue：一出來就跳一下、手點一下（2.5 秒再一次），給「做完了，下一步在這裡」看不出來的地方用；沒給照舊 2.5 秒才來
+ */
+export function nextStep({ cue = false }: { cue?: boolean } = {}): Promise<boolean> {
   pending?.resolve(false)
   return new Promise<boolean>((resolve) => {
-    pending = { resolve, at: performance.now() }
+    pending = { resolve, at: performance.now(), cue }
     emit()
   })
 }
@@ -82,6 +89,7 @@ function NextButton() {
   }
 
   useEffect(() => {
+    const cue = window.setTimeout(() => pending?.cue && nudge(), CUE_MS)
     const first = window.setTimeout(nudge, FIRST_HAND_MS)
     const again = window.setInterval(nudge, AGAIN_MS)
     // 點別的地方（返回鍵、大人的東西以外）：箭頭跳一下、手點一下
@@ -93,6 +101,7 @@ function NextButton() {
     window.addEventListener('pointerdown', elsewhere, true)
     return () => {
       gone.current = true
+      clearTimeout(cue)
       clearTimeout(first)
       clearInterval(again)
       clearTimeout(handTimer.current)

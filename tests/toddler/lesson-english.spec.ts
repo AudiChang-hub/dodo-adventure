@@ -729,6 +729,50 @@ test.describe('英文字母課', () => {
       finish(k, c, '進度')
     }
   })
+  test('上完了、還沒說完晚安就離開，同一天回來回到晚安道別，不從頭複習（T-122）', async ({ page }, info) => {
+    test.skip(!want('lesson-english') || info.project.name !== 'tab1200')
+    test.setTimeout(2 * 60_000)
+    const { k, c } = await setup(page, info, '上完回來')
+    try {
+      const d = new Date()
+      const today = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+      // 題目都做完了（plan.ts 的 markDone 記成 end），慶祝的時候按返回離開
+      await page.evaluate(
+        (p) =>
+          new Promise<void>((res) => {
+            const rq = indexedDB.open('dodo-adventure')
+            rq.onsuccess = () => {
+              const tx = rq.result.transaction('kv', 'readwrite')
+              tx.objectStore('kv').put({ key: 'lesson.english', value: p })
+              tx.oncomplete = () => res()
+            }
+          }),
+        { idx: 0, date: today, done: true, good: true, stage: 'end' },
+      )
+      k.behavior = '上完了回來'
+      if (!(await enter(k, c))) return
+      const bye = await page.waitForSelector('.cheer-scrim .lesson-bye', { timeout: 6000 }).catch(() => null)
+      const meet = await page.evaluate(() => !!document.querySelector('.en-meet'))
+      c.outcome('回到晚安道別', !!bye && !meet, bye ? (meet ? '又從認識字母開始' : '') : `停在 ${await stageOf(page)}`)
+      if (!bye || meet) await c.once('end-resume', '誤記作答', '上完了還沒說完晚安就離開，回來沒有回到晚安道別', `停在 ${await stageOf(page)}`)
+      // 返回鍵點得到：回首頁；再進來是從頭複習（回去過一次就清掉）
+      k.behavior = '晚安道別按返回'
+      const h = await homeButton(page)
+      if (h) await pressBack(k, h, '晚安道別按返回')
+      const back = await waitLive(page, (l) => l === 'home', 4000)
+      c.outcome('晚安道別按返回 → 首頁', back === 'home', `到 ${back}`)
+      if (back !== 'home') await c.once('end-back', '無法返回', '回到晚安道別時按返回沒有回首頁', `停在 ${back}`)
+      k.behavior = '再進來'
+      if (!(await enter(k, c))) return
+      const meet2 = await page.waitForSelector('.en-meet', { timeout: 8000 }).catch(() => null)
+      c.outcome('再進來：從頭複習', !!meet2, `停在 ${await stageOf(page)}`)
+      if (!meet2) await c.once('end-review', '誤記作答', '回過晚安道別以後再進來，沒有從頭複習', `停在 ${await stageOf(page)}`)
+    } finally {
+      await c.flush().catch(() => {})
+      finish(k, c, '上完回來')
+    }
+  })
+
   test('找大 S、小 s：照示範的手剛剛點的位置點下去，要點到對的那張（T-100）', async ({ page }, info) => {
     test.skip(!want('lesson-english'))
     test.setTimeout(4 * 60_000)

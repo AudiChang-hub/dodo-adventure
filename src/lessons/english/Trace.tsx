@@ -76,8 +76,13 @@ const GOOD_OFF = 0.4
  * 畫面只有跑道顏色和流動的小點，他不知道對不對、按返回離開。現在所有沒描好的都走同一套：Nice try! → You drew it!
  */
 const ATTEMPT_INK = 12
-/** 第幾次沒描上就由筆帶著描完、往下走（最多重試一次，不卡關） */
-const MAX_TRIES = 2
+/**
+ * 整堂課（描字、寫寫看加起來）最多讓他重描幾次（T-122，盲測 ca0d1e1 英文：每一輪沒描好都「Nice try」再描一次，
+ * 一堂課重描好幾次，他說「好煩」按返回離開）。用完以後沒描好就直接由筆帶著描完、說 You drew it!、往下走
+ */
+export const LESSON_RETRIES = 1
+/** 一堂課共用的重描次數（index.tsx 給描字、寫寫看同一個） */
+export type RetryBudget = { left: number }
 
 /** 鼓勵的話最少隔多久說一次（不要一直講） */
 const CHEER_GAP_MS = 5000
@@ -101,11 +106,12 @@ function strokeStart(d: string) {
  * - 回饋（AI 小男生測試 #3）：
  *   - 起點附近按下去吸到起點（SNAP_MM，3 歲手指的偏差），圓點那邊亮一圈、有一條虛線從手指連過去；
  *   - 描到一半放手：綠點移到斷掉的地方、一圈光往外擴（TraceFx 的 ResumeDot），從那裡（或從起點沿著描好的部分）接著描，進度不歸零；
- *     這一下也算一次「沒描好」（下面，T-113）；
+ *     描了一段（ATTEMPT_INK 以上）才放手的算一次「沒描好」（下面，T-113），筆從斷掉的地方帶著描完（T-122）；
  *   - 一直偏離跑道：圓點彈一下、還沒描的跑道亮兩下（不說話；以前說 Almost! Follow the line!，T-112 拿掉）；
- *   - 沒描好（放開時這一筆還沒描完，ATTEMPT_INK，T-112、T-113）：沒描上的那條線淡掉。第一次「Nice try!」、跑道亮兩下、
- *     筆從他描到的地方輕輕帶到終點，再讓他描；第二次「You drew it!」、筆帶著描完，往下一輪
- *     （最多重試一次，不卡關；不說 Almost、不讓他覺得錯了；不會只有顏色沒有聲音）；
+ *   - 沒描好（放開時這一筆還沒描完，ATTEMPT_INK，T-112、T-113）：沒描上的那條線淡掉。
+ *     描到一半放手：「You drew it!」、筆從他停下來的地方帶著描完，往下走（T-122：不要他重描）；
+ *     完全沒描上（亂畫）：整堂課只有第一次「Nice try!」、跑道亮兩下、筆從他描到的地方輕輕帶到終點，再讓他描；
+ *     之後都是「You drew it!」、筆帶著描完，往下走（整堂最多重描一次，LESSON_RETRIES；不說 Almost、不讓他覺得錯了）；
  *   - 按得太遠（吸不到）：圓點彈一下；連兩次再說一次「從綠點開始」；
  *   - 下一筆的起點有一圈光往外擴，看得出要從哪裡開始；
  *   - 10 秒沒動：筆從現在描到的地方往後描一次（不出墨、不說話）；再 15 秒說一次「從綠點開始」；
@@ -126,6 +132,7 @@ export function Trace({
   rounds = ROUNDS,
   from = 0,
   onRound,
+  retry,
   onDone,
 }: {
   letter: LessonLetter
@@ -133,8 +140,12 @@ export function Trace({
   rounds?: TraceRound[]
   from?: number
   onRound?: (round: number) => void
+  /** 整堂課共用的重描次數（沒給：這一段自己算 LESSON_RETRIES 次） */
+  retry?: RetryBudget
   onDone: (good: number) => void
 }) {
+  const ownRetry = useRef<RetryBudget>({ left: LESSON_RETRIES })
+  const budget = retry ?? ownRetry.current
   const [r, setR] = useState(from)
   const round = rounds[r]
   const look = LOOKS[round.look]
@@ -422,15 +433,18 @@ export function Trace({
 
   /**
    * 沒描上（T-112）：先肯定他有畫，只用畫面引導，不說 Almost。
-   * 第一次：Nice try!、還沒描的跑道亮兩下、筆從他描到的地方輕輕帶到終點（不出墨），再讓他描。
-   * 第二次：You drew it!，筆帶著描完（helpFinish，記成筆帶著的），往下一輪。
+   * 整堂課只有第一次、而且是完全沒描上跑道（亂畫）的時候：Nice try!、還沒描的跑道亮兩下、筆從他描到的地方輕輕帶到終點（不出墨），再讓他描。
+   * 其他的（描到一半放手、這一輪重描過、這堂課已經重描過一次）：You drew it!，筆從他停下來的地方帶著描完（helpFinish，記成筆帶著的），往下走。
+   * T-122（盲測 ca0d1e1 英文 seed 1、seed 2 重跑：描到一半放手被說 Nice try、要重描，「好煩」按返回離開）：描到一半放手不再要他重描。
    */
-  const missed = async () => {
+  const missed = async (partial: boolean) => {
     idle.poke()
     misses.current = 0
     // 這幾秒不要再插「從綠點開始」
     cheeredAt.current = performance.now()
-    if (++tries.current < MAX_TRIES) {
+    tries.current++
+    if (!partial && tries.current === 1 && budget.left > 0) {
+      budget.left--
       setGlow((g) => g + 1)
       void say('d.glyph.try')
       void showAgain()
@@ -578,13 +592,15 @@ export function Trace({
       // 描到大部分就放手：算描完（T-101）
       void fillRest(t)
     } else if (open && was && isAttempt(t, len)) {
-      // 沒描好（沒描上、描到一半放手都算）：Nice try! ＋跑道亮、筆從斷掉的地方帶到終點；第二次就帶著描完往下走（T-112、T-113）。
-      // 沒描上的線淡掉；描到一半的照舊留著（跑道已經填到那裡，綠點在斷掉的地方等他接著描）
+      // 沒描好（沒描上、描到一半放手都算，T-112、T-113）：描到一半放手的，筆從斷掉的地方帶著描完往下走；
+      // 完全沒描上的，整堂課第一次 Nice try! 再描一次，之後也是帶著描完（T-122，missed）。
+      // 沒描上的線淡掉；描到一半的照舊留著（跑道已經填到那裡）
       if (drawing.current && t.progress > 0) bump()
+      const partial = drawing.current && t.progress > 0
       if (!moved.current) ink.current?.fadeLast(200)
       drawing.current = false
       moved.current = false
-      return void missed()
+      return void missed(partial)
     } else if (open && drawing.current && t.progress > 0) {
       // 只碰一下：圓點在停下來的地方彈一下
       bump()
