@@ -5,7 +5,7 @@
 //   npx tsx scripts/check-story.ts --builtin          檢查 App 裡已經有的故事（手寫的示範＋審稿佇列）
 //   npx tsx scripts/check-story.ts --fixtures         驗收：故意寫壞的劇本（scripts/fixtures/story/bad/）每一份都要擋下，手寫的示範要全部通過
 // 參數：
-//   --learner 學習快照.json   孩子學過哪些字（家長區「故事審稿」→「下載學習快照」）；預設讀 scripts/.cache/learner.json，沒有就把 App 教得到的字都當學過
+//   --learner 學習快照.json   孩子學過哪些字（家長區「本週新故事」→「下載學習快照」）；預設讀 scripts/.cache/learner.json，沒有就把 App 教得到的字都當學過
 //   --private 名字,幼兒園     另外不能出現的個人資料（.env.local 的孩子名字、STORY_PRIVATE_WORDS 會自動加進來）
 // 有任何問題（不含只提醒的）就以 1 結束。
 import { readFileSync, readdirSync, existsSync } from 'node:fs'

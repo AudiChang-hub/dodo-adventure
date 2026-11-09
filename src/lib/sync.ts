@@ -164,7 +164,7 @@ async function upload() {
       story: story?.value ?? null,
       updated: Date.now(),
     })
-    // 故事審稿：家長可能在手機上審，平板每次同步時把決定讀回來
+    // 本週新故事：家長可能在手機上撤下，平板每次同步時把決定讀回來
     await reviewRoundTrip(f, uid)
     // 「真的學會了嗎？」的決定（T-109）：一樣，手機上按的，平板同步時讀回來
     await checkRoundTrip(f, uid)
@@ -208,7 +208,7 @@ export async function syncChecks(): Promise<boolean> {
   }
 }
 
-/** 審稿頁打開、家長按了通過或退回：只同步審稿的決定（沒登入、沒網路就略過，決定還在這台裝置上） */
+/** 本週新故事打開、家長按了撤下或放回：只同步這些決定（沒登入、沒網路就略過，決定還在這台裝置上） */
 export async function syncReview(): Promise<boolean> {
   if (!syncConfigured || !state.user || !navigator.onLine) return false
   const f = await initSync()

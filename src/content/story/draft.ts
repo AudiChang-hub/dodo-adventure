@@ -1,8 +1,9 @@
 // 每週自動產生的故事（G-9，docs/成長系統設計.md §3.6.4）：劇本草稿的格式和載入。
 //
 // 流程：scripts/story-brief.ts 產生寫作簡報 → 寫劇本（AI 或人貼進來）→ scripts/check-story.ts 自動檢查 →
-// 產生語音 → scripts/story-weekly.ts 把劇本放進 content/story/weekly/（審稿佇列）→ 家長在家長區「故事審稿」逐章試聽、通過或退回。
-// 佇列裡的章節要家長通過（lib/review.ts）才會進孩子端；手寫的示範章節（part1/、classics/）不用審。
+// 產生語音 → scripts/story-weekly.ts 把劇本放進 content/story/weekly/（審稿佇列）→ 直接給孩子聽。
+// T-120 起（家長 2026-11-09：「不用審稿，我相信你」）佇列裡的章節通過自動檢查就上線；家長在家長區「本週新故事」試聽，
+// 不喜歡的撤下（lib/review.ts），撤下的原因交給 story-weekly --feedback 重寫。
 //
 // 劇本是 JSON（寫的人照 story-brief 的格式寫），這裡只補上每一章都一樣的欄位（kind、part、arc、band、faith），
 // 故事時間的開場、結尾沒寫就用固定的兩句（classics/fixed.ts），固定句換成共用的 key（同一個音檔）。
@@ -12,7 +13,7 @@ import type { HouseItem } from './house'
 import type { Arc, Beat, Chapter, Classic, StopBeats } from './types'
 
 interface DraftBase {
-  /** 第幾版：退回重寫一次加 1（家長的通過記著是哪一版的內容，內容改了要重審） */
+  /** 第幾版：撤下重寫一次加 1（家長的撤下記著是哪一版的內容，重寫過的新版直接上線） */
   rev: number
   /** 哪一週產生的（那一週星期一的日期 YYYY-MM-DD） */
   week: string
@@ -101,7 +102,7 @@ export function normalizeDraft(d: StoryDraft): StoryDraft {
 }
 
 /**
- * 一章內容的指紋：家長通過時記著這個值；之後內容改了（退回重寫、手改），指紋就不一樣，要重審。
+ * 一章內容的指紋：家長撤下時記著這個值；之後內容改了（照原因重寫、手改），指紋就不一樣，新的這一版直接上線。
  * 只看會念、會畫出來的內容，家長看的中文意思、版本號改了不用重審。
  */
 export function chapterHash(c: Chapter): string {

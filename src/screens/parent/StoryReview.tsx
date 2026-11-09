@@ -1,5 +1,6 @@
-// 家長區「故事審稿」（G-9，docs/故事世界.md §8）：每週自動產生的故事，家長逐章試聽、看中英對照，按通過或退回（附一句原因）。
-// 只有通過的章節會進孩子端（lib/review.ts）。宗教經典的章節標「宗教經典，請特別看」，要逐章按通過，不能整篇一起過。
+// 家長區「本週新故事」（G-9 的故事審稿，T-120 起改成直接上線；docs/故事世界.md §8）：每週自動產生、通過自動檢查的故事
+// 直接給孩子聽（家長 2026-11-09：「不用審稿，我相信你」）。家長在這裡試聽、看中英對照，不喜歡的章節可以撤下（附一句原因更好，
+// 每週流程會照原因重寫），撤下的也可以放回（lib/review.ts）。宗教經典的章節標「宗教經典」，讓家長知道可以特別聽一下。
 // 家長常用手機直式看：一句一列（圖、英文、中文、試聽鍵），按鈕都夠大；平板上置中、最寬 860px。
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { say, stopSpeech } from '../../lib/audio'
@@ -15,7 +16,7 @@ import { CHILD_EN } from '../../lib/env'
 import '../story.css'
 import './review.css'
 
-const STATUS_ZH: Record<ReviewStatus, string> = { builtin: '', pending: '待審', ok: '已通過', no: '已退回' }
+const STATUS_ZH: Record<ReviewStatus, string> = { builtin: '', live: '孩子聽得到', off: '已撤下' }
 const VOICE_ZH = { dodo: '豆豆', bobo: '波波', momo: '莫莫' } as const
 const WHO_ZH: Record<string, string> = { egg: '彩虹蛋', all: '大家', friend: '朋友' }
 const TRACK_ZH = { lang: '排到語言時', num: '排到數與規律時', think: '排到邏輯與程式時', hand: '排到動手時' } as const
@@ -80,20 +81,17 @@ export function StoryReview() {
   const [playing, setPlaying] = useState<string | null>(null)
   const [note, setNote] = useState<string | null>(null)
 
-  // 打開審稿頁：先把另一台裝置的決定拿過來（手機上審、平板上看，或反過來）
+  // 打開這一頁：先把另一台裝置的決定拿過來（手機上撤下、平板上看，或反過來）
   useEffect(() => {
     void syncReview()
     return () => stopSpeech()
   }, [])
 
-  const drafts = useMemo(() => {
-    const pending = (d: StoryDraft) => draftChapters(d).some((c) => reviewStatus(c) === 'pending')
-    return [...WEEKLY].sort((a, b) => Number(pending(b)) - Number(pending(a)) || (a.week < b.week ? 1 : -1))
-    // verdicts 改了要重排
-  }, [verdicts]) // eslint-disable-line react-hooks/exhaustive-deps
+  // 新的週在最上面（同一週照佇列的順序）；撤下、放回不重排，家長按完不會跳走
+  const drafts = useMemo(() => WEEKLY.map((d, i) => ({ d, i })).sort((a, b) => (a.d.week < b.d.week ? 1 : a.d.week > b.d.week ? -1 : a.i - b.i)).map((x) => x.d), [])
 
   const counts = useMemo(() => {
-    const c = { pending: 0, ok: 0, no: 0 }
+    const c = { live: 0, off: 0 }
     for (const d of WEEKLY) for (const ch of draftChapters(d)) {
       const s = reviewStatus(ch)
       if (s !== 'builtin') c[s]++
@@ -120,8 +118,8 @@ export function StoryReview() {
 
   const exportReview = () => {
     const ex = exportVerdicts()
-    download(`故事審稿結果-${new Date().toISOString().slice(0, 10)}.json`, JSON.stringify(ex, null, 1), 'application/json')
-    setNote('已下載審稿結果。退回的章節：把這個檔交給每週流程（story-weekly --feedback），會照你寫的原因重寫。')
+    download(`故事撤下原因-${new Date().toISOString().slice(0, 10)}.json`, JSON.stringify(ex, null, 1), 'application/json')
+    setNote('已下載撤下的原因。把這個檔交給每週流程（story-weekly --feedback），撤下的章節會照你寫的原因重寫，通過自動檢查就會上線。')
   }
   const exportLearner = async () => {
     const s = await learnerSnapshot()
@@ -132,19 +130,18 @@ export function StoryReview() {
   return (
     <div className="review">
       <header className="review-head">
-        <h2>故事審稿</h2>
-        <p className="sub">每週自動寫好的故事，你聽過、按「通過」，孩子才會聽到。退回時寫一句原因，下次會照著改。</p>
+        <h2>本週新故事</h2>
+        <p className="sub">每週自動寫好的新故事，通過自動檢查（太難的字、不適合的主題、宗教用語、名字）就直接給孩子聽。不喜歡哪一章就按「撤下」，孩子就聽不到；寫一句原因，下次會照著改。</p>
         <div className="review-counts" role="status">
-          <span className="chip is-pending">待審 {counts.pending} 章</span>
-          <span className="chip is-ok">已通過 {counts.ok}</span>
-          <span className="chip is-no">已退回 {counts.no}</span>
+          <span className="chip is-live">孩子聽得到 {counts.live} 章</span>
+          <span className="chip is-off">已撤下 {counts.off}</span>
         </div>
-        <p className="review-sync">{sync.user ? '已登入：你的決定會同步到孩子的平板。' : '沒有登入：決定只存在這台裝置。要在手機上審，請在「設定與同步」登入同一個帳號。'}</p>
+        <p className="review-sync">{sync.user ? '已登入：撤下、放回會同步到孩子的平板。' : '沒有登入：撤下、放回只存在這台裝置。要在手機上撤下，請在「設定與同步」登入同一個帳號。'}</p>
       </header>
 
       {drafts.length === 0 && (
         <div className="card review-empty">
-          <p>目前沒有要審的故事。</p>
+          <p>目前沒有新故事。</p>
           <p className="sub">每週的故事流程寫好新的一篇、一則故事時間之後，會出現在這裡。</p>
         </div>
       )}
@@ -156,7 +153,7 @@ export function StoryReview() {
       <section className="card review-tools">
         <h3>給每週故事流程</h3>
         <div className="review-tool-row">
-          <button type="button" onClick={exportReview}>匯出審稿結果</button>
+          <button type="button" onClick={exportReview}>匯出撤下的原因</button>
           <button type="button" onClick={() => void exportLearner()}>下載學習快照</button>
         </div>
         {note && <p className="sub review-note">{note}</p>}
@@ -174,7 +171,6 @@ interface Player {
 function DraftCard({ d, player }: { d: StoryDraft; player: Player }) {
   const chapters = draftChapters(d)
   const faith = d.type === 'classic' ? d.classic.faith : null
-  const pending = chapters.filter((c) => reviewStatus(c) === 'pending')
   const kicker = d.type === 'arc' ? `原創長篇・第 ${d.arc.part} 部第 ${d.arc.no} 篇・${chapters.length} 章` : `故事時間・${d.classic.id}・${d.classic.source}`
   const title = d.type === 'arc' ? d.arc : { zh: d.classic.zh, title: d.classic.chapter.look?.title ?? '' }
   return (
@@ -189,7 +185,7 @@ function DraftCard({ d, player }: { d: StoryDraft; player: Player }) {
         </p>
         {faith && (
           <p className="review-faith" role="note">
-            <strong>宗教經典，請特別看</strong>（{FAITH_ZH[faith] ?? faith}）：當故事講、不傳教義。沒有禱告、神的指令、「要相信」、懲罰；要一章一章按通過。孩子端不會說出處。
+            <strong>宗教經典</strong>（{FAITH_ZH[faith] ?? faith}）：當故事講、不傳教義。自動檢查會擋掉禱告、神的指令、「要相信」、懲罰；孩子端不會說出處。不喜歡可以撤下。
           </p>
         )}
         {!!d.notes?.length && (
@@ -202,27 +198,22 @@ function DraftCard({ d, player }: { d: StoryDraft; player: Player }) {
             </ul>
           </details>
         )}
-        {!faith && pending.length > 1 && (
-          <button type="button" className="review-all" onClick={() => void decide(pending.map((c) => ({ chapter: c, ok: true, rev: d.rev })))}>
-            整篇通過（{pending.length} 章）
-          </button>
-        )}
       </header>
       {chapters.map((c) => (
-        <ChapterCard key={c.id} d={d} ch={c} faith={!!faith} player={player} />
+        <ChapterCard key={c.id} d={d} ch={c} player={player} />
       ))}
     </article>
   )
 }
 
-function ChapterCard({ d, ch, faith, player }: { d: StoryDraft; ch: Chapter; faith: boolean; player: Player }) {
+function ChapterCard({ d, ch, player }: { d: StoryDraft; ch: Chapter; player: Player }) {
   const { playing, play, stop } = player
   const verdict = useReview()[ch.id]
   const status = reviewStatus(ch)
   const stale = staleVerdict(ch)
   const [rejecting, setRejecting] = useState(false)
   const [reason, setReason] = useState('')
-  const [open, setOpen] = useState(status === 'pending')
+  const [open, setOpen] = useState(false)
   const segs = useMemo(() => segsOf(ch), [ch])
   const host = (ch.look?.host ?? THEMES.find((t) => t.id === ch.door)?.host ?? 'momo') as 'dodo' | 'bobo' | 'momo'
   // 整章試聽：沒有排到主線時念的那一版（依主線的版本各自按試聽）
@@ -233,7 +224,6 @@ function ChapterCard({ d, ch, faith, player }: { d: StoryDraft; ch: Chapter; fai
     await decide([{ chapter: ch, ok, reason: ok ? undefined : reason, rev: d.rev }])
     setRejecting(false)
     setReason('')
-    if (ok) setOpen(false)
   }
   return (
     <section className={`review-ch is-${status}`} aria-label={name}>
@@ -247,8 +237,8 @@ function ChapterCard({ d, ch, faith, player }: { d: StoryDraft; ch: Chapter; fai
           {all.includes(playing ?? '') ? '■ 停止' : '▶ 整章試聽'}
         </button>
       </div>
-      {stale && status === 'pending' && <p className="review-stale">內容改過了（第 {d.rev} 版），請再聽一次。{stale.reason ? `上次退回的原因：「${stale.reason}」` : ''}</p>}
-      {status === 'no' && verdict?.reason && <p className="review-reason">退回的原因：「{verdict.reason}」</p>}
+      {stale && status === 'live' && <p className="review-stale">照你撤下的原因重寫過了（第 {d.rev} 版），已經放回給孩子聽。{stale.reason ? `上次撤下的原因：「${stale.reason}」` : ''}</p>}
+      {status === 'off' && verdict?.reason && <p className="review-reason">撤下的原因：「{verdict.reason}」</p>}
       {open && (
         <div className="review-lines">
           {segs.map((s) => (
@@ -284,14 +274,14 @@ function ChapterCard({ d, ch, faith, player }: { d: StoryDraft; ch: Chapter; fai
             className="review-reject"
             onSubmit={(e) => {
               e.preventDefault()
-              if (reason.trim()) void send(false)
+              void send(false)
             }}
           >
-            <label htmlFor={`why-${ch.id}`}>退回的原因（一句話）</label>
+            <label htmlFor={`why-${ch.id}`}>撤下的原因（一句話，可以不寫）</label>
             <input id={`why-${ch.id}`} value={reason} maxLength={120} autoFocus placeholder="例如：這句太長、這個字他還不會" onChange={(e) => setReason(e.target.value)} />
             <div className="review-btns">
-              <button type="submit" className="is-no" disabled={!reason.trim()}>
-                送出退回
+              <button type="submit" className="is-no">
+                撤下這一章
               </button>
               <button type="button" onClick={() => setRejecting(false)}>
                 取消
@@ -300,12 +290,20 @@ function ChapterCard({ d, ch, faith, player }: { d: StoryDraft; ch: Chapter; fai
           </form>
         ) : (
           <div className="review-btns">
-            <button type="button" className="is-ok" aria-pressed={status === 'ok'} onClick={() => void send(true)}>
-              {status === 'ok' ? '✓ 已通過' : faith ? '我看過了，通過這一章' : '通過'}
-            </button>
-            <button type="button" className="is-no" aria-pressed={status === 'no'} onClick={() => setRejecting(true)}>
-              {status === 'no' ? '已退回・改原因' : '退回'}
-            </button>
+            {status === 'off' ? (
+              <>
+                <button type="button" className="is-ok" onClick={() => void send(true)}>
+                  放回，給孩子聽
+                </button>
+                <button type="button" className="is-no" onClick={() => setRejecting(true)}>
+                  改撤下的原因
+                </button>
+              </>
+            ) : (
+              <button type="button" className="is-no" onClick={() => setRejecting(true)}>
+                撤下這一章
+              </button>
+            )}
           </div>
         )}
       </div>

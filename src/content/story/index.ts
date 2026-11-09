@@ -23,7 +23,7 @@ export { chapterHash, draftChapters, draftId, draftTitle, draftZh, normalizeDraf
 /** 審稿佇列裡的劇本（G-9，content/story/weekly/）：要家長通過才會進孩子端（lib/review.ts） */
 export const WEEKLY: StoryDraft[] = WEEKLY_DRAFTS.map(normalizeDraft)
 const WEEKLY_CH = new Map(WEEKLY.flatMap((d) => draftChapters(d).map((c) => [c.id, d] as const)))
-/** 這一章是審稿佇列裡的（要家長通過才能播）；手寫的示範章節、通用章節是 null */
+/** 這一章是審稿佇列（每週新故事）裡的：家長在「本週新故事」撤下的不播（lib/review.ts）；手寫的示範章節、通用章節是 null */
 export const weeklyOf = (chapterId: string): StoryDraft | null => WEEKLY_CH.get(chapterId) ?? null
 export const weeklyById = (id: string) => WEEKLY.find((d) => draftId(d) === id) ?? null
 

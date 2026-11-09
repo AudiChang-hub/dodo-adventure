@@ -141,7 +141,7 @@ const FORMAT_ARC = (id: string, part: number, no: number, band: Band) => `## 劇
 - \`who\`：dodo、bobo、momo、egg（彩虹蛋，只會 Gurgle）、all（大家一起說）、friend（孵出來的朋友）。
 - \`en\`：英文台詞；\`|\` 後面是加重的字，**只能放在句尾**（要加重句中的字就拆成兩句）。孩子的名字只寫 \`{name}\`。
 - \`pic\`：Fluent Emoji 的名字（bus、red-apple、musical-notes…），或故事自己的圖 @rainbow-egg、@blanket、@egg-nest；用 \`+\` 疊兩張（第一張大的，第二張小的在右下角）。
-- \`zh\`：每一句都要有中文意思（只給家長審稿看，App 裡不出現）。
+- \`zh\`：每一句都要有中文意思（只給家長在「本週新故事」看，App 裡不出現）。
 - 魔法屋已經有的東西：${HOUSE_ITEMS.map((h) => `${h.id}（${h.zh}）`).join('、')}。這一篇講完多的東西照大綱寫進 \`house\`。
 `
 
@@ -225,7 +225,7 @@ export function arcBrief(o: BriefOpts): { meta: BriefMeta; md: string } {
 產生：${new Date().toISOString().slice(0, 16).replace('T', ' ')}　這一週：${o.week}　故事世界：${basename(w.path)}
 
 你要寫《彩虹蛋之旅》（The Rainbow Egg Journey）的下一篇，給一個 3 歲多的孩子在平板上聽。故事全英文，跟著每天的冒險走。
-寫好之後會先經過自動檢查（check-story），再由家長逐章試聽、通過才給孩子聽。請**只輸出劇本的 JSON**。
+寫好之後會先經過自動檢查（check-story），通過就直接給孩子聽（家長之後可以撤下）。請**只輸出劇本的 JSON**。
 
 ## 這一篇要寫什麼（故事世界 §4 大綱）
 
@@ -269,7 +269,7 @@ export function classicBrief(o: BriefOpts): { meta: BriefMeta; md: string } {
 
 這一週的故事時間：莫莫在魔法屋的書房打開一本舊書，講一則古老的故事，給一個 3 歲多的孩子聽。故事全英文，分成 5 段放在當天的 5 站之間。
 **一律用我們自己的話改寫**：古代原典只拿來查情節，不照抄任何譯本、繪本、動畫的文字。
-寫好之後會先經過自動檢查（check-story），再由家長試聽、通過才給孩子聽。請**只輸出劇本的 JSON**。
+寫好之後會先經過自動檢查（check-story），通過就直接給孩子聽（家長之後可以撤下）。請**只輸出劇本的 JSON**。
 ${faith ? `\n**這是宗教經典的故事**：當故事講，不傳教義。不能有禱告、讚美神、神的指令、「你要相信」、罪與懲罰、天堂地獄；神、佛陀、耶穌、先知不出現、不說話；故事裡的人物是一般的古代人。家長審稿時會逐章特別看。\n` : ''}
 ## 授權表這一則（故事世界 §5.3）
 
