@@ -41,7 +41,15 @@ const DRAW: Record<string, (pose: string) => ReactElement> = {
   bobo: (p) => <Dino who="bobo" pose={p} />,
   momo: (p) => <Dino who="momo" pose={p} />,
   egg: (p) => <T.Egg sleep={p === 'sleep'} />,
-  rabbit: (p) => <Rabbit pose={p as RabbitPose} />,
+  rabbit: (p) =>
+    p === 'sleep' ? (
+      <g>
+        <Rabbit pose="sleep" />
+        <Zzz x={190} y={62} k={0.6} />
+      </g>
+    ) : (
+      <Rabbit pose={p as RabbitPose} />
+    ),
   turtle: (p) => <Turtle pose={p as TurtlePose} />,
   elephant: () => <Elephant />,
   giraffe: () => <Giraffe />,

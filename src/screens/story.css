@@ -219,8 +219,9 @@
 }
 .book-progress {
   position: absolute;
-  top: 4.5vh;
-  left: 50%;
+  /* 放在插畫下面（T-119：以前在上面，被字幕蓋住） */
+  bottom: 2vh;
+  left: calc(50% + 7vw);
   translate: -50% 0;
   display: flex;
   gap: 7px;
@@ -241,6 +242,41 @@
   background: var(--ink-soft);
 }
 
+/*
+ * 講故事的插畫（T-119）：一頁手繪插畫（960×600），在字幕下面、偏右，左下角留給說話的恐龍；下面是講到第幾句的小點點。
+ * 平板 1200×786：約 955×597，從 102px 到 699px，恐龍在左邊 6～196px 不會蓋到插畫。
+ */
+.book-replay .book-art {
+  position: absolute;
+  top: 13vh;
+  left: calc(50% + 7vw);
+  width: min(80vw, 76vh * 1.6);
+  aspect-ratio: 1.6;
+  translate: -50% 0;
+  border-radius: 24px;
+  overflow: hidden;
+  background: var(--card);
+  box-shadow:
+    0 0 0 8px var(--card),
+    0 20px 40px -26px color-mix(in srgb, var(--deep, #a8875a) 75%, transparent);
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+.book-replay .book-art .swap-pic {
+  position: absolute;
+  inset: 0;
+}
+.book-replay .book-art .sb-page {
+  width: 100%;
+  height: 100%;
+}
+.book-replay .story-home-dino {
+  left: 1vw;
+  bottom: 1.5vh;
+  width: clamp(110px, 22vh, 190px);
+  translate: none;
+}
+
 /* 手機直式（家長遠端看）：只求不壞版 */
 @media (orientation: portrait) {
   .book-shelf {
@@ -258,6 +294,17 @@
     width: 22vw;
   }
   .book-replay .story-home-dino {
-    translate: calc(-50% - 28vw) 0;
+    translate: none;
+    width: 22vw;
+  }
+  .book-replay .book-art {
+    top: 16vh;
+    left: 50%;
+    width: 92vw;
+  }
+  .book-replay .book-progress {
+    left: 50%;
+    bottom: auto;
+    top: calc(16vh + 92vw / 1.6 + 4vh);
   }
 }

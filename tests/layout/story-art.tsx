@@ -9,7 +9,7 @@ import { DINO_BOX, DinoArt } from '../../src/art/Dino'
 import { ITEMS } from '../../src/art/storybook/meta'
 import { drawItem } from '../../src/art/storybook/library'
 import { StoryPage } from '../../src/art/storybook/Page'
-import { hopsOf, fromPic, type PageArt } from '../../src/art/storybook/layout'
+import { hopsOf, fromPic, sceneOf, type PageArt } from '../../src/art/storybook/layout'
 import { PAGE_ART } from '../../src/content/story/pages'
 import { allChapters, chapterLines, scriptOf } from '../../src/content/story'
 import type { Speaker } from '../../src/content/lines'
@@ -95,7 +95,7 @@ const START_MS = FAST ? 100 : 600
 
 function Beat({ k }: { k: string }) {
   const b = allBeats().get(k)!
-  const art: PageArt = PAGE_ART[k] ?? fromPic(b.pic, (b.scene as PageArt['scene']) ?? 'park')!
+  const art: PageArt = PAGE_ART[k] ?? fromPic(b.pic, sceneOf(b.scene))!
   const words = b.en.replace(/\|/g, ' ').split(/\s+/).filter(Boolean)
   const hops = hopsOf(b.en, art)
   const [at, setAt] = useState(-1)

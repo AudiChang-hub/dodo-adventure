@@ -202,6 +202,10 @@ export function hopsOf(en: string, art: PageArt): { word: number; cast: number }
 export function fromPic(pic: string | undefined, scene: SceneId): PageArt | null {
   if (!pic) return null
   const parts = pic.split('+').filter(Boolean)
+  const ids = parts.map((p) => (ITEMS[p] ? p : BY_EMOJI[p]))
+  // 房子一律蓋在草地上；海上的場景只有水裡的、船才放在海上，其他放到沙灘（不會有房子浮在海上）
+  if (ids.some((id) => id === 'house' || id === 'new-house' || id === 'frame')) scene = 'meadow'
+  else if (scene === 'sea' && ids.some((id) => !id || (ITEMS[id].zone !== 'water' && ITEMS[id].zone !== 'sky' && id !== 'sailboat' && id !== 'ark'))) scene = 'beach'
   const cast: Cast[] = parts.map((p, i) => {
     const two = p.startsWith('@two-')
     const who = two ? p.slice(5) : p
