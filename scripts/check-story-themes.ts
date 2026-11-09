@@ -110,8 +110,8 @@ const nextFor = (done: string[], band: 'small' | 'middle' | 'big') => {
   }
   return null
 }
-// T-120 起：手寫的 A01、B01 加上審稿佇列的 J02、A02、A04、P01、A06，照 CLASSIC_ROUND 排（審稿佇列的不會排到手寫的後面）
-const ROUND = ['A01', 'J02', 'A02', 'B01', 'A04', 'P01', 'A06']
+// T-120 起：手寫的 A01、B01 加上審稿佇列的 J02、A02、A04、P01、A06（T-123 加 F02），照 CLASSIC_ROUND 排（審稿佇列的不會排到手寫的後面）
+const ROUND = ['A01', 'J02', 'A02', 'B01', 'A04', 'P01', 'A06', 'F02']
 need(CLASSICS.map((c) => c.id).join() === ROUND.join(), `故事時間的順序應該是 ${ROUND.join('、')}（實際 ${CLASSICS.map((c) => c.id)}）`)
 need(ROUND.every((id, i) => nextFor(ROUND.slice(0, i), 'small') === `classic-${id.toLowerCase()}`) && nextFor(ROUND, 'small') === null, '故事時間：小班段應該照第一輪的順序一則一則講，講完就沒有')
 need(nextFor(ROUND, 'middle') === 'classic-b01-m', '故事時間：到了中班段，挪亞方舟要講長大版')

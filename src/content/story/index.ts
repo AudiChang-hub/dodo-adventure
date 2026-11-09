@@ -43,8 +43,9 @@ export const PARTS: Part[] = [
 /**
  * 故事時間第一輪的順序（故事世界 §5.4 小班段第一輪）：龜兔賽跑 → 兔子與月亮 → 獅子與老鼠 → 挪亞方舟 → …
  * 還沒有劇本的（J02、A02 等 G-11 產生）先跳過，輪到下一則有劇本的；之後加進來，照這個順序排在還沒講的前面。
+ * 第 8 則原本是 C01 孔融讓梨，pear 孩子還沒學過，T-123 換成 F02 小紅母雞（用的字都學過）。
  */
-export const CLASSIC_ROUND = ['A01', 'J02', 'A02', 'B01', 'A04', 'P01', 'A06', 'C01'] as const
+export const CLASSIC_ROUND = ['A01', 'J02', 'A02', 'B01', 'A04', 'P01', 'A06', 'F02'] as const
 
 const WRITTEN: Classic[] = [RABBIT_TURTLE, NOAH]
 

@@ -1,0 +1,341 @@
+{
+ "type": "classic",
+ "rev": 1,
+ "week": "2026-12-14",
+ "by": "ai",
+ "cast": [
+  "Hen"
+ ],
+ "notes": [
+  "取代延後的 C01 孔融讓梨（pear 不在學習快照裡）。F02 小紅母雞：美國民間故事，19 世紀已有印行版本，公有領域（故事世界 §5.3）。",
+  "原典結尾別的動物沒得吃；照授權表改成貓和豬說「下次我們也幫忙」，母雞把麵包分給大家（§5.3）。",
+  "小班段一章最多 10 句：種麥、割麥、磨粉、烤麵包四步收成「種子長高高」「做麵包」兩句；保留重複句 Not me! says the cat / pig。",
+  "母雞用豆豆的聲音、貓用波波的聲音；豬和旁白用莫莫的聲音。",
+  "插畫：母雞、貓、豬都用角色庫裡的（母雞用 chicken）；麵包角色庫還沒有，先用 Fluent Emoji bread。"
+ ],
+ "classic": {
+  "id": "F02",
+  "source": "美國民間故事（19 世紀已有印行版本）",
+  "zh": "小紅母雞",
+  "band": "small",
+  "faith": null,
+  "chapter": {
+   "id": "classic-f02",
+   "look": {
+    "zh": "小紅母雞（故事時間）",
+    "host": "momo",
+    "icon": "open-book",
+    "title": "The Little Red Hen",
+    "scene": "farm",
+    "tint": "#F3E6DC",
+    "deep": "#B5714F",
+    "ground": "#E3CFBF",
+    "stops": [
+     "chicken",
+     "cat",
+     "seedling",
+     "bread",
+     "bread"
+    ],
+    "finale": [
+     "bread",
+     "chicken"
+    ]
+   },
+   "stops": [
+    {
+     "generic": [
+      {
+       "who": "momo",
+       "en": "Little Red Hen has a | seed.",
+       "pic": "chicken+seedling",
+       "zh": "小紅母雞有一顆種子。",
+       "art": {
+        "scene": "farm",
+        "cast": [
+         {
+          "who": "chicken",
+          "at": "C",
+          "size": "L"
+         }
+        ]
+       }
+      },
+      {
+       "who": "dodo",
+       "en": "Who will help me?",
+       "pic": "chicken",
+       "zh": "誰要來幫我？",
+       "art": {
+        "scene": "farm",
+        "cast": [
+         {
+          "who": "chicken",
+          "at": "L",
+          "size": "M"
+         },
+         {
+          "who": "cat",
+          "at": "C",
+          "size": "M",
+          "flip": true
+         },
+         {
+          "who": "pig",
+          "at": "R",
+          "size": "M",
+          "flip": true
+         }
+        ]
+       }
+      }
+     ]
+    },
+    {
+     "generic": [
+      {
+       "who": "bobo",
+       "en": "\"Not me!\" says the | cat.",
+       "pic": "cat",
+       "zh": "「我不要！」貓說。",
+       "art": {
+        "scene": "farm",
+        "cast": [
+         {
+          "who": "chicken",
+          "at": "L",
+          "size": "M"
+         },
+         {
+          "who": "cat",
+          "at": "R",
+          "size": "L",
+          "flip": true
+         }
+        ]
+       }
+      },
+      {
+       "who": "momo",
+       "en": "\"Not me!\" says the | pig.",
+       "pic": "pig",
+       "zh": "「我不要！」豬說。",
+       "art": {
+        "scene": "farm",
+        "cast": [
+         {
+          "who": "chicken",
+          "at": "L",
+          "size": "M"
+         },
+         {
+          "who": "pig",
+          "at": "R",
+          "size": "L",
+          "flip": true
+         }
+        ]
+       }
+      }
+     ]
+    },
+    {
+     "generic": [
+      {
+       "who": "momo",
+       "en": "The seed grows big and | tall.",
+       "pic": "seedling",
+       "zh": "種子長得又大又高。",
+       "art": {
+        "scene": "farm",
+        "cast": [
+         {
+          "who": "chicken",
+          "at": "L",
+          "size": "M"
+         },
+         {
+          "who": "seedling",
+          "at": "RC",
+          "size": "L"
+         }
+        ]
+       }
+      },
+      {
+       "who": "momo",
+       "en": "Little Red Hen makes | bread.",
+       "pic": "chicken+bread",
+       "zh": "小紅母雞做了麵包。",
+       "art": {
+        "scene": "farm",
+        "cast": [
+         {
+          "who": "chicken",
+          "at": "LC",
+          "size": "L"
+         },
+         {
+          "who": "bread",
+          "at": "R",
+          "size": "M",
+          "emoji": "bread"
+         }
+        ]
+       }
+      }
+     ]
+    },
+    {
+     "generic": [
+      {
+       "who": "momo",
+       "en": "Mmm! The bread smells | yummy!",
+       "pic": "bread",
+       "zh": "嗯～麵包好香！",
+       "art": {
+        "scene": "farm",
+        "cast": [
+         {
+          "who": "cat",
+          "at": "L",
+          "size": "M"
+         },
+         {
+          "who": "bread",
+          "at": "C",
+          "size": "M",
+          "emoji": "bread"
+         },
+         {
+          "who": "pig",
+          "at": "R",
+          "size": "M",
+          "flip": true
+         }
+        ]
+       }
+      },
+      {
+       "who": "bobo",
+       "en": "Next time, we will | help!",
+       "pic": "cat+pig",
+       "zh": "下一次，我們也會幫忙！",
+       "art": {
+        "scene": "farm",
+        "cast": [
+         {
+          "who": "cat",
+          "at": "L",
+          "size": "M"
+         },
+         {
+          "who": "pig",
+          "at": "C",
+          "size": "M"
+         },
+         {
+          "who": "chicken",
+          "at": "R",
+          "size": "M",
+          "flip": true
+         }
+        ]
+       }
+      }
+     ]
+    },
+    {
+     "generic": [
+      {
+       "who": "dodo",
+       "en": "Okay! Let's share the | bread!",
+       "pic": "chicken+bread",
+       "zh": "好！我們一起分麵包！",
+       "art": {
+        "scene": "farm",
+        "cast": [
+         {
+          "who": "chicken",
+          "at": "L",
+          "size": "M"
+         },
+         {
+          "who": "bread",
+          "at": "C",
+          "size": "S",
+          "emoji": "bread"
+         },
+         {
+          "who": "cat",
+          "at": "R",
+          "size": "M",
+          "flip": true
+         }
+        ]
+       }
+      },
+      {
+       "who": "bobo",
+       "en": "Yummy! Thank you, | Hen!",
+       "pic": "chicken",
+       "zh": "好好吃！謝謝你，母雞！",
+       "art": {
+        "scene": "farm",
+        "cast": [
+         {
+          "who": "cat",
+          "at": "L",
+          "size": "M"
+         },
+         {
+          "who": "pig",
+          "at": "C",
+          "size": "M"
+         },
+         {
+          "who": "chicken",
+          "at": "R",
+          "size": "M",
+          "flip": true
+         }
+        ]
+       }
+      }
+     ]
+    }
+   ],
+   "kind": "classic",
+   "part": 1,
+   "arc": "classic",
+   "chapter": 1,
+   "band": "small",
+   "faith": null,
+   "intro": [
+    {
+     "who": "momo",
+     "en": "Story time! Open the old book.",
+     "pic": "open-book",
+     "key": "story.classic.open.0",
+     "zh": "故事時間！打開舊書。"
+    },
+    {
+     "who": "momo",
+     "en": "Long ago, people told this story.",
+     "pic": "open-book",
+     "key": "story.classic.open.1",
+     "zh": "很久以前，人們講過這個故事。"
+    }
+   ],
+   "end": [
+    {
+     "who": "momo",
+     "en": "The end. Close the old book.",
+     "pic": "closed-book",
+     "key": "story.classic.close",
+     "zh": "故事講完了。闔上舊書。"
+    }
+   ]
+  }
+ }
+}
