@@ -64,7 +64,9 @@ try {
         const inside = (a, box, tol = 0.5) => a.left >= box.left - tol && a.right <= box.right + tol && a.top >= box.top - tol && a.bottom <= box.bottom + tol
         for (const day of days) {
           for (const run of [1, 2]) {
-            const lines = document.querySelectorAll('.zh-line').length || 6
+            // 這一篇自己的行數（T-118：以前拿畫面上「上一篇」的行數，遇到行數不一樣的篇就去亮不存在的行，課本排不出來，
+            // 之後每一篇都跟著誤報「課本沒有排出來」，真的排版問題反而被蓋掉）
+            const lines = window.zhLines[day]
             for (let line = 0; line < lines; line++) {
               window.zhLayout(day, run, line)
               const pg = document.querySelector('.zh-page')

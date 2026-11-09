@@ -10,6 +10,7 @@ import type { LessonProps } from '../types'
 import { lexWord, wordKey } from '../../content/lexicon'
 import { lessonLetter, type LessonLetter } from './data'
 import { lessonGood, loadProgress, markDone, markStage, markStarted, planFor, type QuizResult, type TodayPlan } from './plan'
+import { NEXT_HINT, nextStep, useNextPending } from '../../ui/NextStep'
 import { Meet } from './Meet'
 import { Trace, WRITE_ROUNDS } from './Trace'
 import { Words } from './Words'
@@ -54,6 +55,8 @@ function hintOf(stage: Stage, x: LessonLetter, q?: Question) {
  * 一天一個新字母（名字的字母先、再 A→Z），同一天再進來複習今天的字母；字母題錯很多就隔天重上（./plan.ts）。
  * 右上角一行給大人的陪玩小字（hintOf）。
  * 段落之間在原地淡入淡出，不縮放、不跳整頁卡片；上面五顆小石頭是進度。左上角返回鍵回首頁（中途離開隔天重上同一個字母）。
+ * 每一段、每一輪描字、每一題做完都停在做完的樣子，右下角出「下一步」的大箭頭，孩子點了才往下（T-118，ui/NextStep）；
+ * 最後一題答對直接慶祝、到下課的晚安道別（LessonScreen）。
  * 同一天中途離開又回來：從離開的那一段接著上，做過的段落石頭已經亮著，描字大寫描過了就只描小寫（T-95；./plan.ts 的 markStage）。
  */
 /** 這一題算不算「聽完才答、一次就對」（舊的進度沒有 heard，當作聽完了） */
@@ -101,11 +104,21 @@ export function EnglishLesson({ onDone }: LessonProps) {
     }
   }, [])
 
-  /** 往下一段，並記下來（中途離開，同一天回來從這裡接著上） */
-  const next = (s: Exclude<Stage, 'end'>) => {
-    setStage(s)
+  /** 這一段做完了、正在等「下一步」（同一段不會等兩次） */
+  const waiting = useRef<Stage | null>(null)
+  /**
+   * 這一段做完：先記下來（中途離開，同一天回來從下一段接著上），畫面停在做完的樣子，
+   * 等孩子點「下一步」的大箭頭才換到下一段（T-118，家長：每一段都要自己點下一步，不自己換頁）
+   */
+  const next = async (s: Exclude<Stage, 'end'>) => {
+    if (waiting.current === s) return
+    waiting.current = s
     if (plan) void markStage(plan, s)
+    const ok = await nextStep()
+    waiting.current = null
+    if (ok && live.current) setStage(s)
   }
+  const pending = useNextPending()
 
   /** 上完：馬上換成慶祝（大字母、星星、完成的音效），You did it! 念著的時候就出下課畫面（T-113：以前念完再等 0.5 秒，打勾到下課 4.5 秒） */
   const finish = async (rs: QuizResult[]) => {
@@ -161,7 +174,7 @@ export function EnglishLesson({ onDone }: LessonProps) {
       {letter && (
         <p className="coplay-hint en-coplay" aria-hidden="true">
           <span className="coplay-tag">陪玩</span>
-          {hintOf(stage, letter, qs.current[Math.min(quizDone, qs.current.length - 1)])}
+          {pending ? NEXT_HINT : hintOf(stage, letter, qs.current[Math.min(quizDone, qs.current.length - 1)])}
         </p>
       )}
       <div className="en-host" aria-hidden="true">
@@ -178,10 +191,10 @@ export function EnglishLesson({ onDone }: LessonProps) {
               animate={{ opacity: 1, transition: { duration: 0.45, ease: [0.22, 1, 0.36, 1] } }}
               exit={{ opacity: 0, transition: { duration: 0.3 } }}
             >
-              {stage === 'meet' && <Meet letter={letter} review={plan!.review} onDone={() => next('trace')} />}
-              {stage === 'trace' && <Trace letter={letter} from={traceFrom} onRound={(i) => i > 0 && void markStage(plan!, 'trace', i)} onDone={() => next('words')} />}
-              {stage === 'words' && <Words letter={letter} onDone={() => next('write')} />}
-              {stage === 'write' && <Trace letter={letter} rounds={WRITE_ROUNDS} onDone={() => next('quiz')} />}
+              {stage === 'meet' && <Meet letter={letter} review={plan!.review} onDone={() => void next('trace')} />}
+              {stage === 'trace' && <Trace letter={letter} from={traceFrom} onRound={(i) => i > 0 && void markStage(plan!, 'trace', i)} onDone={() => void next('words')} />}
+              {stage === 'words' && <Words letter={letter} onDone={() => void next('write')} />}
+              {stage === 'write' && <Trace letter={letter} rounds={WRITE_ROUNDS} onDone={() => void next('quiz')} />}
               {stage === 'quiz' && (
                 <Quiz qs={qs.current} from={quizAt.from} answers={quizAt.answers} replay={quizAt.replay} onProgress={progress} onDone={(rs) => void finish(rs)} />
               )}

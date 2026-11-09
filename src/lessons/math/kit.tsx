@@ -358,6 +358,8 @@ export function Quiz({ spec, host, onDone, showing }: { spec: QuizSpec; host: Pa
             }}
             className={`tile ma-tile${spec.wide ? ' wide' : ''}${teach && o.id === spec.answer ? ' is-shown' : ''}${marks[o.id] === 'correct' ? ' correct' : ''}${hint && o.id === spec.answer && marks[o.id] !== 'correct' ? ' hint' : ''}${ready && !hint ? ' cue turn-hop' : ''}`}
             aria-label={o.label}
+            // 測試用的記號（跟中文課選圖一樣）：哪一張是答案
+            data-answer={o.id === spec.answer ? '1' : undefined}
             initial={{ y: 24, opacity: 0 }}
             // 關鍵字還沒開始念：先不出來、點不到（點那裡算點空白，T-109）
             // 點錯：淡掉就好，不搖、不打叉（T-109：點錯、亂點都平平的）

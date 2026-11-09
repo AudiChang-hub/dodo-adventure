@@ -1,7 +1,7 @@
 import { test, expect, type Page } from '@playwright/test'
 import { attempts, boot, homeButton, settle, snap } from './lib/app'
 import { Toddler, hashSeed, type Pt } from './lib/toddler'
-import { Checker, alive, audit, checkDoubleRecords, doorAt, grabDuringTeach, pressBack, toHome, toddlerStep, waitLive } from './lib/flows'
+import { Checker, alive, audit, checkDoubleRecords, doorAt, grabDuringTeach, ignoreNext, pressBack, toHome, toddlerStep, waitLive } from './lib/flows'
 import type { GameDef } from './catalog'
 
 /**
@@ -16,12 +16,12 @@ const want = () => !only.length || only.some((s) => s === 'screens' || s === 'le
 /** grabDuringTeach 只用到 id（記錄用） */
 const LESSON = { id: 'lesson-math', station: 'math', kind: 'lesson', title: '數學課' } as unknown as GameDef
 
-async function setup(page: Page, info: Parameters<Parameters<typeof test>[2]>[1], name: string, lessonSticker?: boolean) {
+async function setup(page: Page, info: Parameters<Parameters<typeof test>[2]>[1], name: string, lessonSticker?: boolean, autoNext = true) {
   const seed = hashSeed(BASE_SEED, 'lesson-math', name, info.project.name)
   const k = new Toddler(page, info, seed, info.project.name)
   const c = new Checker(k, page)
   k.where = `數學課／${name}`
-  await boot(page, seed, { to: 'home', lessonSticker })
+  await boot(page, seed, { to: 'home', lessonSticker, autoNext })
   await k.init()
   // 今天的數字：每個 seed 不一樣（1～10），10 是兩筆的「10」。
   // firm：1～5 已經熟練（不然 6 以上的數字還不會開，會變成 1～5 的混合複習；熟練的判斷在 scripts/test-math-plan.ts 測）
@@ -231,6 +231,24 @@ async function halfThenAgain(k: Toddler, how: 'restart' | 'continue', sel: { boa
 }
 
 test.describe('數學課', () => {
+
+  test('開場說完不點大箭頭（T-118）：亂點、連點、手掌壓、發呆 30 秒，不會自己開始、返回鍵點得到；點了才往下', async ({ page }, info) => {
+    test.skip(!want())
+    test.setTimeout(3 * 60_000)
+    const { k, c } = await setup(page, info, '不點大箭頭', false, false)
+    try {
+      if (!(await enter(k, c))) return
+      await ignoreNext(k, c, '開場說完', () =>
+        page.evaluate(() => {
+          const sc = [...document.querySelectorAll<HTMLElement>('.scene')].filter((e) => !e.inert).pop()
+          return [...(sc?.querySelectorAll('[data-lesson-part]') ?? [])].pop()?.getAttribute('data-lesson-part') ?? null
+        }),
+      )
+      await c.flush()
+    } finally {
+      finish(k, c, '不點大箭頭')
+    }
+  })
 
   // T-104（第一、四次盲測）：拿給波波按完打勾，同一個位置馬上冒出別的功能（下一段的教學卡「再聽一次」），他一直點、聽到重播，看不懂。
   // 按完打勾後在同一個位置連點：不能觸發別的功能（教學卡要停在「等他點」）；停一下再點一次，教學卡才重播、往下走

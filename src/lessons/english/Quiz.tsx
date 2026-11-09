@@ -11,6 +11,7 @@ import { heardSince, say, sfx, stopSpeech } from '../../lib/audio'
 import { hasLine } from '../../content/lines'
 import { logAttempt } from '../../lib/record'
 import { Sparkles } from '../../ui/Sparkles'
+import { nextStep } from '../../ui/NextStep'
 import { pointIn } from '../math/kit'
 import { needsDemo, noteFormat, type Format } from '../formats'
 import type { QuizResult } from './plan'
@@ -405,6 +406,9 @@ export function Quiz({
     if (i + 1 >= list.current.length) {
       if (full) void say(praiseKey('dodo'))
       await wait(600)
+      if (!live.current) return
+      // 手帶著做完的最後一題（T-118，家長：做完一樣停住）：停在答案上，點「下一步」才去下課的慶祝；自己點對的直接慶祝
+      if (together && !(await nextStep())) return
       if (live.current) onDone(results.current)
       return
     }
@@ -413,6 +417,8 @@ export function Quiz({
     await wait(500)
     if (!live.current) return
     if (i + 1 >= list.current.length) return onDone(results.current)
+    // 停在答完的這一題（打勾、綠框留著），等孩子點「下一步」才換題（T-118：不自己換）
+    if (!(await nextStep()) || !live.current) return
     // 字母題有一題沒有一次就對：小寫題改問大寫（退一級）。大寫題已經示範過，這一題不再示範
     const nx = list.current[i + 1]
     if (nx.easy && missedLetter(results.current)) {

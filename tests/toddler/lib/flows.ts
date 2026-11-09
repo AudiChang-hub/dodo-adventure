@@ -907,3 +907,66 @@ export async function linesSince(page: Page, t0: number) {
   }
   return out
 }
+
+/**
+ * T-118（家長：每一段做完都要孩子自己點「下一步」）：大箭頭出來以後，三歲孩子偏偏不點它，在別的地方亂點、連點、手掌壓、發呆 ms 毫秒。
+ * 要檢查：畫面不會自己往下走（where 不變、大箭頭一直在）、不會卡死（點了還是有反應）、返回鍵一直點得到（最上面的是返回鍵）；
+ * 最後點大箭頭就往下走。where：這一課現在在哪一段（例如英文的 data-phase）。
+ */
+export async function ignoreNext(k: Toddler, c: Checker, ctx: string, where: () => Promise<string | null>, ms = 30_000) {
+  const page = k.page
+  const arrow = await page.waitForSelector('.next-step', { timeout: 90_000 }).catch(() => null)
+  c.outcome(`${ctx}：做完出現大箭頭`, !!arrow, arrow ? '' : '90 秒內沒有出現')
+  if (!arrow) return void (await c.once(`next-none:${ctx}`, '卡死', `${ctx}：做完了卻沒有出現「下一步」的大箭頭`, ''))
+  await k.wait(700)
+  const at0 = await where()
+  const box = await arrow.boundingBox()
+  const vp = page.viewportSize()!
+  const far = (p: Pt) => !box || p.x < box.x - 40 || p.x > box.x + box.width + 40 || p.y < box.y - 40 || p.y > box.y + box.height + 40
+  const pick = (): Pt => {
+    for (;;) {
+      const p = { x: k.r.range(150, vp.width - 60), y: k.r.range(130, vp.height - 30) }
+      if (far(p)) return p
+    }
+  }
+  const backTop = () =>
+    page.evaluate(() => {
+      const b = [...document.querySelectorAll<HTMLElement>('[data-back]')].filter((e) => e.getBoundingClientRect().width > 2).pop()
+      if (!b) return false
+      const r = b.getBoundingClientRect()
+      const top = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2)
+      return !!top && (b === top || b.contains(top))
+    })
+  let backBad = 0
+  let checks = 0
+  const end = Date.now() + ms
+  k.behavior = '不點大箭頭，在別的地方亂點'
+  while (Date.now() < end) {
+    const roll = k.r.next()
+    if (roll < 0.45) await k.tap(pick(), '亂點（不點大箭頭）')
+    else if (roll < 0.65) await k.spam(pick(), 4 + k.r.int(4), '連點（不點大箭頭）')
+    else if (roll < 0.8) {
+      const base = pick()
+      await k.palm([base, { x: base.x + 40, y: base.y + 20 }, { x: base.x - 30, y: base.y + 35 }].filter(far), 400)
+    } else await k.wait(1500 + k.r.int(2500), '發呆')
+    checks++
+    if (!(await backTop())) backBad++
+  }
+  const at1 = await where()
+  const still = !!(await page.$('.next-step'))
+  c.outcome(`${ctx}：不點大箭頭就不會自己往下走`, at1 === at0 && still, `${at0} → ${at1}，大箭頭${still ? '還在' : '不見了'}`)
+  if (at1 !== at0 || !still) await c.once(`next-moved:${ctx}`, '困惑', `${ctx}：孩子沒點大箭頭，畫面卻自己往下走了`, `${at0} → ${at1}`)
+  c.outcome(`${ctx}：返回鍵一直點得到`, backBad === 0, `${checks} 次檢查，${backBad} 次被蓋住`)
+  if (backBad) await c.once(`next-back:${ctx}`, '無法返回', `${ctx}：等大箭頭的時候返回鍵被蓋住`, `${backBad}/${checks} 次`)
+  // 最後點大箭頭：往下走
+  const nb = await arrow.boundingBox().catch(() => null)
+  if (nb) await k.tap({ x: nb.x + nb.width / 2, y: nb.y + nb.height / 2 }, '大箭頭')
+  let moved = false
+  for (let i = 0; i < 20 && !moved; i++) {
+    await k.wait(300)
+    moved = (await where()) !== at0 || !(await page.$('.next-step'))
+  }
+  c.outcome(`${ctx}：點大箭頭就往下走`, moved, moved ? '' : '點了沒有往下走')
+  if (!moved) await c.once(`next-tap:${ctx}`, '卡死', `${ctx}：點了大箭頭沒有往下走`, '')
+  return moved
+}

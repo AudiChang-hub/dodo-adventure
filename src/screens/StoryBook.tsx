@@ -14,6 +14,7 @@ import { arcOf, chapterLook, chapterOf, type Pic } from '../content/story'
 import { theme as themeDef, type ThemeId } from '../content/themes'
 import { line, hasLine } from '../content/lines'
 import { wait } from '../games/lines'
+import { holdBedtime } from '../lib/session'
 import './story.css'
 
 /** 一頁幾本書（平板 3×2；手機直式 2×3，一樣 6 本） */
@@ -53,6 +54,10 @@ export function StoryBook() {
   const [at, setAt] = useState(0)
   const backing = useRef(false)
   const run = useRef(0)
+
+  // 每天的時間到了，不在故事講到一半時換成睡覺畫面（T-118、準則 TIME-2）：在故事書裡就擋著，回首頁才去睡覺畫面。
+  // 放著不管超過上限 6 分鐘（lib/session 的 GRACE_MAX_SEC）照舊會結束
+  useEffect(() => holdBedtime(), [])
 
   useEffect(() => {
     let live = true

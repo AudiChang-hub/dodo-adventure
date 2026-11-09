@@ -15,6 +15,7 @@ import { EyeBreak } from './ui/EyeBreak'
 import { Subtitle } from './ui/Subtitle'
 import { Scenes } from './ui/Scenes'
 import { overlay } from './ui/motion'
+import { NextStepHost, cancelNextStep } from './ui/NextStep'
 
 const isNight = () => {
   const h = new Date().getHours()
@@ -66,6 +67,8 @@ export function App() {
   // 一般的 useEffect 父元件比子元件晚跑，會把剛開始的歡迎語音切掉（B14）
   useLayoutEffect(() => {
     stopSpeech()
+    // 換畫面：上一個畫面還在等的「下一步」大箭頭收掉（T-118）
+    cancelNextStep()
   }, [key])
 
   return (
@@ -81,6 +84,8 @@ export function App() {
       >
         <Screen r={r} />
       </Scenes>
+      {/* 「下一步」的大箭頭（T-118）：課程做完一段停下來，孩子點了才往下（ui/NextStep） */}
+      <NextStepHost />
       {/* 字幕只靠播放事件運作，家長區不顯示 */}
       <Subtitle hidden={r.name === 'parent'} />
       {isChildPlay(r) && <ParentCorner onOpen={() => setGate(true)} />}

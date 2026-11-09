@@ -3,7 +3,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { attempts, boot, settle, snap } from './lib/app'
 import { Toddler, hashSeed, rng } from './lib/toddler'
-import { Checker, alive, audit, doorAt, pressBack, toHome, toddlerStep, waitLive } from './lib/flows'
+import { Checker, alive, audit, doorAt, ignoreNext, pressBack, toHome, toddlerStep, waitLive } from './lib/flows'
 import { homeButton } from './lib/app'
 
 /**
@@ -17,12 +17,12 @@ const want = (name: string) => !only.length || only.some((s) => s === 'lesson-en
 const LIVE = 'lesson-english'
 const SHOTS = process.env.TODDLER_SHOTS
 
-async function setup(page: Page, info: Parameters<Parameters<typeof test>[2]>[1], name: string, lessonSticker?: boolean) {
+async function setup(page: Page, info: Parameters<Parameters<typeof test>[2]>[1], name: string, lessonSticker?: boolean, autoNext = true) {
   const seed = hashSeed(BASE_SEED, 'lesson-english', name, info.project.name)
   const k = new Toddler(page, info, seed, info.project.name)
   const c = new Checker(k, page)
   k.where = `英文課／${name}`
-  await boot(page, seed, { to: 'home', lessonSticker })
+  await boot(page, seed, { to: 'home', lessonSticker, autoNext })
   await k.init()
   return { k, c, seed }
 }
@@ -213,6 +213,19 @@ async function remember(page: Page) {
 }
 
 test.describe('英文字母課', () => {
+
+  test('做完一段不點大箭頭（T-118）：亂點、連點、手掌壓、發呆 30 秒，不會自己往下走、返回鍵點得到；點了才往下', async ({ page }, info) => {
+    test.skip(!want('lesson-english-next'))
+    test.setTimeout(3 * 60_000)
+    const { k, c } = await setup(page, info, '不點大箭頭', false, false)
+    try {
+      if (!(await enter(k, c))) return
+      await ignoreNext(k, c, '認識字母做完', () => stageOf(page))
+      await c.flush()
+    } finally {
+      finish(k, c, '不點大箭頭')
+    }
+  })
   // T-101（第三次盲測：描 S 描到下面那個彎就以為描完了，畫面一直停在 Your turn!）：
   // 跟 AI 小男生一樣快速一筆，點很少（折線、彎的地方切過去），描到大約八成就放手 → 要看到完成效果、自己往下一輪
   test('描字：快速一筆描到八成就放手 → 完成效果、往下一輪', async ({ page }, info) => {
@@ -577,10 +590,10 @@ test.describe('英文字母課', () => {
       if (!p?.done) await c.once('prog', '誤記作答', '上完了進度沒有記成上完', JSON.stringify(p))
       c.outcome('今天的字母', true, `${L}`)
 
-      // 下課畫面：大人的「現在去做」在；亂點恐龍沒事，點房子回首頁
+      // 下課畫面（T-118 晚安道別）：陪玩小字先請大人讓他點恐龍說晚安；連點恐龍：說晚安、睡著，不會跳走；睡著後才有房子、「現在去做」，點房子回首頁
       if (bye) {
-        const hint = await page.evaluate(() => document.querySelector('.lesson-next')?.textContent ?? '')
-        c.outcome('下課畫面有「現在去做」', /現在去做/.test(hint), hint.slice(0, 40))
+        const hint0 = await page.evaluate(() => document.querySelector('.lesson-next')?.textContent ?? '')
+        c.outcome('下課畫面先請他說晚安', /說晚安/.test(hint0), hint0.slice(0, 40))
         k.behavior = '下課畫面亂點恐龍'
         const at = (sel: string) =>
           page.evaluate((sel) => {
@@ -592,6 +605,12 @@ test.describe('英文字母課', () => {
         await k.wait(800)
         const still = await page.evaluate(() => !!document.querySelector('.lesson-bye'))
         c.outcome('亂點恐龍不會跳走', still, still ? '' : '點恐龍就離開了')
+        const slept = await page.waitForSelector('.lesson-bye[data-bye="asleep"] ~ .lb-home, .lesson-bye[data-bye="asleep"] .lb-home', { timeout: 8000 }).catch(() => null)
+        c.outcome('點恐龍：說晚安、睡著、房子出來', !!slept, slept ? '' : '恐龍沒睡著或房子沒出來')
+        if (!slept) await c.once('bye-sleep', '卡死', '下課畫面點恐龍之後，恐龍沒有睡著、房子沒有出來', '')
+        await k.wait(1200)
+        const hint = await page.evaluate(() => document.querySelector('.lesson-next')?.textContent ?? '')
+        c.outcome('睡著後有「現在去做」', /現在去做/.test(hint), hint.slice(0, 40))
         k.behavior = '下課畫面點房子'
         const house = await at('.lb-home')
         if (house) await k.tap(house, '房子')

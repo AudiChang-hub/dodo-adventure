@@ -423,3 +423,50 @@
   height: 60px;
   transform: rotate(-90deg);
 }
+
+/*
+ * 「下一步」的大箭頭（T-118，ui/NextStep.tsx）：做完一段停下來，孩子點了才往下。
+ * 右下角、蓋在課和下課畫面上面（下課遮罩 60、左上角房子 61～62），返回鍵在左上角不會被蓋到。
+ * 綠色圓鈕、白色粗箭頭：看起來是「可以按的大東西」，跟淡淡的大人按鈕（中文課的下一行）完全不一樣。
+ */
+.next-step {
+  position: fixed;
+  right: max(28px, env(safe-area-inset-right));
+  bottom: max(28px, env(safe-area-inset-bottom));
+  z-index: 70;
+  width: clamp(120px, 16vmin, 150px);
+  aspect-ratio: 1;
+  border: 0;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  background: #5fa883;
+  box-shadow:
+    0 8px 0 #3f7d5f,
+    0 0 0 8px rgba(255, 255, 255, 0.85),
+    0 14px 30px rgba(46, 42, 37, 0.18);
+  cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+.next-step:active {
+  box-shadow:
+    0 2px 0 #3f7d5f,
+    0 0 0 8px rgba(255, 255, 255, 0.85);
+}
+.next-step > svg {
+  display: block;
+}
+.next-step-hand {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+@media (orientation: portrait) {
+  .next-step {
+    right: 20px;
+    bottom: 20px;
+    width: 112px;
+  }
+}

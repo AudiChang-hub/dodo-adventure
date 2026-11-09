@@ -6,6 +6,7 @@ import { GoalStar, RainbowDef, RestGuide, ResumeDot } from '../../games/draw/Tra
 import { HandArt, PenArt, easeInOut, tween } from '../../games/Demo'
 import { Sparkles } from '../../ui/Sparkles'
 import { useIdle } from '../../games/idle'
+import { nextStep } from '../../ui/NextStep'
 import { wait } from '../../games/lines'
 import { useFlow } from '../../games/barge'
 import { PACE } from '../../games/pace'
@@ -496,6 +497,9 @@ export function Trace({
     await wait(PRAISE_TAIL_MS)
     if (!live.current) return
     if (i + 1 >= rounds.length) return onDone(good.current)
+    // 停在描好的字上，等孩子點「下一步」才描下一個（T-118：不自己換）；進度先記下，離開再回來從下一輪接著上
+    onRound?.(i + 1)
+    if (!(await nextStep()) || !live.current) return
     setR(i + 1)
     void start(i + 1)
   }

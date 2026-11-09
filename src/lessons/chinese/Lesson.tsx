@@ -11,6 +11,7 @@ import { leaveLesson } from '../LessonScreen'
 import type { LessonProps } from '../types'
 import { STORY_RUN, questionsOf, storyQuestionsOf, type ZhQuestion, type ZhText } from './data'
 import { doneDays, glyphState, lessonToday, markDone, saveGlyph } from './progress'
+import { NEXT_HINT, nextStep, useNextPending } from '../../ui/NextStep'
 import { Reader } from './Reader'
 import { Quiz } from './Quiz'
 import { Glyph } from './Glyph'
@@ -122,13 +123,26 @@ export function ChineseLessonBody({ onDone }: LessonProps) {
     else void finish()
   }
 
-  const next = () => {
+  /**
+   * 答完一題：停在答對的樣子（打勾、星星），等孩子點「下一步」的大箭頭才換題（T-118，家長：選圖答對之後換題要等他點）。
+   * 最後一題（找一樣的字，或沒有找字時的最後一張選圖）答完直接慶祝、到下課的晚安道別。
+   */
+  const next = async () => {
     setAnswered((n) => n + 1)
     setMood('idle')
-    if (typeof scene === 'number' && scene + 1 < qs.length) setScene(scene + 1)
-    else if (typeof scene === 'number' && gq) setScene('glyph')
-    else void finish()
+    const to: Scene | null = typeof scene === 'number' && scene + 1 < qs.length ? scene + 1 : typeof scene === 'number' && gq ? 'glyph' : null
+    if (to == null) return void finish()
+    if (!(await nextStep()) || !live.current) return
+    setScene(to)
   }
+  const live = useRef(true)
+  useEffect(() => {
+    live.current = true
+    return () => {
+      live.current = false
+    }
+  }, [])
+  const pending = useNextPending()
 
   return (
     <Shell
@@ -143,7 +157,7 @@ export function ChineseLessonBody({ onDone }: LessonProps) {
       }
       onExit={leaveLesson}
       onHost={() => host.current?.()}
-      hintText={scene == null ? undefined : hintOf(scene, run, talk, typeof scene === 'number' ? qs[scene]?.options.length : undefined, gDemoing)}
+      hintText={scene == null ? undefined : pending ? NEXT_HINT : hintOf(scene, run, talk, typeof scene === 'number' ? qs[scene]?.options.length : undefined, gDemoing)}
     >
       {t && scene != null && (
         <Swap id={typeof scene === 'number' ? `q${scene}` : scene}>

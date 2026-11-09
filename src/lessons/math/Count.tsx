@@ -1,3 +1,4 @@
+import { nextStep } from '../../ui/NextStep'
 import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
 import { Emoji } from '../../art/Emoji'
@@ -262,6 +263,8 @@ export function CountPart({ ctx }: { ctx: PartCtx }) {
     await wait(PACE.NEXT_NEW)
     if (!live.current) return
     if (r + 1 >= rounds.length) return ctx.done(rounds.length, 0)
+    // 停在做完的樣子，等孩子點「下一步」才換下一個（T-118：不自己換）
+    if (!(await nextStep()) || !live.current) return
     setR(r + 1)
     start(r + 1)
   }

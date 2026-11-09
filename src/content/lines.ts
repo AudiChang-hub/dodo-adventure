@@ -62,6 +62,9 @@ praise.dodo.forEach((t, i) => def(`praise.en.${i}`, 'dodo', t))
 // ── 首頁 ───────────────────────────────────────────────────
 def('home.hello', 'dodo', `Hi, ${N}! Let's go!`)
 def('bedtime', 'dodo', `Dodo is sleepy... Let's play again tomorrow. Good night, ${N}!`)
+// 下課的晚安道別（T-118，lessons/LessonBye.tsx）：孩子點恐龍，恐龍揮手說晚安、躺下睡覺。中文課的莫莫不出聲（親子共讀）
+def('bye.night.dodo', 'dodo', `Good night, ${N}!`)
+def('bye.night.bobo', 'bobo', `Good night, ${N}!`)
 // 每局最後一題（比較難）：只說 Last one!，不用 tricky 這種抽象字
 def('challenge', 'dodo', 'Last one!')
 def('challenge.bobo', 'bobo', 'Last one!')
