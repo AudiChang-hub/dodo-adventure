@@ -2,6 +2,8 @@
 // - 一天一個新字母。孩子認得 A、B 但還不熟，所以從 A 開始；有設孩子的英文名字（.env.local）的新帳號，名字裡的字母先上（A12）。
 // - 同一天再進來：今天上完了就複習今天的字母（不往下走）；還沒上完（中途離開）就從離開的那一段接著上（T-95），
 //   已經做過的段落不再來一次，描字大寫描過了就只描小寫。複習也一樣：複習到一半離開，同一天回來從離開的那一段接著複習（T-116）。
+//   題目都做完了、還沒跟恐龍說完晚安就離開（慶祝、晚安道別的時候按返回）：同一天回來直接回到晚安道別（T-122），
+//   回去過一次就清掉，再進來才是從頭複習。
 // - 上完、而且字母題沒有錯很多：隔天換下一個字母；錯很多、或沒上完就離開：隔天重上同一個字母。
 //   「哪個字是 A 開頭」（聽開頭的音）是練習，不算進錯很多（A6：音素要到 4～5 歲才穩）；描字也不算（A5）。
 // - 一輪上完之後從頭再來一輪（複習）。
@@ -33,8 +35,8 @@ export interface EnglishProgress {
   answers?: QuizResult[]
 }
 
-/** 英文課的段落（index.tsx 的 STEPS） */
-export type LessonStage = 'meet' | 'trace' | 'words' | 'write' | 'quiz'
+/** 英文課的段落（index.tsx 的 STEPS）；end：題目都做完了、還沒說完晚安（T-122） */
+export type LessonStage = 'meet' | 'trace' | 'words' | 'write' | 'quiz' | 'end'
 
 /** 新帳號的字母順序：孩子的英文名字（只在 .env.local，不進 repo）裡的字母先，沒設就 A→Z */
 export const nameOrder = () => orderFor(env('VITE_CHILD_NAME_EN'))
@@ -91,19 +93,27 @@ export const loadProgress = () => getKV<EnglishProgress | null>(KV_KEY, null)
  * 今天已經上完的（複習）不改，免得複習沒上完把「上完了」蓋掉。
  */
 export async function markStarted(plan: TodayPlan, d = today()) {
-  const at = plan.resume ? { stage: plan.resume.stage, round: plan.resume.round, ...(plan.resume.answers ? { answers: plan.resume.answers } : {}) } : {}
+  const rec = startedRecord(plan, plan.review ? await loadProgress() : null, d)
+  if (rec) await setKV(KV_KEY, rec)
+}
+
+/**
+ * markStarted 要寫的進度（純函式，單元測試用）；null：不用寫。
+ * 回到晚安道別（resume 是 end，T-122）的那一次把 end 清掉：再出去、再進來是從頭複習。
+ */
+export function startedRecord(plan: TodayPlan, old: EnglishProgress | null, d = today()): EnglishProgress | null {
+  const r = plan.resume
+  const at = r && r.stage !== 'end' ? { stage: r.stage, round: r.round, ...(r.answers ? { answers: r.answers } : {}) } : {}
   if (plan.review) {
     // 複習：「今天上完了」和好不好照舊，只記複習走到哪裡（T-116）
-    const old = await loadProgress()
-    if (!old || old.date !== d || !old.done || old.idx !== plan.idx) return
+    if (!old || old.date !== d || !old.done || old.idx !== plan.idx) return null
     const rest: EnglishProgress = { ...old }
     delete rest.stage
     delete rest.round
     delete rest.answers
-    await setKV(KV_KEY, { ...rest, ...at } satisfies EnglishProgress)
-    return
+    return { ...rest, ...at }
   }
-  await setKV(KV_KEY, { idx: plan.idx, seq: plan.seq, date: d, done: false, good: false, ...at } satisfies EnglishProgress)
+  return { idx: plan.idx, seq: plan.seq, date: d, done: false, good: false, ...at }
 }
 
 /**
@@ -120,7 +130,14 @@ export async function markStage(plan: TodayPlan, stage: LessonStage, round = 0, 
 
 /** 上完：記下錯得多不多（複習那一次只會把「好」改得更好，不會因為複習錯了就讓今天的字母不算） */
 export async function markDone(plan: TodayPlan, good: boolean, d = today()) {
-  const old = await loadProgress()
+  await setKV(KV_KEY, doneRecord(plan, good, await loadProgress(), d))
+}
+
+/**
+ * markDone 要寫的進度（純函式，單元測試用）。stage 記成 end：還沒跟恐龍說完晚安（T-122，盲測 ca0d1e1 英文 seed 2：
+ * 慶祝的時候按返回，這堂算上完了，同一天回來變成從 Let's practice 開始的複習）；同一天回來直接回到晚安道別。
+ */
+export function doneRecord(plan: TodayPlan, good: boolean, old: EnglishProgress | null, d = today()): EnglishProgress {
   const keep = plan.review && old?.date === d && old.done && old.good
-  await setKV(KV_KEY, { idx: plan.idx, seq: plan.seq, date: d, done: true, good: keep || good } satisfies EnglishProgress)
+  return { idx: plan.idx, seq: plan.seq, date: d, done: true, good: !!keep || good, stage: 'end' }
 }

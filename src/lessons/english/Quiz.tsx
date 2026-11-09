@@ -408,7 +408,7 @@ export function Quiz({
       await wait(600)
       if (!live.current) return
       // 手帶著做完的最後一題（T-118，家長：做完一樣停住）：停在答案上，點「下一步」才去下課的慶祝；自己點對的直接慶祝
-      if (together && !(await nextStep())) return
+      if (together && !(await nextStep({ cue: true }))) return
       if (live.current) onDone(results.current)
       return
     }
@@ -417,8 +417,9 @@ export function Quiz({
     await wait(500)
     if (!live.current) return
     if (i + 1 >= list.current.length) return onDone(results.current)
-    // 停在答完的這一題（打勾、綠框留著），等孩子點「下一步」才換題（T-118：不自己換）
-    if (!(await nextStep()) || !live.current) return
+    // 停在答完的這一題（打勾、綠框留著），等孩子點「下一步」才換題（T-118：不自己換）。
+    // 箭頭一出來就跳、手馬上點給他看（T-122，盲測 ca0d1e1 英文 seed 2 重跑：答完他「不知道要幹嘛，好久喔」按返回離開）
+    if (!(await nextStep({ cue: true })) || !live.current) return
     // 字母題有一題沒有一次就對：小寫題改問大寫（退一級）。大寫題已經示範過，這一題不再示範
     const nx = list.current[i + 1]
     if (nx.easy && missedLetter(results.current)) {

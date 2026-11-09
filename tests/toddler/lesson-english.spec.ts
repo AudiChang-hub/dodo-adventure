@@ -349,9 +349,9 @@ test.describe('英文字母課', () => {
 
   // 第六次盲測（2026-11-06）描小 s：他從綠點描過上面的彎、斜下來，停在右下的彎（只剩尾巴往左彎回去那一段），放手。
   // 描好的部分變藍、綠點停在斷掉的地方，剩下的尾巴只有淡淡的虛線；他說「還是不知道對不對，我不要畫了」，按房子離開。
-  // 要做到：(1) 大寫 S 描到四成放手：看得到「還剩這一段、往這邊」（剩下的跑道有會動的引導、終點有記號）；
+  // 要做到：(1) 大寫 S 描到四成放手：不用重描，筆從斷掉的地方帶著描完（T-122；以前是看得到剩下的那一段、讓他接著描）；
   // (2) 小 s 照盲測那一筆（截圖 1280×800 的座標，換算到描字板）描到右下的彎放手：帶著描完（彩虹、往下走），不用再描尾巴
-  test('描 S、小 s：描到一半看得到還剩哪一段，描到大部分（盲測那一筆）放手就帶著描完', async ({ page }, info) => {
+  test('描 S、小 s：描到一半放手、描到大部分（盲測那一筆）放手，都帶著描完', async ({ page }, info) => {
     test.skip(!want('lesson-english'))
     test.setTimeout(3 * 60_000)
     const { k, c } = await setup(page, info, '描小s快完')
@@ -406,28 +406,14 @@ test.describe('英文字母課', () => {
           .then(() => true)
           .catch(() => false)
 
-      // (1) 大寫 S 描到四成放手：剩下的那一段有引導、終點有記號
+      // (1) 大寫 S 描到四成放手：不用重描，筆從斷掉的地方帶著描完（T-122，盲測 ca0d1e1：描到一半放手被說 Nice try 要重描，「好煩」離開）
       k.behavior = '大寫 S 描到四成放手'
       await k.drag(await along(0, 0.4), { stepMs: 16, label: '描大 S 到四成' })
-      await k.wait(900)
-      const guide = await page.evaluate(() => {
-        const b = [...document.querySelectorAll('.en-trace-board')].pop()
-        const rest = b?.querySelector('[data-trace-rest]')
-        const goal = b?.querySelector('[data-trace-goal]')
-        const box = (e: Element | null | undefined) => {
-          const r = e?.getBoundingClientRect()
-          return !!r && r.width > 2 && r.height > 2
-        }
-        return { rest: box(rest), goal: box(goal) }
-      })
       const half = await filled()
+      const carried = await finished(10_000)
       if (process.env.TODDLER_SHOTS && info.project.name === 'tab1280') await page.screenshot({ path: `${process.env.TODDLER_SHOTS}/大S描到四成放手.png` })
-      c.outcome('描到四成放手：看得到剩下的那一段（會動的引導）和終點', guide.rest && guide.goal, `填了 ${Math.round(half * 100)}%；引導${guide.rest ? '有' : '沒有'}、終點記號${guide.goal ? '有' : '沒有'}`)
-      if (!(guide.rest && guide.goal)) await c.once('trace-rest', '困惑', '描到一半放手，剩下的那一段只有淡淡的虛線，看不出還要描哪裡、描到哪裡算好', `引導${guide.rest ? '有' : '沒有'}、終點記號${guide.goal ? '有' : '沒有'}`)
-      // 從斷掉的地方接著描完大 S
-      k.behavior = '從斷掉的地方接著描完大 S'
-      await k.drag(await along(Math.max(0, half - 0.02), 1, 16), { stepMs: 16, label: '接著描完大 S' })
-      if (!(await finished(4000))) return void (await c.once('big-s', '卡死', '大 S 接著描到底沒有完成', `填了 ${Math.round((await filled()) * 100)}%`))
+      c.outcome('描到四成放手：不用重描，筆帶著描完（T-122）', carried, `放手時填了 ${Math.round(half * 100)}%${carried ? '' : `；10 秒後 ${Math.round((await filled()) * 100)}%`}`)
+      if (!carried) return void (await c.once('trace-half', '困惑', '描到一半放手，沒有帶著描完，還要他重描', `放手時填了 ${Math.round(half * 100)}%`))
 
       // (2) 小 s：盲測那一筆（1280×800 截圖上的座標，描字板在 (427,105) 寬 426 高 600），換算到這個尺寸的描字板
       await page.waitForFunction(() => document.querySelector('.en-trace-rounds .is-now')?.textContent?.trim() === 's', null, { timeout: 20_000 })
@@ -729,6 +715,50 @@ test.describe('英文字母課', () => {
       finish(k, c, '進度')
     }
   })
+  test('上完了、還沒說完晚安就離開，同一天回來回到晚安道別，不從頭複習（T-122）', async ({ page }, info) => {
+    test.skip(!want('lesson-english') || info.project.name !== 'tab1200')
+    test.setTimeout(2 * 60_000)
+    const { k, c } = await setup(page, info, '上完回來')
+    try {
+      const d = new Date()
+      const today = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+      // 題目都做完了（plan.ts 的 markDone 記成 end），慶祝的時候按返回離開
+      await page.evaluate(
+        (p) =>
+          new Promise<void>((res) => {
+            const rq = indexedDB.open('dodo-adventure')
+            rq.onsuccess = () => {
+              const tx = rq.result.transaction('kv', 'readwrite')
+              tx.objectStore('kv').put({ key: 'lesson.english', value: p })
+              tx.oncomplete = () => res()
+            }
+          }),
+        { idx: 0, date: today, done: true, good: true, stage: 'end' },
+      )
+      k.behavior = '上完了回來'
+      if (!(await enter(k, c))) return
+      const bye = await page.waitForSelector('.cheer-scrim .lesson-bye', { timeout: 6000 }).catch(() => null)
+      const meet = await page.evaluate(() => !!document.querySelector('.en-meet'))
+      c.outcome('回到晚安道別', !!bye && !meet, bye ? (meet ? '又從認識字母開始' : '') : `停在 ${await stageOf(page)}`)
+      if (!bye || meet) await c.once('end-resume', '誤記作答', '上完了還沒說完晚安就離開，回來沒有回到晚安道別', `停在 ${await stageOf(page)}`)
+      // 返回鍵點得到：回首頁；再進來是從頭複習（回去過一次就清掉）
+      k.behavior = '晚安道別按返回'
+      const h = await homeButton(page)
+      if (h) await pressBack(k, h, '晚安道別按返回')
+      const back = await waitLive(page, (l) => l === 'home', 4000)
+      c.outcome('晚安道別按返回 → 首頁', back === 'home', `到 ${back}`)
+      if (back !== 'home') await c.once('end-back', '無法返回', '回到晚安道別時按返回沒有回首頁', `停在 ${back}`)
+      k.behavior = '再進來'
+      if (!(await enter(k, c))) return
+      const meet2 = await page.waitForSelector('.en-meet', { timeout: 8000 }).catch(() => null)
+      c.outcome('再進來：從頭複習', !!meet2, `停在 ${await stageOf(page)}`)
+      if (!meet2) await c.once('end-review', '誤記作答', '回過晚安道別以後再進來，沒有從頭複習', `停在 ${await stageOf(page)}`)
+    } finally {
+      await c.flush().catch(() => {})
+      finish(k, c, '上完回來')
+    }
+  })
+
   test('找大 S、小 s：照示範的手剛剛點的位置點下去，要點到對的那張（T-100）', async ({ page }, info) => {
     test.skip(!want('lesson-english'))
     test.setTimeout(4 * 60_000)

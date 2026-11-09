@@ -600,10 +600,15 @@ test.describe('數學課', () => {
       c.outcome('進度記下了', !done || nextOk, JSON.stringify(kv))
       if (done && !nextOk) await c.once('progress', '誤記作答', '上完一堂之後進度不對', `今天 ${n}，記成 ${JSON.stringify(kv)}`, false)
 
-      // 作答紀錄：每一段都有、連點不重複記
-      const rows = (await attempts(page)).filter((a) => a.phase === 'quiz')
+      // 作答紀錄：每一段都有、連點不重複記。
+      // 拿給波波：新的數字那一天先示範（plan.ts 的 giveRounds，demo），手剛示範過同一個數量再交出去記成一起練（guided，T-111），
+      // 所以只看「有沒有記」（quiz 或 guided），不只看 quiz（T-123：以前只看 quiz，新數字那天一定少 m-give，報告一直打 ❌）
+      const rows = (await attempts(page)).filter((a) => a.phase === 'quiz' || a.phase === 'guided')
       const games = [...new Set(rows.map((a) => a.game))]
-      c.outcome('作答寫進紀錄', !done || ['m-count', 'm-give', 'm-compare', 'd-glyph'].every((g) => games.includes(g)), `${rows.length} 筆：${games.join('、')}`)
+      const byPhase = (ph: string) => [...new Set(rows.filter((a) => a.phase === ph).map((a) => a.game))].join('、') || '無'
+      const recOk = ['m-count', 'm-give', 'm-compare', 'd-glyph'].every((g) => games.includes(g))
+      c.outcome('作答寫進紀錄', !done || recOk, `${rows.length} 筆；自己答：${byPhase('quiz')}；一起練：${byPhase('guided')}`)
+      if (done && !recOk) await c.once('records', '誤記作答', '上完一堂，有一段沒有寫進作答紀錄', `有記的：${games.join('、')}`, false)
       await checkDoubleRecords(k, c)
       await c.flush()
     } finally {
