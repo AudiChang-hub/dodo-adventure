@@ -6,7 +6,51 @@ import { LEGACY, RUNS_PER_TEXT, applyPick, current, finishRun, migrate, nextDay,
 import { readFileSync, readdirSync, statSync } from 'node:fs'
 import { join } from 'node:path'
 import { gapOf } from '../src/lessons/chinese/cloze'
-import { ZH_TEXTS, linePics, plain, talkFor, talkOf } from '../src/lessons/chinese/data'
+import { ZH_TEXTS, linePics, plain, talkFor, talkOf, type ZhText } from '../src/lessons/chinese/data'
+import { FAR, GLYPH_START, NEAR_MAX, afterGlyph, charOf, glyphPool, glyphQuestion, glyphSim, needsDemo, type GlyphQuestion, type GlyphState } from '../src/lessons/chinese/match'
+
+/** 固定的亂數（同一個 seed 每次一樣） */
+const rng = (seed: number) => {
+  let x = seed >>> 0 || 1
+  return () => ((x = (Math.imul(x, 1664525) + 1013904223) >>> 0) / 2 ** 32)
+}
+
+/**
+ * 找一樣的字的一題有什麼不對（不教不考、選項數、像不像）：
+ * - 答案是這一篇紅字詞裡的字；干擾字都在這一篇課文裡（念課文時整篇都在畫面上），不是答案那個詞裡的字，選項不重複；
+ * - 第 1 級 2 個選項，其他 3 個；
+ * - 第 1、2 級的干擾字「差很多」：重疊 < FAR，或課文裡最不像的 3 個之一，而且不超過 0.5；第 3 級都不超過 NEAR_MAX。
+ */
+function glyphBad(t: ZhText, q: GlyphQuestion): string[] {
+  const out: string[] = []
+  const text = new Set(t.lines.map(plain).join(''))
+  if (!t.redWords.includes(q.word) || ![...q.word].includes(q.char)) out.push(`答案「${q.char}」不是紅字裡的字`)
+  const ds = q.options.slice(1)
+  if (q.options[0] !== q.char) out.push('答案不在第一個')
+  if (new Set(q.options).size !== q.options.length) out.push(`選項重複：${q.options.join('')}`)
+  if (q.options.length !== (q.level === 1 ? 2 : 3)) out.push(`第 ${q.level} 級有 ${q.options.length} 個選項`)
+  const least = new Set(
+    glyphPool(t, q.word)
+      .map((c) => ({ c, s: glyphSim(q.char, c)! }))
+      .sort((a, b) => a.s - b.s)
+      .slice(0, 3)
+      .map((x) => x.c),
+  )
+  for (const d of ds) {
+    if (!text.has(d)) out.push(`干擾字「${d}」不在這一篇課文裡（沒教就考）`)
+    if ([...q.word].includes(d)) out.push(`干擾字「${d}」是答案那個詞（${q.word}）裡的字`)
+    const s = glyphSim(q.char, d)
+    if (s == null) out.push(`干擾字「${d}」沒有字形資料`)
+    else if (s > NEAR_MAX) out.push(`干擾字「${d}」跟「${q.char}」太像（${s.toFixed(2)}）`)
+  }
+  const far = (d: string) => {
+    const s = glyphSim(q.char, d) ?? 1
+    return (s < FAR || least.has(d)) && s <= 0.5
+  }
+  if (q.level < 3 && !ds.every(far)) out.push(`第 ${q.level} 級的干擾字不夠不像：${ds.map((d) => `${d} ${glyphSim(q.char, d)?.toFixed(2)}`).join('、')}`)
+  if (q.level === 3 && !ds.some(far)) out.push('第 3 級至少要有一個差很多的字')
+  return out
+}
 
 const D = (i: number) => {
   const d = new Date(Date.UTC(2026, 10, 3 + i))
@@ -217,6 +261,75 @@ function main() {
       }
     }
     console.log('ok 11 每一行旁邊都有圖可以點：沒有紅字的行借上一行的主角（龜兔賽跑：跑到樹下睡大覺 → 兔子），180 篇每一行都有')
+  }
+  // ── 找一樣的字（T-117）：不教不考、2 選 1 起、干擾字差很多 ─────────────
+  {
+    assert.deepEqual(['小豬', '烏龜', '骨頭', '老鼠', '碗', '紅蘿蔔'].map(charOf), ['豬', '烏', '骨', '鼠', '碗', '紅'], '跳過子、小、大、頭、老這種常見字')
+    assert.ok(glyphSim('大', '太')! > NEAR_MAX, '大／太只差一點點：不能當第 3 級的「有一點像」')
+    assert.ok(glyphSim('豬', '小')! < FAR, '豬／小差很多')
+    let n = 0
+    const bad: string[] = []
+    for (const t of ZH_TEXTS)
+      for (const run of [1, 2, 3])
+        for (const level of [1, 2, 3] as const)
+          for (let seed = 1; seed <= 6; seed++) {
+            const q = glyphQuestion(t, run, level, rng(seed * 7919 + t.day))
+            const where = `第 ${t.day} 篇〈${t.title}〉第 ${run} 次第 ${level} 級`
+            if (!q) {
+              bad.push(`${where}出不了題`)
+              continue
+            }
+            n++
+            bad.push(...glyphBad(t, q).map((b) => `${where}：${b}`))
+          }
+    assert.deepEqual([...new Set(bad)].slice(0, 10), [], '找一樣的字有沒教就考、選項不對的題目')
+    // 壞例子一定要抓到：課文裡沒有的字、答案那個詞裡的字、第 1 級放了很像的字、選項太多
+    const t1 = ZH_TEXTS.find((t) => t.title === '龜兔賽跑')!
+    const ok1 = glyphQuestion(t1, 2, 1, rng(1))!
+    assert.equal(ok1.char, '兔', '龜兔賽跑第 2 次換考另一個紅字（兔子 → 兔）')
+    assert.equal(glyphQuestion(t1, 1, 1, rng(1))!.char, '烏', '龜兔賽跑第 1 次考家長定的那題（烏龜 → 烏）')
+    const bads: [string, typeof ok1][] = [
+      ['課文裡沒有的字', { ...ok1, options: ['兔', '龍'] }],
+      ['答案那個詞裡的字', { ...ok1, options: ['兔', '子'] }],
+      ['第 1 級放了很像的字', { ...ok1, options: ['兔', '免'] }],
+      ['第 1 級 3 個選項', { ...ok1, options: ['兔', '了', '下'] }],
+      ['答案不是紅字裡的字', { ...ok1, char: '跑', options: ['跑', '了'] }],
+    ]
+    for (const [name, q] of bads) assert.ok(glyphBad(t1, q).length > 0, `壞例子沒擋下：${name}`)
+    console.log(`ok 12 找一樣的字不教不考：180 篇 × 3 次 × 3 級 × 6 種亂數共 ${n} 題，答案都是當篇紅字裡的字、干擾字都在當篇課文裡、第 1 級 2 選 1 而且差很多；壞例子擋下 ${bads.length}/${bads.length}`)
+  }
+  {
+    const D2 = (i: number) => D(i)
+    let s: GlyphState = GLYPH_START
+    assert.ok(needsDemo(s), '第一次要示範')
+    s = afterGlyph(s, { date: D2(0), first: true, demo: true, led: false })
+    assert.ok(!needsDemo(s) && s.recent.length === 0 && s.level === 1, '示範完自己第一下就對：之後不示範；示範那次不算熟練')
+    let x: GlyphState = GLYPH_START
+    for (let i = 0; i < 3; i++) x = afterGlyph(x, { date: D2(i), first: false, demo: true, led: false })
+    assert.ok(!needsDemo(x), '示範過 3 堂就不再示範')
+    // 同一天連對 20 題：只有一天，不升級
+    for (let i = 0; i < 20; i++) s = afterGlyph(s, { date: D2(1), first: true, demo: false, led: false })
+    assert.equal(s.level, 1, '同一天全對不升級')
+    // 手指著答案才點的不算
+    const before = s.recent.length
+    s = afterGlyph(s, { date: D2(2), first: true, demo: false, led: true })
+    assert.equal(s.recent.length, before, '手指著答案才點的不算熟練')
+    // 8 題 7 對、分布在 3 天 → 第 2 級
+    let y: GlyphState = { ...GLYPH_START, learned: true }
+    const days = [3, 3, 4, 4, 4, 5, 5, 5]
+    days.forEach((d, i) => (y = afterGlyph(y, { date: D2(d), first: i !== 2, demo: false, led: false })))
+    assert.equal(y.level, 2, '8 題 7 對、3 天 → 第 2 級')
+    assert.equal(y.recent.length, 0, '升級後重新算')
+    // 第 2 級連錯 2 題 → 退回第 1 級
+    y = afterGlyph(y, { date: D2(6), first: false, demo: false, led: false })
+    assert.equal(y.level, 2)
+    y = afterGlyph(y, { date: D2(7), first: false, demo: false, led: false })
+    assert.equal(y.level, 1, '連錯 2 題退一級')
+    // 第 3 級是上限
+    let z: GlyphState = { level: 3, recent: [], demos: 0, learned: true }
+    for (let i = 0; i < 12; i++) z = afterGlyph(z, { date: D2(i), first: true, demo: false, led: false })
+    assert.equal(z.level, 3, '最多第 3 級（4 選 1、很像的字留給 4 歲）')
+    console.log('ok 13 找一樣的字升降級：8 題 ≥ 7 題第一次就對、≥ 3 天才升；同一天全對不升；示範、手指著才點的不算；連錯 2 題退一級；最多第 3 級')
   }
   console.log('ALL PASS')
 }

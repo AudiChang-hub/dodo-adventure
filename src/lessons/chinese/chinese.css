@@ -639,6 +639,92 @@
   pointer-events: none;
 }
 
+/* ── 找一樣的字（T-117，./Glyph.tsx）──────────────────────────
+ * 上面：要找的字（實心卡）＋旁邊一個虛線空格（「找一個放這裡，配成一對」）；下面：選項（跟選圖一樣的卡片）。
+ * 字全部同一種字型（粉圓體）、同一個墨色：比的只有字的樣子，顏色不是線索。 */
+.zh-glyph-pair {
+  position: absolute;
+  left: calc(50% + 4cqw);
+  top: 6%;
+  height: 28%;
+  translate: -50% 0;
+  display: flex;
+  gap: 3cqw;
+}
+.zh-glyph-card {
+  position: relative;
+  height: 100%;
+  aspect-ratio: 1;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-lg);
+  container-type: size;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+.zh-glyph-target {
+  background: var(--card);
+  box-shadow: 0 8px 0 rgba(46, 42, 37, 0.1), 0 0 0 3px rgba(46, 42, 37, 0.04) inset;
+}
+.zh-glyph-slot {
+  background: rgba(251, 248, 242, 0.55);
+  outline: 5px dashed rgba(46, 42, 37, 0.22);
+  outline-offset: -5px;
+}
+.zh-glyph-char {
+  font: 400 72cqmin / 1 'Huninn', sans-serif;
+  color: var(--ink);
+  user-select: none;
+  pointer-events: none;
+}
+.zh-glyph-card .zh-glyph-char {
+  font-size: 72cqh;
+}
+/* 配成一對（答對、示範）：兩張一起亮綠框，跟 .tile.correct 同一個綠 */
+.zh-glyph-pair.is-pair .zh-glyph-target {
+  background: #e6f3ea;
+  box-shadow: 0 8px 0 #b9dcc5, 0 0 0 5px var(--good) inset;
+}
+.zh-glyph-pair.is-pair .zh-glyph-slot {
+  outline-color: transparent;
+}
+.zh-glyph-pair.is-pair .zh-yes {
+  z-index: 7;
+}
+/* 飛上去的字：一張跟空格一樣大的卡（scale 從選項卡的大小縮過去） */
+.zh-glyph-fly {
+  position: absolute;
+  z-index: 5;
+  display: grid;
+  place-items: center;
+  border-radius: var(--radius-lg);
+  background: var(--card);
+  box-shadow: 0 8px 0 rgba(46, 42, 37, 0.1);
+  container-type: size;
+  pointer-events: none;
+  transform-origin: 50% 50%;
+}
+.zh-glyph-fly .zh-glyph-char {
+  font-size: 72cqh;
+}
+.zh-glyph-pair.is-pair ~ .zh-glyph-fly:not(.is-wrong) {
+  background: #e6f3ea;
+  box-shadow: 0 8px 0 #b9dcc5, 0 0 0 5px var(--good) inset;
+}
+/* 字飛走了：選項卡留一個淡淡的空位 */
+.zh-glyph-options .tile.is-away .zh-glyph-char {
+  visibility: hidden;
+}
+/* 示範中（PHASE-1）：下面的字變淡、退色，手點到的那一張才亮（用 filter，不跟 motion 寫的 opacity 打架） */
+.zh-glyph-options .tile {
+  transition: filter 0.4s var(--ease-out);
+}
+.zh-glyph-options[data-dim] .tile:not([data-pick]) {
+  filter: opacity(0.5) saturate(0.55);
+}
+
 /* 手機直式（家長遠端看）：不壞版就好——課本佔滿寬度，按鈕排到下面 */
 @media (orientation: portrait) {
   .zh-read {
@@ -679,5 +765,10 @@
   }
   .zh-intro ol {
     font-size: 15px;
+  }
+  /* 找一樣的字：兩張卡並排要放得進手機的寬度（舞台 .stage-main 在手機直式比螢幕寬，用 vw 算） */
+  .zh-glyph-pair {
+    left: 50%;
+    height: min(28%, 34vw);
   }
 }

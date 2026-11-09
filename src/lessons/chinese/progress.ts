@@ -3,6 +3,7 @@
 import { getKV, setKV, today } from '../../lib/db'
 import { ZH_TEXTS, type ZhText } from './data'
 import { applyPick, current, finishRun, migrate, undoPick, type Course, type Run } from './course'
+import { GLYPH_START, afterGlyph, type GlyphState } from './match'
 
 /** 上過至少一次的篇（day 的陣列）：紅字算教過了（data.ts 的 questionsOf），家長區的「上過幾篇」 */
 const DONE_KEY = 'zhLesson:done'
@@ -55,6 +56,15 @@ export async function pickToday(day: number | null) {
 }
 
 export const doneDays = async () => new Set(await getKV<number[]>(DONE_KEY, []))
+
+/** 找一樣的字（T-117）：第幾級、這一級最近答得怎樣、示範過幾堂（./match.ts 的 GlyphState） */
+const GLYPH_KEY = 'zhLesson:glyph'
+export const glyphState = () => getKV<GlyphState>(GLYPH_KEY, GLYPH_START)
+
+/** 答完一題找一樣的字：升降級、記下示範過了 */
+export async function saveGlyph(r: { first: boolean; demo: boolean; led: boolean }) {
+  await setKV(GLYPH_KEY, afterGlyph(await glyphState(), { ...r, date: today() }))
+}
 
 /** 每篇上過幾次（舊版照日期上過的算 1 次） */
 export async function timesByDay(): Promise<Map<number, number>> {

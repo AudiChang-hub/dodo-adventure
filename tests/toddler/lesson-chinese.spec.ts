@@ -8,6 +8,7 @@ import { Checker, alive, checkDoubleRecords, doorAt, pressBack, toHome, toddlerS
 /**
  * 中文課（src/lessons/chinese/）：親子共讀（2026-11-03 起 App 不出聲，大人念）。第一次有給大人的說明卡 → 念課文（一次亮一行，大人按「下一行」）
  * → 聊一聊 → 選圖（三選一）→ 下課。每篇連上 3 次（course.ts），第 2 次每行最後一個紅字框起來、標「停」。
+ * 選圖之後最後一題是「找一樣的字」（T-117，.zh-glyph）：上面一個字，下面兩、三個字，點長得一模一樣的那個；最初幾堂手先示範。
  * 三歲孩子會做的事：大人還沒按「下一行」時亂點、連點紅字和圖、連點「下一行」「去選圖」和選項、兩根手指一起按、一進來就想回去、
  * 上到一半回首頁再進來（同一天要是同一篇、從第一行開始）。整堂課不能要任何中文音檔、不能用平板內建語音。
  */
@@ -81,7 +82,11 @@ const state = (page: Page) =>
       gap: root.querySelector('.zh-line.on .zh-red.gap')?.getAttribute('data-word') ?? null,
       gapTag: !!root.querySelector('.zh-line.on .zh-gap-tag'),
       quiz: top?.classList.contains('zh-quiz') ?? false,
-      ask: top?.querySelector('.zh-ask-word')?.textContent ?? null,
+      ask: top?.querySelector('.zh-ask-word')?.textContent ?? top?.querySelector('.zh-glyph-target')?.getAttribute('data-char') ?? null,
+      /** 找一樣的字（T-117）；dim：示範中（下面的字變淡） */
+      glyph: top?.classList.contains('zh-glyph') ?? false,
+      dim: !!top?.querySelector('.zh-glyph-options[data-dim]'),
+      hand: !!top?.querySelector('.demo-hand'),
       accepting: top?.querySelector('.wait-shield')?.getAttribute('data-accepting') === 'true',
       cheer: !!document.querySelector('.cheer-scrim'),
     }
@@ -125,6 +130,8 @@ async function watchVoice(page: Page) {
 }
 
 const quizRows = async (page: Page) => (await attempts(page)).filter((a) => a.game === 'zh-lesson' && a.phase === 'quiz')
+/** 找一樣的字的作答（示範過的記成 guided） */
+const glyphRows = async (page: Page) => (await attempts(page)).filter((a) => a.game === 'zh-glyph')
 
 async function waitFor(k: Toddler, pred: (s: Awaited<ReturnType<typeof state>>) => boolean, ms: number) {
   const end = Date.now() + ms
@@ -199,6 +206,22 @@ async function answerAll(k: Toddler, c: Checker, spam = 3) {
     await k.wait(900)
   }
   return !!(await waitFor(k, (s) => s.cheer, 15_000))
+}
+
+/** 選圖一題一題答對，停在「找一樣的字」 */
+async function toGlyph(k: Toddler, c: Checker) {
+  for (let i = 0; i < 8; i++) {
+    const s = await waitFor(k, (s) => s.cheer || s.glyph || (s.quiz && s.accepting), 25_000)
+    if (!s || s.cheer) break
+    if (s.glyph) return true
+    const ans = (await points(k.page, '.tile[data-answer]'))[0]
+    if (ans) await k.tap(ans, `答案 ${s.ask}`)
+    await k.wait(1800)
+  }
+  const s = await state(k.page)
+  c.outcome('選圖之後有「找一樣的字」', s.glyph, s.cheer ? '直接下課了' : '沒有出現')
+  if (!s.glyph) await c.once('no-glyph', '困惑', '選圖答完沒有出現「找一樣的字」', s.cheer ? '直接下課' : '')
+  return false
 }
 
 test.describe('中文課', () => {
@@ -441,6 +464,100 @@ test.describe('中文課', () => {
       finish(k, c, '第2次停一下')
     }
   })
+  test('找一樣的字（T-117）：示範時亂點、搶著點、兩指、發呆、連點答案；返回再進來', async ({ page }, info) => {
+    test.skip(!want('lesson-chinese-glyph'))
+    test.setTimeout(8 * 60_000)
+    const { k, c } = await setup(page, info, '找一樣的字')
+    try {
+      await putKV(page, 'zhLesson:introSeen', true)
+      if (!(await enter(k, c))) return
+      if (!(await readAll(k, c))) return
+      if (!(await toGlyph(k, c))) return
+      // 第一次：手先示範，下面的字變淡（PHASE-1）
+      let s = await state(page)
+      c.outcome('第一次有示範（下面的字變淡）', s.dim, s.dim ? '變淡' : '沒有變淡')
+      if (!s.dim) await c.once('glyph-demo', '困惑', '第一次「找一樣的字」沒有示範', '')
+      await c.screenOk('找一樣的字・示範')
+      // 示範時點上面的字、點空白：不記作答
+      k.behavior = '示範時點上面的字、亂點空白'
+      const top = (await points(page, '.zh-glyph-target'))[0]
+      if (top) await k.spam(top, 3, '上面的字')
+      await k.wait(300)
+      const pair = (await points(page, '.zh-glyph-slot'))[0]
+      if (pair) await k.tap({ x: pair.x + pair.w, y: pair.y }, '空白處')
+      await k.wait(600)
+      let n = (await glyphRows(page)).length
+      c.outcome('點上面的字、空白不記作答', n === 0, `作答 ${n} 筆`)
+      if (n) await c.once('glyph-blank', '誤記作答', '點上面的字或空白，記了找一樣的字的作答', `${n} 筆`)
+      s = await state(page)
+      c.outcome('示範時點空白：示範收掉、輪到他', !s.dim && !s.hand, s.dim ? '還在示範' : '輪到他')
+      // 兩根手指同時按兩個字：只算一下
+      k.behavior = '兩根手指一起按'
+      const two = (await points(page, '.zh-glyph-options .tile')).slice(0, 2)
+      if (two.length === 2) {
+        await k.palm(two as Pt[], 250)
+        await k.wait(1600)
+        n = (await glyphRows(page)).length
+        c.outcome('兩指同時按兩個字：最多記一筆', n <= 1, `作答 ${n} 筆`)
+        if (n > 1) await c.once('glyph-two', '誤記作答', '兩指同時按兩個字，記了好幾筆', `${n} 筆`)
+      }
+      s = await state(page)
+      if (s.glyph && !s.cheer) {
+        // 還沒答對（兩指先碰到錯的那個）：發呆到手出來指答案（精簡版不發呆）
+        if (!info.project.metadata?.lite) {
+          k.behavior = '發呆'
+          const t0 = Date.now()
+          let hinted = false
+          while (Date.now() - t0 < 36_000 && !hinted) {
+            await k.wait(1000)
+            hinted = !!(await points(page, '.zh-glyph-options .tile.hint')).length
+          }
+          c.outcome('發呆：手出來指答案', hinted, hinted ? `${Math.round((Date.now() - t0) / 1000)} 秒` : '36 秒內沒有提示')
+          if (!hinted) await c.once('glyph-idle', '卡死', '「找一樣的字」發呆 36 秒都沒有提示', '')
+        }
+        k.behavior = '連點答案'
+        const ans = (await points(page, '.zh-glyph-options .tile[data-answer]'))[0]
+        if (ans) await k.spam(ans, 5, '答案')
+      }
+      const end = await waitFor(k, (s) => s.cheer, 6000)
+      c.outcome('答對 → 下課', !!end, end ? '下課' : '沒有下課')
+      if (!end) await alive(k, c, '找一樣的字')
+      const rows = await glyphRows(page)
+      c.outcome('找一樣的字只記一筆、示範過的記成一起練', rows.length === 1 && rows[0].phase === 'guided', rows.map((r) => `${r.phase}${r.ok ? '一次就對' : '錯過'}`).join('、'))
+      if (rows.length !== 1) await c.once('glyph-rows', '誤記作答', '找一樣的字記了不只一筆', `${rows.length} 筆`)
+      await checkDoubleRecords(k, c)
+      await c.flush()
+
+      // 第 2 堂（隔天）不再示範：直接讓他點；中途按返回 → 首頁，再進來從念課文開始
+      k.behavior = '找一樣的字到一半按返回'
+      await putKV(page, 'zhLesson:glyph', { level: 2, recent: [], demos: 1, learned: true })
+      if (!(await toHome(k, c))) return
+      if (!(await enter(k, c))) return
+      if (!(await readAll(k, c))) return
+      if (!(await toGlyph(k, c))) return
+      s = await state(page)
+      const three = (await points(page, '.zh-glyph-options .tile')).length
+      c.outcome('學會以後不示範；第 2 級 3 選 1', !s.dim && three === 3, `${s.dim ? '還在示範' : '沒示範'}、${three} 個字`)
+      const wrong = (await points(page, '.zh-glyph-options .tile:not([data-answer])'))[0]
+      if (wrong) await k.spam(wrong, 3, '錯的字')
+      await k.wait(500)
+      const h = await homeButton(page)
+      if (!h) return void (await c.once('glyph-noback', '無法返回', '找一樣的字沒有返回鍵', ''))
+      await pressBack(k, h)
+      const live = await waitLive(page, (l) => l === 'home', 4000)
+      c.outcome('找一樣的字按返回 → 首頁', live === 'home', `到 ${live}`)
+      if (live !== 'home') await c.once('glyph-back', '無法返回', '找一樣的字按返回鍵沒有回首頁', `停在 ${live}`)
+      await k.wait(1200)
+      if (!(await enter(k, c))) return
+      const s2 = await state(page)
+      c.outcome('再進來從念課文開始', !s2.quiz && s2.at === '0', s2.quiz ? '在答題' : `第 ${s2.at} 行`)
+      await checkDoubleRecords(k, c)
+      await c.flush()
+    } finally {
+      finish(k, c, '找一樣的字')
+    }
+  })
+
   test('下課挑貼紙（T-90）：點一下手馬上示範「再點一下」；收進貼紙本後停在那一頁，點房子才回首頁', async ({ page }, info) => {
     test.skip(!want('lesson-chinese-sticker'))
     test.setTimeout(6 * 60_000)
