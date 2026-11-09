@@ -111,6 +111,13 @@ if (typeof window !== 'undefined') {
   window.addEventListener('pointerup', (e) => fingers.delete(e.pointerId), true)
   // pointercancel 不是放開：兩指時瀏覽器常先取消第一根（當成縮放手勢），手指其實還壓著；留著等它自己過期
   window.addEventListener('pointercancel', seen, true)
+  // 觸控事件的 touches 是「現在螢幕上還有幾根手指」：全部放開了（0 根），被取消的那幾根也一定放開了，馬上清掉。
+  // 不然手掌壓過之後 2.5 秒內點大箭頭、選項，會被當成「還有別的手指壓著」整個不理（T-119 三歲測試抓到的回歸）
+  const lifted = (e: TouchEvent) => {
+    if (e.touches.length === 0) fingers.clear()
+  }
+  window.addEventListener('touchend', lifted, true)
+  window.addEventListener('touchcancel', lifted, true)
   document.addEventListener('visibilitychange', () => fingers.clear())
 }
 

@@ -6,7 +6,7 @@ import { Scenes, Swap, type SceneMove } from '../ui/Scenes'
 import { useBack } from '../lib/nav'
 import { HomeIcon } from '../games/Shell'
 import { motion, useAnimate } from 'motion/react'
-import { say, sfx, stopSpeech } from '../lib/audio'
+import { audioClock, onSpeech, say, sfx, stopSpeech } from '../lib/audio'
 import { finishTold, saveToldAt, todaysStory, toldAt, toldChapters, type ToldChapter } from '../lib/story'
 import { Emoji } from '../art/Emoji'
 import { Sparkles } from '../ui/Sparkles'
@@ -15,6 +15,9 @@ import { theme as themeDef, type ThemeId } from '../content/themes'
 import { line, hasLine } from '../content/lines'
 import { wait } from '../games/lines'
 import { holdBedtime } from '../lib/session'
+import { StoryPage } from '../art/storybook/Page'
+import { fromPic, hopTimes, hopsOf, sceneOf, type PageArt } from '../art/storybook/layout'
+import { artForBeat } from '../content/story/pages'
 import './story.css'
 
 /** 一頁幾本書（平板 3×2；手機直式 2×3，一樣 6 本） */
@@ -245,6 +248,7 @@ function BookDone({ r, onAgain, onShelf }: { r: ToldChapter; onAgain: () => void
   const c = coverOf(r)
   const [badge, bounce] = useAnimate<HTMLSpanElement>()
   const [again, spin] = useAnimate<HTMLSpanElement>()
+  const [card, wiggle] = useAnimate<HTMLDivElement>()
   // 停著沒動作（AI 小男生 T-77：不知道下一步點哪裡）：8 秒、20 秒時「再聽一次」的箭頭轉一圈，告訴他這個可以點
   useEffect(() => {
     const ts = [8000, 20000].map((ms) => window.setTimeout(() => again.current && void spin(again.current, { rotate: [0, 360] }, { duration: 0.9, ease: 'easeInOut' }), ms))
@@ -254,7 +258,17 @@ function BookDone({ r, onAgain, onShelf }: { r: ToldChapter; onAgain: () => void
   return (
     <div className="book-replay book-done" style={{ background: look?.tint }}>
       <BookBack onClose={onShelf} />
-      <div className="story-home-card" style={{ '--deep': look?.deep } as CSSProperties}>
+      {/* 點封面（蛋、書）：晃一下（T-123，盲測 ca0d1e1：故事講完孩子點蛋，以為恐龍會孵出來，沒有反應）。只晃一下，不換頁、不自己往下走 */}
+      <div
+        ref={card}
+        className="story-home-card"
+        style={{ '--deep': look?.deep } as CSSProperties}
+        onPointerDown={(e) => {
+          if ((e.target as Element).closest?.('.book-done-badge')) return
+          sfx.boing()
+          if (card.current) void wiggle(card.current, { rotate: [0, -6, 6, -4, 3, 0], scale: [1, 1.04, 1] }, { duration: 0.6 })
+        }}
+      >
         <StoryPic pic={c.pic} />
         {/* 跟書架上「聽過」的星星同一顆：這本書得到一顆星 */}
         {/* 最亮的東西一定有回應：點星星，星星跳一下（AI 小男生 T-77 第 2 步） */}
@@ -277,12 +291,10 @@ function BookDone({ r, onAgain, onShelf }: { r: ToldChapter; onAgain: () => void
           <Sparkles count={14} />
         </div>
       </div>
-      {/* 封面旁邊幾顆靜止的小星星（不閃、不轉，MOTION-2） */}
+      {/* 封面旁邊幾顆小星星：平常靜止（不閃、不轉，MOTION-2）；點了那一顆閃一下、轉一下就停（T-123） */}
       <div className="book-done-sky" aria-hidden="true">
         {DONE_SKY.map(([x, y, w], i) => (
-          <span key={i} style={{ left: `${x}%`, top: `${y}%`, width: `${w}vmin` }}>
-            <Emoji name="star" />
-          </span>
+          <SkyStar key={i} x={x} y={y} w={w} />
         ))}
       </div>
       <div className="story-home-dino">
@@ -302,6 +314,24 @@ function BookDone({ r, onAgain, onShelf }: { r: ToldChapter; onAgain: () => void
         </button>
       </div>
     </div>
+  )
+}
+
+/** 讀完了畫面的一顆小星星：點了放大、轉一下、亮一下就停（一次，不循環） */
+function SkyStar({ x, y, w }: { x: number; y: number; w: number }) {
+  const [star, twinkle] = useAnimate<HTMLSpanElement>()
+  return (
+    <span
+      ref={star}
+      className="book-done-star"
+      style={{ left: `${x}%`, top: `${y}%`, width: `${w}vmin` }}
+      onPointerDown={() => {
+        sfx.star()
+        if (star.current) void twinkle(star.current, { scale: [1, 1.6, 1], rotate: [0, 72, 0], opacity: [0.85, 1, 0.85] }, { duration: 0.55, ease: 'easeOut' })
+      }}
+    >
+      <Emoji name="star" />
+    </span>
   )
 }
 
@@ -325,17 +355,23 @@ function Arrow({ dir }: { dir: 1 | -1 }) {
   )
 }
 
-/** 講故事的畫面（新章節、重聽都是這個）：大大的圖（一句換一張）、說話的恐龍、講到第幾句 */
+/**
+ * 講故事的畫面（新章節、重聽都是這個）：一頁手繪插畫（T-119，一句一頁，場景＋角色）、說話的恐龍、講到第幾句。
+ * - 念到角色的名字（Rabbit、Turtle、egg…），那個角色輕輕跳一下：照語音的逐字時間（字幕用的同一份），只跳一次。
+ * - 點角色：那個角色跳一下（不跳過正在念的這一句）；點插畫別的地方：整頁輕輕動一下。
+ * - 講到第幾句的小點點放在插畫下面（以前在上面，被字幕蓋住）。
+ */
 function Replay({ r, at, onClose }: { r: ToldChapter; at: number; onClose: () => void }) {
   const [card, animate] = useAnimate<HTMLDivElement>()
-  const [wiggles, setWiggles] = useState(0)
   const ch = chapterOf(r.ref)
   const look = ch ? chapterLook(ch, r.door as ThemeId | undefined) : null
-  // 這一句沒有圖就沿用前面最近的一張；一開始都沒有就用封面
-  let pic: Pic = coverOf(r).pic
-  for (let i = 0; i <= at && i < r.script.length; i++) if (r.script[i].pic) pic = r.script[i].pic!
+  // 這一句的插畫；沒有圖的句子沿用前面最近的一張，一開始都沒有就用封面
+  let art: PageArt | null = null
+  for (let i = 0; i <= at && i < r.script.length; i++) art = artForBeat(ch, r.script[i].k, r.script[i].pic, look?.scene) ?? art
+  art ??= fromPic(coverOf(r).pic, sceneOf(look?.scene))
   const k = r.script[at]?.k
   const who = k && hasLine(k) ? line(k).speaker : (look?.host ?? 'momo')
+  const hop = useHops(k, art)
   return (
     <div className="book-replay" style={{ background: look?.tint }}>
       <BookBack onClose={onClose} />
@@ -344,20 +380,19 @@ function Replay({ r, at, onClose }: { r: ToldChapter; at: number; onClose: () =>
           <i key={i} className={i <= at ? 'is-done' : undefined} />
         ))}
       </div>
-      {/* 點圖：圖動一下（不跳過正在念的這一句） */}
       <motion.div
         ref={card}
-        className="story-home-card"
+        className="book-art"
         style={{ '--deep': look?.deep } as CSSProperties}
-        data-wiggle={wiggles}
-        onPointerDown={() => {
+        onPointerDown={(e) => {
           sfx.tap()
-          setWiggles((n) => n + 1)
-          void animate(card.current!, { rotate: [0, -5, 5, -3, 0], scale: [1, 1.05, 1] }, { duration: 0.5 })
+          const c = (e.target as Element).closest?.('[data-cast]')?.getAttribute('data-cast')
+          if (c != null && Number(c) >= 0) hop.poke(Number(c))
+          else void animate(card.current!, { rotate: [0, -1.2, 1.2, 0], scale: [1, 1.015, 1] }, { duration: 0.45 })
         }}
       >
-        <Swap id={pic} className="swap-pic" arm={false}>
-          <StoryPic pic={pic} />
+        <Swap id={k ?? 'cover'} className="swap-pic" arm={false}>
+          {art && <StoryPage art={art} hop={hop.n} />}
         </Swap>
       </motion.div>
       <div className="story-home-dino">
@@ -365,4 +400,46 @@ function Replay({ r, at, onClose }: { r: ToldChapter; at: number; onClose: () =>
       </div>
     </div>
   )
+}
+
+/**
+ * 念到名字的角色跳一下：聽語音播放的事件（lib/audio 的 onSpeech），這一句開始播時照逐字時間排好誰在第幾毫秒跳。
+ * 沒有逐字時間（平板內建語音備援）就在開始念時一起跳。換句子就重來；一個角色一句只跳一次（點它另外算）。
+ */
+function useHops(k: string | undefined, art: PageArt | null) {
+  // 跳的次數記在「哪一句」底下：換句子時新的一頁從 0 開始（不然新的一頁一出來就跳）
+  const [state, setState] = useState<{ k?: string; n: Record<number, number> }>({ n: {} })
+  const bump = (key: string | undefined, cast: number) => setState((x) => ({ k: key, n: { ...(x.k === key ? x.n : {}), [cast]: ((x.k === key ? x.n[cast] : 0) ?? 0) + 1 } }))
+  const artRef = useRef(art)
+  artRef.current = art
+  useEffect(() => {
+    if (!k) return
+    const timers: number[] = []
+    const fire = (cast: number) => bump(k, cast)
+    const done = new Set<number>()
+    const off = onSpeech((e) => {
+      const a = artRef.current
+      if (!a || !hasLine(k) || ('key' in e && e.key !== k)) return
+      const en = line(k).text
+      if (e.type === 'seg' && e.words?.length) {
+        const lead = (e.at - audioClock()) * 1000
+        for (const h of hopTimes(en, a, e.words))
+          if (!done.has(h.cast)) {
+            done.add(h.cast)
+            timers.push(window.setTimeout(() => fire(h.cast), Math.max(0, lead + h.ms)))
+          }
+      } else if (e.type === 'whole' || e.type === 'seg') {
+        hopsOf(en, a).forEach((h, i) => {
+          if (done.has(h.cast)) return
+          done.add(h.cast)
+          timers.push(window.setTimeout(() => fire(h.cast), 300 + i * 400))
+        })
+      }
+    })
+    return () => {
+      off()
+      timers.forEach(clearTimeout)
+    }
+  }, [k])
+  return { n: state.k === k ? state.n : {}, poke: (cast: number) => bump(k, cast) }
 }

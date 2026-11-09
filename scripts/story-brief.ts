@@ -20,6 +20,8 @@ import { loadLearner, NEW_WORDS, STORY_FIXED, STORY_NAMES, type Problem } from '
 import { loadWorld, nextClassic, type ClassicRow, type World } from './story/world'
 import type { LearnerSnapshot } from '../src/lib/learner'
 import { formatProblems } from './check-story'
+import { ITEMS } from '../src/art/storybook/meta'
+import { SCENES } from '../src/art/storybook/layout'
 
 export const LEARNER_CACHE = 'scripts/.cache/learner.json'
 
@@ -166,7 +168,7 @@ const FORMAT_CLASSIC = (c: ClassicRow, faith: string | null) => `## 劇本格式
       "look": { "title": "英文書名", "zh": "${c.title}（故事時間）", "host": "momo", "icon": "open-book", "scene": "park", "tint": "#EFE6D3", "deep": "#A8875A", "ground": "#DCCFB2",
                 "stops": ["每一站的圖", "…共 5 張"], "finale": ["終點的圖"] },
       "stops": [
-        { "generic": [{ "who": "momo", "en": "Here is a little | rabbit.", "pic": "rabbit", "zh": "這是一隻小兔子。" }] },
+        { "generic": [{ "who": "momo", "en": "Here is a little | rabbit.", "pic": "rabbit", "zh": "這是一隻小兔子。", "art": { "scene": "park", "cast": [{ "who": "rabbit", "at": "C", "size": "L" }] } }] },
         { "generic": [ … ] }, { "generic": [ … ] }, { "generic": [ … ] }, { "generic": [ … ] }
       ]
     }
@@ -179,6 +181,38 @@ const FORMAT_CLASSIC = (c: ClassicRow, faith: string | null) => `## 劇本格式
 - \`look.scene\` 可以用：city、valley、farm、sea、rain、market、zoo、site、night、party、park。
 - \`|\` 後面是加重的字，**只能放在句尾**；每一句都要有 \`zh\`（只給家長看）。
 `
+
+/** 插畫擺法（T-119）：每一句都要寫 art，角色優先用角色庫裡已經畫好的 */
+function artPart(): string {
+  const list = (kind: 'char' | 'thing') =>
+    Object.entries(ITEMS)
+      .filter(([, it]) => it.kind === kind)
+      .map(([id, it]) => `${id}（${it.zh}${Object.keys(it.poses).length > 1 ? `；姿勢 ${Object.keys(it.poses).join('、')}` : ''}）`)
+      .join('、')
+  return `## 插畫擺法（每一句都要寫 \`art\`）
+
+故事每一句都有一張手繪插畫：場景＋最多 3 個角色站在左中右。畫是照角色庫畫好的，**你只要寫擺法**：
+
+\`\`\`json
+"art": { "scene": "park", "cast": [ { "who": "rabbit", "at": "L", "pose": "run" }, { "who": "turtle", "at": "R", "pose": "walk", "flip": true } ], "back": [ { "who": "tree", "at": "C", "size": "L" } ] }
+\`\`\`
+
+- \`scene\`（場景）：${Object.entries(SCENES).map(([k, v]) => `${k}（${v}）`).join('、')}。
+- \`cast\`：前景的角色和東西，**角色最多 3 個**、前景最多 4 樣。每一樣寫：
+  - \`who\`：角色庫的名字（下面兩張清單）。
+  - \`at\`：站的位置 L、LC、C、RC、R（左、左中、中、右中、右）；兩樣東西不要站同一個位置，三樣用 L、C、R。
+  - \`size\`：S、M、L（預設 M；一頁只有一個主角時用 L）。
+  - \`pose\`：有好幾個姿勢的才寫；\`flip: true\` 面向左邊；\`two: true\` 兩隻一樣的並排（算一組）；\`with\`：坐在上面、裝在裡面的小東西（"with": "egg"，蛋坐公車）。
+- \`back\`：畫在後面的大東西（大樹、拱門、方舟），可以跟角色疊在一起，不算角色數。
+- 太陽、月亮、彩虹、雨雲、蝴蝶、風箏會自己畫在天上。
+- 念到角色的名字（例如 Rabbit），那個角色會輕輕跳一下：所以畫面上要有句子裡提到的角色。
+- **優先用角色庫裡已經有的角色**。真的需要新角色時，一章最多 1 個：寫一個新的英文 id，加上 \`emoji\`（Fluent Emoji 的名字），例如 \`{ "who": "goat", "emoji": "goat", "at": "C" }\`；角色庫畫好之前，畫面上先用那個圖示代替。
+
+角色庫的角色：${list('char')}
+
+角色庫的東西：${list('thing')}
+`
+}
 
 function doorsPart(): string {
   return `## 12 扇魔法門（door 的值；門後原本的 5 站旁白）
@@ -238,6 +272,7 @@ ${Object.entries(row.cells).map(([k, v]) => `- **${k}**：${v}`).join('\n')}
 ${learnerPart(o.learner, band, o.learnerFrom)}
 ${doorsPart()}
 ${FORMAT_ARC(id, part, no, band)}
+${artPart()}
 ## 故事世界的規則（docs/故事世界.md，必讀）
 
 ${w.section('1. 魔法屋')}
@@ -281,6 +316,7 @@ ${groupIntro}
 
 ${learnerPart(o.learner, c.band, o.learnerFrom)}
 ${FORMAT_CLASSIC(c, faith)}
+${artPart()}
 ## 故事世界的規則（docs/故事世界.md，必讀）
 
 ${w.section('2.1')}

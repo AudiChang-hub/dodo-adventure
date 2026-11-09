@@ -11,6 +11,8 @@
 import { readFileSync, readdirSync, existsSync } from 'node:fs'
 import { join, basename } from 'node:path'
 import { ARCS, CLASSICS, WEEKLY, classicVersions, draftChapters, draftId, normalizeDraft, weeklyOf, type StoryDraft } from '../src/content/story'
+import { PAGE_ART } from '../src/content/story/pages'
+import { problemsOf as artProblems } from '../src/art/storybook/layout'
 import { CATEGORY_ZH, checkChapter, checkDraft, loadLearner, privateWordsFromEnv, type Category, type CheckOpts, type Problem } from './story/rules'
 
 export const LEARNER_CACHE = 'scripts/.cache/learner.json'
@@ -76,6 +78,10 @@ function main() {
 
   // App 裡已經有的故事：手寫的示範（不用中文對照）＋審稿佇列（要）
   const builtin = () => {
+    // 手寫章節的插畫擺法（content/story/pages.ts，T-119）：跟每週新劇本同一套規則
+    const artBad = Object.entries(PAGE_ART).flatMap(([k, a]) => artProblems(a).blocking.map((m) => `  ✗ [插畫擺法] ${k}：${m}`))
+    console.log(`${artBad.length ? '✗' : '✓'} 手寫章節的插畫擺法 ${Object.keys(PAGE_ART).length} 頁${artBad.length ? `：${artBad.length} 個問題\n${artBad.join('\n')}` : ''}`)
+    if (artBad.length) bad++
     for (const arc of ARCS.filter((x) => !weeklyOf(x.chapters[0]?.id ?? ''))) {
       const prior = new Set<string>()
       const ps = blocking(arc.chapters.flatMap((c) => checkChapter(c, { ...opts, draft: false }, {}, prior)))

@@ -209,14 +209,15 @@ test.describe('故事', () => {
     test.setTimeout(6 * 60_000)
     const { k, c } = await setup(page, info, '故事書')
     try {
-      // 講過 8 章（兩頁）：通用章節、長篇、故事時間都有；今天的也講完了（第 9 本），進來直接是書架
+      // 講過 8 章（兩頁）：通用章節、長篇、故事時間都有；今天的也講完了（第 9 本），進來直接是書架。
+      // 今天這本要是前面沒講過的一章（書架同一章只留一本：以前用 ev-zoo 跟前面重複，只有 8 本，第二頁 2 本，T-123）
       const doors = ['bus', 'farm', 'zoo', 'rain', 'fruit', 'ocean']
       const id = todayId()
       const rows = [
         ...doors.map((d, i) => ({ id: `2026-09-${String(10 + i).padStart(2, '0')}`, date: `2026-09-${String(10 + i).padStart(2, '0')}`, part: 0, arc: 'evergreen', chapter: 0, kind: 'evergreen', band: 'small', picks: { words: [], friends: [], stickers: [], drawings: [] }, choices: {}, done: true, synced: 1, ref: `ev-${d}`, door: d, script: [{ k: `theme.${d}.title` }, { k: `theme.${d}.intro` }, { k: `theme.${d}.stop.0` }, { k: `theme.${d}.end` }] })),
         { id: '2026-09-20', date: '2026-09-20', part: 1, arc: 'p1-a01', chapter: 1, kind: 'epic', band: 'small', picks: { words: [], friends: [], stickers: [], drawings: [] }, choices: {}, done: true, synced: 1, ref: 'p1-a01-c1', door: 'bus', script: [{ k: 'story.p1-a01-c1.intro.0', pic: '@rainbow-egg' }, { k: 'story.p1-a01-c1.intro.1', pic: '@rainbow-egg' }, { k: 'theme.bus.stop.0' }, { k: 'story.p1-a01-c1.stop.1', pic: 'bus+@rainbow-egg' }, { k: 'story.p1-a01-c1.end.0', pic: 'house-with-garden' }, { k: 'story.p1-a01-c1.end.1' }] },
         { id: '2026-09-21', date: '2026-09-21', part: 1, arc: 'classic', chapter: 1, kind: 'classic', band: 'small', picks: { words: [], friends: [], stickers: [], drawings: [] }, choices: {}, done: true, synced: 1, ref: 'classic-a01', door: 'park', script: [{ k: 'story.classic.open.0', pic: 'open-book' }, { k: 'story.classic-a01.stop.0.0', pic: 'rabbit' }, { k: 'story.classic.close', pic: 'closed-book' }] },
-        { id, date: id, part: 0, arc: 'evergreen', chapter: 0, kind: 'evergreen', band: 'small', picks: { words: [], friends: [], stickers: [], drawings: [] }, choices: {}, done: true, synced: 1, ref: 'ev-zoo', door: 'zoo', script: [{ k: 'theme.zoo.title' }, { k: 'theme.zoo.intro' }] },
+        { id, date: id, part: 0, arc: 'evergreen', chapter: 0, kind: 'evergreen', band: 'small', picks: { words: [], friends: [], stickers: [], drawings: [] }, choices: {}, done: true, synced: 1, ref: 'ev-build', door: 'build', script: [{ k: 'theme.build.title' }, { k: 'theme.build.intro' }] },
       ]
       await seedStory(page, { chapters: rows, story: { part: 1, arc: 'p1-a01', next: 1, choices: {}, classicsDone: ['A01'], house: ['egg-nest'] }, kv: { houseSeen: 0 } })
       let live: string | null = null
@@ -238,6 +239,7 @@ test.describe('故事', () => {
       }
       const cards = await page.evaluate(() => document.querySelectorAll('.book-card').length)
       c.outcome('第二頁有 3 本', cards === 3, `${cards} 本`)
+      if (cards !== 3) await c.once('shelf-page2', '困惑', '故事書翻到第二頁，書的數量不對（講過 9 本，一頁 6 本，第二頁應該 3 本）', `${cards} 本`)
       const stars = await page.evaluate(() => document.querySelectorAll('.book-card.is-heard .book-star').length)
       c.outcome('聽過的書都有星', stars === cards, `${stars}/${cards}`)
       const prev = await center(page, '[aria-label="上一頁"]')

@@ -125,13 +125,18 @@ export function ChineseLessonBody({ onDone }: LessonProps) {
 
   /**
    * 答完一題：停在答對的樣子（打勾、星星），等孩子點「下一步」的大箭頭才換題（T-118，家長：選圖答對之後換題要等他點）。
-   * 最後一題（找一樣的字，或沒有找字時的最後一張選圖）答完直接慶祝、到下課的晚安道別。
+   * 沒有找字時的最後一張選圖答完直接慶祝、到下課的晚安道別。
+   * 找一樣的字答完：停在兩個字配成一對、大打勾的樣子，也等孩子點「下一步」才下課（T-123，盲測 ca0d1e1 中文 seed 3：
+   * 以前 0.8 秒就自己換到下課，孩子還在找勾勾，「我一直點都一樣」就離開）。
    */
   const next = async () => {
     setAnswered((n) => n + 1)
     setMood('idle')
     const to: Scene | null = typeof scene === 'number' && scene + 1 < qs.length ? scene + 1 : typeof scene === 'number' && gq ? 'glyph' : null
-    if (to == null) return void finish()
+    if (to == null) {
+      if (scene === 'glyph' && (!(await nextStep()) || !live.current)) return
+      return void finish()
+    }
     if (!(await nextStep()) || !live.current) return
     setScene(to)
   }

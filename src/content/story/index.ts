@@ -12,6 +12,7 @@ import { artParts } from './art'
 import type { Band } from '../growth'
 import { HOUSE_ITEMS } from './house'
 import { WEEKLY_DRAFTS } from './weekly'
+import type { PageArt } from '../../art/storybook/layout'
 import { draftChapters, draftId, normalizeDraft, type StoryDraft } from './draft'
 import type { Arc, Beat, Chapter, ChapterLook, Classic, Part, Pic, TrackId, Who } from './types'
 
@@ -113,6 +114,8 @@ export interface Said {
   speaker: Speaker
   who: Who
   pic?: Pic
+  /** 這一句的插畫擺法（T-119；每週新劇本寫在句子裡，手寫的在 pages.ts 照 key 查） */
+  art?: PageArt
 }
 
 /** 一章展開成冒險的每一段 */
@@ -186,7 +189,7 @@ export function scriptOf(ch: Chapter, input: ScriptInput): Script | null {
       // 孵出來的朋友：念那位朋友自己的台詞（This is a fox! 和牠的叫聲）；沒有朋友就念通用句
       if (b.who === 'friend' && input.friend)
         return [`friend.name.${input.friend}`, `friend.sound.${input.friend}`].map((k) => ({ key: k, speaker: host, who: 'friend', pic: input.friend! }))
-      return [{ key, speaker: voiceOf(b.who, host), who: b.who, pic: b.pic }]
+      return [{ key, speaker: voiceOf(b.who, host), who: b.who, pic: b.pic, ...(b.art ? { art: b.art } : {}) }]
     })
   const n = input.tracks.length || 5
   const slot = (i: number): Said[] => {

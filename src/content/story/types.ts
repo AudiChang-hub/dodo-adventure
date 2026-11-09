@@ -8,6 +8,7 @@
 import type { Speaker } from '../registry'
 import type { Band } from '../growth'
 import type { SceneKind, ThemeId } from '../themes'
+import type { PageArt } from '../../art/storybook/layout'
 
 /**
  * 誰說這一句。三隻恐龍用自己的聲音；其他角色借恐龍的聲音（BEAT_VOICE）：
@@ -38,6 +39,11 @@ export interface Beat {
   key?: string
   /** 家長看的中文意思（審稿頁的中英對照）；只給家長看，App 裡不念、不顯示（故事裡不出現中文） */
   zh?: string
+  /**
+   * 這一句的插畫擺法（T-119）：場景、誰在畫面上、什麼姿勢、站在哪裡（art/storybook/layout.ts 的 PageArt）。
+   * 每週新劇本每一句都要寫；手寫的章節寫在 content/story/pages.ts。沒有的話照 pic 自動排一頁。
+   */
+  art?: PageArt
 }
 
 /**

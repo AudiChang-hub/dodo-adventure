@@ -67,6 +67,14 @@ async function toGlyph(page: Page, cdp: CDPSession) {
     const go = (await center(page, '.zh-intro .zh-go')) ?? (await center(page, '.zh-controls.on .zh-go-quiz'))
     const quiz = await page.$('.zh-quiz:not(.zh-glyph) .tile.cue')
     if (quiz) {
+      await page.evaluate(() => {
+        const w = window as unknown as { __quizRight?: number; __quizLeft?: number }
+        for (const e of document.querySelectorAll('.zh-quiz:not(.zh-glyph) .tile, .zh-quiz:not(.zh-glyph) .zh-ask')) {
+          const r = e.getBoundingClientRect()
+          w.__quizRight = Math.max(w.__quizRight ?? 0, r.right)
+          w.__quizLeft = Math.min(w.__quizLeft ?? 1e9, r.left)
+        }
+      })
       await touch(cdp, (await center(page, '.zh-quiz:not(.zh-glyph) .tile[data-answer]'))!)
       await page.waitForTimeout(1900)
       continue
@@ -128,7 +136,7 @@ test('第一次：手先示範、做完換位置；點對並排打勾 → 下課
   await page.waitForSelector('.zh-glyph-pair.is-solved', { timeout: 1500 })
   await page.waitForTimeout(250)
   await shot(page, '4-點對並排打勾')
-  await page.waitForSelector('.cheer-scrim', { timeout: 4000 })
+  await page.waitForSelector('.cheer-scrim', { timeout: 10_000 })
   const rows = (await all(page, 'attempts')).filter((a) => a.game === 'zh-glyph')
   console.log('作答：', JSON.stringify(rows.map((r) => ({ skill: r.skill, phase: r.phase, first: r.firstTryCorrect, level: r.level, options: r.options }))))
   expect(rows.length).toBe(1)
@@ -172,7 +180,7 @@ test('第 2 級：點錯的字飛上去並排、退回變淡；再點對', async
   expect(op).toBeLessThan(0.6)
   await shot(page, '7-點錯退回變淡')
   await touch(cdp, (await center(page, '.zh-glyph .tile[data-answer]'))!)
-  await page.waitForSelector('.cheer-scrim', { timeout: 4000 })
+  await page.waitForSelector('.cheer-scrim', { timeout: 10_000 })
   const rows = (await all(page, 'attempts')).filter((a) => a.game === 'zh-glyph')
   expect(rows.length).toBe(1)
   expect(rows[0].phase).toBe('quiz')
@@ -197,7 +205,7 @@ test('示範一開始就搶著點錯的：示範收掉、照常判錯', async ({
   expect(s.fly).toContain('is-wrong')
   await page.waitForTimeout(1400)
   await touch(cdp, (await center(page, '.zh-glyph .tile[data-answer]'))!)
-  await page.waitForSelector('.cheer-scrim', { timeout: 4000 })
+  await page.waitForSelector('.cheer-scrim', { timeout: 10_000 })
   const rows = (await all(page, 'attempts')).filter((a) => a.game === 'zh-glyph')
   expect(rows.map((r) => `${r.phase}:${r.firstTryCorrect}`)).toEqual(['guided:false'])
 })
@@ -219,7 +227,7 @@ test('發呆：15 秒上面的字跳一下，再 15 秒手指著答案點一下�
   await shot(page, '10-發呆手指答案')
   expect(hintAt, '發呆 40 秒內手要出來指答案').toBeGreaterThan(0)
   await touch(cdp, (await center(page, '.zh-glyph .tile[data-answer]'))!)
-  await page.waitForSelector('.cheer-scrim', { timeout: 4000 })
+  await page.waitForSelector('.cheer-scrim', { timeout: 10_000 })
   const rows = (await all(page, 'attempts')).filter((a) => a.game === 'zh-glyph')
   console.log('作答：', JSON.stringify(rows.map((r) => ({ phase: r.phase, hint: r.hintUsed, first: r.firstTryCorrect }))))
   expect(rows.map((r) => `${r.phase}:${r.hintUsed}`)).toEqual(['guided:true'])
@@ -302,13 +310,22 @@ for (const vp of [
     const overlap = (a: (typeof m.bs)[0], b: (typeof m.bs)[0]) => a.l < b.r - 1 && b.l < a.r - 1 && a.t < b.b - 1 && b.t < a.b - 1
     for (const [i, a] of m.bs.entries()) {
       expect(a.l, `第 ${i} 張卡超出左邊`).toBeGreaterThanOrEqual(0)
-      // 手機直式：舞台（.stage-main，三堂課共用）比螢幕寬 80 px，選圖的三張卡改之前就會超出右邊一點；上面兩張（這次新做的）一定要在畫面裡
-      expect(a.r, `第 ${i} 張卡超出右邊`).toBeLessThanOrEqual(vp.width + (vp.width < 800 && i >= 2 ? 40 : 0))
+      // 手機直式也要全部在畫面裡（T-123：舞台比螢幕寬，以前選項會超出右邊）
+      expect(a.r, `第 ${i} 張卡超出右邊`).toBeLessThanOrEqual(vp.width)
       expect(a.b, `第 ${i} 張卡超出下面`).toBeLessThanOrEqual(vp.height)
       for (const [j, b] of m.bs.entries()) if (j > i) expect(overlap(a, b), `第 ${i}、${j} 張卡重疊`).toBe(false)
       // 可點目標 ≥ 2 cm（準則 TOUCH-1）：平板約 76 px（11 吋 1200 寬約 4.6 px/mm 以上）；手機只要求不壞版
       if (vp.width > 800) expect(Math.min(a.w, a.h), `第 ${i} 張卡太小`).toBeGreaterThanOrEqual(100)
     }
+    // 選圖那一頁（題目卡、三張圖）也在畫面裡
+    const qr = await page.evaluate(() => {
+      const w = window as unknown as { __quizRight?: number; __quizLeft?: number }
+      return { __quizRight: w.__quizRight, __quizLeft: w.__quizLeft }
+    })
+    expect(qr.__quizRight, '經過選圖頁時有量到').toBeDefined()
+    console.log(vp.name, '選圖頁', JSON.stringify({ left: qr.__quizLeft, right: qr.__quizRight }))
+    expect(qr.__quizRight ?? 0, '選圖的卡超出右邊').toBeLessThanOrEqual(vp.width)
+    expect(qr.__quizLeft ?? 0, '選圖的卡超出左邊').toBeGreaterThanOrEqual(0)
     for (const k of m.ink) {
       expect(k.inside, '字超出卡片').toBe(true)
       expect(k.dx, '字沒有在卡片中間').toBeLessThan(0.08)

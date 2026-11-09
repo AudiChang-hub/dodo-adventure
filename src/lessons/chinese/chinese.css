@@ -693,25 +693,35 @@
 .zh-glyph-pair.is-pair .zh-yes {
   z-index: 7;
 }
-/* 飛上去的字：一張跟空格一樣大的卡（scale 從選項卡的大小縮過去） */
+/* 飛上去的字：一張跟空格一樣大的卡（scale 從選項卡的大小縮過去）；外層只管位置，卡片本身在 .zh-glyph-fly-card */
 .zh-glyph-fly {
   position: absolute;
   z-index: 5;
+  pointer-events: none;
+  transform-origin: 50% 50%;
+}
+.zh-glyph-fly-card {
+  position: absolute;
+  inset: 0;
   display: grid;
   place-items: center;
   border-radius: var(--radius-lg);
   background: var(--card);
   box-shadow: 0 8px 0 rgba(46, 42, 37, 0.1);
   container-type: size;
-  pointer-events: none;
-  transform-origin: 50% 50%;
 }
 .zh-glyph-fly .zh-glyph-char {
   font-size: 72cqh;
 }
-.zh-glyph-pair.is-pair ~ .zh-glyph-fly:not(.is-wrong) {
+.zh-glyph-pair.is-pair ~ .zh-glyph-fly:not(.is-wrong) .zh-glyph-fly-card {
   background: #e6f3ea;
   box-shadow: 0 8px 0 #b9dcc5, 0 0 0 5px var(--good) inset;
+}
+/* 配成一對的大打勾：在飛上去的那張卡右上角，比選圖的打勾大一點，整個露在外面（T-123） */
+.zh-glyph-yes {
+  top: -20%;
+  right: -20%;
+  width: 52%;
 }
 /* 字飛走了：選項卡留一個淡淡的空位 */
 .zh-glyph-options .tile.is-away .zh-glyph-char {
@@ -765,6 +775,25 @@
   }
   .zh-intro ol {
     font-size: 15px;
+  }
+  /*
+   * 選圖、找一樣的字（T-123）：舞台 .stage-main 在手機直式比螢幕寬（約 470 對 390），整頁以舞台置中的話右邊會超出畫面。
+   * 答題這一頁改成螢幕的寬度（100vw）置中；選項左右只留一點點邊（不讓給左下角的恐龍：手機上恐龍在選項下面）
+   */
+  .zh-quiz {
+    right: auto;
+    width: min(100%, 100vw);
+  }
+  .zh-quiz .options {
+    padding-inline: 3vw;
+    gap: 3vw;
+  }
+  .zh-quiz .options.with-stim .tile {
+    width: min(26cqh, 28vw);
+  }
+  .zh-ask {
+    left: 50%;
+    max-width: 94vw;
   }
   /* 找一樣的字：兩張卡並排要放得進手機的寬度（舞台 .stage-main 在手機直式比螢幕寬，用 vw 算） */
   .zh-glyph-pair {

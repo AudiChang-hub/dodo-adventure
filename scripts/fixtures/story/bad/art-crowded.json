@@ -1,0 +1,126 @@
+{
+ "expect": [
+  "art"
+ ],
+ "why": "插畫擺法：一頁 4 個角色、兩個疊在一起、角色庫沒有又沒給 emoji 的角色、不存在的場景（T-119）",
+ "type": "classic",
+ "rev": 1,
+ "week": "2026-11-02",
+ "by": "human",
+ "classic": {
+  "id": "A04",
+  "source": "伊索寓言",
+  "zh": "測試",
+  "band": "small",
+  "faith": null,
+  "chapter": {
+   "id": "classic-a04",
+   "look": {
+    "title": "Wind and Sun",
+    "zh": "北風與太陽（故事時間）",
+    "host": "momo",
+    "icon": "open-book",
+    "scene": "park",
+    "tint": "#EFE6D3",
+    "deep": "#A8875A",
+    "ground": "#DCCFB2",
+    "stops": [
+     "sun",
+     "cloud",
+     "sun",
+     "sun",
+     "sun"
+    ],
+    "finale": [
+     "sun"
+    ]
+   },
+   "stops": [
+    {
+     "generic": [
+      {
+       "who": "momo",
+       "en": "Here is | Rabbit.",
+       "pic": "rabbit",
+       "zh": "這是兔子。",
+       "art": {
+        "scene": "park",
+        "cast": [
+         {
+          "who": "rabbit",
+          "at": "L"
+         },
+         {
+          "who": "turtle",
+          "at": "LC",
+          "pose": "walk"
+         },
+         {
+          "who": "lion",
+          "at": "C"
+         },
+         {
+          "who": "cow",
+          "at": "R"
+         }
+        ]
+       }
+      }
+     ]
+    },
+    {
+     "generic": [
+      {
+       "who": "momo",
+       "en": "A round | basket!",
+       "pic": "@rainbow-egg",
+       "zh": "一個圓圓的籃子！",
+       "art": {
+        "scene": "castle",
+        "cast": [
+         {
+          "who": "dragon",
+          "at": "C"
+         }
+        ]
+       }
+      }
+     ]
+    },
+    {
+     "generic": [
+      {
+       "who": "momo",
+       "en": "The sun shines. Warm, warm.",
+       "pic": "sun",
+       "zh": "太陽照著。暖暖的。"
+      }
+     ]
+    },
+    {
+     "generic": [
+      {
+       "who": "momo",
+       "en": "The wind is a friend.",
+       "pic": "cloud",
+       "zh": "風也是朋友。"
+      }
+     ]
+    },
+    {
+     "generic": [
+      {
+       "who": "momo",
+       "en": "Wind and sun smile.",
+       "pic": "sun+cloud",
+       "zh": "風和太陽都笑了。"
+      }
+     ]
+    }
+   ]
+  }
+ },
+ "cast": [
+  "Rabbit"
+ ]
+}
