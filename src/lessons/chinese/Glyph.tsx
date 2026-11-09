@@ -24,7 +24,7 @@ type Box = { left: number; top: number; width: number; height: number }
 const FLY_S = 0.36
 /** 點錯的字：飛上去、跟答案並排一下、搖一搖、飛回來，一共多久（比答對短、沒有星星：不會為了看它故意點錯） */
 const WRONG_S = 1.15
-/** 答對：飛上去以後看一下打勾就下課（這一題一定是最後一題，T-113：不讓孩子乾等） */
+/** 答對：飛上去以後看一下打勾，就交給課程出「下一步」的大箭頭（T-123：停在配成一對的樣子，孩子點了才下課） */
 const CHEER_MS = 800
 /** 錯幾次以後手指出答案（FB-2；2 選 1 錯一次就只剩答案，不會走到這裡） */
 const HINT_AFTER = 2
@@ -32,7 +32,7 @@ const HINT_AFTER = 2
 /**
  * 找一樣的字（T-117）：上面一個大字、旁邊一個虛線空格；下面兩、三個字，點長得一模一樣的那個（./match.ts 出題）。
  * 中文課是親子共讀：App 不出聲，題目不念，大人指著字問「下面哪一個跟它長得一模一樣？」。
- * - 點對：那個字飛上去、停在空格裡，兩個一模一樣的字並排，一起跳一下、亮綠框、打勾、撒星星，莫莫歡呼、叮一聲；0.8 秒後下課。
+ * - 點對：那個字飛上去、停在空格裡，兩個一模一樣的字並排，一起跳一下、亮綠框、打勾、撒星星，莫莫歡呼、叮一聲；打勾在飛上去的那張卡上（不會被蓋住）。停在這個樣子，等孩子點「下一步」才下課（Lesson.tsx）。
  * - 點錯：那個字也飛上去，跟答案並排一下（看得出「不一樣」：準則 FB-1 用看的說「你選的是什麼、要找的是什麼」），
  *   搖一搖、輕輕一聲，飛回原位、變淡；飛的時候就可以點別的。
  * - 最初幾次（progress 的 needsDemo）：下面的字先變淡，手點上面的字、再點下面一樣的那個，示範飛上去配成一對；
@@ -315,19 +315,6 @@ export function Glyph({
           transition={{ duration: 0.5, ease: 'easeOut' }}
           key={`s${pairOn ? 'p' : ''}`}
         >
-          {paired === 'right' && <Sparkles count={16} />}
-          {paired && (
-            <motion.span
-              className="zh-yes"
-              initial={still ? false : { scale: 0, rotate: -20 }}
-              animate={{ scale: 1, rotate: 0 }}
-              transition={{ type: 'spring', stiffness: 420, damping: 15, delay: 0.08 }}
-            >
-              <svg viewBox="0 0 48 48" width="62%" aria-hidden="true">
-                <path d="M11 25 L20 34 L37 15" fill="none" stroke="#FBF8F2" strokeWidth={7} strokeLinecap="round" strokeLinejoin="round" />
-              </svg>
-            </motion.span>
-          )}
         </motion.div>
       </div>
 
@@ -397,7 +384,28 @@ export function Glyph({
               : { duration: still ? 0.01 : FLY_S, ease: [0.22, 1, 0.36, 1] }
           }
         >
-          <span className="zh-glyph-char">{fly.ch}</span>
+          {/* 飛上去的字卡（配成一對時跟上面的字一起跳一下）；打勾、星星畫在這張卡上，不會被它蓋住（T-123，盲測 ca0d1e1 中文 seed 3：勾勾被蓋掉一半） */}
+          <motion.div
+            className="zh-glyph-fly-card"
+            animate={pairOn && fly.kind !== 'wrong' && !still ? { y: [0, -16, 0] } : { y: 0 }}
+            transition={{ duration: 0.5, ease: 'easeOut' }}
+            key={pairOn ? 'p' : 'n'}
+          >
+            <span className="zh-glyph-char">{fly.ch}</span>
+            {paired === 'right' && fly.kind === 'right' && <Sparkles count={16} />}
+            {pairOn && fly.kind !== 'wrong' && (
+              <motion.span
+                className="zh-yes zh-glyph-yes"
+                initial={still ? false : { scale: 0, rotate: -20 }}
+                animate={{ scale: 1, rotate: 0 }}
+                transition={{ type: 'spring', stiffness: 420, damping: 15, delay: 0.08 }}
+              >
+                <svg viewBox="0 0 48 48" width="62%" aria-hidden="true">
+                  <path d="M11 25 L20 34 L37 15" fill="none" stroke="#FBF8F2" strokeWidth={7} strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+              </motion.span>
+            )}
+          </motion.div>
         </motion.div>
       )}
 

@@ -192,6 +192,17 @@
   position: absolute;
   opacity: 0.85;
 }
+/* 星星點得到：外面多一圈看不見的、好點的範圍（三歲手指點不準，準則 TOUCH-1）；整片天空還是不擋別的東西 */
+.book-done-sky .book-done-star {
+  pointer-events: auto;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+.book-done-sky .book-done-star::after {
+  content: '';
+  position: absolute;
+  inset: -70%;
+}
 .book-done-actions {
   position: absolute;
   right: 6vw;

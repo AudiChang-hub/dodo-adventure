@@ -248,6 +248,7 @@ function BookDone({ r, onAgain, onShelf }: { r: ToldChapter; onAgain: () => void
   const c = coverOf(r)
   const [badge, bounce] = useAnimate<HTMLSpanElement>()
   const [again, spin] = useAnimate<HTMLSpanElement>()
+  const [card, wiggle] = useAnimate<HTMLDivElement>()
   // 停著沒動作（AI 小男生 T-77：不知道下一步點哪裡）：8 秒、20 秒時「再聽一次」的箭頭轉一圈，告訴他這個可以點
   useEffect(() => {
     const ts = [8000, 20000].map((ms) => window.setTimeout(() => again.current && void spin(again.current, { rotate: [0, 360] }, { duration: 0.9, ease: 'easeInOut' }), ms))
@@ -257,7 +258,17 @@ function BookDone({ r, onAgain, onShelf }: { r: ToldChapter; onAgain: () => void
   return (
     <div className="book-replay book-done" style={{ background: look?.tint }}>
       <BookBack onClose={onShelf} />
-      <div className="story-home-card" style={{ '--deep': look?.deep } as CSSProperties}>
+      {/* 點封面（蛋、書）：晃一下（T-123，盲測 ca0d1e1：故事講完孩子點蛋，以為恐龍會孵出來，沒有反應）。只晃一下，不換頁、不自己往下走 */}
+      <div
+        ref={card}
+        className="story-home-card"
+        style={{ '--deep': look?.deep } as CSSProperties}
+        onPointerDown={(e) => {
+          if ((e.target as Element).closest?.('.book-done-badge')) return
+          sfx.boing()
+          if (card.current) void wiggle(card.current, { rotate: [0, -6, 6, -4, 3, 0], scale: [1, 1.04, 1] }, { duration: 0.6 })
+        }}
+      >
         <StoryPic pic={c.pic} />
         {/* 跟書架上「聽過」的星星同一顆：這本書得到一顆星 */}
         {/* 最亮的東西一定有回應：點星星，星星跳一下（AI 小男生 T-77 第 2 步） */}
@@ -280,12 +291,10 @@ function BookDone({ r, onAgain, onShelf }: { r: ToldChapter; onAgain: () => void
           <Sparkles count={14} />
         </div>
       </div>
-      {/* 封面旁邊幾顆靜止的小星星（不閃、不轉，MOTION-2） */}
+      {/* 封面旁邊幾顆小星星：平常靜止（不閃、不轉，MOTION-2）；點了那一顆閃一下、轉一下就停（T-123） */}
       <div className="book-done-sky" aria-hidden="true">
         {DONE_SKY.map(([x, y, w], i) => (
-          <span key={i} style={{ left: `${x}%`, top: `${y}%`, width: `${w}vmin` }}>
-            <Emoji name="star" />
-          </span>
+          <SkyStar key={i} x={x} y={y} w={w} />
         ))}
       </div>
       <div className="story-home-dino">
@@ -305,6 +314,24 @@ function BookDone({ r, onAgain, onShelf }: { r: ToldChapter; onAgain: () => void
         </button>
       </div>
     </div>
+  )
+}
+
+/** 讀完了畫面的一顆小星星：點了放大、轉一下、亮一下就停（一次，不循環） */
+function SkyStar({ x, y, w }: { x: number; y: number; w: number }) {
+  const [star, twinkle] = useAnimate<HTMLSpanElement>()
+  return (
+    <span
+      ref={star}
+      className="book-done-star"
+      style={{ left: `${x}%`, top: `${y}%`, width: `${w}vmin` }}
+      onPointerDown={() => {
+        sfx.star()
+        if (star.current) void twinkle(star.current, { scale: [1, 1.6, 1], rotate: [0, 72, 0], opacity: [0.85, 1, 0.85] }, { duration: 0.55, ease: 'easeOut' })
+      }}
+    >
+      <Emoji name="star" />
+    </span>
   )
 }
 
