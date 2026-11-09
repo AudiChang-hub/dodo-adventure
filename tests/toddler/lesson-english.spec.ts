@@ -349,9 +349,9 @@ test.describe('英文字母課', () => {
 
   // 第六次盲測（2026-11-06）描小 s：他從綠點描過上面的彎、斜下來，停在右下的彎（只剩尾巴往左彎回去那一段），放手。
   // 描好的部分變藍、綠點停在斷掉的地方，剩下的尾巴只有淡淡的虛線；他說「還是不知道對不對，我不要畫了」，按房子離開。
-  // 要做到：(1) 大寫 S 描到四成放手：看得到「還剩這一段、往這邊」（剩下的跑道有會動的引導、終點有記號）；
+  // 要做到：(1) 大寫 S 描到四成放手：不用重描，筆從斷掉的地方帶著描完（T-122；以前是看得到剩下的那一段、讓他接著描）；
   // (2) 小 s 照盲測那一筆（截圖 1280×800 的座標，換算到描字板）描到右下的彎放手：帶著描完（彩虹、往下走），不用再描尾巴
-  test('描 S、小 s：描到一半看得到還剩哪一段，描到大部分（盲測那一筆）放手就帶著描完', async ({ page }, info) => {
+  test('描 S、小 s：描到一半放手、描到大部分（盲測那一筆）放手，都帶著描完', async ({ page }, info) => {
     test.skip(!want('lesson-english'))
     test.setTimeout(3 * 60_000)
     const { k, c } = await setup(page, info, '描小s快完')
@@ -406,28 +406,14 @@ test.describe('英文字母課', () => {
           .then(() => true)
           .catch(() => false)
 
-      // (1) 大寫 S 描到四成放手：剩下的那一段有引導、終點有記號
+      // (1) 大寫 S 描到四成放手：不用重描，筆從斷掉的地方帶著描完（T-122，盲測 ca0d1e1：描到一半放手被說 Nice try 要重描，「好煩」離開）
       k.behavior = '大寫 S 描到四成放手'
       await k.drag(await along(0, 0.4), { stepMs: 16, label: '描大 S 到四成' })
-      await k.wait(900)
-      const guide = await page.evaluate(() => {
-        const b = [...document.querySelectorAll('.en-trace-board')].pop()
-        const rest = b?.querySelector('[data-trace-rest]')
-        const goal = b?.querySelector('[data-trace-goal]')
-        const box = (e: Element | null | undefined) => {
-          const r = e?.getBoundingClientRect()
-          return !!r && r.width > 2 && r.height > 2
-        }
-        return { rest: box(rest), goal: box(goal) }
-      })
       const half = await filled()
+      const carried = await finished(10_000)
       if (process.env.TODDLER_SHOTS && info.project.name === 'tab1280') await page.screenshot({ path: `${process.env.TODDLER_SHOTS}/大S描到四成放手.png` })
-      c.outcome('描到四成放手：看得到剩下的那一段（會動的引導）和終點', guide.rest && guide.goal, `填了 ${Math.round(half * 100)}%；引導${guide.rest ? '有' : '沒有'}、終點記號${guide.goal ? '有' : '沒有'}`)
-      if (!(guide.rest && guide.goal)) await c.once('trace-rest', '困惑', '描到一半放手，剩下的那一段只有淡淡的虛線，看不出還要描哪裡、描到哪裡算好', `引導${guide.rest ? '有' : '沒有'}、終點記號${guide.goal ? '有' : '沒有'}`)
-      // 從斷掉的地方接著描完大 S
-      k.behavior = '從斷掉的地方接著描完大 S'
-      await k.drag(await along(Math.max(0, half - 0.02), 1, 16), { stepMs: 16, label: '接著描完大 S' })
-      if (!(await finished(4000))) return void (await c.once('big-s', '卡死', '大 S 接著描到底沒有完成', `填了 ${Math.round((await filled()) * 100)}%`))
+      c.outcome('描到四成放手：不用重描，筆帶著描完（T-122）', carried, `放手時填了 ${Math.round(half * 100)}%${carried ? '' : `；10 秒後 ${Math.round((await filled()) * 100)}%`}`)
+      if (!carried) return void (await c.once('trace-half', '困惑', '描到一半放手，沒有帶著描完，還要他重描', `放手時填了 ${Math.round(half * 100)}%`))
 
       // (2) 小 s：盲測那一筆（1280×800 截圖上的座標，描字板在 (427,105) 寬 426 高 600），換算到這個尺寸的描字板
       await page.waitForFunction(() => document.querySelector('.en-trace-rounds .is-now')?.textContent?.trim() === 's', null, { timeout: 20_000 })
