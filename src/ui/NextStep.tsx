@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react'
-import { AnimatePresence, motion, useAnimate, useReducedMotion } from 'motion/react'
+import { AnimatePresence, motion, useAnimate, useIsPresent, useReducedMotion } from 'motion/react'
 import { Hand } from '../games/Demo'
 import { sfx } from '../lib/audio'
 import { firstFinger } from '../games/NotYet'
@@ -78,10 +78,19 @@ function NextButton() {
   const [hand, setHand] = useState(0)
   const handTimer = useRef(0)
   const gone = useRef(false)
+  /**
+   * 點了、正在收起來（AnimatePresence 的離場動畫還在跑）：不再跳、不再出手，也不收點擊（T-123）。
+   * 以前收起來的那 0.2 秒裡點別的地方，「跳一下」的動畫（scale、y）會把離場動畫的 scale 打斷，離場永遠做不完，
+   * 箭頭就一直留在畫面上、點了沒反應（數學課「打勾後連點」：拿給波波按完打勾一直點，點大箭頭換到比多少之後箭頭還在；
+   * 測試的自動點大箭頭也因此一直點它，教學卡把真的那一下當成連點，「停一下再點教學卡沒有反應」）
+   */
+  const present = useIsPresent()
+  const leaving = useRef(false)
+  leaving.current = !present
 
   /** 箭頭跳一下、手點一下 */
   const nudge = () => {
-    if (gone.current) return
+    if (gone.current || leaving.current) return
     if (!still && scope.current) void animate(scope.current, { y: [0, -18, 0], scale: [1, 1.08, 1] }, { duration: 0.55, ease: 'easeOut' })
     setHand((h) => h + 1)
     clearTimeout(handTimer.current)
@@ -111,7 +120,7 @@ function NextButton() {
   }, [])
 
   const go = (e: React.PointerEvent) => {
-    if (!firstFinger(e.nativeEvent) || !pending) return
+    if (leaving.current || !firstFinger(e.nativeEvent) || !pending) return
     if (performance.now() - pending.at < ARM_MS) return
     sfx.tap()
     const p = pending
@@ -129,7 +138,8 @@ function NextButton() {
       data-next-step=""
       initial={{ opacity: 0, scale: 0.5 }}
       animate={{ opacity: 1, scale: 1 }}
-      exit={{ opacity: 0, scale: 0.7, transition: { duration: 0.2 } }}
+      exit={{ opacity: 0, scale: 0.7, y: 0, transition: { duration: 0.2 } }}
+      style={present ? undefined : { pointerEvents: 'none' }}
       transition={{ type: 'spring', stiffness: 320, damping: 18 }}
       whileTap={{ scale: 0.9 }}
       onPointerDown={go}
