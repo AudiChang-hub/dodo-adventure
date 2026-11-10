@@ -10,7 +10,7 @@
 // 有任何問題（不含只提醒的）就以 1 結束。
 import { readFileSync, readdirSync, existsSync } from 'node:fs'
 import { join, basename } from 'node:path'
-import { ARCS, CLASSICS, WEEKLY, classicVersions, draftChapters, draftId, normalizeDraft, weeklyOf, type StoryDraft } from '../src/content/story'
+import { ARCS, CLASSICS, EVERGREEN, WEEKLY, classicVersions, draftChapters, draftId, normalizeDraft, weeklyOf, type StoryDraft } from '../src/content/story'
 import { PAGE_ART } from '../src/content/story/pages'
 import { problemsOf as artProblems } from '../src/art/storybook/layout'
 import { CATEGORY_ZH, checkChapter, checkDraft, loadLearner, privateWordsFromEnv, type Category, type CheckOpts, type Problem } from './story/rules'
@@ -96,6 +96,13 @@ function main() {
         console.log(`${ps.length ? '✗' : '✓'} 手寫 故事時間 ${c.id}〈${c.zh}〉${ver}${ps.length ? `：${ps.length} 個問題\n${formatProblems(ps)}` : ''}`)
         if (ps.length) bad++
       }
+    // 12 扇門的通用章節（T-127：一句最多 6 個字、一章最多 6 頁也要過）。只看長度：門原本的句子不是每週新劇本，學過的字照課程走
+    {
+      const ps = blocking(Object.values(EVERGREEN).flatMap((c) => checkChapter(c, { ...opts, draft: false }))).filter((p) => p.cat === 'long')
+      console.log(`${ps.length ? '✗' : '✓'} 通用章節 ${Object.keys(EVERGREEN).length} 扇門${ps.length ? `：${ps.length} 個問題
+${formatProblems(ps)}` : ''}`)
+      if (ps.length) bad++
+    }
     for (const d of WEEKLY) {
       const ps = blocking(problemsOf(d, opts))
       console.log(`${ps.length ? '✗' : '✓'} 審稿佇列 ${draftId(d)}（${draftChapters(d).length} 章）${ps.length ? `：${ps.length} 個問題\n${formatProblems(ps)}` : ''}`)

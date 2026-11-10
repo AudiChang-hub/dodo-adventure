@@ -64,7 +64,7 @@ export const ITEMS: Record<string, Item> = {
   apples: { kind: 'thing', zh: '蘋果', poses: one(210, 140), words: ['apple'], emoji: ['red-apple', 'green-apple'] },
   'book-open': { kind: 'thing', zh: '打開的書', poses: one(300, 200), words: ['book', 'story'], emoji: ['open-book'] },
   'book-closed': { kind: 'thing', zh: '闔上的書', poses: one(220, 200), words: ['book', 'end'], emoji: ['closed-book'] },
-  door: { kind: 'thing', zh: '魔法門', poses: one(200, 300), words: ['door', 'open'], emoji: ['door'] },
+  door: { kind: 'thing', zh: '魔法門', poses: { stand: { w: 200, h: 300 }, open: { w: 200, h: 300 } }, words: ['door', 'open'], emoji: ['door'] },
   house: { kind: 'thing', zh: '魔法屋', poses: one(340, 320), words: ['house', 'home'], emoji: ['house-with-garden'] },
   bed: { kind: 'thing', zh: '床', poses: one(300, 190), words: ['bed', 'yawn'], seat: [150, 92], emoji: ['bed'] },
   yarn: { kind: 'thing', zh: '毛線球', poses: one(150, 130), words: ['wool'], emoji: ['yarn'] },

@@ -30,7 +30,18 @@ export interface StoryState {
   /** 講完的故事時間：本來那一版記編號（A01），長大版加年段（B01@middle，見 classicDoneKey） */
   classicsDone: string[]
   house: string[]
+  /**
+   * 每一章講完了幾天（T-127：同一章連講 REPEAT 天）：{ 章的 id: 天數 }。新增的欄位，舊版讀到會忽略
+   * （舊版存 kv.story 時整份照樣寫回去，這個欄位不會不見）。
+   */
+  told?: Record<string, number>
 }
+
+/**
+ * 同一章連講幾天（T-127 B 案，Horst 2011：同一個故事重複聽才學得到詞）：第 1 天看、第 2 天一起演、第 3 天你來說，第 4 天才換下一章。
+ * 改成 1 就回到一天一章（不用回切整版）。
+ */
+export const REPEAT = 3
 
 const KV = 'story'
 const START: StoryState = { part: 1, arc: ARCS[0]?.id ?? '', next: 0, choices: {}, classicsDone: [], house: [] }
@@ -189,10 +200,16 @@ async function finish(plan: StoryDay, s: Script): Promise<string | null> {
   return finishCore(plan.date, s.chapter)
 }
 
-/** 記成講完、長篇往下一章（finishChapter、finishTold 共用） */
+/** 記成講完、長篇往下一章（finishChapter、finishTold 共用）。同一章要講滿 REPEAT 天才算這一章講完、往下一章 */
 async function finishCore(date: string, ch: Chapter): Promise<string | null> {
   await db.chapters.update(date, { done: true, synced: 0 })
   const st = await storyState()
+  const times = (st.told?.[ch.id] ?? 0) + 1
+  st.told = { ...st.told, [ch.id]: times }
+  if (times < REPEAT) {
+    await setKV(KV, st)
+    return null
+  }
   let added: string | null = null
   if (ch.kind === 'classic') {
     const c = classicOfChapter(ch.id)
@@ -277,8 +294,10 @@ async function evergreenDoor(date: string): Promise<ThemeId> {
 export async function todaysStory(date = today()): Promise<ToldChapter | null> {
   const had = (await db.chapters.get(date)) as ToldChapter | undefined
   if (had && Array.isArray(had.script) && had.script.length) return had.done ? null : had
-  let ch = await chapterForNewPlan(date)
-  const door: ThemeId = ch?.door ?? (await evergreenDoor(date))
+  // 還沒講滿 REPEAT 天的那一章：今天接著講同一章（第 2 天一起演、第 3 天你來說）
+  const cont = await continuing(date)
+  let ch = cont?.ch ?? (await chapterForNewPlan(date))
+  const door: ThemeId = (cont?.door as ThemeId | undefined) ?? ch?.door ?? (await evergreenDoor(date))
   ch ??= evergreenOf(door)
   const s = scriptOf(ch, { tracks: [], friend: await friendFor(date), door })
   if (!s) return null
@@ -287,6 +306,25 @@ export async function todaysStory(date = today()): Promise<ToldChapter | null> {
   warmStory(s)
   return ((await db.chapters.get(date)) as ToldChapter | undefined) ?? null
 }
+
+/**
+ * 上一次講完的那一章還沒講滿 REPEAT 天：回傳那一章和那天的門（通用章節、故事時間的樣子照那扇門）。
+ * 長篇、故事時間要故事有開才接著講；那一章已經不能播（家長撤下）就不接。
+ */
+async function continuing(date: string): Promise<{ ch: Chapter; door?: string } | null> {
+  if (REPEAT <= 1) return null
+  const rows = ((await db.chapters.toArray()) as ToldChapter[]).filter((r) => r.done && r.date < date && Array.isArray(r.script)).sort((a, b) => (a.date < b.date ? 1 : -1))
+  const last = rows[0]
+  const ch = chapterOf(last?.ref)
+  if (!last || !ch || !playable(ch)) return null
+  if (ch.kind !== 'evergreen' && !storyOn()) return null
+  const st = await storyState()
+  const n = st.told?.[ch.id] ?? 0
+  return n > 0 && n < REPEAT ? { ch, door: last.door } : null
+}
+
+/** 這一章講完了幾天（書架上那一圈；0 是還沒講完過） */
+export const toldTimes = (st: Pick<StoryState, 'told'>, ref: string) => st.told?.[ref] ?? 0
 
 /** 我的故事書：講完的章節（新的在前）。同一章講過好幾次只留最近的一次 */
 export async function toldChapters(): Promise<ToldChapter[]> {
