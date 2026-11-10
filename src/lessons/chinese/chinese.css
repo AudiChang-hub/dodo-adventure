@@ -389,7 +389,6 @@
 }
 
 /* ── 聊一聊（對話式共讀）、第一次的說明卡：給大人看的卡片 ── */
-.zh-talk,
 .zh-intro {
   border-radius: 28px;
   background: rgba(251, 248, 242, 0.97);
@@ -399,90 +398,120 @@
   color: var(--ink);
 }
 .zh-read.talking .zh-page {
-  opacity: 0.18;
+  /* 聊一聊的時候課本收起來（T-126：後面淡淡的一整頁字也是「好多字」），位置留著，回去再念一次照原樣 */
+  opacity: 0;
+  pointer-events: none;
   transition: opacity 0.4s var(--ease-out);
 }
-.zh-talk {
-  position: absolute;
-  left: 50%;
-  top: 50%;
-  translate: -50% -50%;
-  width: min(78cqw, 760px);
-  padding: 3.4cqh 3.6cqw 3cqh;
-  display: grid;
-  gap: 1.4cqh;
+.zh-controls.wait {
+  /* 聊一聊剛出來（T-126）：往下走的箭頭看得到，但淡淡的、還按不動（點了主角的圖會跳一下） */
+  pointer-events: auto;
+  opacity: 0.45;
 }
-.zh-talk-tag {
-  justify-self: start;
-  padding: 2px 12px;
-  border-radius: 99px;
-  border: 1px solid rgba(46, 42, 37, 0.25);
-  font-size: 15px;
-  letter-spacing: 0.1em;
-  color: var(--ink-soft);
+/*
+ * 聊一聊（T-126，盲測 0f3363f：大卡全是字，孩子「好多字喔」就走了）：
+ * 跟課本同一格（右邊大人的按鈕那一欄不蓋住），中間一張大圖給孩子點；給大人的字收成最下面的小字條
+ */
+.zh-talk {
+  grid-area: 1 / 1;
+  align-self: stretch;
+  position: relative;
+  z-index: 2;
+  min-height: 0;
+  display: grid;
+  grid-template-rows: minmax(0, 1fr) auto;
+  justify-items: center;
+  gap: 2cqh;
+  padding: 3cqh 2.4cqw 2.4cqh;
 }
 .zh-talk-main {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 2.4cqw;
+  min-height: 0;
+  width: 100%;
+  height: 100%;
+  display: grid;
+  place-items: center;
+  /* 大圖照這一格的大小縮放（不會長出去蓋到下面的小字條） */
+  container-type: size;
 }
-.zh-talk-q {
-  margin: 0;
-  font: 400 min(7cqh, 3.8cqw) / 1.35 'Huninn', sans-serif;
-  letter-spacing: 0.04em;
-  color: #2f5f8c;
+/* 聊一聊跟課本疊在同一格：明確排好位置，不讓課本、大人的按鈕被擠到別格（念課文的時候照原本的自動排法） */
+.zh-read.talking .zh-page {
+  grid-area: 1 / 1;
 }
-/* 問題的主角：孩子可以用指的回答（T-102） */
+.zh-read.talking .zh-controls {
+  grid-area: 1 / 2;
+}
+/* 問題的主角：大大的、點得到（用指的回答，T-102、T-111） */
 .zh-talk-pic {
-  flex: none;
-  width: min(18cqh, 13cqw);
+  /* 外面一圈黃框多 5%，留一點邊 */
+  --size: min(86cqh, 86cqw, 400px);
+  position: relative;
+  width: var(--size);
   aspect-ratio: 1;
   /* padding 的百分比是照外面的卡片寬度算，不是照圖：用圖的寬度算 */
-  padding: calc(min(18cqh, 13cqw) * 0.1);
+  padding: calc(var(--size) * 0.12);
   border: 0;
   border-radius: 26%;
   background: #fff;
-  box-shadow: 0 5px 0 rgba(46, 42, 37, 0.08);
+  box-shadow: 0 8px 0 rgba(46, 42, 37, 0.08);
   -webkit-tap-highlight-color: transparent;
   touch-action: manipulation;
 }
-/* T-111：主角的圖一圈淡黃框（「點這個回答」，跟課文裡的圖同一個樣子）；他點了（用指的回答了）換成綠框 */
-.zh-talk-pic {
-  position: relative;
-}
+/* T-111：主角的圖一圈淡黃框（「點這個」，跟課文裡的圖同一個樣子）；他點了、是答案的話換成綠框 */
 .zh-talk-pic.cue::after,
 .zh-talk-pic.said::after {
   content: '';
   position: absolute;
-  inset: -6%;
+  inset: -5%;
   border-radius: 30%;
-  border: max(3px, 0.6cqmin) solid rgba(241, 210, 124, 0.9);
+  border: max(4px, 0.8cqmin) solid rgba(241, 210, 124, 0.95);
   animation: hint-in 0.8s var(--ease-out) both;
   pointer-events: none;
 }
 .zh-talk-pic.said::after {
   border-color: var(--good);
 }
-/* 大人示範的回答：比問題小、比說明大 */
-.zh-talk-model {
+/* 給大人的小字條：問題、答不出來時的示範、還可以做的事 */
+.zh-talk-note {
+  justify-self: stretch;
+  max-width: 640px;
+  margin-inline: auto;
+  padding: 1.2cqh 18px 1.3cqh;
+  border-radius: 14px;
+  background: rgba(251, 248, 242, 0.96);
+  box-shadow: 0 0 0 1px rgba(46, 42, 37, 0.12) inset, 0 3px 0 rgba(46, 42, 37, 0.05);
+  color: var(--ink-soft);
+  font: 400 16px / 1.5 'Huninn', sans-serif;
+}
+.zh-talk-note p {
   margin: 0;
-  font: 400 min(4.2cqh, 2.4cqw) / 1.45 'Huninn', sans-serif;
+}
+.zh-talk-ask {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  column-gap: 10px;
+}
+.zh-talk-tag {
+  font-size: 13px;
+  letter-spacing: 0.08em;
+  color: var(--ink-faint);
+}
+.zh-talk-q {
+  font-size: 19px;
+  color: #2f5f8c;
+}
+.zh-talk-model {
   color: var(--ink);
 }
-.zh-talk-model .zh-talk-how {
-  display: block;
-  font-family: inherit;
-}
-.zh-talk-more,
 .zh-talk-how {
-  margin: 0;
-  font-size: 17px;
-  line-height: 1.5;
-  color: var(--ink-soft);
+  margin-right: 6px;
+  font-size: 13px;
+  letter-spacing: 0.06em;
+  color: var(--ink-faint);
 }
-.zh-talk-how {
-  font-size: 15px;
+.zh-talk-more {
+  font-size: 14px;
+  line-height: 1.45;
   color: var(--ink-faint);
 }
 .zh-talk-btns {
@@ -754,18 +783,10 @@
     align-self: start;
   }
   .zh-talk {
-    width: 92cqw;
-    padding: 2.4cqh 5cqw;
+    padding: 2cqh 0;
   }
-  .zh-talk-q {
-    font-size: min(3.4cqh, 6.4cqw);
-  }
-  .zh-talk-model {
-    font-size: 17px;
-  }
-  .zh-talk-pic {
-    width: 22cqw;
-    padding: 2.2cqw;
+  .zh-read.talking .zh-controls {
+    grid-area: 2 / 1;
   }
   .zh-intro-wrap {
     inset: 0 3cqw 26cqh 3cqw;

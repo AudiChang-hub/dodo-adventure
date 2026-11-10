@@ -182,7 +182,21 @@ async function readAll(k: Toddler, c: Checker) {
   c.outcome('大人按「下一行」念到最後 → 聊一聊', !!s?.talk || !!s?.quiz, s ? (s.talk ? '出現聊一聊' : '到選圖') : '沒有念完')
   if (!s) return void (await c.once('read-stuck', '卡死', '大人一直按「下一行」，課文念不完', ''))
   if (s.talk) {
-    // 聊一聊剛出來：孩子點大人按鈕的位置（右下角）、點卡片，都不會跳過這一段（「去選圖」4 秒後才出現，T-102）
+    // T-126（盲測 0f3363f：大卡全是字，「好多字喔」就走了）：孩子看到一張大圖（點得到），給大人的字是小字條（不大於 20px）；
+    // 往下走的按鈕一出來就看得到（淡淡的）
+    await k.wait(500)
+    const card = await k.page.evaluate(() => {
+      const pic = document.querySelector('.zh-talk-pic')?.getBoundingClientRect()
+      const ctl = document.querySelector('.zh-controls')
+      const big = [...document.querySelectorAll('.zh-talk *')].filter(
+        (e) => [...e.childNodes].some((n) => n.nodeType === 3 && n.textContent?.trim()) && parseFloat(getComputedStyle(e).fontSize) > 20,
+      ).length
+      return { pic: pic ? Math.round(Math.min(pic.width, pic.height)) : 0, go: !!ctl && !!document.querySelector('.zh-go-quiz') && +getComputedStyle(ctl).opacity > 0.3, big }
+    })
+    const cardOk = card.pic >= 140 && card.go && card.big === 0
+    c.outcome('聊一聊：一張大圖、字是小字條、往下走的按鈕看得到', cardOk, `圖 ${card.pic}px、大字 ${card.big} 處、按鈕${card.go ? '看得到' : '看不到'}`)
+    if (!cardOk) await c.once('talk-wordy', '困惑', '聊一聊卡片孩子看不懂（圖太小、大字太多或看不到往下走的按鈕）', `圖 ${card.pic}px、大於 20px 的字 ${card.big} 處、按鈕${card.go ? '看得到' : '看不到'}`)
+    // 聊一聊剛出來：孩子點大人按鈕的位置（右下角）、點卡片，都不會跳過這一段（「去選圖」4 秒後才按得動，T-102）
     const corner = (await points(k.page, '.zh-controls'))[0]
     if (corner) await k.spam(corner, 3, '聊一聊時點右下角（孩子）')
     await k.wait(400)
