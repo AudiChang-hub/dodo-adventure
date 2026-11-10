@@ -16,7 +16,9 @@ import { line, hasLine, type Speaker } from '../content/lines'
 import { wait } from '../games/lines'
 import { holdBedtime } from '../lib/session'
 import { StoryPage, type PageMotion } from '../art/storybook/Page'
-import { hopTimes, type PageArt } from '../art/storybook/layout'
+import { PAGE_H, PAGE_W, hopTimes, type PageArt } from '../art/storybook/layout'
+import { Scene } from '../art/storybook/scenes'
+import { getTodayWorld } from '../lib/today-world'
 import { flowOf, modeOfDay, peekOf, type ActStop, type LookAsk, type Mode, type StoryFlow, type TellPick } from '../content/story/flow'
 import { STORY_NOUNS, storyNounKey } from '../content/story/words'
 import { bridgeKey } from '../content/zh-words'
@@ -101,6 +103,7 @@ export function StoryBook() {
   const [told, setTold] = useState<Record<string, number>>({})
   const backing = useRef(false)
   const run = useRef(0)
+  const world = useMemo(() => getTodayWorld(), [])
 
   // 每天的時間到了，不在故事講到一半時換成睡覺畫面（T-118、準則 TIME-2）：在故事書裡就擋著，回首頁才去睡覺畫面。
   // 放著不管超過上限 6 分鐘（lib/session 的 GRACE_MAX_SEC）照舊會結束
@@ -256,12 +259,18 @@ export function StoryBook() {
   const id = !open ? 'shelf' : done ? `done-${open.r.id}` : `replay-${open.r.id}`
 
   return (
-    <div className="screen book-screen">
+    <div className="screen book-screen" data-world={world?.id ?? undefined}>
+      {/* 今天的世界（T-127 ⑤）：書架、講故事、讀完了的背景換成今天的場景；書裡的插畫照故事自己的場景（同一個故事連講 3 天，不換） */}
+      {world && (
+        <svg className="book-world" viewBox={`0 0 ${PAGE_W} ${PAGE_H}`} preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+          <Scene id={world.scene} />
+        </svg>
+      )}
       <Scenes id={id} move={move} className="scene is-clear">
         {open && done ? (
-          <BookDone r={open.r} onAgain={() => pickBook({ r: open.r, isNew: false, mode: 'look' })} onShelf={toShelf} />
+          <BookDone r={open.r} plain={!!world} onAgain={() => pickBook({ r: open.r, isNew: false, mode: 'look' })} onShelf={toShelf} />
         ) : open ? (
-          <Replay r={open.r} at={at} motion={motion} setMotion={setMotion} waiting={waiting} onWaitDone={waitDone} onClose={toShelf} />
+          <Replay r={open.r} plain={!!world} at={at} motion={motion} setMotion={setMotion} waiting={waiting} onWaitDone={waitDone} onClose={toShelf} />
         ) : (
           <Shelf ready={rows != null} shown={shown} told={told} page={page} pages={pages} onPick={pickBook} onTurn={turn} />
         )}
@@ -371,7 +380,7 @@ const DONE_SKY: [number, number, number][] = [
 ]
 
 /** 讀完了：封面、星星、歡呼的恐龍；兩個大按鈕：再聽一次、回書架（返回鍵也回書架） */
-function BookDone({ r, onAgain, onShelf }: { r: ToldChapter; onAgain: () => void; onShelf: () => void }) {
+function BookDone({ r, plain, onAgain, onShelf }: { r: ToldChapter; plain?: boolean; onAgain: () => void; onShelf: () => void }) {
   const ch = chapterOf(r.ref)
   const look = ch ? chapterLook(ch, r.door as ThemeId | undefined) : null
   const c = coverOf(r)
@@ -385,7 +394,7 @@ function BookDone({ r, onAgain, onShelf }: { r: ToldChapter; onAgain: () => void
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
   return (
-    <div className="book-replay book-done" style={{ background: look?.tint }}>
+    <div className="book-replay book-done" style={{ background: plain ? undefined : look?.tint }}>
       <BookBack onClose={onShelf} />
       {/* 點封面（蛋、書）：晃一下（T-123，盲測 ca0d1e1：故事講完孩子點蛋，以為恐龍會孵出來，沒有反應）。只晃一下，不換頁、不自己往下走 */}
       <div
@@ -510,6 +519,7 @@ function ToldRing({ n }: { n: number }) {
  */
 function Replay({
   r,
+  plain,
   at,
   motion,
   setMotion,
@@ -518,6 +528,8 @@ function Replay({
   onClose,
 }: {
   r: ToldChapter
+  /** 背景是今天的世界：不塗這一章的底色 */
+  plain?: boolean
   at: number
   motion: Motion
   setMotion: (m: Motion) => void
@@ -544,7 +556,7 @@ function Replay({
     return art.cast.flatMap((c, i) => (!was.has(`${c.who}${c.two ? '×2' : ''}`) && i !== act?.cast ? [i] : []))
   }, [f, at, art, act?.cast])
   return (
-    <div className="book-replay" style={{ background: look?.tint }}>
+    <div className="book-replay" style={{ background: plain ? undefined : look?.tint }}>
       <BookBack onClose={onClose} />
       <div className="book-progress" aria-hidden="true">
         {Array.from({ length: f.pages }, (_, i) => (
