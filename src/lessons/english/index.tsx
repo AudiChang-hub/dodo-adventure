@@ -12,7 +12,8 @@ import { lessonLetter, type LessonLetter } from './data'
 import { lessonGood, loadProgress, markDone, markStage, markStarted, planFor, type QuizResult, type TodayPlan } from './plan'
 import { NEXT_HINT, nextStep, useNextPending } from '../../ui/NextStep'
 import { Meet } from './Meet'
-import { LESSON_RETRIES, Trace, WRITE_ROUNDS, type RetryBudget } from './Trace'
+import { LESSON_RETRIES, Trace, type RetryBudget } from './Trace'
+import { WriteChoice } from './WriteChoice'
 import { Words } from './Words'
 import { Quiz } from './Quiz'
 import { makeQuiz, type Question } from './quiz-plan'
@@ -211,7 +212,7 @@ export function EnglishLesson({ onDone }: LessonProps) {
               {stage === 'meet' && <Meet letter={letter} review={plan!.review} onDone={() => void next('trace')} />}
               {stage === 'trace' && <Trace letter={letter} from={traceFrom} retry={retry.current} onRound={(i) => i > 0 && void markStage(plan!, 'trace', i)} onDone={() => void next('words')} />}
               {stage === 'words' && <Words letter={letter} onDone={() => void next('write')} />}
-              {stage === 'write' && <Trace letter={letter} rounds={WRITE_ROUNDS} retry={retry.current} onDone={() => void next('quiz')} />}
+              {stage === 'write' && <WriteChoice letter={letter} retry={retry.current} onDone={() => void next('quiz')} />}
               {stage === 'quiz' && (
                 <Quiz qs={qs.current} from={quizAt.from} answers={quizAt.answers} replay={quizAt.replay} onProgress={progress} onDone={(rs) => void finish(rs)} />
               )}
