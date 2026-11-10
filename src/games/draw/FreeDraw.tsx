@@ -5,7 +5,7 @@ import { Palette, CheckButton, ClearButton, PALETTE } from './Palette'
 import { imageOf, saveDrawing, svgThumb } from './save'
 import { Backdrop, MirrorGuide, PaperButton, PAPER_H, PAPER_W } from './Backdrop'
 import { MagicButton, StampButton } from './Stamps'
-import { BRUSH_VARIETY, brushOfDay, brushPool, makePaint, preloadEmoji, type BrushId } from './brushes'
+import { BRUSH_VARIETY, brushOfDay, brushPool, isStampTap, makePaint, preloadEmoji, type BrushId } from './brushes'
 import { ideaKey } from './lines'
 import { dayNumber, getTodayWorld } from '../../lib/today-world'
 import { pickVariety } from '../../lib/variety'
@@ -167,7 +167,7 @@ export function FreeDraw({ gameId, onDone, onExit }: GameProps) {
       metrics: {
         strokes: strokes.length,
         colors: new Set(strokes.map((s) => s.color)).size,
-        stamps: strokes.filter((s) => s.brush?.startsWith('stamp:')).length,
+        stamps: strokes.filter(isStampTap).length,
         magic: strokes.filter((s) => s.brush && !s.brush.startsWith('stamp:')).length,
         backdrop: backdrop.current ? 1 : 0,
       },
@@ -232,8 +232,9 @@ export function FreeDraw({ gameId, onDone, onExit }: GameProps) {
             drawing.current = false
             liftedAt.current = performance.now()
             idle.poke()
-            // 蓋好一個印章：下一個換下一種角色（格子上的圖跟著換）
-            if (mode === 'stamp' && stamps.length) {
+            // 蓋好一個印章：下一個換下一種角色（格子上的圖跟著換）。拿著印章拖遠了是在畫線，不換
+            const last = ink.current?.strokes().at(-1)
+            if (mode === 'stamp' && stamps.length && last && isStampTap(last)) {
               sfx.pop()
               setStampIx((i) => i + 1)
             }

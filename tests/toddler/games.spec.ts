@@ -275,18 +275,27 @@ for (const g of selected().filter((x) => x.kind === 'free')) {
         if (after !== 1) await c.once('t127-palm-stuck', '卡死', '手掌壓過之後點畫紙蓋不出印章', `之後點一下蓋了 ${after} 個`)
       }
 
-      // 4. 拖到一半放手（手指被系統手勢搶走）：印章留在放手的地方，下一下照樣蓋得出來
+      // 4. 拖到一半放手（手指被系統手勢搶走）：挪一點點的印章留在放手的地方；
+      //    拿著印章拖遠了是在畫線（不小心點到印章再亂畫，線要出來），不算蓋章；之後點一下照樣蓋得出來
       k.behavior = '蓋章拖到一半放手'
       {
         const n0 = await count()
         const a = await spot()
-        await k.drag([a, { x: a.x + 120, y: a.y - 40 }, { x: a.x + 200, y: a.y + 20 }], { cancel: true })
+        await k.drag([a, { x: a.x + 20, y: a.y - 10 }, { x: a.x + 35, y: a.y + 5 }], { cancel: true, label: '挪一點點' })
         await k.wait(300)
+        const nudge = (await count()) - n0
+        const b = await spot()
+        const line = [b, { x: b.x + 130, y: b.y - 40 }, { x: b.x + 260, y: b.y + 20 }]
+        await k.drag(line, { cancel: true, label: '拖遠了' })
+        await k.wait(300)
+        const drew = (await count()) - n0 - nudge
+        const ink = await inkAt(page, [line[1], line[2]])
         await k.tap(await spot(), '再點一下')
         await k.wait(400)
-        const got = (await count()) - n0
-        c.outcome('蓋章拖到一半放手', got === 2, `拖到一半被搶走＋再點一下：蓋了 ${got} 個（應該 2 個）`)
-        if (got < 2) await c.once('t127-cancel', '卡死', '蓋章拖到一半放手之後蓋不出來', `蓋了 ${got} 個`)
+        const after = (await count()) - n0 - nudge - drew
+        c.outcome('蓋章拖到一半放手', nudge === 1 && drew === 0 && ink > 0 && after === 1, `挪一點點被搶走：蓋了 ${nudge} 個；拖遠了：蓋了 ${drew} 個、線上的墨 ${ink}；再點一下：蓋了 ${after} 個`)
+        if (nudge !== 1 || after !== 1) await c.once('t127-cancel', '卡死', '蓋章拖到一半放手之後蓋不出來', `挪一點點 ${nudge} 個、之後點一下 ${after} 個`)
+        if (!ink) await c.once('t127-stamp-line', '困惑', '拿著印章拖遠了，畫的線沒出來', `蓋了 ${drew} 個、墨 ${ink}`)
       }
 
       // 5. 魔法筆亂畫：亂畫、手掌、連點，筆跡都在
@@ -309,14 +318,20 @@ for (const g of selected().filter((x) => x.kind === 'free')) {
         }
         await k.spam(await spot(), 4, '魔法筆連點')
         const ok = on && ink > 0 && (mirror === null || mirror > 0)
-        c.outcome('魔法筆亂畫', ok && (await alive(k, c, '魔法筆亂畫')), `魔法筆（${brush}）${on ? '選到' : '沒選到'}，筆跡墨 ${ink}${mirror === null ? '' : `、鏡像墨 ${mirror}`}`)
+        // 不用 alive()：它會去點畫面上的鍵（例如勾勾），畫畫就結束了，後面的白紙鍵就不在了
+        await c.screenOk('魔法筆亂畫')
+        c.outcome('魔法筆亂畫', ok, `魔法筆（${brush}）${on ? '選到' : '沒選到'}，筆跡墨 ${ink}${mirror === null ? '' : `、鏡像墨 ${mirror}`}`)
         if (!ok) await c.once('t127-magic', '困惑', '魔法筆畫不出來', `${brush}：選到 ${on}、墨 ${ink}、鏡像 ${mirror}`)
       }
 
       // 6. 白紙鍵來回點：背景拿掉、拿回來，畫的東西都留著
       k.behavior = '白紙鍵'
-      {
-        const p = (await at('.draw-paper-btn'))!
+      white: {
+        const p = await at('.draw-paper-btn')
+        if (!p) {
+          await c.once('t127-paper-btn', '困惑', '畫畫中看不到右上角的白紙鍵', `畫面 ${(await snap(page)).live}`)
+          break white
+        }
         const room = (await at('.tool-room'))!
         const probe = [0.12, 0.2, 0.28, 0.36].map((f) => ({ x: room.left + room.w * f, y: room.top + room.h * 0.5 + (f * 400) % 60 }))
         const ink0 = await inkAt(page, probe)
