@@ -26,6 +26,7 @@ export function Choose({
   answer,
   ask,
   kind,
+  auto = true,
   onDone,
 }: {
   cards: [ReactNode, ReactNode]
@@ -34,6 +35,8 @@ export function Choose({
   ask: string
   /** tell：第 3 天（插畫）；ask：第 1 天最後的問題（角色） */
   kind: 'tell' | 'ask'
+  /** 24 秒手點下去、自己往下（預設）；false 是絕不自己往下，手每 8 秒來指一次（故事時間英文版課文 T-129：家長要等他點） */
+  auto?: boolean
   /** first：第一下就點對 */
   onDone: (r: { first: boolean; by: 'kid' | 'auto' }) => void
 }) {
@@ -52,6 +55,10 @@ export function Choose({
   useEffect(() => {
     if (hasLine(ask)) void say(ask)
     const show = () => setHand((n) => n + 1)
+    if (!auto) {
+      const id = window.setInterval(show, PICK_HAND_MS)
+      return () => clearInterval(id)
+    }
     const ts = [window.setTimeout(show, PICK_HAND_MS), window.setTimeout(show, PICK_AGAIN_MS), window.setTimeout(() => (show(), window.setTimeout(() => finish('auto'), 450)), PICK_AUTO_MS)]
     return () => ts.forEach(clearTimeout)
     // eslint-disable-next-line react-hooks/exhaustive-deps

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
+import { Suspense, lazy, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
 import { Dino } from '../art/Dino'
 import { BackButton } from '../ui/Back'
 import { StoryPic } from '../ui/StoryPic'
@@ -26,7 +26,17 @@ import { storyWhereKey, storyNextKey, storyWordKey } from '../content/lines-stor
 import { zhClipReady } from '../lib/words'
 import { ActWait } from './story/Act'
 import { AskCard, Choose, TellCard } from './story/Tell'
+import type { EnBookRow } from './story/en-book'
 import './story.css'
+
+// 故事時間的英文版課文（T-129）：跟著中文課文 180 篇分開載入
+const EnBook = lazy(() => import('./story/EnBook'))
+type EnShelf = { today: EnBookRow | null; heard: EnBookRow[]; from: number }
+/** 載入失敗（離線又沒有快取）：書架照樣出來，只是沒有英文版 */
+const loadEnShelf = (): Promise<EnShelf> =>
+  import('./story/en-book')
+    .then((m) => m.enShelf())
+    .catch(() => ({ today: null, heard: [], from: 0 }))
 
 /** 一頁幾本書（平板 3×2；手機直式 2×3，一樣 6 本） */
 const PER_PAGE = 6
@@ -41,6 +51,16 @@ function coverOf(r: ToldChapter): { title: string; pic: Pic; spine: string } {
   if (ch?.kind === 'classic') return { title: ch.look?.title ?? '', pic: ch.look?.stops[0] ?? 'open-book', spine: ch.look?.deep ?? '#A8875A' }
   return { title: door?.title ?? '', pic: door?.icon ?? 'open-book', spine: door?.deep ?? '#C9A57E' }
 }
+
+/** 正在講的英文版課文：from 是從第幾句開始（中途離開的接著講） */
+interface EnOpen {
+  row: EnBookRow
+  from: number
+}
+
+/** 書架上的一本書：英文版課文（en）或以前的故事章節（ch） */
+type Book = { en: EnBookRow } | { ch: Open }
+const bookKey = (b: Book) => ('en' in b ? `en${b.en.day}` : b.ch.r.id)
 
 /** 正在講的那一本：isNew 是今天的新章節（講完才收進書架，中途離開下次接著講）；mode 是今天的玩法（第 1 天看、第 2 天一起演、第 3 天你來說） */
 interface Open {
@@ -80,7 +100,9 @@ interface Motion {
 
 /**
  * 我的故事書（T-77：像學校的故事時間）：
- * - 點進來，今天有還沒講完的新章節就先講（lib/story.ts 的 todaysStory）；講完有「讀完了」，可以再聽一次或回書架，這一本收進書架。
+ * - 故事時間先講今天中文課那一篇的英文版（T-129，家長選 A；./story/EnBook.tsx）：一篇 4 句、一句一頁，每句講完等他點一下才講下一句。
+ *   今天還沒聽完就自動開始；聽完了進來是書架。以前的故事（會動的繪本、每週新故事）照樣在書架上，點了才講。
+ * - 以前的故事：今天有還沒講完的新章節，書架上那一本亮著（lib/story.ts 的 todaysStory）；講完有「讀完了」，可以再聽一次或回書架，這一本收進書架。
  * - 中途按返回：回書架，新章節的書在最前面亮著；下次進來（或點那本書）從離開的那一句接著講，講到最後才算講完。
  * - 書架：講過的書有一顆星；點一本就重聽。
  * - 會動的繪本（T-127）：一頁 1～3 句、一章最多 6 頁；每一句只有說到的那個角色做一個慢慢的大動作（content/story/flow.ts）。
@@ -101,6 +123,9 @@ export function StoryBook() {
   const [waiting, setWaiting] = useState<Wait | null>(null)
   const resolveWait = useRef<(() => void) | null>(null)
   const [told, setTold] = useState<Record<string, number>>({})
+  const [en, setEn] = useState<EnShelf | null>(null)
+  const [enOpen, setEnOpen] = useState<EnOpen | null>(null)
+  const [enDone, setEnDone] = useState<EnBookRow | null>(null)
   const backing = useRef(false)
   const run = useRef(0)
   const world = useMemo(() => getTodayWorld(), [])
@@ -111,14 +136,16 @@ export function StoryBook() {
 
   useEffect(() => {
     let live = true
-    void Promise.all([toldChapters(), todaysStory()]).then(async ([r, t]) => {
+    void Promise.all([toldChapters(), todaysStory(), loadEnShelf()]).then(async ([r, t, e]) => {
       if (!live) return
       const st = await storyState()
       if (!live) return
       setTold(st.told ?? {})
       setRows(r)
       setFresh(t)
-      if (t) return start({ r: t, isNew: true, mode: modeOf(st.told ?? {}, t) }, await toldAt(t.date))
+      setEn(e)
+      // 今天的英文版還沒聽完：直接開始講（中途離開的從那一句接著講）
+      if (e.today?.isNew) return startEn({ row: e.today, from: e.from })
       void say('story.book.hello')
     })
     return () => {
@@ -137,6 +164,28 @@ export function StoryBook() {
     setWaiting(null)
     setDone(false)
     setOpen(null)
+    setEnOpen(null)
+    setEnDone(null)
+  }
+
+  const startEn = (o: EnOpen) => {
+    run.current++
+    stopSpeech()
+    backing.current = false
+    resolveWait.current = null
+    setWaiting(null)
+    setDone(false)
+    setOpen(null)
+    setEnDone(null)
+    setEnOpen(o)
+  }
+
+  /** 英文版講完：書架上的那一本更新（聽了幾天），換成讀完了 */
+  const enFinished = (row: EnBookRow) => {
+    sfx.done()
+    void loadEnShelf().then((e) => setEn(e))
+    setEnOpen(null)
+    setEnDone(row)
   }
 
   /** 停下來等他做一件事（點角色、選圖），做完（或 30 秒內手幫他做完）才往下；離開了就不再往下 */
@@ -154,7 +203,7 @@ export function StoryBook() {
 
   // 返回鍵、Android 的返回：講故事、讀完了先回書架，書架才回首頁
   useBack(() => {
-    if (!open) return false
+    if (!open && !enOpen && !enDone) return false
     toShelf()
   })
 
@@ -230,6 +279,8 @@ export function StoryBook() {
 
   const start = (o: Open, from = 0) => {
     backing.current = false
+    setEnOpen(null)
+    setEnDone(null)
     setDone(false)
     resolveWait.current = null
     setWaiting(null)
@@ -246,8 +297,18 @@ export function StoryBook() {
     void toldAt(o.r.date).then((from) => start(o, from))
   }
 
-  // 書架上的書：今天的新書照今天是第幾天決定玩法；聽過的書重聽一律「看」
-  const books: Open[] = [...(fresh ? [{ r: fresh, isNew: true, mode: modeOf(told, fresh) }] : []), ...(rows ?? []).map((r) => ({ r, isNew: false, mode: 'look' as Mode }))]
+  // 書架上的書：今天的英文版在最前面，再來是以前的故事今天的新章節（亮著）、聽過的英文版、聽過的以前的故事。
+  // 今天的書照今天是第幾次決定玩法；聽過的書重聽一律「看」
+  const books: Book[] = [
+    ...(en?.today ? [{ en: en.today }] : []),
+    ...(fresh ? [{ ch: { r: fresh, isNew: true, mode: modeOf(told, fresh) } }] : []),
+    ...(en?.heard ?? []).map((x) => ({ en: x })),
+    ...(rows ?? []).map((r) => ({ ch: { r, isNew: false, mode: 'look' as Mode } })),
+  ]
+  const pickEn = (row: EnBookRow) => {
+    sfx.pop()
+    startEn({ row, from: row.isNew && row.day === en?.today?.day ? en.from : 0 })
+  }
   const pages = Math.max(1, Math.ceil(books.length / PER_PAGE))
   const shown = books.slice(page * PER_PAGE, page * PER_PAGE + PER_PAGE)
   const turn = (d: number) => {
@@ -256,7 +317,7 @@ export function StoryBook() {
   }
 
   const move = (): SceneMove => ({ back: backing.current })
-  const id = !open ? 'shelf' : done ? `done-${open.r.id}` : `replay-${open.r.id}`
+  const id = enOpen ? `en-${enOpen.row.day}` : enDone ? `endone-${enDone.day}` : !open ? 'shelf' : done ? `done-${open.r.id}` : `replay-${open.r.id}`
 
   return (
     <div className="screen book-screen" data-world={world?.id ?? undefined}>
@@ -267,12 +328,18 @@ export function StoryBook() {
         </svg>
       )}
       <Scenes id={id} move={move} className="scene is-clear">
-        {open && done ? (
+        {enOpen ? (
+          <Suspense fallback={<BookBack onClose={toShelf} />}>
+            <EnBook row={enOpen.row} from={enOpen.from} back={<BookBack onClose={toShelf} />} onDone={() => enFinished(enOpen.row)} />
+          </Suspense>
+        ) : enDone ? (
+          <DoneView pic={enDone.pic as Pic} host="momo" plain={!!world} onAgain={() => pickEn({ ...enDone, isNew: false })} onShelf={toShelf} />
+        ) : open && done ? (
           <BookDone r={open.r} plain={!!world} onAgain={() => pickBook({ r: open.r, isNew: false, mode: 'look' })} onShelf={toShelf} />
         ) : open ? (
           <Replay r={open.r} plain={!!world} at={at} motion={motion} setMotion={setMotion} waiting={waiting} onWaitDone={waitDone} onClose={toShelf} />
         ) : (
-          <Shelf ready={rows != null} shown={shown} told={told} page={page} pages={pages} onPick={pickBook} onTurn={turn} />
+          <Shelf ready={rows != null && en != null} shown={shown} told={told} page={page} pages={pages} onPick={pickBook} onPickEn={pickEn} onTurn={turn} />
         )}
       </Scenes>
     </div>
@@ -311,14 +378,16 @@ function Shelf({
   page,
   pages,
   onPick,
+  onPickEn,
   onTurn,
 }: {
   ready: boolean
-  shown: Open[]
+  shown: Book[]
   told: Record<string, number>
   page: number
   pages: number
   onPick: (o: Open) => void
+  onPickEn: (row: EnBookRow) => void
   onTurn: (d: number) => void
 }) {
   if (!ready) return <BookBack />
@@ -326,7 +395,9 @@ function Shelf({
     <div className="screen">
       <BookBack />
       <div className="book-shelf">
-        {shown.map((o) => {
+        {shown.map((b) => {
+          if ('en' in b) return <EnCover key={bookKey(b)} row={b.en} onPick={onPickEn} />
+          const o = b.ch
           const c = coverOf(o.r)
           return (
             <button
@@ -379,11 +450,54 @@ const DONE_SKY: [number, number, number][] = [
   [64, 54, 3],
 ]
 
-/** 讀完了：封面、星星、歡呼的恐龍；兩個大按鈕：再聽一次、回書架（返回鍵也回書架） */
+/** 書架上的一本英文版課文：書背藍色；今天還沒聽完的亮著；外面一圈三格是聽了幾天 */
+function EnCover({ row, onPick }: { row: EnBookRow; onPick: (row: EnBookRow) => void }) {
+  return (
+    <button
+      className={`book-card${row.isNew ? ' is-new' : ' is-heard'}`}
+      data-book={row.isNew ? 'new' : 'heard'}
+      data-en-book={row.day}
+      style={{ '--spine': '#8DB8D8' } as CSSProperties}
+      aria-label={row.title}
+      onClick={() => onPick(row)}
+    >
+      <StoryPic pic={row.pic as Pic} />
+      <span className="book-card-title">{row.title}</span>
+      {(!row.isNew || row.heard > 0) && (
+        <span className="book-star" aria-hidden="true" data-told={row.heard}>
+          <ToldRing n={row.heard} />
+          {!row.isNew && <Emoji name="glowing-star" />}
+        </span>
+      )}
+    </button>
+  )
+}
+
+/** 讀完了（以前的故事章節） */
 function BookDone({ r, plain, onAgain, onShelf }: { r: ToldChapter; plain?: boolean; onAgain: () => void; onShelf: () => void }) {
   const ch = chapterOf(r.ref)
   const look = ch ? chapterLook(ch, r.door as ThemeId | undefined) : null
-  const c = coverOf(r)
+  return <DoneView pic={coverOf(r).pic} tint={look?.tint} deep={look?.deep} host={look?.host ?? 'momo'} plain={plain} onAgain={onAgain} onShelf={onShelf} />
+}
+
+/** 讀完了：封面、星星、歡呼的恐龍；兩個大按鈕：再聽一次、回書架（返回鍵也回書架） */
+function DoneView({
+  pic,
+  tint,
+  deep,
+  host,
+  plain,
+  onAgain,
+  onShelf,
+}: {
+  pic: Pic
+  tint?: string
+  deep?: string
+  host: Speaker
+  plain?: boolean
+  onAgain: () => void
+  onShelf: () => void
+}) {
   const [badge, bounce] = useAnimate<HTMLSpanElement>()
   const [again, spin] = useAnimate<HTMLSpanElement>()
   const [card, wiggle] = useAnimate<HTMLDivElement>()
@@ -394,20 +508,20 @@ function BookDone({ r, plain, onAgain, onShelf }: { r: ToldChapter; plain?: bool
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
   return (
-    <div className="book-replay book-done" style={{ background: plain ? undefined : look?.tint }}>
+    <div className="book-replay book-done" style={{ background: plain ? undefined : tint }}>
       <BookBack onClose={onShelf} />
       {/* 點封面（蛋、書）：晃一下（T-123，盲測 ca0d1e1：故事講完孩子點蛋，以為恐龍會孵出來，沒有反應）。只晃一下，不換頁、不自己往下走 */}
       <div
         ref={card}
         className="story-home-card"
-        style={{ '--deep': look?.deep } as CSSProperties}
+        style={{ '--deep': deep } as CSSProperties}
         onPointerDown={(e) => {
           if ((e.target as Element).closest?.('.book-done-badge')) return
           sfx.boing()
           if (card.current) void wiggle(card.current, { rotate: [0, -6, 6, -4, 3, 0], scale: [1, 1.04, 1] }, { duration: 0.6 })
         }}
       >
-        <StoryPic pic={c.pic} />
+        <StoryPic pic={pic} />
         {/* 跟書架上「聽過」的星星同一顆：這本書得到一顆星 */}
         {/* 最亮的東西一定有回應：點星星，星星跳一下（AI 小男生 T-77 第 2 步） */}
         <motion.span
@@ -436,7 +550,7 @@ function BookDone({ r, plain, onAgain, onShelf }: { r: ToldChapter; plain?: bool
         ))}
       </div>
       <div className="story-home-dino">
-        <Dino who={look?.host ?? 'momo'} mood="cheer" size="100%" />
+        <Dino who={host} mood="cheer" size="100%" />
       </div>
       <div className="book-done-actions">
         <button className="round-btn book-again" aria-label="再聽一次" onClick={onAgain}>

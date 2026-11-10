@@ -11,6 +11,7 @@ import { LEXICON } from './lexicon'
 import { COLORS, SHAPES } from './park'
 import type { Speaker } from './registry'
 import { STORY_NOUNS, storyNounEn, storyNounKey } from './story/words'
+import { enNounEn, enNounKey, enSandwichWords } from './story/english'
 
 export interface ZhWord {
   /** 單字 key（lexicon 的 key）；顏色是 color.red、形狀是 shape.circle */
@@ -33,6 +34,8 @@ export const ZH_WORDS: ZhWord[] = [
   ...SHAPES.map((s) => ({ key: shapeKey(s.id), zh: s.zh, en: `${cap(s.en)}.` })),
   // 故事的主角名詞（T-127：每句的主角名詞第一次出現時念三明治，content/story/words.ts）；跟課程同一個中文的共用同一個音檔
   ...Object.entries(STORY_NOUNS).map(([id, w]) => ({ key: storyNounKey(id), zh: w.zh, en: storyNounEn(id) })),
+  // 故事時間英文版課文（T-129）念三明治的紅字詞（content/story/english.ts）
+  ...enSandwichWords().map((zh) => ({ key: enNounKey(zh), zh, en: enNounEn(zh) })),
 ]
 
 const byKey = new Map(ZH_WORDS.map((w) => [w.key, w]))

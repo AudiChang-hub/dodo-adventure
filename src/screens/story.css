@@ -406,3 +406,186 @@
   opacity: 0.42;
   pointer-events: none;
 }
+
+/* ── 故事時間的英文版課文（T-129）────────────────────────────── */
+/* 一頁：中文課文那一行的圖（1～3 張）在中間，下面一行英文（給大人看）；右下角是下一句的大箭頭 */
+.en-art {
+  background: linear-gradient(#fbf8f2 0 72%, #f1e8d6 72% 100%);
+}
+.en-page {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  grid-template-rows: 1fr auto;
+}
+.en-pics {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5%;
+  padding: 4% 6% 0;
+  /* 換頁：圖從左邊慢慢滑進來（只有位移和淡入，做完就停；MOTION-1、2） */
+  animation: en-in 0.9s var(--ease-out, ease-out) both;
+}
+.en-pic {
+  display: block;
+  width: 40vmin;
+  aspect-ratio: 1;
+  filter: drop-shadow(0 10px 0 rgba(46, 42, 37, 0.08));
+}
+.en-pics.n2 .en-pic {
+  width: 31vmin;
+}
+.en-pics.n3 .en-pic {
+  width: 23vmin;
+}
+.en-line {
+  margin: 0 0 5%;
+  padding: 0 16%;
+  text-align: center;
+  font-family: Fredoka, 'Noto Sans TC', sans-serif;
+  font-weight: 600;
+  font-size: clamp(20px, 4.4vmin, 40px);
+  line-height: 1.2;
+  color: var(--ink, #2e2a25);
+}
+@keyframes en-in {
+  from {
+    translate: -7% 0;
+    opacity: 0;
+  }
+  to {
+    translate: 0 0;
+    opacity: 1;
+  }
+}
+/* 下一句的大箭頭：一直看得到，念的時候淡淡的；念完亮起來（靜態的黃圈，不閃，等他的時候只有手會動） */
+.en-next {
+  position: absolute;
+  right: 3%;
+  bottom: 4%;
+  z-index: 2;
+  width: clamp(72px, 11vmin, 104px);
+  aspect-ratio: 1;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 50%;
+  background: var(--card, #fff);
+  box-shadow: 0 6px 0 rgba(46, 42, 37, 0.14);
+  opacity: 0.35;
+  transition:
+    opacity 0.4s var(--ease-out, ease-out),
+    box-shadow 0.4s var(--ease-out, ease-out);
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+.en-next.is-on {
+  opacity: 1;
+  box-shadow:
+    0 0 0 6px rgba(241, 210, 124, 0.95),
+    0 0 0 13px rgba(241, 210, 124, 0.32),
+    0 6px 0 rgba(46, 42, 37, 0.14);
+}
+/* 選圖（第 3 次你來說、第 1 次念完的問題）：一張是一頁的圖 */
+.en-card {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6%;
+  background: #fbf8f2;
+}
+.en-card .en-pic {
+  width: 52%;
+}
+.en-card.n2 .en-pic {
+  width: 40%;
+}
+.en-card.n3 .en-pic {
+  width: 28%;
+}
+@media (prefers-reduced-motion: reduce) {
+  .en-pics {
+    animation: none;
+  }
+}
+
+/* 找一樣的英文字（T-129）：上面一張字卡和虛線空格，下面兩張；字都是小寫、大大的（像中文課找一樣的字） */
+.en-match {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  display: grid;
+  grid-template-rows: 1fr 1fr;
+  align-items: center;
+  padding: 3% 6%;
+  background: rgba(251, 248, 242, 0.98);
+  touch-action: manipulation;
+}
+.en-match-top,
+.en-match-options {
+  position: relative;
+  display: flex;
+  justify-content: center;
+  gap: 8%;
+}
+.en-word {
+  display: grid;
+  place-items: center;
+  min-width: 34%;
+  padding: 3.2vmin 3vmin;
+  border: 0;
+  border-radius: 22px;
+  background: var(--card, #fff);
+  box-shadow:
+    0 0 0 5px var(--card, #fff),
+    0 12px 22px -16px rgba(46, 42, 37, 0.55);
+  font-family: Fredoka, sans-serif;
+  font-weight: 600;
+  font-size: clamp(34px, 8.5vmin, 84px);
+  line-height: 1;
+  letter-spacing: 0.02em;
+  color: var(--ink, #2e2a25);
+  transition:
+    opacity 0.4s var(--ease-out, ease-out),
+    box-shadow 0.3s var(--ease-out, ease-out);
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+.en-word.is-slot {
+  background: transparent;
+  box-shadow: none;
+  outline: 4px dashed rgba(46, 42, 37, 0.28);
+  outline-offset: -4px;
+  min-height: calc(8.5vmin + 6.4vmin);
+}
+.en-word.is-slot.is-filled {
+  outline-color: transparent;
+}
+.en-word.is-option {
+  position: relative;
+  z-index: 1;
+}
+.en-match.is-demo .en-word.is-option:not(.is-hint) {
+  opacity: 0.45;
+}
+.en-word.is-off {
+  opacity: 0.4;
+}
+.en-word.is-hint {
+  box-shadow:
+    0 0 0 6px rgba(241, 210, 124, 0.95),
+    0 0 0 13px rgba(241, 210, 124, 0.32);
+}
+.en-word.is-right {
+  box-shadow:
+    0 0 0 6px var(--good, #7fb77e),
+    0 12px 22px -16px rgba(46, 42, 37, 0.55);
+}
+.en-match-stars {
+  position: absolute;
+  inset: -30% 10%;
+  pointer-events: none;
+}

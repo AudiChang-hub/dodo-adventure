@@ -1,0 +1,4308 @@
+[
+ {
+  "day": 1,
+  "en": [
+   "The rabbit runs fast, fast!",
+   "He sleeps under a tree.",
+   "The turtle walks slow, slow.",
+   "Walk, walk, he wins!"
+  ],
+  "words": {
+   "兔子": "rabbit",
+   "烏龜": "turtle"
+  },
+  "sw": [
+   "兔子",
+   null,
+   "烏龜",
+   null
+  ],
+  "q": {
+   "en": "Who runs fast?",
+   "ans": "兔子"
+  },
+  "which": "烏龜"
+ },
+ {
+  "day": 2,
+  "en": [
+   "Three pigs build houses.",
+   "The wolf blows, whoo!",
+   "Straw and wood fall down!",
+   "The brick house stays up!"
+  ],
+  "words": {
+   "小豬": "pig",
+   "房子": "house"
+  },
+  "sw": [
+   "小豬",
+   null,
+   null,
+   null
+  ],
+  "q": {
+   "en": "Who builds houses?",
+   "ans": "小豬"
+  },
+  "which": "房子"
+ },
+ {
+  "day": 3,
+  "en": [
+   "A yellow banana!",
+   "Peel it, take a bite.",
+   "The pig wants some too.",
+   "We share, half and half!"
+  ],
+  "words": {
+   "香蕉": "banana",
+   "小豬": "pig"
+  },
+  "sw": [
+   "香蕉",
+   null,
+   "小豬",
+   null
+  ],
+  "q": {
+   "en": "Who wants some too?",
+   "ans": "小豬"
+  },
+  "which": "香蕉"
+ },
+ {
+  "day": 4,
+  "en": [
+   "A man sits under a tree.",
+   "Bonk! An apple falls down.",
+   "He looks up and thinks.",
+   "Why not up, up, up?"
+  ],
+  "words": {
+   "樹": "tree",
+   "蘋果": "apple"
+  },
+  "sw": [
+   null,
+   "蘋果",
+   null,
+   null
+  ],
+  "q": {
+   "en": "What falls down?",
+   "ans": "蘋果"
+  },
+  "which": "樹"
+ },
+ {
+  "day": 5,
+  "en": [
+   "The lion lets the mouse go.",
+   "The lion gets stuck.",
+   "The mouse bites, bites, bites.",
+   "The lion is free!"
+  ],
+  "words": {
+   "獅子": "lion",
+   "老鼠": "mouse"
+  },
+  "sw": [
+   "獅子",
+   null,
+   null,
+   null
+  ],
+  "q": {
+   "en": "Who bites, bites, bites?",
+   "ans": "老鼠"
+  },
+  "which": "獅子"
+ },
+ {
+  "day": 6,
+  "en": [
+   "The dog is so thirsty.",
+   "A man goes to a well.",
+   "He fills his shoe with water.",
+   "Wag, wag! The dog is happy!"
+  ],
+  "words": {
+   "小狗": "dog",
+   "鞋子": "shoe"
+  },
+  "sw": [
+   "小狗",
+   null,
+   "鞋子",
+   null
+  ],
+  "q": {
+   "en": "What does he fill with water?",
+   "ans": "鞋子"
+  },
+  "which": "小狗"
+ },
+ {
+  "day": 7,
+  "en": [
+   "Grandpa grows a big carrot.",
+   "Pull, pull! It is stuck!",
+   "Grandma, dog, and mouse pull!",
+   "Pop! Out comes the carrot!"
+  ],
+  "words": {
+   "紅蘿蔔": "carrot",
+   "小狗": "dog",
+   "老鼠": "mouse"
+  },
+  "sw": [
+   "紅蘿蔔",
+   null,
+   "小狗",
+   null
+  ],
+  "q": {
+   "en": "What does Grandpa grow?",
+   "ans": "紅蘿蔔"
+  },
+  "which": "小狗"
+ },
+ {
+  "day": 8,
+  "en": [
+   "The cat wakes up.",
+   "Stretch, stretch! Meow, meow!",
+   "The cat chases an apple.",
+   "Then sleeps on my lap."
+  ],
+  "words": {
+   "貓": "cat",
+   "蘋果": "apple"
+  },
+  "sw": [
+   null,
+   null,
+   "蘋果",
+   null
+  ],
+  "q": {
+   "en": "What does the cat chase?",
+   "ans": "蘋果"
+  },
+  "which": "貓"
+ },
+ {
+  "day": 9,
+  "en": [
+   "A man grows peanuts.",
+   "Peanuts hide in the dirt.",
+   "Pull them up, so many!",
+   "The mouse says, yum!"
+  ],
+  "words": {
+   "花生": "peanut",
+   "老鼠": "mouse"
+  },
+  "sw": [
+   "花生",
+   null,
+   null,
+   "老鼠"
+  ],
+  "q": {
+   "en": "What hides in the dirt?",
+   "ans": "花生"
+  },
+  "which": "老鼠"
+ },
+ {
+  "day": 10,
+  "en": [
+   "The dog has a bone.",
+   "He looks down from a bridge.",
+   "A dog in the water!",
+   "Woof! The bone falls in."
+  ],
+  "words": {
+   "小狗": "dog",
+   "骨頭": "bone"
+  },
+  "sw": [
+   "小狗",
+   null,
+   null,
+   null
+  ],
+  "q": {
+   "en": "What does the dog have?",
+   "ans": "骨頭"
+  },
+  "which": "小狗"
+ },
+ {
+  "day": 11,
+  "en": [
+   "A boy lives with a king.",
+   "The king gives him meat.",
+   "I want vegetables and carrots!",
+   "He grows big and strong!"
+  ],
+  "words": {
+   "青菜": "vegetable",
+   "紅蘿蔔": "carrot"
+  },
+  "sw": [
+   null,
+   null,
+   "青菜",
+   null
+  ],
+  "q": {
+   "en": "What does the boy want?",
+   "ans": "青菜"
+  },
+  "which": "紅蘿蔔"
+ },
+ {
+  "day": 12,
+  "en": [
+   "A girl goes into a house.",
+   "Three bowls on the table.",
+   "Too hot, too cold.",
+   "This bowl is just right!"
+  ],
+  "words": {
+   "房子": "house",
+   "碗": "bowl"
+  },
+  "sw": [
+   "房子",
+   null,
+   null,
+   null
+  ],
+  "q": {
+   "en": "What is on the table?",
+   "ans": "碗"
+  },
+  "which": "房子"
+ },
+ {
+  "day": 13,
+  "en": [
+   "I wake up hungry.",
+   "A glass of white milk.",
+   "And a banana, too.",
+   "Gulp, gulp, all gone!"
+  ],
+  "words": {
+   "牛奶": "milk",
+   "香蕉": "banana"
+  },
+  "sw": [
+   null,
+   "牛奶",
+   "香蕉",
+   null
+  ],
+  "q": {
+   "en": "What is in the glass?",
+   "ans": "牛奶"
+  },
+  "which": "香蕉"
+ },
+ {
+  "day": 14,
+  "en": [
+   "Two brothers fix bikes.",
+   "They watch birds fly.",
+   "They make an airplane.",
+   "Up, up, up it flies!"
+  ],
+  "words": {
+   "腳踏車": "bike",
+   "小鳥": "bird",
+   "飛機": "airplane"
+  },
+  "sw": [
+   "腳踏車",
+   "小鳥",
+   "飛機",
+   null
+  ],
+  "q": {
+   "en": "What do the brothers watch?",
+   "ans": "小鳥"
+  },
+  "which": "飛機"
+ },
+ {
+  "day": 15,
+  "en": [
+   "The ant carries corn.",
+   "The grasshopper just sings.",
+   "Winter comes, so cold!",
+   "The ant shares the corn."
+  ],
+  "words": {
+   "螞蟻": "ant",
+   "玉米": "corn"
+  },
+  "sw": [
+   "螞蟻",
+   null,
+   null,
+   null
+  ],
+  "q": {
+   "en": "Who carries corn?",
+   "ans": "螞蟻"
+  },
+  "which": "玉米"
+ },
+ {
+  "day": 16,
+  "en": [
+   "A boy brings some bread.",
+   "And two fish.",
+   "He shares with everyone.",
+   "Everyone is full and happy!"
+  ],
+  "words": {
+   "麵包": "bread",
+   "魚": "fish"
+  },
+  "sw": [
+   "麵包",
+   null,
+   null,
+   null
+  ],
+  "q": {
+   "en": "What does the boy bring?",
+   "ans": "麵包"
+  },
+  "which": "魚"
+ },
+ {
+  "day": 17,
+  "en": [
+   "Two kids go in the woods.",
+   "Look, a candy house!",
+   "Bite, bite, so sweet!",
+   "Then brush your teeth!"
+  ],
+  "words": {
+   "糖果": "candy",
+   "房子": "house"
+  },
+  "sw": [
+   null,
+   "糖果",
+   null,
+   null
+  ],
+  "q": {
+   "en": "What is the house made of?",
+   "ans": "糖果"
+  },
+  "which": "房子"
+ },
+ {
+  "day": 18,
+  "en": [
+   "Knock, knock, knock!",
+   "A yellow chick comes out!",
+   "Peep, peep, peep, peep!",
+   "The dog sniffs, sniff, sniff."
+  ],
+  "words": {
+   "小雞": "chick",
+   "小狗": "dog"
+  },
+  "sw": [
+   null,
+   "小雞",
+   null,
+   "小狗"
+  ],
+  "q": {
+   "en": "Who comes out?",
+   "ans": "小雞"
+  },
+  "which": "小狗"
+ },
+ {
+  "day": 19,
+  "en": [
+   "Shrimp swim in a bowl.",
+   "He watches them every day.",
+   "He paints with a brush.",
+   "The shrimp jump on paper!"
+  ],
+  "words": {
+   "蝦子": "shrimp",
+   "碗": "bowl"
+  },
+  "sw": [
+   "蝦子",
+   null,
+   null,
+   null
+  ],
+  "q": {
+   "en": "Where do the shrimp swim?",
+   "ans": "碗"
+  },
+  "which": "蝦子"
+ },
+ {
+  "day": 20,
+  "en": [
+   "The crow is so thirsty.",
+   "A little water in a bottle.",
+   "Drop, drop, drop the rocks!",
+   "The water comes up. Drink!"
+  ],
+  "words": {
+   "烏鴉": "crow",
+   "石頭": "rock"
+  },
+  "sw": [
+   "烏鴉",
+   null,
+   "石頭",
+   null
+  ],
+  "q": {
+   "en": "Who is so thirsty?",
+   "ans": "烏鴉"
+  },
+  "which": "石頭"
+ },
+ {
+  "day": 21,
+  "en": [
+   "A man sleeps under a tree.",
+   "He dreams he is a butterfly.",
+   "Fly, fly, so happy!",
+   "Am I a butterfly?"
+  ],
+  "words": {
+   "樹": "tree",
+   "蝴蝶": "butterfly"
+  },
+  "sw": [
+   null,
+   "蝴蝶",
+   null,
+   null
+  ],
+  "q": {
+   "en": "What does he dream he is?",
+   "ans": "蝴蝶"
+  },
+  "which": "樹"
+ },
+ {
+  "day": 22,
+  "en": [
+   "A boy visits a friend.",
+   "Sweet oranges in a bowl.",
+   "Can I take two?",
+   "They are for my mom!"
+  ],
+  "words": {
+   "碗": "bowl",
+   "橘子": "orange"
+  },
+  "sw": [
+   null,
+   "橘子",
+   null,
+   null
+  ],
+  "q": {
+   "en": "What does the boy take?",
+   "ans": "橘子"
+  },
+  "which": "碗"
+ },
+ {
+  "day": 23,
+  "en": [
+   "Mom makes round dough.",
+   "Pinch, pinch, a dumpling!",
+   "Into a big bowl.",
+   "Blow, blow, then eat!"
+  ],
+  "words": {
+   "水餃": "dumpling",
+   "碗": "bowl"
+  },
+  "sw": [
+   null,
+   "水餃",
+   null,
+   null
+  ],
+  "q": {
+   "en": "What does Mom pinch?",
+   "ans": "水餃"
+  },
+  "which": "碗"
+ },
+ {
+  "day": 24,
+  "en": [
+   "Long ago, people used candles.",
+   "A man tries and tries.",
+   "The light bulb turns on!",
+   "The house is so bright!"
+  ],
+  "words": {
+   "蠟燭": "candle",
+   "燈泡": "light bulb"
+  },
+  "sw": [
+   "蠟燭",
+   null,
+   "燈泡",
+   null
+  ],
+  "q": null,
+  "which": "燈泡"
+ },
+ {
+  "day": 25,
+  "en": [
+   "It is Thanksgiving!",
+   "I draw a hand turkey.",
+   "Thank you, Mom, for food!",
+   "Thank you, dog, for playing!"
+  ],
+  "words": {
+   "火雞": "turkey",
+   "小狗": "dog"
+  },
+  "sw": [
+   null,
+   "火雞",
+   null,
+   "小狗"
+  ],
+  "q": {
+   "en": "What do I draw?",
+   "ans": "火雞"
+  },
+  "which": "小狗"
+ },
+ {
+  "day": 26,
+  "en": [
+   "The fox sees some grapes.",
+   "Jump, jump, too high!",
+   "Humph, they are sour!",
+   "But the grapes are sweet."
+  ],
+  "words": {
+   "狐狸": "fox",
+   "葡萄": "grape"
+  },
+  "sw": [
+   "狐狸",
+   null,
+   null,
+   null
+  ],
+  "q": {
+   "en": "What does the fox see?",
+   "ans": "葡萄"
+  },
+  "which": "狐狸"
+ },
+ {
+  "day": 27,
+  "en": [
+   "Many pears on a plate.",
+   "A boy takes the small one.",
+   "Big ones for his brothers.",
+   "Everyone eats and smiles."
+  ],
+  "words": {
+   "盤子": "plate",
+   "梨子": "pear"
+  },
+  "sw": [
+   "盤子",
+   null,
+   null,
+   null
+  ],
+  "q": {
+   "en": "What does the boy take?",
+   "ans": "梨子"
+  },
+  "which": "盤子"
+ },
+ {
+  "day": 28,
+  "en": [
+   "We go strawberry picking.",
+   "Red and sweet!",
+   "One in the basket.",
+   "One in my mouth!"
+  ],
+  "words": {
+   "草莓": "strawberry",
+   "籃子": "basket"
+  },
+  "sw": [
+   "草莓",
+   null,
+   "籃子",
+   null
+  ],
+  "q": {
+   "en": "What do we pick?",
+   "ans": "草莓"
+  },
+  "which": "籃子"
+ },
+ {
+  "day": 29,
+  "en": [
+   "Four men touch an elephant.",
+   "The trunk is like a hose!",
+   "The ear is like a fan!",
+   "The leg is like a tree!"
+  ],
+  "words": {
+   "大象": "elephant",
+   "樹": "tree"
+  },
+  "sw": [
+   "大象",
+   null,
+   null,
+   null
+  ],
+  "q": {
+   "en": "What do the men touch?",
+   "ans": "大象"
+  },
+  "which": "樹"
+ },
+ {
+  "day": 30,
+  "en": [
+   "A man loves his white goose.",
+   "He feeds it vegetables.",
+   "The goose swims and walks.",
+   "His writing is pretty, too."
+  ],
+  "words": {
+   "鵝": "goose",
+   "青菜": "vegetable"
+  },
+  "sw": [
+   null,
+   "青菜",
+   null,
+   null
+  ],
+  "q": {
+   "en": "What does the man love?",
+   "ans": "鵝"
+  },
+  "which": "青菜"
+ },
+ {
+  "day": 31,
+  "en": [
+   "Two friends walk in the woods.",
+   "A big bear comes!",
+   "One climbs up a tree.",
+   "Friends should hold hands!"
+  ],
+  "words": {
+   "熊": "bear",
+   "樹": "tree"
+  },
+  "sw": [
+   null,
+   null,
+   null,
+   null
+  ],
+  "q": {
+   "en": "Who comes in the woods?",
+   "ans": "熊"
+  },
+  "which": "樹"
+ },
+ {
+  "day": 32,
+  "en": [
+   "The fox walks in front.",
+   "The tiger walks behind.",
+   "The animals all run away.",
+   "They are scared of the tiger!"
+  ],
+  "words": {
+   "狐狸": "fox",
+   "老虎": "tiger"
+  },
+  "sw": [
+   "狐狸",
+   "老虎",
+   null,
+   null
+  ],
+  "q": {
+   "en": "Who walks in front?",
+   "ans": "狐狸"
+  },
+  "which": "老虎"
+ },
+ {
+  "day": 33,
+  "en": [
+   "Eat candy, then brush.",
+   "Pick up a toothbrush.",
+   "Brush up, brush down.",
+   "Shiny white teeth!"
+  ],
+  "words": {
+   "糖果": "candy",
+   "牙刷": "toothbrush"
+  },
+  "sw": [
+   "糖果",
+   "牙刷",
+   null,
+   null
+  ],
+  "q": {
+   "en": "What do we pick up?",
+   "ans": "牙刷"
+  },
+  "which": "糖果"
+ },
+ {
+  "day": 34,
+  "en": [
+   "Hanukkah is here!",
+   "Candles on the menorah.",
+   "Light one more each day.",
+   "One, two, three, up to eight!"
+  ],
+  "words": {
+   "燭台": "menorah",
+   "蠟燭": "candle"
+  },
+  "sw": [
+   null,
+   "燭台",
+   null,
+   null
+  ],
+  "q": {
+   "en": "What is on the menorah?",
+   "ans": "蠟燭"
+  },
+  "which": "燭台"
+ },
+ {
+  "day": 35,
+  "en": [
+   "Here is kind Saint Nicholas.",
+   "He brings gifts at night.",
+   "He puts them in socks.",
+   "Everyone wakes up happy!"
+  ],
+  "words": {
+   "襪子": "sock"
+  },
+  "sw": [
+   null,
+   null,
+   "襪子",
+   null
+  ],
+  "q": {
+   "en": "Where do the gifts go?",
+   "ans": "襪子"
+  },
+  "which": "襪子"
+ },
+ {
+  "day": 36,
+  "en": [
+   "A girl loves books.",
+   "Her brother brings chairs.",
+   "They stack them up high.",
+   "She reads and does not see!"
+  ],
+  "words": {
+   "書": "book",
+   "椅子": "chair"
+  },
+  "sw": [
+   null,
+   "椅子",
+   null,
+   null
+  ],
+  "q": {
+   "en": "What does her brother bring?",
+   "ans": "椅子"
+  },
+  "which": "書"
+ },
+ {
+  "day": 37,
+  "en": [
+   "The forest is on fire!",
+   "A parrot flies to the river.",
+   "Splash, splash, the water drips.",
+   "Rain comes! The trees are safe!"
+  ],
+  "words": {
+   "鸚鵡": "parrot",
+   "樹": "tree"
+  },
+  "sw": [
+   null,
+   "鸚鵡",
+   null,
+   null
+  ],
+  "q": {
+   "en": "Who flies to the river?",
+   "ans": "鸚鵡"
+  },
+  "which": "樹"
+ },
+ {
+  "day": 38,
+  "en": [
+   "A little frog sees a cow.",
+   "Mommy frog puffs up big.",
+   "Is it this big?",
+   "No need, you are great!"
+  ],
+  "words": {
+   "青蛙": "frog",
+   "牛": "cow"
+  },
+  "sw": [
+   "青蛙",
+   null,
+   null,
+   null
+  ],
+  "q": {
+   "en": "Who sees a cow?",
+   "ans": "青蛙"
+  },
+  "which": "牛"
+ },
+ {
+  "day": 39,
+  "en": [
+   "A big peach floats by.",
+   "Inside is a baby!",
+   "The baby grows up big.",
+   "Dog and bird are his friends."
+  ],
+  "words": {
+   "桃子": "peach",
+   "小狗": "dog",
+   "小鳥": "bird"
+  },
+  "sw": [
+   "桃子",
+   null,
+   null,
+   "小狗"
+  ],
+  "q": null,
+  "which": "桃子"
+ },
+ {
+  "day": 40,
+  "en": [
+   "Cold, cold ice cream!",
+   "Pink strawberry flavor!",
+   "Lick, lick, so cold!",
+   "Slow, slow, no drips!"
+  ],
+  "words": {
+   "冰淇淋": "ice cream",
+   "草莓": "strawberry"
+  },
+  "sw": [
+   "冰淇淋",
+   "草莓",
+   null,
+   null
+  ],
+  "q": {
+   "en": "What flavor is the ice cream?",
+   "ans": "草莓"
+  },
+  "which": "冰淇淋"
+ },
+ {
+  "day": 41,
+  "en": [
+   "A boy has a new axe.",
+   "He cuts down a cherry tree.",
+   "I did it, I am sorry.",
+   "Telling the truth is great!"
+  ],
+  "words": {
+   "櫻桃": "cherry",
+   "樹": "tree"
+  },
+  "sw": [
+   null,
+   "櫻桃",
+   null,
+   null
+  ],
+  "q": {
+   "en": "What does the boy cut down?",
+   "ans": "樹"
+  },
+  "which": "櫻桃"
+ },
+ {
+  "day": 42,
+  "en": [
+   "The bear smells sweet honey.",
+   "He reaches in. Buzz, buzz!",
+   "Lots of bees fly out!",
+   "Sorry, I will stop!"
+  ],
+  "words": {
+   "熊": "bear",
+   "蜂蜜": "honey",
+   "蜜蜂": "bee"
+  },
+  "sw": [
+   "蜂蜜",
+   null,
+   "蜜蜂",
+   null
+  ],
+  "q": {
+   "en": "What does the bear smell?",
+   "ans": "蜂蜜"
+  },
+  "which": "蜜蜂"
+ },
+ {
+  "day": 43,
+  "en": [
+   "Win the race, get a mango!",
+   "Big brother flies around the world.",
+   "Elephant boy rides a mouse.",
+   "You are my whole world!"
+  ],
+  "words": {
+   "芒果": "mango",
+   "老鼠": "mouse"
+  },
+  "sw": [
+   "芒果",
+   null,
+   "老鼠",
+   null
+  ],
+  "q": {
+   "en": "What does Elephant boy ride?",
+   "ans": "老鼠"
+  },
+  "which": "芒果"
+ },
+ {
+  "day": 44,
+  "en": [
+   "The hen plants some wheat.",
+   "Who will help? Not me!",
+   "The hen makes bread herself.",
+   "Next time, everyone helps!"
+  ],
+  "words": {
+   "母雞": "hen",
+   "麥子": "wheat",
+   "麵包": "bread"
+  },
+  "sw": [
+   "母雞",
+   null,
+   "麵包",
+   null
+  ],
+  "q": {
+   "en": "What does the hen plant?",
+   "ans": "麥子"
+  },
+  "which": "母雞"
+ },
+ {
+  "day": 45,
+  "en": [
+   "A lady drives a new car.",
+   "The kids go to Grandma's.",
+   "Beep, beep, beep!",
+   "The cows look and look!"
+  ],
+  "words": {
+   "汽車": "car",
+   "牛": "cow"
+  },
+  "sw": [
+   "汽車",
+   null,
+   null,
+   null
+  ],
+  "q": {
+   "en": "What does the lady drive?",
+   "ans": "汽車"
+  },
+  "which": "牛"
+ },
+ {
+  "day": 46,
+  "en": [
+   "Winter on the mountain.",
+   "Snow, snow, all white!",
+   "Dad and I make a snowman.",
+   "A carrot for his nose!"
+  ],
+  "words": {
+   "雪人": "snowman",
+   "紅蘿蔔": "carrot"
+  },
+  "sw": [
+   null,
+   null,
+   "雪人",
+   "紅蘿蔔"
+  ],
+  "q": {
+   "en": "What do Dad and I make?",
+   "ans": "雪人"
+  },
+  "which": "紅蘿蔔"
+ },
+ {
+  "day": 47,
+  "en": [
+   "Let's decorate the Christmas tree!",
+   "Hang balls and light bulbs.",
+   "Click the switch!",
+   "Sparkle, sparkle, so bright!"
+  ],
+  "words": {
+   "聖誕樹": "christmas tree",
+   "燈泡": "light bulb"
+  },
+  "sw": [
+   "聖誕樹",
+   "燈泡",
+   null,
+   null
+  ],
+  "q": {
+   "en": "What do we decorate?",
+   "ans": "聖誕樹"
+  },
+  "which": "燈泡"
+ },
+ {
+  "day": 48,
+  "en": [
+   "Wash hands before we eat.",
+   "Rub, rub the soap.",
+   "Rub the front and back.",
+   "Rinse, then eat dumplings!"
+  ],
+  "words": {
+   "肥皂": "soap",
+   "水餃": "dumpling"
+  },
+  "sw": [
+   null,
+   "肥皂",
+   null,
+   "水餃"
+  ],
+  "q": null,
+  "which": "肥皂"
+ },
+ {
+  "day": 49,
+  "en": [
+   "Jingle, jingle, in the snow!",
+   "The deer pull the sled.",
+   "The sled is full of gifts.",
+   "Gifts for all the children!"
+  ],
+  "words": {
+   "鹿": "deer",
+   "雪橇": "sled"
+  },
+  "sw": [
+   null,
+   "雪橇",
+   null,
+   null
+  ],
+  "q": {
+   "en": "Who pulls the sled?",
+   "ans": "鹿"
+  },
+  "which": "雪橇"
+ },
+ {
+  "day": 50,
+  "en": [
+   "Horse and donkey go to market.",
+   "Too heavy! Help me, please!",
+   "The horse says, no.",
+   "Now the horse carries everything."
+  ],
+  "words": {
+   "馬": "horse",
+   "驢子": "donkey"
+  },
+  "sw": [
+   "驢子",
+   null,
+   null,
+   null
+  ],
+  "q": {
+   "en": "Who says, too heavy?",
+   "ans": "驢子"
+  },
+  "which": "馬"
+ },
+ {
+  "day": 51,
+  "en": [
+   "Winter is here, so cold!",
+   "Roll, roll, rice balls!",
+   "Red and white, round, round!",
+   "A warm bowl for the family!"
+  ],
+  "words": {
+   "湯圓": "rice ball",
+   "碗": "bowl"
+  },
+  "sw": [
+   null,
+   "湯圓",
+   null,
+   null
+  ],
+  "q": null,
+  "which": "碗"
+ },
+ {
+  "day": 52,
+  "en": [
+   "The girl carries a basket.",
+   "She brings cake to Grandma.",
+   "The wolf says, come with me!",
+   "No, I don't go with strangers!"
+  ],
+  "words": {
+   "籃子": "basket",
+   "蛋糕": "cake"
+  },
+  "sw": [
+   "籃子",
+   "蛋糕",
+   null,
+   null
+  ],
+  "q": {
+   "en": "What does the girl bring?",
+   "ans": "蛋糕"
+  },
+  "which": "籃子"
+ },
+ {
+  "day": 53,
+  "en": [
+   "Christmas Eve, hang up socks!",
+   "Santa laughs, ho, ho, ho!",
+   "He comes down the chimney.",
+   "Morning! Gifts in the socks!"
+  ],
+  "words": {
+   "襪子": "sock",
+   "聖誕老公公": "santa"
+  },
+  "sw": [
+   "襪子",
+   "聖誕老公公",
+   null,
+   null
+  ],
+  "q": {
+   "en": "Where are the gifts?",
+   "ans": "襪子"
+  },
+  "which": "聖誕老公公"
+ },
+ {
+  "day": 54,
+  "en": [
+   "Long, long ago.",
+   "Baby Jesus is born.",
+   "A big star shines bright.",
+   "Sheep and cows come to see."
+  ],
+  "words": {
+   "星星": "star",
+   "羊": "sheep",
+   "牛": "cow"
+  },
+  "sw": [
+   null,
+   null,
+   "星星",
+   null
+  ],
+  "q": null,
+  "which": "星星"
+ },
+ {
+  "day": 55,
+  "en": [
+   "Green grass in the park.",
+   "I kick the ball to Dad.",
+   "Dad kicks it to the dog.",
+   "The dog runs off with it!"
+  ],
+  "words": {
+   "球": "ball",
+   "小狗": "dog"
+  },
+  "sw": [
+   null,
+   null,
+   "小狗",
+   null
+  ],
+  "q": {
+   "en": "Who runs off with the ball?",
+   "ans": "小狗"
+  },
+  "which": "球"
+ },
+ {
+  "day": 56,
+  "en": [
+   "Big wind on the boat!",
+   "Splash! He falls in the sea.",
+   "A whale, big as a house!",
+   "Gulp! Then back to land."
+  ],
+  "words": {
+   "鯨魚": "whale",
+   "房子": "house"
+  },
+  "sw": [
+   null,
+   null,
+   "鯨魚",
+   null
+  ],
+  "q": {
+   "en": "What is big as a house?",
+   "ans": "鯨魚"
+  },
+  "which": "房子"
+ },
+ {
+  "day": 57,
+  "en": [
+   "A doctor comes to Taiwan.",
+   "Ouch, ouch! A sore tooth!",
+   "He pulls teeth under a tree.",
+   "No more pain, thank you!"
+  ],
+  "words": {
+   "牙齒": "tooth",
+   "樹": "tree"
+  },
+  "sw": [
+   null,
+   "牙齒",
+   null,
+   null
+  ],
+  "q": {
+   "en": "Where does he pull teeth?",
+   "ans": "樹"
+  },
+  "which": "牙齒"
+ },
+ {
+  "day": 58,
+  "en": [
+   "The mouse friends meet.",
+   "Put a bell on the cat!",
+   "Good idea! But who will go?",
+   "They all look at each other."
+  ],
+  "words": {
+   "老鼠": "mouse",
+   "貓": "cat",
+   "鈴鐺": "bell"
+  },
+  "sw": [
+   "老鼠",
+   "鈴鐺",
+   null,
+   null
+  ],
+  "q": {
+   "en": "What goes on the cat?",
+   "ans": "鈴鐺"
+  },
+  "which": "老鼠"
+ },
+ {
+  "day": 59,
+  "en": [
+   "A little gray duck.",
+   "Everyone says he is ugly.",
+   "Winter ends. He grows up.",
+   "He is a white swan!"
+  ],
+  "words": {
+   "鴨子": "duck",
+   "天鵝": "swan"
+  },
+  "sw": [
+   "鴨子",
+   null,
+   null,
+   "天鵝"
+  ],
+  "q": {
+   "en": "What does the duck become?",
+   "ans": "天鵝"
+  },
+  "which": "鴨子"
+ },
+ {
+  "day": 60,
+  "en": [
+   "We go to the zoo!",
+   "The giraffe has a long neck.",
+   "The elephant has a long trunk.",
+   "My arms are long, too!"
+  ],
+  "words": {
+   "長頸鹿": "giraffe",
+   "大象": "elephant"
+  },
+  "sw": [
+   null,
+   "長頸鹿",
+   "大象",
+   null
+  ],
+  "q": {
+   "en": "Who has a long neck?",
+   "ans": "長頸鹿"
+  },
+  "which": "大象"
+ },
+ {
+  "day": 61,
+  "en": [
+   "Three, two, one!",
+   "Fireworks in the sky!",
+   "A new calendar opens.",
+   "Happy New Year, I'm bigger!"
+  ],
+  "words": {
+   "煙火": "fireworks",
+   "日曆": "calendar"
+  },
+  "sw": [
+   null,
+   "煙火",
+   "日曆",
+   null
+  ],
+  "q": {
+   "en": "What is in the sky?",
+   "ans": "煙火"
+  },
+  "which": "日曆"
+ },
+ {
+  "day": 62,
+  "en": [
+   "The boy loves butter.",
+   "Mom puts it up high.",
+   "He and a monkey climb up.",
+   "White mouth! Mom laughs."
+  ],
+  "words": {
+   "奶油": "butter",
+   "猴子": "monkey"
+  },
+  "sw": [
+   "奶油",
+   null,
+   "猴子",
+   null
+  ],
+  "q": {
+   "en": "Who climbs with the boy?",
+   "ans": "猴子"
+  },
+  "which": "奶油"
+ },
+ {
+  "day": 63,
+  "en": [
+   "A man makes a train.",
+   "Toot, toot! White smoke!",
+   "It pulls many cars.",
+   "Faster than a horse!"
+  ],
+  "words": {
+   "火車": "train",
+   "馬": "horse"
+  },
+  "sw": [
+   "火車",
+   null,
+   null,
+   null
+  ],
+  "q": {
+   "en": "What is faster than a horse?",
+   "ans": "火車"
+  },
+  "which": "馬"
+ },
+ {
+  "day": 64,
+  "en": [
+   "Jack trades a cow for beans.",
+   "Beans go in the ground.",
+   "Grow, grow, all night!",
+   "Up to the sky!"
+  ],
+  "words": {
+   "牛": "cow",
+   "豆子": "bean"
+  },
+  "sw": [
+   "豆子",
+   null,
+   null,
+   null
+  ],
+  "q": {
+   "en": "What does Jack trade?",
+   "ans": "牛"
+  },
+  "which": "豆子"
+ },
+ {
+  "day": 65,
+  "en": [
+   "Drip, drop, it rains.",
+   "I open my umbrella.",
+   "Rain boots splash, splash!",
+   "A frog jumps out too!"
+  ],
+  "words": {
+   "雨傘": "umbrella",
+   "青蛙": "frog"
+  },
+  "sw": [
+   null,
+   "雨傘",
+   null,
+   "青蛙"
+  ],
+  "q": {
+   "en": "Who jumps out too?",
+   "ans": "青蛙"
+  },
+  "which": "雨傘"
+ },
+ {
+  "day": 66,
+  "en": [
+   "The rooster digs in the dirt.",
+   "Oh, a shiny gem!",
+   "I want corn, he says.",
+   "You can't eat a gem!"
+  ],
+  "words": {
+   "公雞": "rooster",
+   "寶石": "gem",
+   "玉米": "corn"
+  },
+  "sw": [
+   "公雞",
+   "寶石",
+   "玉米",
+   null
+  ],
+  "q": {
+   "en": "What does the rooster want?",
+   "ans": "玉米"
+  },
+  "which": "公雞"
+ },
+ {
+  "day": 67,
+  "en": [
+   "A baby sleeps in a basket.",
+   "It floats on the river.",
+   "A princess says, so cute!",
+   "She takes the baby home."
+  ],
+  "words": {
+   "寶寶": "baby",
+   "籃子": "basket"
+  },
+  "sw": [
+   "寶寶",
+   null,
+   null,
+   null
+  ],
+  "q": {
+   "en": "Who sleeps in the basket?",
+   "ans": "寶寶"
+  },
+  "which": "籃子"
+ },
+ {
+  "day": 68,
+  "en": [
+   "A boy looks at a teapot.",
+   "The water boils, pop, pop!",
+   "Steam pushes the lid up!",
+   "Later, steam moves a train!"
+  ],
+  "words": {
+   "茶壺": "teapot",
+   "火車": "train"
+  },
+  "sw": [
+   "茶壺",
+   null,
+   null,
+   "火車"
+  ],
+  "q": {
+   "en": "What does steam move?",
+   "ans": "火車"
+  },
+  "which": "茶壺"
+ },
+ {
+  "day": 69,
+  "en": [
+   "Three cats lose their gloves.",
+   "Meow, meow, sad faces.",
+   "Look, look, found them!",
+   "Mom says, eat cake!"
+  ],
+  "words": {
+   "貓": "cat",
+   "手套": "glove",
+   "蛋糕": "cake"
+  },
+  "sw": [
+   "手套",
+   null,
+   null,
+   "蛋糕"
+  ],
+  "q": {
+   "en": "Who loses their gloves?",
+   "ans": "貓"
+  },
+  "which": "手套"
+ },
+ {
+  "day": 70,
+  "en": [
+   "Brush teeth, put on pajamas.",
+   "I hug my teddy bear.",
+   "Stars twinkle outside.",
+   "Good night, see you tomorrow!"
+  ],
+  "words": {
+   "泰迪熊": "teddy bear",
+   "星星": "star"
+  },
+  "sw": [
+   null,
+   "泰迪熊",
+   "星星",
+   null
+  ],
+  "q": {
+   "en": "What twinkles outside?",
+   "ans": "星星"
+  },
+  "which": "泰迪熊"
+ },
+ {
+  "day": 71,
+  "en": [
+   "A crow has some cheese.",
+   "The fox says, you sing well!",
+   "The crow sings, caw!",
+   "The fox gets the cheese!"
+  ],
+  "words": {
+   "烏鴉": "crow",
+   "起司": "cheese",
+   "狐狸": "fox"
+  },
+  "sw": [
+   "烏鴉",
+   "狐狸",
+   null,
+   null
+  ],
+  "q": {
+   "en": "Who has some cheese?",
+   "ans": "烏鴉"
+  },
+  "which": "起司"
+ },
+ {
+  "day": 72,
+  "en": [
+   "A painter loves sunflowers.",
+   "He paints and paints.",
+   "The flowers seem to smile.",
+   "Bright like the sun!"
+  ],
+  "words": {
+   "向日葵": "sunflower",
+   "太陽": "sun"
+  },
+  "sw": [
+   "向日葵",
+   null,
+   null,
+   "太陽"
+  ],
+  "q": {
+   "en": "What does the painter love?",
+   "ans": "向日葵"
+  },
+  "which": "太陽"
+ },
+ {
+  "day": 73,
+  "en": [
+   "A man makes a big boat.",
+   "Animals come in two by two.",
+   "Rain stops, a dove flies out.",
+   "A rainbow in the sky!"
+  ],
+  "words": {
+   "方舟": "boat",
+   "鴿子": "dove",
+   "彩虹": "rainbow"
+  },
+  "sw": [
+   "方舟",
+   null,
+   "鴿子",
+   "彩虹"
+  ],
+  "q": null,
+  "which": "鴿子"
+ },
+ {
+  "day": 74,
+  "en": [
+   "A farmer works in the field.",
+   "A rabbit bumps a log.",
+   "I'll wait for another rabbit!",
+   "Wait, wait. Grass grows tall."
+  ],
+  "words": {
+   "兔子": "rabbit",
+   "木頭": "log"
+  },
+  "sw": [
+   null,
+   "兔子",
+   null,
+   null
+  ],
+  "q": {
+   "en": "Who bumps a log?",
+   "ans": "兔子"
+  },
+  "which": "木頭"
+ },
+ {
+  "day": 75,
+  "en": [
+   "Beep! I get on the bus.",
+   "I hold on tight.",
+   "I see a big train!",
+   "Ding dong! We get off!"
+  ],
+  "words": {
+   "公車": "bus",
+   "火車": "train"
+  },
+  "sw": [
+   "公車",
+   null,
+   "火車",
+   null
+  ],
+  "q": {
+   "en": "What do I get on?",
+   "ans": "公車"
+  },
+  "which": "火車"
+ },
+ {
+  "day": 76,
+  "en": [
+   "The wind blows, whoosh!",
+   "The man holds his coat tight.",
+   "The sun shines warm.",
+   "The man takes off his coat."
+  ],
+  "words": {
+   "外套": "coat",
+   "太陽": "sun"
+  },
+  "sw": [
+   null,
+   "外套",
+   "太陽",
+   null
+  ],
+  "q": {
+   "en": "What does the man hold tight?",
+   "ans": "外套"
+  },
+  "which": "太陽"
+ },
+ {
+  "day": 77,
+  "en": [
+   "A man makes a phone.",
+   "Hello, can you hear me?",
+   "Yes, I hear you!",
+   "Now far friends can talk!"
+  ],
+  "words": {
+   "電話": "phone"
+  },
+  "sw": [
+   "電話",
+   null,
+   null,
+   null
+  ],
+  "q": {
+   "en": "What does the man make?",
+   "ans": "電話"
+  },
+  "which": "電話"
+ },
+ {
+  "day": 78,
+  "en": [
+   "Draw a snake, get an apple!",
+   "One man draws fast.",
+   "He adds feet to the snake.",
+   "Snakes have no feet! No apple."
+  ],
+  "words": {
+   "蛇": "snake",
+   "蘋果": "apple"
+  },
+  "sw": [
+   "蘋果",
+   null,
+   null,
+   null
+  ],
+  "q": {
+   "en": "What does the man draw?",
+   "ans": "蛇"
+  },
+  "which": "蘋果"
+ },
+ {
+  "day": 79,
+  "en": [
+   "Brr, it's so cold!",
+   "I put on my coat.",
+   "I wear a soft scarf.",
+   "Gloves on, let's go!"
+  ],
+  "words": {
+   "外套": "coat",
+   "圍巾": "scarf",
+   "手套": "glove"
+  },
+  "sw": [
+   null,
+   "外套",
+   "圍巾",
+   "手套"
+  ],
+  "q": {
+   "en": "What goes on my hands?",
+   "ans": "手套"
+  },
+  "which": "圍巾"
+ },
+ {
+  "day": 80,
+  "en": [
+   "Monkeys see a moon in water.",
+   "Quick, get the moon out!",
+   "They hold hands and reach.",
+   "Look up! The moon is there!"
+  ],
+  "words": {
+   "猴子": "monkey",
+   "月亮": "moon"
+  },
+  "sw": [
+   "猴子",
+   null,
+   null,
+   null
+  ],
+  "q": {
+   "en": "What do the monkeys see?",
+   "ans": "月亮"
+  },
+  "which": "猴子"
+ },
+ {
+  "day": 81,
+  "en": [
+   "A monkey falls in the sea.",
+   "A dolphin says, hop on!",
+   "The monkey tells big stories.",
+   "The dolphin leaves him on land."
+  ],
+  "words": {
+   "猴子": "monkey",
+   "海豚": "dolphin"
+  },
+  "sw": [
+   "猴子",
+   "海豚",
+   null,
+   null
+  ],
+  "q": {
+   "en": "Who leaves the monkey on land?",
+   "ans": "海豚"
+  },
+  "which": "猴子"
+ },
+ {
+  "day": 82,
+  "en": [
+   "Rain and thunder, boom, boom!",
+   "A man flies a kite.",
+   "A key hangs on the string.",
+   "The key makes a little spark!"
+  ],
+  "words": {
+   "風箏": "kite",
+   "鑰匙": "key"
+  },
+  "sw": [
+   null,
+   "風箏",
+   "鑰匙",
+   null
+  ],
+  "q": {
+   "en": "What does the man fly?",
+   "ans": "風箏"
+  },
+  "which": "鑰匙"
+ },
+ {
+  "day": 83,
+  "en": [
+   "The princess drops her ball.",
+   "A frog gets the ball.",
+   "Thank you, says the princess.",
+   "Crown on! Frog is a prince!"
+  ],
+  "words": {
+   "球": "ball",
+   "青蛙": "frog",
+   "皇冠": "crown"
+  },
+  "sw": [
+   null,
+   "青蛙",
+   null,
+   "皇冠"
+  ],
+  "q": {
+   "en": "Who gets the ball?",
+   "ans": "青蛙"
+  },
+  "which": "皇冠"
+ },
+ {
+  "day": 84,
+  "en": [
+   "After rain, leaves are wet.",
+   "A snail carries its house.",
+   "Slow, slow, slow.",
+   "It leaves a shiny path."
+  ],
+  "words": {
+   "蝸牛": "snail",
+   "房子": "house"
+  },
+  "sw": [
+   null,
+   "蝸牛",
+   null,
+   null
+  ],
+  "q": {
+   "en": "What does the snail carry?",
+   "ans": "房子"
+  },
+  "which": "蝸牛"
+ },
+ {
+  "day": 85,
+  "en": [
+   "The city mouse has cookies.",
+   "Meow! A cat runs in!",
+   "Country mouse says, I go home.",
+   "I like my corn better."
+  ],
+  "words": {
+   "老鼠": "mouse",
+   "餅乾": "cookie",
+   "玉米": "corn"
+  },
+  "sw": [
+   "老鼠",
+   null,
+   null,
+   "玉米"
+  ],
+  "q": {
+   "en": "What does the city mouse have?",
+   "ans": "餅乾"
+  },
+  "which": "老鼠"
+ },
+ {
+  "day": 86,
+  "en": [
+   "A man falls and gets hurt.",
+   "People walk by. No one stops.",
+   "A kind man bends down.",
+   "Bandage on, up on the donkey!"
+  ],
+  "words": {
+   "OK繃": "bandage",
+   "驢子": "donkey"
+  },
+  "sw": [
+   null,
+   null,
+   null,
+   "OK繃"
+  ],
+  "q": {
+   "en": "What does the kind man use?",
+   "ans": "OK繃"
+  },
+  "which": "驢子"
+ },
+ {
+  "day": 87,
+  "en": [
+   "A donkey, dog, cat, rooster.",
+   "They stand up tall.",
+   "They sing at the window.",
+   "Now they live together, happy!"
+  ],
+  "words": {
+   "公雞": "rooster",
+   "窗戶": "window"
+  },
+  "sw": [
+   "公雞",
+   null,
+   "窗戶",
+   null
+  ],
+  "q": {
+   "en": "Where do they sing?",
+   "ans": "窗戶"
+  },
+  "which": "公雞"
+ },
+ {
+  "day": 88,
+  "en": [
+   "Today is my birthday.",
+   "Candles on the cake!",
+   "Everyone sings Happy Birthday.",
+   "Blow the candles, make a wish!"
+  ],
+  "words": {
+   "生日蛋糕": "cake",
+   "蠟燭": "candle"
+  },
+  "sw": [
+   null,
+   "生日蛋糕",
+   null,
+   null
+  ],
+  "q": {
+   "en": "What is on the cake?",
+   "ans": "蠟燭"
+  },
+  "which": "生日蛋糕"
+ },
+ {
+  "day": 89,
+  "en": [
+   "A little boy is three.",
+   "He climbs a chair, plays piano.",
+   "Ding, dong, so pretty!",
+   "At five, he writes songs."
+  ],
+  "words": {
+   "椅子": "chair",
+   "鋼琴": "piano"
+  },
+  "sw": [
+   null,
+   "椅子",
+   null,
+   null
+  ],
+  "q": {
+   "en": "What does the boy play?",
+   "ans": "鋼琴"
+  },
+  "which": "椅子"
+ },
+ {
+  "day": 90,
+  "en": [
+   "A log is a little bridge.",
+   "Two goats meet face to face.",
+   "You go! No, you go!",
+   "One lies down, one steps over."
+  ],
+  "words": {
+   "木頭": "log",
+   "山羊": "goat"
+  },
+  "sw": [
+   "木頭",
+   "山羊",
+   null,
+   null
+  ],
+  "q": {
+   "en": "What is a little bridge?",
+   "ans": "木頭"
+  },
+  "which": "山羊"
+ },
+ {
+  "day": 91,
+  "en": [
+   "New Year cleaning time!",
+   "Dad carries a bucket.",
+   "Mom cleans the window.",
+   "I put my toys away!"
+  ],
+  "words": {
+   "水桶": "bucket",
+   "窗戶": "window"
+  },
+  "sw": [
+   null,
+   "水桶",
+   "窗戶",
+   null
+  ],
+  "q": {
+   "en": "What does Dad carry?",
+   "ans": "水桶"
+  },
+  "which": "窗戶"
+ },
+ {
+  "day": 92,
+  "en": [
+   "A man walks a long way.",
+   "He sleeps on a rock.",
+   "He dreams of a tall ladder.",
+   "It goes up to the stars."
+  ],
+  "words": {
+   "石頭": "rock",
+   "梯子": "ladder",
+   "星星": "star"
+  },
+  "sw": [
+   null,
+   "石頭",
+   "梯子",
+   "星星"
+  ],
+  "q": {
+   "en": "What does the man sleep on?",
+   "ans": "石頭"
+  },
+  "which": "梯子"
+ },
+ {
+  "day": 93,
+  "en": [
+   "Red, red posters!",
+   "Dad climbs a ladder.",
+   "The big word is upside down.",
+   "Spring comes to our home!"
+  ],
+  "words": {
+   "春聯": "poster",
+   "梯子": "ladder"
+  },
+  "sw": [
+   "春聯",
+   "梯子",
+   null,
+   null
+  ],
+  "q": {
+   "en": "What does Dad climb?",
+   "ans": "梯子"
+  },
+  "which": null
+ },
+ {
+  "day": 94,
+  "en": [
+   "Dip, dip, blow, blow.",
+   "Lots of bubbles fly up!",
+   "Round like a little ball.",
+   "Pop! It breaks."
+  ],
+  "words": {
+   "泡泡": "bubble",
+   "球": "ball"
+  },
+  "sw": [
+   null,
+   "泡泡",
+   null,
+   null
+  ],
+  "q": {
+   "en": "What flies up?",
+   "ans": "泡泡"
+  },
+  "which": "球"
+ },
+ {
+  "day": 95,
+  "en": [
+   "Long ago, there was a monster.",
+   "It fears red and loud noise.",
+   "We put up red posters.",
+   "Firecrackers go bang, bang!"
+  ],
+  "words": {
+   "春聯": "poster",
+   "鞭炮": "firecracker"
+  },
+  "sw": [
+   null,
+   null,
+   "春聯",
+   "鞭炮"
+  ],
+  "q": {
+   "en": "What goes bang, bang?",
+   "ans": "鞭炮"
+  },
+  "which": "鞭炮"
+ },
+ {
+  "day": 96,
+  "en": [
+   "New Year's Eve, family time.",
+   "We sit around a hot pot.",
+   "There's fish and vegetables!",
+   "Fish for a good year!"
+  ],
+  "words": {
+   "火鍋": "pot",
+   "魚": "fish",
+   "青菜": "vegetable"
+  },
+  "sw": [
+   null,
+   "火鍋",
+   "青菜",
+   null
+  ],
+  "q": {
+   "en": "What do we sit around?",
+   "ans": "火鍋"
+  },
+  "which": "魚"
+ },
+ {
+  "day": 97,
+  "en": [
+   "Animals race across a river.",
+   "A mouse rides on a cow.",
+   "Jump! The mouse is first!",
+   "The dragon flies in too!"
+  ],
+  "words": {
+   "老鼠": "mouse",
+   "牛": "cow",
+   "龍": "dragon"
+  },
+  "sw": [
+   null,
+   "老鼠",
+   null,
+   null
+  ],
+  "q": {
+   "en": "Who rides on a cow?",
+   "ans": "老鼠"
+  },
+  "which": "龍"
+ },
+ {
+  "day": 98,
+  "en": [
+   "We bring oranges to Grandma.",
+   "Happy New Year!",
+   "Grandma gives me a red envelope.",
+   "Thank you, Grandma!"
+  ],
+  "words": {
+   "橘子": "orange",
+   "紅包": "red envelope"
+  },
+  "sw": [
+   "橘子",
+   null,
+   "紅包",
+   null
+  ],
+  "q": {
+   "en": "What does Grandma give me?",
+   "ans": "紅包"
+  },
+  "which": "橘子"
+ },
+ {
+  "day": 99,
+  "en": [
+   "A farmer has little plants.",
+   "He brings a bucket of water.",
+   "Grow faster! He pulls them up.",
+   "Next day, plants fall over."
+  ],
+  "words": {
+   "小苗": "plant",
+   "水桶": "bucket"
+  },
+  "sw": [
+   "小苗",
+   "水桶",
+   null,
+   null
+  ],
+  "q": {
+   "en": "What does the farmer bring?",
+   "ans": "水桶"
+  },
+  "which": "小苗"
+ },
+ {
+  "day": 100,
+  "en": [
+   "Boom, boom, clang!",
+   "A man bangs the drum.",
+   "A long dragon dances.",
+   "The lion blinks its big eyes!"
+  ],
+  "words": {
+   "鼓": "drum",
+   "龍": "dragon",
+   "獅子": "lion"
+  },
+  "sw": [
+   null,
+   null,
+   null,
+   "獅子"
+  ],
+  "q": {
+   "en": "What does the man bang?",
+   "ans": "鼓"
+  },
+  "which": "龍"
+ },
+ {
+  "day": 101,
+  "en": [
+   "A man sits in the bathtub.",
+   "Splash! Bubbles spill out!",
+   "He jumps up and shouts.",
+   "I know! I know!"
+  ],
+  "words": {
+   "浴缸": "bathtub",
+   "泡泡": "bubble"
+  },
+  "sw": [
+   "浴缸",
+   "泡泡",
+   null,
+   null
+  ],
+  "q": {
+   "en": "Where does the man sit?",
+   "ans": "浴缸"
+  },
+  "which": "泡泡"
+ },
+ {
+  "day": 102,
+  "en": [
+   "Mom crab says, walk straight!",
+   "By a rock, he walks sideways.",
+   "Mom, you show me.",
+   "Mom walks sideways too, hee hee!"
+  ],
+  "words": {
+   "螃蟹": "crab",
+   "石頭": "rock"
+  },
+  "sw": [
+   "螃蟹",
+   "石頭",
+   null,
+   null
+  ],
+  "q": {
+   "en": "Who walks sideways?",
+   "ans": "螃蟹"
+  },
+  "which": "石頭"
+ },
+ {
+  "day": 103,
+  "en": [
+   "A boy falls into a jar.",
+   "His friend stays calm.",
+   "He breaks it with a rock!",
+   "Water flows out. He is safe!"
+  ],
+  "words": {
+   "水缸": "jar",
+   "石頭": "rock"
+  },
+  "sw": [
+   "水缸",
+   null,
+   "石頭",
+   null
+  ],
+  "q": {
+   "en": "What breaks the jar?",
+   "ans": "石頭"
+  },
+  "which": "石頭"
+ },
+ {
+  "day": 104,
+  "en": [
+   "Ding, dong, music plays.",
+   "The garbage truck is here!",
+   "I carry the trash can.",
+   "The dog runs out too!"
+  ],
+  "words": {
+   "垃圾桶": "trash can",
+   "小狗": "dog"
+  },
+  "sw": [
+   null,
+   null,
+   "垃圾桶",
+   "小狗"
+  ],
+  "q": {
+   "en": "Who runs out too?",
+   "ans": "小狗"
+  },
+  "which": "垃圾桶"
+ },
+ {
+  "day": 105,
+  "en": [
+   "A wise man visits a village.",
+   "People bring milk, so full!",
+   "He puts a flower on top.",
+   "It floats. No milk spills!"
+  ],
+  "words": {
+   "牛奶": "milk",
+   "茉莉花": "flower"
+  },
+  "sw": [
+   null,
+   "牛奶",
+   "茉莉花",
+   null
+  ],
+  "q": {
+   "en": "What does he put on top?",
+   "ans": "茉莉花"
+  },
+  "which": "牛奶"
+ },
+ {
+  "day": 106,
+  "en": [
+   "At night, everyone sleeps.",
+   "A nurse carries a candle lamp.",
+   "She walks by bed after bed.",
+   "She asks, are you okay?"
+  ],
+  "words": {
+   "蠟燭": "candle",
+   "床": "bed"
+  },
+  "sw": [
+   null,
+   "蠟燭",
+   null,
+   null
+  ],
+  "q": {
+   "en": "What does the nurse carry?",
+   "ans": "蠟燭"
+  },
+  "which": "床"
+ },
+ {
+  "day": 107,
+  "en": [
+   "His axe falls in the river.",
+   "Grandpa holds a gold axe.",
+   "Is this yours? No.",
+   "Truth! He gets all three!"
+  ],
+  "words": {
+   "斧頭": "axe"
+  },
+  "sw": [
+   "斧頭",
+   null,
+   null,
+   null
+  ],
+  "q": {
+   "en": "What falls in the river?",
+   "ans": "斧頭"
+  },
+  "which": "斧頭"
+ },
+ {
+  "day": 108,
+  "en": [
+   "Night in a little town.",
+   "We write wishes on a lantern.",
+   "Light it, it flies up high.",
+   "Like lots of stars!"
+  ],
+  "words": {
+   "天燈": "lantern",
+   "星星": "star"
+  },
+  "sw": [
+   null,
+   "天燈",
+   null,
+   "星星"
+  ],
+  "q": null,
+  "which": "星星"
+ },
+ {
+  "day": 109,
+  "en": [
+   "A shoemaker has little left.",
+   "At night, little elves come.",
+   "Tap, tap, go little hammers.",
+   "Morning! New shoes!"
+  ],
+  "words": {
+   "鐵鎚": "hammer",
+   "鞋子": "shoe"
+  },
+  "sw": [
+   null,
+   null,
+   "鐵鎚",
+   "鞋子"
+  ],
+  "q": {
+   "en": "What goes tap, tap?",
+   "ans": "鐵鎚"
+  },
+  "which": "鞋子"
+ },
+ {
+  "day": 110,
+  "en": [
+   "Wee-oo! A red fire truck!",
+   "Firefighters climb a long ladder.",
+   "Splash, splash! The fire is out!",
+   "Thank you, firefighters!"
+  ],
+  "words": {
+   "消防車": "fire truck",
+   "梯子": "ladder"
+  },
+  "sw": [
+   "消防車",
+   "梯子",
+   null,
+   null
+  ],
+  "q": {
+   "en": "What do firefighters climb?",
+   "ans": "梯子"
+  },
+  "which": "消防車"
+ },
+ {
+  "day": 111,
+  "en": [
+   "The moon is big and round.",
+   "We walk with little lanterns.",
+   "Guess riddles, eat rice balls!",
+   "Our family is all together."
+  ],
+  "words": {
+   "月亮": "moon",
+   "燈籠": "lantern",
+   "湯圓": "rice ball"
+  },
+  "sw": [
+   "月亮",
+   "燈籠",
+   "湯圓",
+   null
+  ],
+  "q": {
+   "en": "What do we walk with?",
+   "ans": "燈籠"
+  },
+  "which": "月亮"
+ },
+ {
+  "day": 112,
+  "en": [
+   "A man sails a big ship.",
+   "Far, far away it goes.",
+   "He brings back a giraffe.",
+   "What a long neck!"
+  ],
+  "words": {
+   "大船": "ship",
+   "長頸鹿": "giraffe"
+  },
+  "sw": [
+   "大船",
+   null,
+   "長頸鹿",
+   null
+  ],
+  "q": {
+   "en": "What does he bring back?",
+   "ans": "長頸鹿"
+  },
+  "which": "大船"
+ },
+ {
+  "day": 113,
+  "en": [
+   "Winter break is over.",
+   "I put on my backpack.",
+   "I bring books and water.",
+   "Hi, teacher! Hi, friends!"
+  ],
+  "words": {
+   "書包": "backpack",
+   "書": "book"
+  },
+  "sw": [
+   null,
+   "書包",
+   null,
+   null
+  ],
+  "q": {
+   "en": "What do I put on?",
+   "ans": "書包"
+  },
+  "which": "書"
+ },
+ {
+  "day": 114,
+  "en": [
+   "No bird in the nest!",
+   "Mama bird flies around, worried.",
+   "Put the bird back, quick!",
+   "Mama bird smiles. All together!"
+  ],
+  "words": {
+   "鳥巢": "nest",
+   "小鳥": "bird"
+  },
+  "sw": [
+   "鳥巢",
+   null,
+   null,
+   null
+  ],
+  "q": {
+   "en": "Where does the bird live?",
+   "ans": "鳥巢"
+  },
+  "which": "小鳥"
+ },
+ {
+  "day": 115,
+  "en": [
+   "Dad holds one chopstick.",
+   "Snap! It breaks.",
+   "Now tie many together.",
+   "Push hard. They don't break!"
+  ],
+  "words": {
+   "筷子": "chopstick"
+  },
+  "sw": [
+   "筷子",
+   null,
+   null,
+   null
+  ],
+  "q": {
+   "en": "What does Dad hold?",
+   "ans": "筷子"
+  },
+  "which": "筷子"
+ },
+ {
+  "day": 116,
+  "en": [
+   "A painter draws four dragons.",
+   "They have no eyes.",
+   "He paints eyes on one dragon.",
+   "Boom! The dragon flies away!"
+  ],
+  "words": {
+   "龍": "dragon",
+   "眼睛": "eye"
+  },
+  "sw": [
+   null,
+   "眼睛",
+   null,
+   null
+  ],
+  "q": {
+   "en": "What does the painter draw?",
+   "ans": "龍"
+  },
+  "which": "眼睛"
+ },
+ {
+  "day": 117,
+  "en": [
+   "I open my crayons.",
+   "Red for the apple.",
+   "Yellow for the sun.",
+   "Blue for the sea, so pretty!"
+  ],
+  "words": {
+   "蠟筆": "crayon",
+   "蘋果": "apple",
+   "太陽": "sun"
+  },
+  "sw": [
+   "蠟筆",
+   "蘋果",
+   "太陽",
+   null
+  ],
+  "q": {
+   "en": "What do I color red?",
+   "ans": "蘋果"
+  },
+  "which": "蠟筆"
+ },
+ {
+  "day": 118,
+  "en": [
+   "The girl can't see or hear.",
+   "Her teacher turns on the faucet.",
+   "Cool water runs on her hand.",
+   "The teacher spells water."
+  ],
+  "words": {
+   "水龍頭": "faucet"
+  },
+  "sw": [
+   null,
+   "水龍頭",
+   null,
+   null
+  ],
+  "q": {
+   "en": "What does the teacher turn on?",
+   "ans": "水龍頭"
+  },
+  "which": "水龍頭"
+ },
+ {
+  "day": 119,
+  "en": [
+   "Friends hide in a cave.",
+   "A little spider spins and spins.",
+   "It makes a big web.",
+   "A dove builds a nest too."
+  ],
+  "words": {
+   "蜘蛛": "spider",
+   "蜘蛛網": "web",
+   "鴿子": "dove"
+  },
+  "sw": [
+   null,
+   "蜘蛛",
+   "蜘蛛網",
+   "鴿子"
+  ],
+  "q": {
+   "en": "Who spins and spins?",
+   "ans": "蜘蛛"
+  },
+  "which": "蜘蛛網"
+ },
+ {
+  "day": 120,
+  "en": [
+   "A mouse becomes a white horse.",
+   "Cinderella goes to the party.",
+   "Dong, dong! She drops a shoe.",
+   "The prince says, found you!"
+  ],
+  "words": {
+   "老鼠": "mouse",
+   "馬": "horse",
+   "玻璃鞋": "shoe"
+  },
+  "sw": [
+   "老鼠",
+   null,
+   "玻璃鞋",
+   null
+  ],
+  "q": {
+   "en": "What does Cinderella drop?",
+   "ans": "玻璃鞋"
+  },
+  "which": "老鼠"
+ },
+ {
+  "day": 121,
+  "en": [
+   "We go to the night market.",
+   "It is busy and yummy!",
+   "I drink bubble tea.",
+   "Mango shaved ice, yum!"
+  ],
+  "words": {
+   "珍珠奶茶": "bubble tea",
+   "芒果": "mango"
+  },
+  "sw": [
+   null,
+   null,
+   "珍珠奶茶",
+   "芒果"
+  ],
+  "q": {
+   "en": "What do I drink?",
+   "ans": "珍珠奶茶"
+  },
+  "which": "芒果"
+ },
+ {
+  "day": 122,
+  "en": [
+   "Today is animal day!",
+   "The panda eats bamboo.",
+   "Giraffe and elephant come too.",
+   "Let's keep animals safe!"
+  ],
+  "words": {
+   "熊貓": "panda",
+   "長頸鹿": "giraffe",
+   "大象": "elephant"
+  },
+  "sw": [
+   null,
+   "熊貓",
+   "長頸鹿",
+   null
+  ],
+  "q": {
+   "en": "Who eats bamboo?",
+   "ans": "熊貓"
+  },
+  "which": "長頸鹿"
+ },
+ {
+  "day": 123,
+  "en": [
+   "The man has a fishing pole.",
+   "He gets a little fish.",
+   "Wait till I grow big!",
+   "Okay, go home, little fish."
+  ],
+  "words": {
+   "釣竿": "fishing pole",
+   "魚": "fish"
+  },
+  "sw": [
+   "釣竿",
+   null,
+   null,
+   null
+  ],
+  "q": {
+   "en": "What does the man get?",
+   "ans": "魚"
+  },
+  "which": "釣竿"
+ },
+ {
+  "day": 124,
+  "en": [
+   "Five, four, three, two, one!",
+   "The rocket goes up, zoom!",
+   "A man walks on the moon.",
+   "Step, step, a footprint!"
+  ],
+  "words": {
+   "火箭": "rocket",
+   "月亮": "moon"
+  },
+  "sw": [
+   null,
+   "火箭",
+   "月亮",
+   null
+  ],
+  "q": null,
+  "which": "火箭"
+ },
+ {
+  "day": 125,
+  "en": [
+   "Boom, boom, thunder!",
+   "Lightning in the sky!",
+   "The caterpillar wakes up.",
+   "Is it spring?"
+  ],
+  "words": {
+   "閃電": "lightning",
+   "毛毛蟲": "caterpillar"
+  },
+  "sw": [
+   null,
+   "閃電",
+   "毛毛蟲",
+   null
+  ],
+  "q": {
+   "en": "Who wakes up?",
+   "ans": "毛毛蟲"
+  },
+  "which": "閃電"
+ },
+ {
+  "day": 126,
+  "en": [
+   "He has one hundred sheep.",
+   "A lamb runs up the mountain.",
+   "He looks and finds it!",
+   "They go home happy."
+  ],
+  "words": {
+   "羊": "sheep",
+   "山": "mountain"
+  },
+  "sw": [
+   null,
+   null,
+   null,
+   null
+  ],
+  "q": {
+   "en": "Where does the lamb run?",
+   "ans": "山"
+  },
+  "which": "羊"
+ },
+ {
+  "day": 127,
+  "en": [
+   "Today is Women's Day.",
+   "I give Mom flowers.",
+   "There is a sunflower.",
+   "Thank you, Mom!"
+  ],
+  "words": {
+   "花束": "flower",
+   "向日葵": "sunflower"
+  },
+  "sw": [
+   null,
+   "花束",
+   "向日葵",
+   null
+  ],
+  "q": {
+   "en": "What do I give Mom?",
+   "ans": "花束"
+  },
+  "which": "向日葵"
+ },
+ {
+  "day": 128,
+  "en": [
+   "The tulip opens up.",
+   "A tiny girl sits inside.",
+   "She is so, so small!",
+   "She flies with a butterfly!"
+  ],
+  "words": {
+   "鬱金香": "tulip",
+   "蝴蝶": "butterfly"
+  },
+  "sw": [
+   "鬱金香",
+   null,
+   null,
+   "蝴蝶"
+  ],
+  "q": null,
+  "which": "鬱金香"
+ },
+ {
+  "day": 129,
+  "en": [
+   "Mix, mix, mix!",
+   "Pour it in the pan.",
+   "Flip the pancake!",
+   "Add honey, yum, yum!"
+  ],
+  "words": {
+   "鬆餅": "pancake",
+   "蜂蜜": "honey"
+  },
+  "sw": [
+   null,
+   null,
+   "鬆餅",
+   "蜂蜜"
+  ],
+  "q": {
+   "en": "What goes on the pancake?",
+   "ans": "蜂蜜"
+  },
+  "which": "鬆餅"
+ },
+ {
+  "day": 130,
+  "en": [
+   "The peacock opens its tail.",
+   "Look, I am so pretty!",
+   "The gray crane flies up.",
+   "I can fly so high!"
+  ],
+  "words": {
+   "孔雀": "peacock"
+  },
+  "sw": [
+   "孔雀",
+   null,
+   null,
+   null
+  ],
+  "q": {
+   "en": "Who opens its tail?",
+   "ans": "孔雀"
+  },
+  "which": "孔雀"
+ },
+ {
+  "day": 131,
+  "en": [
+   "We plant trees today.",
+   "Dig, plant the pine tree.",
+   "Water it with a bucket.",
+   "Grow, little tree, grow!"
+  ],
+  "words": {
+   "松樹": "pine tree",
+   "水桶": "bucket"
+  },
+  "sw": [
+   null,
+   "松樹",
+   "水桶",
+   null
+  ],
+  "q": {
+   "en": "What do we water it with?",
+   "ans": "水桶"
+  },
+  "which": "松樹"
+ },
+ {
+  "day": 132,
+  "en": [
+   "A boy is sick in bed.",
+   "Dad gives him a compass.",
+   "It always points north.",
+   "Why? He wants to know."
+  ],
+  "words": {
+   "床": "bed",
+   "指南針": "compass"
+  },
+  "sw": [
+   null,
+   "指南針",
+   null,
+   null
+  ],
+  "q": {
+   "en": "What does Dad give him?",
+   "ans": "指南針"
+  },
+  "which": "床"
+ },
+ {
+  "day": 133,
+  "en": [
+   "The king wears a crown.",
+   "Everyone says, so pretty!",
+   "The king is in underwear!",
+   "Everyone laughs, ha ha!"
+  ],
+  "words": {
+   "皇冠": "crown",
+   "內褲": "underwear"
+  },
+  "sw": [
+   "皇冠",
+   null,
+   "內褲",
+   null
+  ],
+  "q": null,
+  "which": "內褲"
+ },
+ {
+  "day": 134,
+  "en": [
+   "Push the cart to the store.",
+   "Get milk, get bananas.",
+   "Pay and say thank you.",
+   "I help carry it home!"
+  ],
+  "words": {
+   "購物車": "cart",
+   "牛奶": "milk",
+   "香蕉": "banana"
+  },
+  "sw": [
+   "購物車",
+   "牛奶",
+   null,
+   null
+  ],
+  "q": {
+   "en": "What do we get first?",
+   "ans": "牛奶"
+  },
+  "which": "購物車"
+ },
+ {
+  "day": 135,
+  "en": [
+   "Grandpa plants a tree.",
+   "It takes so long to grow.",
+   "Will you eat the fruit?",
+   "It is for my grandkids!"
+  ],
+  "words": {
+   "老爺爺": "grandpa",
+   "樹": "tree"
+  },
+  "sw": [
+   "老爺爺",
+   null,
+   null,
+   null
+  ],
+  "q": {
+   "en": "Who plants a tree?",
+   "ans": "老爺爺"
+  },
+  "which": "樹"
+ },
+ {
+  "day": 136,
+  "en": [
+   "The moon wants a new dress.",
+   "Mom makes the dress.",
+   "The moon gets big, then small.",
+   "The dress never fits!"
+  ],
+  "words": {
+   "月亮": "moon",
+   "裙子": "dress"
+  },
+  "sw": [
+   "月亮",
+   null,
+   null,
+   null
+  ],
+  "q": {
+   "en": "Who wants a new dress?",
+   "ans": "月亮"
+  },
+  "which": "裙子"
+ },
+ {
+  "day": 137,
+  "en": [
+   "He makes a telescope.",
+   "He looks at the sky.",
+   "The moon has bumps and holes.",
+   "So many, many stars!"
+  ],
+  "words": {
+   "望遠鏡": "telescope",
+   "月亮": "moon",
+   "星星": "star"
+  },
+  "sw": [
+   "望遠鏡",
+   null,
+   "月亮",
+   "星星"
+  ],
+  "q": {
+   "en": "What does he make?",
+   "ans": "望遠鏡"
+  },
+  "which": "月亮"
+ },
+ {
+  "day": 138,
+  "en": [
+   "A pea is under the bed.",
+   "Lots of blankets on top.",
+   "The princess sleeps up high.",
+   "Ouch, I can't sleep!"
+  ],
+  "words": {
+   "床": "bed",
+   "豌豆": "pea"
+  },
+  "sw": [
+   "豌豆",
+   null,
+   null,
+   null
+  ],
+  "q": {
+   "en": "What is under the bed?",
+   "ans": "豌豆"
+  },
+  "which": "床"
+ },
+ {
+  "day": 139,
+  "en": [
+   "Piece by piece, a puzzle.",
+   "This is the giraffe's head.",
+   "That is the long neck.",
+   "All done! Clap, clap!"
+  ],
+  "words": {
+   "拼圖": "puzzle",
+   "長頸鹿": "giraffe"
+  },
+  "sw": [
+   "拼圖",
+   "長頸鹿",
+   null,
+   null
+  ],
+  "q": {
+   "en": "Whose head is this?",
+   "ans": "長頸鹿"
+  },
+  "which": "拼圖"
+ },
+ {
+  "day": 140,
+  "en": [
+   "Spring is here today.",
+   "Day and night are the same.",
+   "Let's stand up an egg.",
+   "Softly, softly, it stands!"
+  ],
+  "words": {
+   "雞蛋": "egg"
+  },
+  "sw": [
+   null,
+   null,
+   "雞蛋",
+   null
+  ],
+  "q": {
+   "en": "What do we stand up?",
+   "ans": "雞蛋"
+  },
+  "which": "雞蛋"
+ },
+ {
+  "day": 141,
+  "en": [
+   "The turtle wants to fly!",
+   "The eagle carries him up.",
+   "So high! Turtle is scared.",
+   "Put me down, please!"
+  ],
+  "words": {
+   "烏龜": "turtle",
+   "老鷹": "eagle"
+  },
+  "sw": [
+   "烏龜",
+   "老鷹",
+   null,
+   null
+  ],
+  "q": {
+   "en": "Who wants to fly?",
+   "ans": "烏龜"
+  },
+  "which": "老鷹"
+ },
+ {
+  "day": 142,
+  "en": [
+   "White clouds in the sky.",
+   "This one is a sheep.",
+   "That one is an elephant.",
+   "Whoosh! The wind changes them."
+  ],
+  "words": {
+   "雲": "cloud",
+   "羊": "sheep",
+   "大象": "elephant"
+  },
+  "sw": [
+   null,
+   null,
+   "大象",
+   null
+  ],
+  "q": {
+   "en": "What is that cloud?",
+   "ans": "大象"
+  },
+  "which": "雲"
+ },
+ {
+  "day": 143,
+  "en": [
+   "The little house is too full.",
+   "Bring in the goat.",
+   "Bring in the hen.",
+   "Now all out. So much room!"
+  ],
+  "words": {
+   "小木屋": "house",
+   "山羊": "goat",
+   "母雞": "hen"
+  },
+  "sw": [
+   "小木屋",
+   "山羊",
+   "母雞",
+   null
+  ],
+  "q": {
+   "en": "Who comes in first?",
+   "ans": "山羊"
+  },
+  "which": "小木屋"
+ },
+ {
+  "day": 144,
+  "en": [
+   "A man lies on the grass.",
+   "He looks with a magnifying glass.",
+   "Ants walk, bees fly.",
+   "He writes it all down."
+  ],
+  "words": {
+   "放大鏡": "magnifying glass",
+   "螞蟻": "ant",
+   "蜜蜂": "bee"
+  },
+  "sw": [
+   null,
+   "放大鏡",
+   "螞蟻",
+   null
+  ],
+  "q": {
+   "en": "What does the man look with?",
+   "ans": "放大鏡"
+  },
+  "which": "螞蟻"
+ },
+ {
+  "day": 145,
+  "en": [
+   "Knock, knock on the door.",
+   "Open up, it's Granny.",
+   "Sister sees a tiger tail!",
+   "No! Wait for Mom and Dad!"
+  ],
+  "words": {
+   "門": "door",
+   "老虎": "tiger"
+  },
+  "sw": [
+   null,
+   null,
+   "老虎",
+   null
+  ],
+  "q": {
+   "en": "What does Sister see?",
+   "ans": "老虎"
+  },
+  "which": "門"
+ },
+ {
+  "day": 146,
+  "en": [
+   "Cough, cough, I am sick.",
+   "The doctor uses a thermometer.",
+   "I am a little hot.",
+   "Drink water, go to bed!"
+  ],
+  "words": {
+   "體溫計": "thermometer",
+   "床": "bed"
+  },
+  "sw": [
+   null,
+   "體溫計",
+   null,
+   null
+  ],
+  "q": {
+   "en": "What does the doctor use?",
+   "ans": "體溫計"
+  },
+  "which": "床"
+ },
+ {
+  "day": 147,
+  "en": [
+   "It is Easter!",
+   "Eggs hide in the grass.",
+   "Get the basket, look, look!",
+   "Red, blue, three eggs!"
+  ],
+  "words": {
+   "彩蛋": "egg",
+   "籃子": "basket"
+  },
+  "sw": [
+   null,
+   "彩蛋",
+   "籃子",
+   null
+  ],
+  "q": {
+   "en": "What hides in the grass?",
+   "ans": "彩蛋"
+  },
+  "which": "籃子"
+ },
+ {
+  "day": 148,
+  "en": [
+   "Buzz, buzz, little mosquito.",
+   "It bites the lion's nose.",
+   "The lion is so mad.",
+   "Oops, stuck in a spider web!"
+  ],
+  "words": {
+   "蚊子": "mosquito",
+   "獅子": "lion",
+   "蜘蛛網": "web"
+  },
+  "sw": [
+   "蚊子",
+   "獅子",
+   null,
+   "蜘蛛網"
+  ],
+  "q": {
+   "en": "Who bites the lion?",
+   "ans": "蚊子"
+  },
+  "which": "獅子"
+ },
+ {
+  "day": 149,
+  "en": [
+   "A man sails to an island.",
+   "The turtles are so big!",
+   "Bigger than a bathtub!",
+   "He draws them."
+  ],
+  "words": {
+   "小島": "island",
+   "烏龜": "turtle",
+   "浴缸": "bathtub"
+  },
+  "sw": [
+   "小島",
+   "烏龜",
+   "浴缸",
+   null
+  ],
+  "q": {
+   "en": "Where does the man sail?",
+   "ans": "小島"
+  },
+  "which": "烏龜"
+ },
+ {
+  "day": 150,
+  "en": [
+   "The man is very short.",
+   "He climbs a tree to see.",
+   "Jesus comes to his house.",
+   "He gives coins to the poor."
+  ],
+  "words": {
+   "樹": "tree",
+   "錢幣": "coin"
+  },
+  "sw": [
+   null,
+   null,
+   null,
+   "錢幣"
+  ],
+  "q": {
+   "en": "What does the man climb?",
+   "ans": "樹"
+  },
+  "which": "錢幣"
+ },
+ {
+  "day": 151,
+  "en": [
+   "Grandpa gives monkeys chestnuts.",
+   "Three for morning, four for night.",
+   "Too few! The monkeys are mad.",
+   "Four for morning? Yes!"
+  ],
+  "words": {
+   "猴子": "monkey",
+   "栗子": "chestnut"
+  },
+  "sw": [
+   "猴子",
+   null,
+   null,
+   null
+  ],
+  "q": {
+   "en": "What does Grandpa give monkeys?",
+   "ans": "栗子"
+  },
+  "which": "猴子"
+ },
+ {
+  "day": 152,
+  "en": [
+   "Beep! In we go.",
+   "The train comes, the door opens.",
+   "Get off, then get on.",
+   "Sit down and look outside."
+  ],
+  "words": {
+   "捷運": "train",
+   "門": "door"
+  },
+  "sw": [
+   null,
+   "捷運",
+   null,
+   null
+  ],
+  "q": {
+   "en": "What do we get on?",
+   "ans": "捷運"
+  },
+  "which": "門"
+ },
+ {
+  "day": 153,
+  "en": [
+   "The donkey carries salt.",
+   "Splash! He falls in the river.",
+   "The salt melts, so light!",
+   "Next, cotton, oh, so heavy!"
+  ],
+  "words": {
+   "驢子": "donkey",
+   "鹽": "salt"
+  },
+  "sw": [
+   "驢子",
+   null,
+   null,
+   null
+  ],
+  "q": {
+   "en": "What does the donkey carry?",
+   "ans": "鹽"
+  },
+  "which": "驢子"
+ },
+ {
+  "day": 154,
+  "en": [
+   "It is Children's Day!",
+   "Climb up the slide.",
+   "Whee, down we go!",
+   "Bubbles and kites, so fun!"
+  ],
+  "words": {
+   "溜滑梯": "slide",
+   "泡泡": "bubble",
+   "風箏": "kite"
+  },
+  "sw": [
+   null,
+   "溜滑梯",
+   null,
+   "泡泡"
+  ],
+  "q": {
+   "en": "What do we fly?",
+   "ans": "風箏"
+  },
+  "which": "溜滑梯"
+ },
+ {
+  "day": 155,
+  "en": [
+   "Long ago, people write on logs.",
+   "So heavy, so heavy!",
+   "A man makes paper.",
+   "Light and thin, easy to write!"
+  ],
+  "words": {
+   "木頭": "log",
+   "紙": "paper"
+  },
+  "sw": [
+   "木頭",
+   null,
+   null,
+   null
+  ],
+  "q": {
+   "en": "What does the man make?",
+   "ans": "紙"
+  },
+  "which": "木頭"
+ },
+ {
+  "day": 156,
+  "en": [
+   "Today we remember family.",
+   "We bring flowers to Great-Grandma.",
+   "We make wraps at home.",
+   "Add carrot, then roll it!"
+  ],
+  "words": {
+   "花束": "flower",
+   "潤餅": "wrap",
+   "紅蘿蔔": "carrot"
+  },
+  "sw": [
+   null,
+   "花束",
+   "潤餅",
+   "紅蘿蔔"
+  ],
+  "q": {
+   "en": "What do we add?",
+   "ans": "紅蘿蔔"
+  },
+  "which": "潤餅"
+ },
+ {
+  "day": 157,
+  "en": [
+   "He has a super nose.",
+   "Sniff, sniff, he finds things.",
+   "The princess lost her crown.",
+   "Sniff! It is under the tree!"
+  ],
+  "words": {
+   "鼻子": "nose",
+   "皇冠": "crown",
+   "樹": "tree"
+  },
+  "sw": [
+   "鼻子",
+   null,
+   "皇冠",
+   null
+  ],
+  "q": null,
+  "which": "鼻子"
+ },
+ {
+  "day": 158,
+  "en": [
+   "Dad drives me on a scooter.",
+   "Put on the helmet first.",
+   "Hold Dad tight, sit still.",
+   "Red, stop! Green, go!"
+  ],
+  "words": {
+   "機車": "scooter"
+  },
+  "sw": [
+   "機車",
+   null,
+   null,
+   null
+  ],
+  "q": null,
+  "which": "機車"
+ },
+ {
+  "day": 159,
+  "en": [
+   "A poor little girl.",
+   "She has a little oil.",
+   "She lights a little lamp.",
+   "The wind blows, it still shines!"
+  ],
+  "words": {
+   "油燈": "lamp"
+  },
+  "sw": [
+   null,
+   null,
+   "油燈",
+   null
+  ],
+  "q": {
+   "en": "What does the girl light?",
+   "ans": "油燈"
+  },
+  "which": "油燈"
+ },
+ {
+  "day": 160,
+  "en": [
+   "The cricket sings, chirp, chirp.",
+   "Donkey asks, what do you eat?",
+   "I drink dew!",
+   "Donkey drinks dew, so hungry!"
+  ],
+  "words": {
+   "蟋蟀": "cricket",
+   "驢子": "donkey"
+  },
+  "sw": [
+   "蟋蟀",
+   "驢子",
+   null,
+   null
+  ],
+  "q": {
+   "en": "Who sings, chirp, chirp?",
+   "ans": "蟋蟀"
+  },
+  "which": "驢子"
+ },
+ {
+  "day": 161,
+  "en": [
+   "There is a little pond.",
+   "A lotus and a frog!",
+   "He paints day and night.",
+   "The colors keep changing!"
+  ],
+  "words": {
+   "蓮花": "lotus",
+   "青蛙": "frog"
+  },
+  "sw": [
+   null,
+   "蓮花",
+   null,
+   null
+  ],
+  "q": {
+   "en": "What is in the pond?",
+   "ans": "蓮花"
+  },
+  "which": "青蛙"
+ },
+ {
+  "day": 162,
+  "en": [
+   "A boy does not want books.",
+   "Grandma rubs a big iron bar.",
+   "It will be a needle!",
+   "I will try hard too!"
+  ],
+  "words": {
+   "書": "book",
+   "針": "needle"
+  },
+  "sw": [
+   null,
+   null,
+   null,
+   null
+  ],
+  "q": null,
+  "which": "針"
+ },
+ {
+  "day": 163,
+  "en": [
+   "Someone is in the mirror.",
+   "I smile, he smiles.",
+   "We both touch our nose.",
+   "It is me!"
+  ],
+  "words": {
+   "鏡子": "mirror",
+   "鼻子": "nose"
+  },
+  "sw": [
+   "鏡子",
+   null,
+   "鼻子",
+   null
+  ],
+  "q": {
+   "en": "What do I look in?",
+   "ans": "鏡子"
+  },
+  "which": "鼻子"
+ },
+ {
+  "day": 164,
+  "en": [
+   "A golden swan visits.",
+   "It gives one gold feather.",
+   "Mom wants them all.",
+   "The swan flies away."
+  ],
+  "words": {
+   "天鵝": "swan",
+   "羽毛": "feather"
+  },
+  "sw": [
+   "天鵝",
+   "羽毛",
+   null,
+   null
+  ],
+  "q": {
+   "en": "Who gives a gold feather?",
+   "ans": "天鵝"
+  },
+  "which": "羽毛"
+ },
+ {
+  "day": 165,
+  "en": [
+   "Birds and animals fight.",
+   "Bat says, I'm a bird!",
+   "Then he says, I'm an animal!",
+   "Everyone says, not true!"
+  ],
+  "words": {
+   "小鳥": "bird",
+   "蝙蝠": "bat"
+  },
+  "sw": [
+   "小鳥",
+   "蝙蝠",
+   null,
+   null
+  ],
+  "q": {
+   "en": "Who says, I'm a bird?",
+   "ans": "蝙蝠"
+  },
+  "which": "小鳥"
+ },
+ {
+  "day": 166,
+  "en": [
+   "He looks in a microscope.",
+   "Tiny germs in the milk!",
+   "Warm up the milk.",
+   "The germs are gone!"
+  ],
+  "words": {
+   "顯微鏡": "microscope",
+   "牛奶": "milk"
+  },
+  "sw": [
+   "顯微鏡",
+   "牛奶",
+   null,
+   null
+  ],
+  "q": {
+   "en": "What does he look in?",
+   "ans": "顯微鏡"
+  },
+  "which": "牛奶"
+ },
+ {
+  "day": 167,
+  "en": [
+   "No scale fits the elephant.",
+   "The elephant gets on a boat.",
+   "He marks the water line.",
+   "Then rocks, one by one!"
+  ],
+  "words": {
+   "大象": "elephant",
+   "秤": "scale",
+   "石頭": "rock"
+  },
+  "sw": [
+   "大象",
+   null,
+   null,
+   "石頭"
+  ],
+  "q": {
+   "en": "Who gets on a boat?",
+   "ans": "大象"
+  },
+  "which": "秤"
+ },
+ {
+  "day": 168,
+  "en": [
+   "The clock goes tick, tock.",
+   "The short hand is on eight.",
+   "Wake up! Eat an egg!",
+   "The hands go round and round."
+  ],
+  "words": {
+   "時鐘": "clock",
+   "雞蛋": "egg"
+  },
+  "sw": [
+   "時鐘",
+   null,
+   "雞蛋",
+   null
+  ],
+  "q": {
+   "en": "What do I eat?",
+   "ans": "雞蛋"
+  },
+  "which": "時鐘"
+ },
+ {
+  "day": 169,
+  "en": [
+   "A deer lives by the river.",
+   "A man falls in the water!",
+   "The deer jumps in.",
+   "It carries him out."
+  ],
+  "words": {
+   "河": "river",
+   "鹿": "deer"
+  },
+  "sw": [
+   null,
+   null,
+   null,
+   null
+  ],
+  "q": {
+   "en": "Who jumps in?",
+   "ans": "鹿"
+  },
+  "which": "鹿"
+ },
+ {
+  "day": 170,
+  "en": [
+   "An ant falls in the water.",
+   "A dove drops a leaf.",
+   "The ant climbs on, safe!",
+   "Later, the ant helps the dove."
+  ],
+  "words": {
+   "螞蟻": "ant",
+   "鴿子": "dove",
+   "樹葉": "leaf"
+  },
+  "sw": [
+   "螞蟻",
+   "鴿子",
+   null,
+   null
+  ],
+  "q": {
+   "en": "Who drops a leaf?",
+   "ans": "鴿子"
+  },
+  "which": "樹葉"
+ },
+ {
+  "day": 171,
+  "en": [
+   "Grass cuts his hand.",
+   "Look, the grass has teeth!",
+   "He makes a saw.",
+   "Saw the log, so fast!"
+  ],
+  "words": {
+   "鋸子": "saw",
+   "木頭": "log"
+  },
+  "sw": [
+   null,
+   null,
+   "鋸子",
+   "木頭"
+  ],
+  "q": {
+   "en": "What does he make?",
+   "ans": "鋸子"
+  },
+  "which": "木頭"
+ },
+ {
+  "day": 172,
+  "en": [
+   "The earth is our home.",
+   "Turn off lights and the faucet.",
+   "Trash goes in the trash can.",
+   "The earth smiles!"
+  ],
+  "words": {
+   "地球": "earth",
+   "水龍頭": "faucet",
+   "垃圾桶": "trash can"
+  },
+  "sw": [
+   "地球",
+   "水龍頭",
+   "垃圾桶",
+   null
+  ],
+  "q": {
+   "en": "Where does trash go?",
+   "ans": "垃圾桶"
+  },
+  "which": "地球"
+ },
+ {
+  "day": 173,
+  "en": [
+   "The man lets a goldfish go.",
+   "Thank you, says the goldfish.",
+   "His wife wants a big house.",
+   "Then it is all gone."
+  ],
+  "words": {
+   "金魚": "goldfish",
+   "房子": "house"
+  },
+  "sw": [
+   "金魚",
+   null,
+   "房子",
+   null
+  ],
+  "q": {
+   "en": "Who does the man let go?",
+   "ans": "金魚"
+  },
+  "which": "房子"
+ },
+ {
+  "day": 174,
+  "en": [
+   "The sun is so hot!",
+   "Cut a big watermelon.",
+   "Red and sweet!",
+   "Spit the seeds, pew, pew, pew!"
+  ],
+  "words": {
+   "太陽": "sun",
+   "西瓜": "watermelon"
+  },
+  "sw": [
+   "太陽",
+   "西瓜",
+   null,
+   null
+  ],
+  "q": {
+   "en": "What do we cut?",
+   "ans": "西瓜"
+  },
+  "which": "太陽"
+ },
+ {
+  "day": 175,
+  "en": [
+   "The sheep boy yells, wolf!",
+   "People come. No wolf.",
+   "The wolf comes, nobody believes.",
+   "I will tell the truth."
+  ],
+  "words": {
+   "羊": "sheep",
+   "狼": "wolf"
+  },
+  "sw": [
+   null,
+   null,
+   null,
+   null
+  ],
+  "q": null,
+  "which": "羊"
+ },
+ {
+  "day": 176,
+  "en": [
+   "The fishermen go out to sea.",
+   "Big waves, they can't see!",
+   "She holds a red lantern.",
+   "The ship gets home safe."
+  ],
+  "words": {
+   "海浪": "wave",
+   "燈籠": "lantern",
+   "大船": "ship"
+  },
+  "sw": [
+   null,
+   "海浪",
+   "燈籠",
+   "大船"
+  ],
+  "q": {
+   "en": "What does she hold?",
+   "ans": "燈籠"
+  },
+  "which": "海浪"
+ },
+ {
+  "day": 177,
+  "en": [
+   "A boy learns to draw.",
+   "Teacher says, draw an egg.",
+   "Day after day, many eggs.",
+   "With his paintbrush, he gets better!"
+  ],
+  "words": {
+   "雞蛋": "egg",
+   "畫筆": "paintbrush"
+  },
+  "sw": [
+   null,
+   "雞蛋",
+   null,
+   "畫筆"
+  ],
+  "q": {
+   "en": "What does the boy draw?",
+   "ans": "雞蛋"
+  },
+  "which": "畫筆"
+ },
+ {
+  "day": 178,
+  "en": [
+   "Big wolf footprints on the ground.",
+   "He finds the hungry wolf.",
+   "Don't be scared, we'll feed you.",
+   "The wolf gives him its paw."
+  ],
+  "words": {
+   "狼": "wolf",
+   "腳印": "footprint"
+  },
+  "sw": [
+   "腳印",
+   null,
+   null,
+   null
+  ],
+  "q": {
+   "en": "Who does he find?",
+   "ans": "狼"
+  },
+  "which": "腳印"
+ },
+ {
+  "day": 179,
+  "en": [
+   "Spring, the flying fish come!",
+   "People row a little boat.",
+   "Little fish go back.",
+   "Take only the fish we eat."
+  ],
+  "words": {
+   "小船": "boat",
+   "魚": "fish"
+  },
+  "sw": [
+   null,
+   "小船",
+   null,
+   null
+  ],
+  "q": {
+   "en": "What do people row?",
+   "ans": "小船"
+  },
+  "which": "魚"
+ },
+ {
+  "day": 180,
+  "en": [
+   "Bare feet on the sand.",
+   "I find a shell.",
+   "I hold it to my ear.",
+   "Whoosh, whoosh, the waves!"
+  ],
+  "words": {
+   "貝殼": "shell",
+   "海浪": "wave"
+  },
+  "sw": [
+   null,
+   "貝殼",
+   null,
+   "海浪"
+  ],
+  "q": {
+   "en": "What do I find?",
+   "ans": "貝殼"
+  },
+  "which": "海浪"
+ }
+]

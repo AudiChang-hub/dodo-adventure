@@ -114,8 +114,8 @@ test.describe('學校首頁', () => {
         }
         await c.flush()
         live = (await snap(page)).live
-        // 故事書亂玩可能點進一本書（重聽）：先回書架
-        if (d.door === 'story' && (live ?? '').startsWith('replay-')) {
+        // 故事書亂玩可能點進一本書（重聽、英文版課文）：先回書架
+        if (d.door === 'story' && /^(replay|en)/.test(live ?? '')) {
           const h = await homeButton(page)
           if (h) await pressBack(k, h)
           await waitLive(page, (l) => l === 'shelf', 4000)

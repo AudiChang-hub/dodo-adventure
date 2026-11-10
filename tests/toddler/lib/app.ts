@@ -119,6 +119,7 @@ export const snap = (page: Page): Promise<Snap> =>
 /**
  * 今天的故事已經講完（寫一筆講完的章節）：首頁的「故事」點進去直接是書架。
  * 只測「每一扇門進得去、回得來」的測試用；新章節的流程在 story.spec.ts 測（T-77：今天有新章節會先講）。
+ * 今天中文課那一篇的英文版（T-129，故事時間先講它）也記成今天聽完了：中文課排課（zhLesson:course）的那一篇，沒有排課就是第 1 篇。
  */
 export async function storyToldToday(page: Page) {
   await page.evaluate(
@@ -130,8 +131,14 @@ export async function storyToldToday(page: Page) {
         rq.onerror = () => rej(rq.error)
         rq.onsuccess = () => {
           const db = rq.result
-          const tx = db.transaction('chapters', 'readwrite')
+          const tx = db.transaction(['chapters', 'kv'], 'readwrite')
           tx.objectStore('chapters').put({ id, date: id, part: 0, arc: 'evergreen', chapter: 0, kind: 'evergreen', band: 'small', picks: { words: [], friends: [], stickers: [], drawings: [] }, choices: {}, done: true, synced: 1, ref: 'ev-zoo', door: 'zoo', script: [{ k: 'theme.zoo.title' }, { k: 'theme.zoo.intro' }] })
+          const kv = tx.objectStore('kv')
+          const g = kv.get('zhLesson:course')
+          g.onsuccess = () => {
+            const day = (g.result?.value as { day?: number } | undefined)?.day ?? 1
+            kv.put({ key: 'storyEn', value: { heard: { [day]: [id] } } })
+          }
           tx.oncomplete = () => {
             db.close()
             res()
