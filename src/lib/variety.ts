@@ -58,10 +58,25 @@ function clean(v: unknown): VarietyState {
 }
 
 /**
+ * 測試、截圖用的覆寫：localStorage 的 `dodo:variety:<課>` 設成某一種玩法，就固定用那一種（不寫入紀錄）。
+ * 沒有 localStorage、或設的不是這一課的玩法，就不理它。
+ */
+function override<K extends string>(lesson: string, kinds: readonly K[]): K | null {
+  try {
+    const v = globalThis.localStorage?.getItem(`dodo:variety:${lesson}`)
+    return v && (kinds as readonly string[]).includes(v) ? (v as K) : null
+  } catch {
+    return null
+  }
+}
+
+/**
  * 今天這一課用哪種玩法（會存起來）。lesson 是課的名字（例如 'math.give'），kinds 是可以輪流的玩法。
  * 資料庫壞掉、讀不到的時候照樣回傳一種（隨便挑），不擋住上課。
  */
 export async function pickVariety<K extends string>(lesson: string, kinds: readonly K[], date: Date = new Date()): Promise<K> {
+  const forced = override(lesson, kinds)
+  if (forced) return forced
   let state: VarietyState = {}
   try {
     state = clean(await getKV<unknown>(VARIETY_KV, {}))
