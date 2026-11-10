@@ -12,7 +12,8 @@ function Dino({ who, pose }: { who: Speaker; pose: string }) {
   const mood: Mood = pose === 'cheer' ? 'cheer' : pose === 'sleep' ? 'sleep' : 'happy'
   return (
     <g>
-      <DinoArt who={who} mood={mood} />
+      {/* 插畫裡的恐龍完全靜止（不眨眼、嘴巴不跟著旁白動）：這一句要動的由 Page 的 motion 做（T-127） */}
+      <DinoArt who={who} mood={mood} still />
       {pose === 'sleep' && <Zzz x={who === 'bobo' ? 214 : 170} y={who === 'momo' ? 40 : 60} k={0.7} />}
     </g>
   )

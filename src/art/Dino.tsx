@@ -18,8 +18,13 @@ const PAL = {
   momo: { body: '#A3C4E4', deep: '#6F9CC8', belly: '#D8E7F5', accent: '#C6DCF0' },
 }
 
-/** 嘴巴：說話時依音量張開，平常是微笑 */
-function Mouth({ who, x, y, w }: { who: Speaker; x: number; y: number; w: number }) {
+/** 嘴巴：說話時依音量張開，平常是微笑。still：只畫微笑（故事插畫：不跟著旁白開合） */
+function Mouth({ who, x, y, w, still }: { who: Speaker; x: number; y: number; w: number; still?: boolean }) {
+  if (still) return <path d={`M${x - w} ${y - 3} Q${x} ${y + w * 0.75} ${x + w} ${y - 4}`} fill="none" stroke={INK} strokeWidth={4} strokeLinecap="round" />
+  return <TalkingMouth who={who} x={x} y={y} w={w} />
+}
+
+function TalkingMouth({ who, x, y, w }: { who: Speaker; x: number; y: number; w: number }) {
   const smile = useRef<SVGPathElement>(null)
   const open = useRef<SVGGElement>(null)
   useEffect(
@@ -42,20 +47,20 @@ function Mouth({ who, x, y, w }: { who: Speaker; x: number; y: number; w: number
   )
 }
 
-function Eye({ x, y, r, mood }: { x: number; y: number; r: number; mood: Mood }) {
+function Eye({ x, y, r, mood, still }: { x: number; y: number; r: number; mood: Mood; still?: boolean }) {
   if (mood === 'sleep')
     return <path d={`M${x - r} ${y} Q${x} ${y + r} ${x + r} ${y}`} fill="none" stroke={INK} strokeWidth={4} strokeLinecap="round" />
   if (mood === 'cheer')
     return <path d={`M${x - r} ${y + 2} Q${x} ${y - r * 1.3} ${x + r} ${y + 2}`} fill="none" stroke={INK} strokeWidth={4.5} strokeLinecap="round" />
   return (
-    <g className="dino-blink" style={{ transformOrigin: `${x}px ${y}px` }}>
+    <g className={still ? undefined : 'dino-blink'} style={still ? undefined : { transformOrigin: `${x}px ${y}px` }}>
       <ellipse cx={x} cy={y} rx={r * 0.82} ry={r} fill={INK} />
       <circle cx={x + r * 0.3} cy={y - r * 0.38} r={r * 0.32} fill="#fff" />
     </g>
   )
 }
 
-export function DodoArt({ mood }: { mood: Mood }) {
+export function DodoArt({ mood, still }: { mood: Mood; still?: boolean }) {
   const p = PAL.dodo
   const s = { stroke: p.deep, strokeWidth: 3.5, strokeLinejoin: 'round' as const }
   return (
@@ -71,24 +76,31 @@ export function DodoArt({ mood }: { mood: Mood }) {
         <ellipse cx={132} cy={158} rx={29} ry={31} fill={p.belly} />
       </g>
       {/* 原點是整張圖的座標：transformBox 要是 view-box（motion 對 SVG 預設 fill-box，原點會變成相對手臂自己的框，歡呼時手臂飛到身體外面） */}
-      <motion.g
-        style={{ originX: '150px', originY: '140px', transformBox: 'view-box' }}
-        animate={{ rotate: mood === 'cheer' ? -70 : 0 }}
-        transition={{ type: 'spring', stiffness: 260, damping: 12 }}
-      >
-        <ellipse cx={156} cy={140} rx={11} ry={6.5} fill={p.body} {...s} />
-      </motion.g>
+      {still ? (
+        // 故事插畫：手臂直接畫在最後的位置（不轉、不彈，紙感螢幕）
+        <g transform={mood === 'cheer' ? 'rotate(-70 150 140)' : undefined}>
+          <ellipse cx={156} cy={140} rx={11} ry={6.5} fill={p.body} {...s} />
+        </g>
+      ) : (
+        <motion.g
+          style={{ originX: '150px', originY: '140px', transformBox: 'view-box' }}
+          animate={{ rotate: mood === 'cheer' ? -70 : 0 }}
+          transition={{ type: 'spring', stiffness: 260, damping: 12 }}
+        >
+          <ellipse cx={156} cy={140} rx={11} ry={6.5} fill={p.body} {...s} />
+        </motion.g>
+      )}
       <ellipse cx={152} cy={82} rx={60} ry={48} fill={p.body} {...s} />
       <circle cx={204} cy={72} r={2.4} fill={p.deep} />
       <circle cx={196} cy={69} r={2.4} fill={p.deep} />
-      <Eye x={168} y={70} r={10} mood={mood} />
+      <Eye x={168} y={70} r={10} mood={mood} still={still} />
       <ellipse cx={184} cy={98} rx={10} ry={6} fill={CHEEK} opacity={0.85} />
-      <Mouth who="dodo" x={188} y={104} w={13} />
+      <Mouth who="dodo" x={188} y={104} w={13} still={still} />
     </g>
   )
 }
 
-export function BoboArt({ mood }: { mood: Mood }) {
+export function BoboArt({ mood, still }: { mood: Mood; still?: boolean }) {
   const p = PAL.bobo
   const s = { stroke: p.deep, strokeWidth: 3.5, strokeLinejoin: 'round' as const }
   const dots = [-150, -120, -90, -60, -30, 0, 30].map((a) => {
@@ -114,14 +126,14 @@ export function BoboArt({ mood }: { mood: Mood }) {
       <path d="M200 78 L210 34 L218 82 Z" fill={p.horn} {...s} />
       <ellipse cx={192} cy={108} rx={48} ry={38} fill={p.body} {...s} />
       <path d="M228 98 L250 84 L236 112 Z" fill={p.horn} {...s} />
-      <Eye x={200} y={100} r={9.5} mood={mood} />
+      <Eye x={200} y={100} r={9.5} mood={mood} still={still} />
       <ellipse cx={216} cy={124} rx={10} ry={6} fill={CHEEK} opacity={0.85} />
-      <Mouth who="bobo" x={214} y={130} w={12} />
+      <Mouth who="bobo" x={214} y={130} w={12} still={still} />
     </g>
   )
 }
 
-export function MomoArt({ mood }: { mood: Mood }) {
+export function MomoArt({ mood, still }: { mood: Mood; still?: boolean }) {
   const p = PAL.momo
   const s = { stroke: p.deep, strokeWidth: 3.5, strokeLinejoin: 'round' as const }
   const neck = 'M146 170 C164 132 166 92 178 60'
@@ -141,9 +153,9 @@ export function MomoArt({ mood }: { mood: Mood }) {
       </g>
       <motion.g
         style={{ originX: '146px', originY: '170px', transformBox: 'view-box' }}
-        animate={{ rotate: mood === 'peek' ? [0, -4, 0] : mood === 'cheer' ? [0, 5, -3, 0] : 0 }}
-        // 探頭：歪一下頭就停（不一直晃）
-        transition={{ duration: mood === 'peek' ? 3 : 0.8, ease: 'easeInOut' }}
+        animate={{ rotate: still ? 0 : mood === 'peek' ? [0, -4, 0] : mood === 'cheer' ? [0, 5, -3, 0] : 0 }}
+        // 探頭：歪一下頭就停（不一直晃）；故事插畫（still）不動
+        transition={{ duration: still ? 0 : mood === 'peek' ? 3 : 0.8, ease: 'easeInOut' }}
       >
         <path d={neck} fill="none" stroke={p.deep} strokeWidth={41} strokeLinecap="round" />
         <path d={neck} fill="none" stroke={p.body} strokeWidth={34} strokeLinecap="round" />
@@ -151,9 +163,9 @@ export function MomoArt({ mood }: { mood: Mood }) {
         <circle cx={170} cy={96} r={4} fill={p.accent} />
         <ellipse cx={190} cy={52} rx={36} ry={25} fill={p.body} {...s} />
         <ellipse cx={180} cy={28} rx={5} ry={8} fill={p.body} {...s} />
-        <Eye x={196} y={44} r={8} mood={mood} />
+        <Eye x={196} y={44} r={8} mood={mood} still={still} />
         <ellipse cx={210} cy={60} rx={8} ry={5} fill={CHEEK} opacity={0.85} />
-        <Mouth who="momo" x={208} y={64} w={9} />
+        <Mouth who="momo" x={208} y={64} w={9} still={still} />
       </motion.g>
     </g>
   )
@@ -167,10 +179,11 @@ export const DINO_BOX: Record<Speaker, { w: number; h: number }> = {
 
 export const DINO_NAME: Record<Speaker, string> = { dodo: '豆豆', bobo: '波波', momo: '莫莫' }
 
-export function DinoArt({ who, mood }: { who: Speaker; mood: Mood }) {
-  if (who === 'bobo') return <BoboArt mood={mood} />
-  if (who === 'momo') return <MomoArt mood={mood} />
-  return <DodoArt mood={mood} />
+/** still：完全靜止（故事插畫用，T-127：不眨眼、嘴巴不跟著旁白開合、手臂不轉；紙感螢幕一句只有一個角色動） */
+export function DinoArt({ who, mood, still }: { who: Speaker; mood: Mood; still?: boolean }) {
+  if (who === 'bobo') return <BoboArt mood={mood} still={still} />
+  if (who === 'momo') return <MomoArt mood={mood} still={still} />
+  return <DodoArt mood={mood} still={still} />
 }
 
 interface DinoProps {
