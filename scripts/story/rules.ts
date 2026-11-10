@@ -14,7 +14,8 @@ import { EMOJI } from '../../src/art/emoji.generated'
 import { STORY_ART, TWO, artParts } from '../../src/content/story/art'
 import { problemsOf as artProblems } from '../../src/art/storybook/layout'
 import { ITEMS } from '../../src/art/storybook/meta'
-import { allChapters, doorStop, draftChapters, weeklyOf, type Beat, type Chapter, type StopBeats, type StoryDraft } from '../../src/content/story'
+import { allChapters, chapterLines, chapterLook, doorStop, draftChapters, scriptOf, weeklyOf, type Beat, type Chapter, type StopBeats, type StoryDraft } from '../../src/content/story'
+import { MAX_PAGES, MAX_PER_PAGE, flowOf } from '../../src/content/story/flow'
 import { OPEN_BOOK, CLOSE_BOOK } from '../../src/content/story/classics/fixed'
 import { BASIC_WORDS } from './basic-words'
 import type { LearnerSnapshot } from '../../src/lib/learner'
@@ -383,6 +384,19 @@ export function checkChapter(ch: Chapter, opts: CheckOpts, extra: { cast?: strin
   const maxW = Math.round(f.story.words * 1.1)
   if (path.length > maxS) add('long', `一章 ${path.length} 句（含門原本的旁白；不算開門口令、故事時間的固定句），超過 ${maxS} 句（故事世界 §3.3）`)
   if (nWords > maxW) add('long', `一章約 ${nWords} 個字，超過約 ${f.story.words} 字（最多 ${maxW}）`)
+  // 一章最多 6 頁、一頁最多 3 句（T-127 會動的繪本：一頁是同一張插畫上的幾句，content/story/flow.ts 的 pagesOf）
+  if (band === 'small') {
+    const look = chapterLook(ch, ch.door ?? 'bus')
+    const sc = look && scriptOf(ch, { tracks: [], friend: null, door: ch.door ?? 'bus' })
+    if (sc) {
+      const said = [...sc.title, ...sc.intro, ...sc.stops.flat(), ...sc.finale, ...sc.end]
+      const text = new Map(chapterLines(ch).map(([k, , en]) => [k, en]))
+      const fl = flowOf(ch, said.map((x) => ({ k: x.key, pic: x.pic })), said.map((x) => text.get(x.key) ?? ''), look.scene, look.icon)
+      const sizes = Array.from({ length: fl.pages }, (_, p) => fl.pageOf.filter((x) => x === p).length)
+      if (fl.pages > MAX_PAGES || sizes.some((n) => n > MAX_PER_PAGE))
+        add('long', `一章分成 ${fl.pages} 頁（每頁 ${sizes.join('、')} 句），要 ${MAX_PAGES} 頁以內、一頁最多 ${MAX_PER_PAGE} 句（T-127）：句子太多，或場景、角色換太多次`)
+    }
+  }
 
   // ── 加重的字：要在句尾、要學過 ──
   for (const [where, bs] of segs)

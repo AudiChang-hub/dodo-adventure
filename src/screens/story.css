@@ -319,3 +319,80 @@
     top: calc(16vh + 92vw / 1.6 + 4vh);
   }
 }
+
+/* ── 會動的繪本（T-127）────────────────────────────────────── */
+/* 書架上的書：一圈三格，亮幾格是這一章聽了幾天（1～3）；星星在圈裡面。靜態的，不閃不轉 */
+.book-star .book-told {
+  position: absolute;
+  inset: -24%;
+  width: 148%;
+  height: 148%;
+}
+.book-star > :not(.book-told) {
+  position: relative;
+}
+
+/* 第 2 天「一起演」：停在句子和句子之間，要點的那一個外面一圈靜態的黃框（等他的時候只有手會動，MOTION-2） */
+.story-act {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  touch-action: manipulation;
+}
+.story-act-target {
+  position: absolute;
+  border: 0;
+  padding: 0;
+  border-radius: 32px;
+  background: transparent;
+  box-shadow:
+    0 0 0 5px rgba(241, 210, 124, 0.95),
+    0 0 0 11px rgba(241, 210, 124, 0.32);
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+
+/* 第 3 天「你來說」、第 1 天最後的問題：兩張圖蓋在插畫上 */
+.story-choose {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  align-items: center;
+  gap: 4.5%;
+  padding: 0 5%;
+  background: rgba(251, 248, 242, 0.98);
+  touch-action: manipulation;
+}
+.story-choice {
+  position: relative;
+  aspect-ratio: 1.6;
+  border: 0;
+  padding: 0;
+  border-radius: 20px;
+  overflow: hidden;
+  background: var(--card);
+  box-shadow:
+    0 0 0 6px var(--card),
+    0 16px 26px -18px rgba(46, 42, 37, 0.5);
+  transition:
+    opacity 0.4s var(--ease-out, ease-out),
+    filter 0.4s var(--ease-out, ease-out),
+    box-shadow 0.3s var(--ease-out, ease-out);
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+.story-choice .sb-page {
+  width: 100%;
+  height: 100%;
+}
+.story-choice.is-off {
+  opacity: 0.4;
+  filter: saturate(0.4);
+}
+.story-choice.is-right {
+  box-shadow:
+    0 0 0 6px var(--good, #7fb77e),
+    0 16px 26px -18px rgba(46, 42, 37, 0.5);
+}

@@ -92,8 +92,8 @@ const todayId = () => {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 }
 
-/** 講到第幾句（上面那排小點亮了幾顆） */
-const heard = (page: Page) => page.evaluate(() => document.querySelectorAll('.book-progress i.is-done').length)
+/** 講到第幾句（插畫上的 data-beat，從 1 起算；T-127 起下面的小點點是「第幾頁」，一頁 1～3 句） */
+const heard = (page: Page) => page.evaluate(() => Number((document.querySelector('.book-art') as HTMLElement | null)?.dataset.beat ?? -1) + 1)
 
 /** 今天這一章在資料庫的樣子 */
 const todayRow = (page: Page, id: string) =>
@@ -274,4 +274,289 @@ test.describe('故事', () => {
       finish(k, c, '故事書')
     }
   })
+
+  // ── T-127 會動的繪本、同一章連講 3 天 ─────────────────────────────
+
+  // 第 1 天看：一句只有一個角色動（不縮放、不彈跳）、旁白在念的時候亂點連點不跳句、念完問一題（點錯淡下去、多指只算一下、點對才往下）；
+  // 講完記成這一章聽了 1 天，還不換下一章；書架上那一圈亮 1 格
+  test('T-127 第 1 天看：一句一個動作、亂點不跳句、念完問一題', async ({ page }, info) => {
+    test.skip(!want('story-days'))
+    test.setTimeout(6 * 60_000)
+    const { k, c } = await setup(page, info, '第1天看')
+    try {
+      await seedStory(page, { story: dayState(0), chapters: [] })
+      k.behavior = '進故事'
+      await k.tap((await center(page, '.side-door[data-door="story"]'))!, '故事')
+      let live = await waitLive(page, (l) => (l ?? '').startsWith('replay-'), 8000)
+      c.outcome('第 1 天：點故事 → 講新的一章', (live ?? '').startsWith('replay-'), `到 ${live}`)
+      // 念的時候：亂點、連點、手掌壓；每一句只有一個角色在動，沒有縮放、彈跳
+      k.behavior = '念的時候亂點'
+      const before = await heard(page)
+      const t0 = Date.now()
+      const looks: { acts: number; scale: boolean; hop: boolean }[] = []
+      let shotTaken = false
+      for (let i = 0; i < 10; i++) {
+        if (i % 3 === 0) await k.spam({ x: 640 + k.r.range(-280, 280), y: 380 + k.r.range(-120, 160) }, 3, '連點插畫')
+        else if (i % 3 === 1) await k.palm([{ x: 500, y: 350 }, { x: 560, y: 420 }, { x: 620, y: 380 }], 300)
+        else await k.tap({ x: 300 + k.r.range(0, 700), y: 200 + k.r.range(0, 400) }, '亂點')
+        await k.wait(700)
+        const m = await motionNow(page)
+        looks.push(m)
+        if (!shotTaken && m.moving) {
+          shotTaken = true
+          await shot(page, 'T127-第1天-看', info)
+        }
+      }
+      const after = await heard(page)
+      const sec = (Date.now() - t0) / 1000
+      c.outcome('亂點連點沒有跳句', after - before <= Math.max(1, Math.ceil(sec / 1.5)), `${sec.toFixed(1)} 秒從第 ${before} 句到第 ${after} 句`)
+      if (after - before > Math.max(1, Math.ceil(sec / 1.5))) await c.once('days-skip', '困惑', '第 1 天念的時候亂點，跳過了句子', `${sec.toFixed(1)} 秒從 ${before} 到 ${after}`)
+      c.outcome('一句最多一個角色在動', looks.every((m) => m.acts <= 1), looks.map((m) => m.acts).join(','))
+      if (looks.some((m) => m.acts > 1)) await c.once('days-two-move', '閃動縮放', '同一句有兩個角色在動（MOTION-2：一次只動一個）', looks.map((m) => m.acts).join(','))
+      c.outcome('角色沒有縮放、沒有彈跳', looks.every((m) => !m.scale && !m.hop), JSON.stringify(looks.filter((m) => m.scale || m.hop)))
+      if (looks.some((m) => m.scale || m.hop)) await c.once('days-scale', '閃動縮放', '會動的繪本裡有角色在縮放或彈跳（紙感螢幕只用位移）', JSON.stringify(looks.filter((m) => m.scale || m.hop)))
+      await c.flush()
+      // 念完問一題：兩張圖，點錯的淡下去、手來指；手掌壓只算一下；點對才往下
+      k.behavior = '第 1 天最後的問題'
+      const asked = await waitWait(page, 'ask', 150_000)
+      c.outcome('第 1 天念完問一題（兩張圖）', asked, asked ? '出現' : '沒有出現')
+      if (!asked) await c.once('days-no-ask', '困惑', '第 1 天念完沒有問問題', '')
+      if (asked) {
+        await k.wait(600)
+        await shot(page, 'T127-第1天-問題', info)
+        const wrong = await center(page, '.story-choice:not([data-answer])')
+        if (wrong) await k.spam(wrong, 3, '連點錯的那張')
+        await k.wait(700)
+        const off = await page.evaluate(() => !!document.querySelector('.story-choice.is-off:not([data-answer])'))
+        const still = await page.evaluate(() => (document.querySelector('.book-art') as HTMLElement | null)?.dataset.wait === 'ask')
+        c.outcome('點錯：那一張淡下去，還在問', off && still, `淡下去 ${off}、還在問 ${still}`)
+        const right = await center(page, '.story-choice[data-answer]')
+        if (right && wrong) await k.palm([right, wrong], 200)
+        else if (right) await k.tap(right, '點對的')
+        live = await waitLive(page, (l) => (l ?? '').startsWith('done-'), 6000)
+        c.outcome('點對 → 讀完了', (live ?? '').startsWith('done-'), `到 ${live}`)
+        if (!(live ?? '').startsWith('done-')) await c.once('days-ask-stuck', '卡死', '第 1 天最後的問題點對了沒有往下', `到 ${live}`)
+      }
+      live = await waitLive(page, (l) => (l ?? '').startsWith('done-'), 40_000)
+      const st = await storyKV(page)
+      c.outcome('講完記成聽了 1 天、還不換下一章', st?.told?.['p1-a01-c1'] === 1 && st.next === 0, JSON.stringify({ told: st?.told, next: st?.next }))
+      if (!(st?.told?.['p1-a01-c1'] === 1 && st.next === 0)) await c.once('days-told1', '誤記作答', '第 1 天講完，聽了幾天記錯了（或直接換了下一章）', JSON.stringify(st))
+      live = await tapBack(k, c, '讀完了', (l) => l === 'shelf')
+      await k.wait(1200)
+      const ring = await page.evaluate(() => (document.querySelector('.book-card .book-star') as HTMLElement | null)?.dataset.told)
+      c.outcome('書架上那一圈亮 1 格', ring === '1', `亮 ${ring} 格`)
+      await c.flush()
+    } finally {
+      finish(k, c, '第1天看')
+    }
+  })
+
+  // 第 2 天一起演：只在句子和句子之間停；不點 8 秒手來示範、30 秒內一定往下；點別的地方手馬上來指；手在示範時搶著點對的照樣算；
+  // 停著的時候返回、再進來從那一句接著停
+  test('T-127 第 2 天一起演：停下來換他點、發呆有手、搶著點、返回再進來', async ({ page }, info) => {
+    test.skip(!want('story-days'))
+    test.setTimeout(7 * 60_000)
+    const { k, c } = await setup(page, info, '第2天一起演')
+    try {
+      await seedStory(page, { story: dayState(1), chapters: [yesterday('2026-09-01')] })
+      await k.tap((await center(page, '.side-door[data-door="story"]'))!, '故事')
+      await waitLive(page, (l) => (l ?? '').startsWith('replay-'), 8000)
+      // 第一個停頓點：發呆
+      k.behavior = '停下來發呆'
+      const first = await waitWait(page, 'act', 60_000)
+      c.outcome('第 2 天：念到一半停下來換他做', first, first ? '停下來了' : '沒有停')
+      if (!first) await c.once('days-no-act', '困惑', '第 2 天沒有停下來換他做', '')
+      const beat1 = await heard(page)
+      await k.wait(1500)
+      await shot(page, 'T127-第2天-一起演', info)
+      const t0 = Date.now()
+      let handAt = 0
+      let goneAt = 0
+      while (Date.now() - t0 < 32_000) {
+        await k.wait(400)
+        if (!handAt && (await page.$('.story-act .demo-hand'))) handAt = Date.now() - t0
+        if ((await waitKind(page)) !== 'act' || (await heard(page)) !== beat1) {
+          goneAt = Date.now() - t0
+          break
+        }
+      }
+      c.outcome('發呆：8 秒左右手來示範', handAt > 6000 && handAt < 11_000, `${(handAt / 1000).toFixed(1)} 秒`)
+      if (!(handAt > 6000 && handAt < 11_000)) await c.once('days-hand', '困惑', '第 2 天停下來等他，發呆時手沒有在 8 秒左右出來示範', `${(handAt / 1000).toFixed(1)} 秒`)
+      c.outcome('發呆：30 秒內故事自己往下', goneAt > 0 && goneAt < 30_000, `${(goneAt / 1000).toFixed(1)} 秒`)
+      if (!(goneAt > 0 && goneAt < 30_000)) await c.once('days-stuck', '卡死', '第 2 天停下來等他，發呆 30 秒故事還沒往下（NAV-5）', `${(goneAt / 1000).toFixed(1)} 秒`)
+      await c.flush()
+      // 第二個停頓點：先亂點別的地方（手馬上來指），手在指的時候搶著連點對的
+      k.behavior = '停下來亂點、搶著點'
+      if (await waitWait(page, 'act', 60_000)) {
+        const beat2 = await heard(page)
+        await k.tap({ x: 260, y: 640 }, '點旁邊')
+        await k.wait(500)
+        const hand = !!(await page.$('.story-act .demo-hand'))
+        c.outcome('點別的地方：手馬上來指', hand, hand ? '有手' : '沒有手')
+        const tgt = await center(page, '.story-act-target')
+        if (tgt) await k.spam(tgt, 4, '搶著連點要點的那個')
+        await k.wait(1500)
+        const moved = (await waitKind(page)) !== 'act' || (await heard(page)) !== beat2
+        c.outcome('手在示範時搶著點對的：照樣往下', moved, moved ? '往下了' : '還停著')
+        if (!moved) await c.once('days-tap-act', '卡死', '第 2 天點了要點的那個，故事沒有往下', '')
+        // 連點只算一下：不會一次跳過下一個停頓點
+        await k.wait(1500)
+        c.outcome('連點只算一下（沒有連跳兩句）', (await heard(page)) <= beat2 + 1, `第 ${beat2} 句 → 第 ${await heard(page)} 句`)
+      }
+      await c.flush()
+      // 第三個停頓點：返回 → 書架 → 再進來，從停下來的那一句接著（還是第 2 天的玩法）
+      k.behavior = '停著返回再進來'
+      if (await waitWait(page, 'act', 60_000)) {
+        const beat3 = await heard(page)
+        let live = await tapBack(k, c, '第 2 天停著', (l) => l === 'shelf')
+        await k.wait(1200)
+        const card = await center(page, '.book-card.is-new')
+        if (card) await k.tap(card, '今天的書')
+        live = await waitLive(page, (l) => (l ?? '').startsWith('replay-'), 6000)
+        const again = await waitWait(page, 'act', 20_000)
+        const at = await heard(page)
+        c.outcome('返回再進來：從那一句接著停', again && at === beat3, `離開第 ${beat3} 句，再進來第 ${at} 句、${again ? '停著等他' : '沒有停'}`)
+        if (!(again && at === beat3)) await c.once('days-resume', '困惑', '第 2 天停著返回，再進來沒有接著那一句', `離開第 ${beat3} 句，再進來第 ${at} 句`)
+        const tgt = await center(page, '.story-act-target')
+        if (tgt) await k.tap(tgt, '點要點的那個')
+      }
+      // 剩下的都點對的，聽完
+      k.behavior = '聽完'
+      const end = Date.now() + 150_000
+      while (Date.now() < end && !((await snap(page)).live ?? '').startsWith('done-')) {
+        if ((await waitKind(page)) === 'act') {
+          await k.wait(800)
+          const tgt = await center(page, '.story-act-target')
+          if (tgt) await k.tap(tgt, '點要點的那個')
+        }
+        await k.wait(700)
+      }
+      const st = await storyKV(page)
+      c.outcome('講完記成聽了 2 天、還不換下一章', st?.told?.['p1-a01-c1'] === 2 && st.next === 0, JSON.stringify({ told: st?.told, next: st?.next }))
+      if (!(st?.told?.['p1-a01-c1'] === 2 && st.next === 0)) await c.once('days-told2', '誤記作答', '第 2 天講完，聽了幾天記錯了', JSON.stringify(st))
+      await c.flush()
+    } finally {
+      finish(k, c, '第2天一起演')
+    }
+  })
+
+  // 第 3 天你來說：每一頁之前先問 What happens next?，出兩張圖；點錯淡下去、點對才翻頁；發呆 30 秒內一定往下；
+  // 手掌壓只算一下；講完記成聽了 3 天，第 4 天換下一章
+  test('T-127 第 3 天你來說：每頁先選下一張圖、點錯、發呆、多指', async ({ page }, info) => {
+    test.skip(!want('story-days'))
+    test.setTimeout(7 * 60_000)
+    const { k, c } = await setup(page, info, '第3天你來說')
+    try {
+      await seedStory(page, { story: dayState(2), chapters: [yesterday('2026-09-01'), yesterday('2026-09-02')] })
+      await k.tap((await center(page, '.side-door[data-door="story"]'))!, '故事')
+      await waitLive(page, (l) => (l ?? '').startsWith('replay-'), 8000)
+      // 第一次問：點錯（淡下去、還在問）→ 點對（翻到那一頁）
+      k.behavior = '你來說：點錯再點對'
+      const asked = await waitWait(page, 'tell', 60_000)
+      c.outcome('第 3 天：換頁之前先問 What happens next?', asked, asked ? '出現兩張圖' : '沒有問')
+      if (!asked) await c.once('days-no-tell', '困惑', '第 3 天換頁之前沒有問', '')
+      if (asked) {
+        await k.wait(800)
+        await shot(page, 'T127-第3天-你來說', info)
+        const page0 = await pageNo(page)
+        const wrong = await center(page, '.story-choice:not([data-answer])')
+        if (wrong) await k.tap(wrong, '點錯的')
+        await k.wait(800)
+        c.outcome('點錯：淡下去、還在問', (await waitKind(page)) === 'tell' && !!(await page.$('.story-choice.is-off')), '')
+        const right = await center(page, '.story-choice[data-answer]')
+        if (right) await k.tap(right, '點對的')
+        await k.wait(2000)
+        const page1 = await pageNo(page)
+        c.outcome('點對：翻到那一頁', (await waitKind(page)) !== 'tell' && page1 === page0 + 1, `第 ${page0 + 1} 頁 → 第 ${page1 + 1} 頁`)
+        if (page1 !== page0 + 1) await c.once('days-tell-turn', '困惑', '第 3 天選對了沒有翻到那一頁', `第 ${page0 + 1} 頁 → 第 ${page1 + 1} 頁`)
+      }
+      await c.flush()
+      // 第二次問：發呆，30 秒內一定往下
+      k.behavior = '你來說：發呆'
+      if (await waitWait(page, 'tell', 60_000)) {
+        const t0 = Date.now()
+        let goneAt = 0
+        while (Date.now() - t0 < 32_000) {
+          await k.wait(500)
+          if ((await waitKind(page)) !== 'tell') {
+            goneAt = Date.now() - t0
+            break
+          }
+        }
+        c.outcome('發呆：30 秒內故事自己往下', goneAt > 0 && goneAt < 30_000, `${(goneAt / 1000).toFixed(1)} 秒`)
+        if (!(goneAt > 0 && goneAt < 30_000)) await c.once('days-tell-stuck', '卡死', '第 3 天選圖發呆 30 秒還沒往下（NAV-5）', `${(goneAt / 1000).toFixed(1)} 秒`)
+      }
+      // 第三次問：手掌同時壓兩張（只算第一下）
+      k.behavior = '你來說：手掌壓'
+      if (await waitWait(page, 'tell', 60_000)) {
+        const a = await center(page, '.story-choice[data-answer]')
+        const b = await center(page, '.story-choice:not([data-answer])')
+        if (a && b) await k.palm([a, b], 300)
+        await k.wait(1500)
+        c.outcome('手掌壓兩張：只算第一下，沒有卡住', true, (await waitKind(page)) ?? '往下了')
+      }
+      await c.flush()
+      // 剩下的都選對，聽完
+      k.behavior = '聽完'
+      const end = Date.now() + 180_000
+      while (Date.now() < end && !((await snap(page)).live ?? '').startsWith('done-')) {
+        if ((await waitKind(page)) === 'tell') {
+          await k.wait(600)
+          const r = await center(page, '.story-choice[data-answer]')
+          if (r) await k.tap(r, '點對的')
+        }
+        await k.wait(700)
+      }
+      const st = await storyKV(page)
+      c.outcome('講完記成聽了 3 天，換下一章', st?.told?.['p1-a01-c1'] === 3 && st.next === 1, JSON.stringify({ told: st?.told, next: st?.next }))
+      if (!(st?.told?.['p1-a01-c1'] === 3 && st.next === 1)) await c.once('days-told3', '誤記作答', '第 3 天講完沒有換下一章（或聽了幾天記錯）', JSON.stringify(st))
+      await c.flush()
+    } finally {
+      finish(k, c, '第3天你來說')
+    }
+  })
 })
+
+/** 第 n+1 天的故事進度：p1-a01 第 1 章講完過 n 天；故事時間都講過了（每天都是長篇，不管今天星期幾） */
+const dayState = (n: number) => ({ part: 1, arc: 'p1-a01', next: 0, choices: {}, classicsDone: ['A01', 'J02', 'A02', 'B01', 'A04', 'P01', 'A06', 'F02'], house: [], told: n ? { 'p1-a01-c1': n } : {} })
+/** 前幾天講完的那一章（p1-a01 第 1 章） */
+const yesterday = (date: string) => ({ id: date, date, part: 1, arc: 'p1-a01', chapter: 1, kind: 'epic', band: 'small', picks: { words: [], friends: [], stickers: [], drawings: [] }, choices: {}, done: true, synced: 1, ref: 'p1-a01-c1', door: 'bus', script: [{ k: 'story.p1-a01-c1.intro.0', pic: '@rainbow-egg' }] })
+
+/** 插畫上正在等他做什麼（act、tell、ask；沒有在等是 null） */
+const waitKind = (page: Page) => page.evaluate(() => (document.querySelector('.book-art') as HTMLElement | null)?.dataset.wait ?? null)
+/** 現在是第幾頁（從 0 起算） */
+const pageNo = (page: Page) => page.evaluate(() => Number((document.querySelector('.book-art') as HTMLElement | null)?.dataset.page ?? -1))
+async function waitWait(page: Page, kind: string, ms: number) {
+  const end = Date.now() + ms
+  while (Date.now() < end) {
+    if ((await waitKind(page)) === kind) return true
+    if (((await snap(page)).live ?? '').startsWith('done-')) return false
+    await page.waitForTimeout(300)
+  }
+  return false
+}
+/** 這一刻插畫上：幾個角色在動、有沒有縮放（transform 的 a、d 不是 1）、有沒有跳一下的動畫 */
+const motionNow = (page: Page) =>
+  page.evaluate(() => {
+    const moving = [...document.querySelectorAll('.book-art .sb-move, .book-art .sb-old, .book-art .sb-zzz')].filter((e) => e.getAnimations().some((a) => a.playState === 'running'))
+    const groups = new Set(moving.map((e) => e.closest('[data-cast]')))
+    const scale = [...document.querySelectorAll('.book-art [data-cast] g')].some((e) => {
+      const t = getComputedStyle(e).transform
+      const m = /^matrix\(([^,]+), ([^,]+), ([^,]+), ([^,]+)/.exec(t)
+      return !!m && (Math.abs(Number(m[1]) - 1) > 0.01 || Math.abs(Number(m[4]) - 1) > 0.01) && !e.getAttribute('transform')
+    })
+    return { acts: groups.size, moving: groups.size > 0, scale, hop: !!document.querySelector('.book-art .sb-hop') }
+  })
+/** kv.story（故事進度） */
+const storyKV = (page: Page) =>
+  page.evaluate(
+    () =>
+      new Promise<{ told?: Record<string, number>; next: number } | null>((res) => {
+        const rq = indexedDB.open('dodo-adventure')
+        rq.onsuccess = () => {
+          const g = rq.result.transaction('kv').objectStore('kv').get('story')
+          g.onsuccess = () => res(g.result?.value ?? null)
+          g.onerror = () => res(null)
+        }
+      }),
+  )

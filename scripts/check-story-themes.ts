@@ -14,6 +14,8 @@ import { FRAMES } from '../src/content/growth'
 import { ARCS, CLASSICS, STORY_ICONS, allChapters, classicDoneKey, classicFor, evergreenOf, scriptOf, stopPic, type Said, type Script } from '../src/content/story'
 import { migrateSettings } from '../src/lib/settings'
 import { artParts } from '../src/content/story/art'
+import { SHORTER } from '../src/content/story/evergreen'
+import { countWords } from './story/rules'
 
 const problems: string[] = []
 const need = (ok: unknown, msg: string) => ok || problems.push(msg)
@@ -49,8 +51,17 @@ for (const t of THEMES) {
       ...s.finale.map((x) => row('end', x, null)),
     ]
     need(s.end.length === 0, `${t.id}: 通用章節不該有魔法屋的結尾`)
-    const a = JSON.stringify(base[t.id])
-    const b = JSON.stringify(got)
+    // T-127：超過 6 個字的開場、結尾改念短的（evergreen.ts 的 SHORTER）：那幾句另外比，其他照舊要一模一樣
+    const short = SHORTER[t.id]
+    const swapped = (r: Row) => (r.slot === 'intro' && short?.intro) || (r.slot === 'end' && short?.end)
+    for (const [slot, want] of [['intro', short?.intro], ['end', short?.end]] as const) {
+      if (!want) continue
+      const mine = got.filter((r) => r.slot === slot)
+      need(JSON.stringify(mine.map((r) => r.text)) === JSON.stringify(want) && mine.every((r) => r.key.startsWith(`story.ev-${t.id}.`)), `${t.id}：縮短的${slot}要念 ${want.join(' / ')}（實際：${mine.map((r) => `${r.key}=${r.text}`).join(' / ')}）`)
+      for (const r of mine) need(countWords(r.text) <= FRAMES.small.maxWords, `${t.id}：縮短的「${r.text}」還是超過 ${FRAMES.small.maxWords} 個字`)
+    }
+    const a = JSON.stringify(base[t.id].filter((r) => !swapped(r)))
+    const b = JSON.stringify(got.filter((r) => !swapped(r)))
     if (a === b) same++
     else problems.push(`${t.id}（主線 ${tracks.join(',')}）：轉換後和轉換前不一樣\n    前 ${a}\n    後 ${b}`)
   }

@@ -108,7 +108,21 @@ export function BookClosed() {
 }
 
 /** 魔法門：圓拱、紫藍色、一顆星、金色門把 */
-export function Door() {
+export function Door({ open = false }: { open?: boolean }) {
+  // 打開的門（T-127：開門口令念完，門慢慢打開）：門框一樣，裡面是暖暖的光，門板轉到左邊（窄窄的一條）
+  if (open)
+    return (
+      <g>
+        <path d="M14 296 V100 C14 44 52 10 100 10 C148 10 186 44 186 100 V296 Z" fill={WOOD} {...line(WOOD_LINE)} />
+        <path d="M32 296 V104 C32 58 62 30 100 30 C138 30 168 58 168 104 V296 Z" fill="#FFF1C4" {...line('#E2C27A')} />
+        <path d="M100 96 l7 14 l15 2 l-11 10 l3 15 l-14 -8 l-14 8 l3 -15 l-11 -10 l15 -2 Z" fill="#F6DE96" {...line('#D9B45A', 3)} />
+        <circle cx={66} cy={150} r={6} fill="#F6DE96" />
+        <circle cx={136} cy={176} r={5} fill="#F6DE96" />
+        <circle cx={118} cy={232} r={7} fill="#F6DE96" />
+        <path d="M32 296 V104 C32 84 38 66 48 52 L64 60 V306 Z" fill="#8E95C9" {...line('#646BA6')} />
+        <circle cx={56} cy={200} r={7} fill="#F2D27A" {...line('#C29A3E', 3)} />
+      </g>
+    )
   return (
     <g>
       <path d="M14 296 V100 C14 44 52 10 100 10 C148 10 186 44 186 100 V296 Z" fill={WOOD} {...line(WOOD_LINE)} />

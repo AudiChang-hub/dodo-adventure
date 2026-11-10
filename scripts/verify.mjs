@@ -60,6 +60,7 @@ const CHECKS = [
   },
   { id: 'test-english', name: '單元：英文課（開頭音不算重上、名字的字母先、答錯的說明）', cmd: ['npx', 'tsx', 'scripts/test-english.ts'], check: unit },
   { id: 'test-heard', name: '單元：聽完才答（關鍵字念完了沒、熟練只看聽完才答、家長區統計、答案位置隨機）', cmd: ['npx', 'tsx', 'scripts/test-heard.ts'], check: unit },
+  { id: 'test-story-flow', name: '單元：會動的繪本（一章最多 6 頁、一句一個動作、第 2 天停頓點、第 3 天選圖、單字三明治）', cmd: ['npx', 'tsx', 'scripts/test-story-flow.ts'], check: unit },
   { id: 'test-story-live', name: '單元：每週新故事直接上線（不用家長通過、撤下不播、重寫過再上線）', cmd: ['npx', 'tsx', 'scripts/test-story-live.ts'], check: unit },
   { id: 'test-lesson-sticker', name: '單元：上完一堂不定時挑貼紙（40 堂 8～14 次、間隔 ≤ 6）', cmd: ['npx', 'tsx', 'scripts/test-lesson-sticker.ts'], check: unit },
   {
