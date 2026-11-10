@@ -7,6 +7,7 @@
 import { db, getKV, phaseOf, setKV, today, type Attempt } from '../../lib/db'
 import { isNew, skill } from '../../lib/adaptive'
 import { pick, rand, shuffle } from '../../lib/random'
+import { getTodayWorld } from '../../lib/today-world'
 
 export const LAST = 10
 /** 先學熟的範圍：1～5 熟練了才開 6 */
@@ -138,8 +139,17 @@ const COUNT_SETS: string[][] = [
   ['red-apple', 'strawberry', 'banana', 'cookie'],
 ]
 
-/** 每一回合用不同類的東西（第一回合恐龍、第二回合車子…，每天的開頭類別輪著換） */
-export function countIcons(k: number): string[] {
+/**
+ * 每一回合用不同的東西。
+ * - 有今天的世界（T-127，lib/today-world.ts）：從世界的東西裡挑，k 個盡量不重複（今天在農場就數牛、豬、小雞）。
+ * - 沒有（世界關掉）：照舊，第一回合恐龍、第二回合車子…，每天的開頭類別輪著換。
+ */
+export function countIcons(k: number, date?: Date): string[] {
+  const world = getTodayWorld(date)
+  if (world) {
+    const order = shuffle([...world.things])
+    return Array.from({ length: k }, (_, i) => order[i % order.length])
+  }
   const start = rand(COUNT_SETS.length)
   return Array.from({ length: k }, (_, i) => pick(COUNT_SETS[(start + i) % COUNT_SETS.length]))
 }

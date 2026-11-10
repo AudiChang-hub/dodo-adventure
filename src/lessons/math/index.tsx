@@ -20,9 +20,34 @@ import { GivePart } from './Give'
 import { ComparePart } from './Compare'
 import { WritePart } from './Write'
 import { ReviewPart } from './Review'
+import { TrainPart } from './Train'
+import { PlantPart } from './Plant'
+import { loadPlays, pickGivePlay, type GivePlay } from './plays'
+import { getTodayWorld } from '../../lib/today-world'
+import { Scene } from '../../art/storybook/scenes'
 import './math.css'
 
 const PART_VIEW = { count: CountPart, give: GivePart, compare: ComparePart, write: WritePart, review: ReviewPart }
+/** 「拿給波波」那一段今天的玩法（T-127，plays.ts） */
+const GIVE_VIEW: Record<GivePlay, typeof GivePart> = { give: GivePart, train: TrainPart, plant: PlantPart }
+const GIVE_HINT: Record<GivePlay, (n: number) => string> = {
+  give: () => '請他把東西拖到波波那裡，拿夠了按綠色勾勾',
+  train: (n) => `請他點東西坐上火車，${n} 節車廂坐滿了按綠色勾勾`,
+  plant: (n) => `請他點洞種花，${n} 個洞都種好了按綠色勾勾`,
+}
+
+/** 今天的世界的背景（T-127）：淡淡的一層，鋪滿整個舞台；世界關掉（null）就不畫，照舊是原本的底色 */
+function WorldBackdrop() {
+  const [world] = useState(() => getTodayWorld())
+  if (!world) return null
+  return (
+    <div className="ma-world" data-world={world.id} aria-hidden="true">
+      <svg viewBox="0 0 960 600" preserveAspectRatio="xMidYMax slice">
+        <Scene id={world.scene} />
+      </svg>
+    </div>
+  )
+}
 
 /** 給大人看的一行陪玩提示（角落小字，孩子看不懂也不需要懂） */
 const HINT: Record<(typeof PARTS)[number] | 'open', (n: number) => string> = {
@@ -52,6 +77,7 @@ function Dots({ n }: { n: number }) {
  */
 export function MathLesson({ onDone }: LessonProps) {
   const [lesson, setLesson] = useState<Lesson | null>(null)
+  const [play, setPlay] = useState<GivePlay>('give')
   /** -1 是開場；PARTS.length 是下課 */
   const [part, setPart] = useState(-1)
   const [mood, setMood] = useState<Mood>('idle')
@@ -68,7 +94,11 @@ export function MathLesson({ onDone }: LessonProps) {
   const skipOpen = useRef<(() => void) | null>(null)
 
   useEffect(() => {
-    void Promise.all([openLesson(), loadFormats()]).then(([l]) => live.current && setLesson(l))
+    void Promise.all([openLesson(), loadFormats(), loadPlays(), pickGivePlay()]).then(([l, , , p]) => {
+      if (!live.current) return
+      setPlay(p)
+      setLesson(l)
+    })
     return () => stopSpeech()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
@@ -184,7 +214,7 @@ export function MathLesson({ onDone }: LessonProps) {
   }
 
   const name = part >= 0 && part < PARTS.length ? PARTS[part] : null
-  const View = name ? PART_VIEW[name] : null
+  const View = name === 'give' ? GIVE_VIEW[play] : name ? PART_VIEW[name] : null
   const opening = part < 0
   const over = part >= PARTS.length
   return (
@@ -195,9 +225,10 @@ export function MathLesson({ onDone }: LessonProps) {
       onExit={leaveLesson}
       onHost={() => host.current?.()}
       demo={demo}
-      hintText={pending ? NEXT_HINT : HINT[name ?? 'open'](lesson.n)}
+      hintText={pending ? NEXT_HINT : name === 'give' ? GIVE_HINT[play](lesson.n) : HINT[name ?? 'open'](lesson.n)}
     >
-      <div className={`ma-lesson ma-${name ?? (over ? 'over' : 'open')}`} data-lesson-part={name ?? (over ? 'over' : 'open')}>
+      <div className={`ma-lesson ma-${name ?? (over ? 'over' : 'open')}`} data-lesson-part={name ?? (over ? 'over' : 'open')} data-give-play={play}>
+        <WorldBackdrop />
         {/* 右上角：今天的數字（開場在正中間，開始上課就掛到這裡；數到最後一個、寫好一次就跳一下） */}
         <AnimatePresence>
           {!opening && !over && (

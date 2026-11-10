@@ -2,7 +2,11 @@
 // 拿給波波只用 1～5、描數字的次數、6 個以上排好再數。對照 docs/全球幼教指引-現況對照.md A1、A5、AI 小男生測試 #8。
 // 執行：npx tsx scripts/test-math-plan.ts
 import assert from 'node:assert/strict'
-import { FIRM, compareQs, countReady, giveRounds, lineUp, range, reviewQs, writeReps, type FirmAttempt, type Lesson } from '../src/lessons/math/plan'
+import { FIRM, compareQs, countIcons, countReady, giveRounds, lineUp, range, reviewQs, writeReps, type FirmAttempt, type Lesson } from '../src/lessons/math/plan'
+import { GIVE_PLAYS, PLAY_GAME, giveOptions } from '../src/lessons/math/plays'
+import { WORLDS, worldOn } from '../src/lib/today-world'
+import '../src/content/lines'
+import { hasLine } from '../src/content/registry'
 
 const at = (skill: string, ok: boolean, date: string, opts = 3, ts = 0): FirmAttempt => ({
   skill,
@@ -84,6 +88,55 @@ function main() {
   assert.equal(lineUp(6, true), true)
   assert.equal(lineUp(10, true), true)
   console.log('ok 8 數數：還沒熟的、6 個以上排好再數')
+
+  // ── T-127：小火車、種花記成 give:N，熟練判斷跟拿給波波一樣 ─────────────
+  {
+    // 選項欄位：新玩法（plays.ts 的 giveOptions）跟拿給波波（Give.tsx：range(0, supply)，supply 是 giveRounds 的）一模一樣
+    for (let n = 1; n <= FIRM; n++) {
+      const g = giveRounds(L('new', n, n))[0]
+      assert.deepEqual(giveOptions(n), range(0, g.supply).map(String), `拿 ${n} 個的選項不一樣`)
+      assert.ok(giveOptions(n).length >= 3, `拿 ${n} 個要算進熟練（3 選 1 以上）`)
+    }
+    // 同一串作答，只是玩法（game）不同：熟練的結果要一模一樣
+    type Rec = FirmAttempt & { game: string }
+    const asPlay = (game: string, give: boolean[], days: number): Rec[] =>
+      give.map((ok, i) => {
+        const n = (i % FIRM) + 1
+        return { game, skill: `give:${n}`, options: game === 'm-give' ? range(0, giveRounds(L('new', n, n))[0].supply).map(String) : giveOptions(n), firstTryCorrect: ok, date: `2026-11-0${(i % days) + 1}`, ts: 100 + i, phase: 'quiz' }
+      })
+    const cases: [boolean[], number][] = [
+      [range(0, 9).map(() => true), 3],
+      [range(0, 9).map((i) => i >= 2), 3],
+      [range(0, 9).map((i) => i >= 3), 3],
+      [range(0, 9).map(() => true), 2],
+      [range(0, 4).map(() => true), 3],
+    ]
+    for (const [oks, days] of cases) {
+      const old = countReady(asPlay('m-give', oks, days))
+      for (const p of GIVE_PLAYS) assert.deepEqual(countReady(asPlay(PLAY_GAME[p], oks, days)), old, `${p}：${JSON.stringify(oks)} ${days} 天`)
+      // 混著玩（每天不同玩法）也一樣
+      const mixed = asPlay('m-give', oks, days).map((a, i) => ({ ...a, game: PLAY_GAME[GIVE_PLAYS[i % 3]] }))
+      assert.deepEqual(countReady(mixed), old)
+    }
+    assert.deepEqual(Object.values(PLAY_GAME), ['m-give', 'm-train', 'm-plant'], '三種玩法的 game id 各自不同')
+    console.log('ok 9 小火車、種花：記成 give:N、選項跟拿給波波一樣，熟練判斷結果一模一樣')
+  }
+  {
+    // 今天的世界：數的東西用世界的，每一個都有「Let's count the …!」；世界關掉（不同日期都測）也照樣有東西
+    for (let k = 0; k < 20; k++) {
+      const d = new Date(2026, 10, 10 + k)
+      const w = worldOn(d)
+      const icons = countIcons(3, d)
+      for (const i of icons) {
+        assert.ok(w.things.includes(i), `${w.id} 那天數了 ${i}`)
+        assert.ok(hasLine(`ma.count.${i}`), `${i} 沒有 Let's count 的台詞`)
+      }
+      assert.equal(new Set(icons).size, 3, '一堂裡三回合的東西不一樣')
+    }
+    for (const w of WORLDS) for (const i of w.things) assert.ok(hasLine(`ma.count.${i}`), `${w.id} 的 ${i} 沒有 Let's count 的台詞`)
+    for (let n = 1; n <= FIRM; n++) for (const k of [`ma.train.${n}`, `ma.plant.${n}`]) assert.ok(hasLine(k), `${k} 沒有台詞`)
+    console.log('ok 10 今天的世界：數數、拿給波波、比多少用世界的東西，每個都有台詞')
+  }
   console.log('ALL PASS')
 }
 
