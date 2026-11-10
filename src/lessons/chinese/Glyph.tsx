@@ -37,7 +37,9 @@ const HINT_AFTER = 2
  *   搖一搖、輕輕一聲，飛回原位、變淡；飛的時候就可以點別的。
  * - 最初幾次（progress 的 needsDemo）：下面的字先變淡，手點上面的字、再點下面一樣的那個，示範飛上去配成一對；
  *   做完字飛回去、選項換位置（不能靠記位置），才輪到他。示範中孩子搶著點（T-108）：示範收掉，照常判對錯（記成一起練）。
- * - 一直沒點：上面的字輕輕跳一下（大人看到就再指一次），再久一點手指著答案點一下（跟選圖一樣的節奏）。
+ * - 不示範的時候（T-124）：一進來手先點上面的字、再依序輕點下面每一張字卡（看這個、點這些），不停在答案上。
+ * - 一直沒點：6 秒手再指一次字卡；12 秒手指著答案點一下（記成一起練）。點空白、點恐龍也會讓手再指一次。
+ * - 配對成功：下面整排淡出收掉，只留上面一對、打勾和「下一步」大箭頭（T-124）。
  */
 export function Glyph({
   t,
@@ -78,6 +80,8 @@ export function Glyph({
   const [paired, setPaired] = useState<'right' | 'demo' | null>(null)
   /** 示範中（下面的字變淡） */
   const [demoing, setDemoing] = useState(demo)
+  const demoingRef = useRef(demo)
+  demoingRef.current = demoing
   /** 示範的手點到答案了：那一格亮起來（其他的還是淡的，PHASE-1） */
   const [demoPick, setDemoPick] = useState(false)
   /** 示範的手（作答區的百分比座標） */
@@ -131,7 +135,52 @@ export function Glyph({
     setMarks((m) => ({ ...m, [q.char]: m[q.char] ?? 'hint' }))
     setHintTap((n) => n + 1)
   }
-  const startIdle = () => idle.start({ repeat: ask, hint: showHint })
+  /**
+   * 「點下面的字卡」（T-124，盲測 f255333 中文 2：他不知道要點下面的字卡，點空白、點恐龍，20 秒就離開；中文課不出聲，只能用看的）：
+   * 手先點一下上面的字（字跳一下：看這個），再依序輕點下面每一張字卡（每張跳一下：點這些），然後收起來。
+   * 每一張都點一下、不停在答案上，所以不洩題、不算一起練。示範中孩子點了就收掉（搶點）。
+   */
+  const sweeping = useRef(false)
+  const optsRef = useRef(opts)
+  optsRef.current = opts
+  const [bump, setBump] = useState<Record<string, number>>({})
+  const sweep = async () => {
+    if (sweeping.current || locked.current || demoingRef.current || !acceptRef.current) return
+    sweeping.current = true
+    const ok = flow.begin(live)
+    const end = () => {
+      sweeping.current = false
+      if (ok()) setHand(null)
+    }
+    const top = pctOf(target.current, 0.5, 0.62)
+    if (top) setHand(top)
+    await wait(650)
+    if (!ok()) return end()
+    setDemoTap((n) => n + 1)
+    ask()
+    await wait(750)
+    for (const ch of optsRef.current) {
+      if (!ok() || locked.current) return end()
+      const at = pctOf(tiles.current.get(ch))
+      if (at) setHand(at)
+      await wait(600)
+      if (!ok() || locked.current) return end()
+      setDemoTap((n) => n + 1)
+      setBump((b) => ({ ...b, [ch]: (b[ch] ?? 0) + 1 }))
+      await wait(450)
+    }
+    await wait(300)
+    end()
+  }
+  /** 孩子點了（或示範做完）：正在指字卡的手收掉 */
+  const stopSweep = () => {
+    if (!sweeping.current) return
+    flow.cut()
+    sweeping.current = false
+    setHand(null)
+  }
+  /** 一直沒點：6 秒手再點一次每張字卡，12 秒手指著答案點一下（記成一起練） */
+  const startIdle = () => idle.start({ repeat: () => void sweep(), hint: showHint }, { repeat: 6000, hint: 6000, again: 20_000 })
 
   /** 示範收掉（做完、或孩子搶著點） */
   const endDemo = () => {
@@ -197,7 +246,12 @@ export function Glyph({
       setAccepting(true)
       shownAt.current = performance.now()
       if (demo) void runDemo()
-      else startIdle()
+      else {
+        startIdle()
+        // 不示範的時候：一進來手就指一次下面的字卡（T-124）
+        await wait(300)
+        if (live.current) void sweep()
+      }
     })()
     return () => {
       live.current = false
@@ -212,6 +266,8 @@ export function Glyph({
       if (locked.current) return
       idle.poke()
       ask()
+      // 點恐龍（盲測：孩子不知道要點哪裡，先點恐龍）：手再指一次下面的字卡
+      void sweep()
     }
     return () => {
       host.current = null
@@ -220,6 +276,7 @@ export function Glyph({
 
   /** 孩子點了（示範中也算：搶點，示範收掉） */
   const barge = () => {
+    stopSweep()
     if (!demoing) return
     flow.cut()
     endDemo()
@@ -285,6 +342,12 @@ export function Glyph({
         if (demoing && acceptRef.current && onBlank(e.target) && firstFinger(e.nativeEvent)) {
           barge()
           startIdle()
+          return
+        }
+        // 點空白處（盲測：先點空白）：手再指一次下面的字卡
+        if (!demoing && acceptRef.current && !locked.current && onBlank(e.target) && firstFinger(e.nativeEvent)) {
+          idle.poke()
+          void sweep()
         }
       }}
     >
@@ -339,8 +402,9 @@ export function Glyph({
               data-pick={demoPick && ch === q.char ? '1' : undefined}
               initial={quiet || still ? false : { y: 28, scale: 0.94 }}
               animate={
-                solved && m !== 'correct'
-                  ? { opacity: 0.25, scale: 0.88, y: 0 }
+                solved
+                  ? // 配對成功：下面整排淡出收掉（T-124：以前剩一張空白卡和一張淺灰的字，像壞掉），只留上面一對、打勾和大箭頭
+                    { opacity: 0, scale: 0.86, y: 14, transition: { duration: 0.4, delay: 0.3 } }
                   : m === 'wrong'
                     ? { opacity: 0.45, scale: 0.94, y: 0, transition: { delay: fly?.ch === ch ? WRONG_S - 0.2 : 0, duration: 0.3 } }
                     : { y: 0, opacity: accepting || m ? 1 : 0.55, scale: 1 }
@@ -352,7 +416,7 @@ export function Glyph({
                 if (firstFinger(e.nativeEvent)) void tap(ch)
               }}
             >
-              <div className="tile-in">
+              <div className={`tile-in${bump[ch] ? ' turn-hop' : ''}`} key={`b${bump[ch] ?? 0}`} style={{ '--turn-i': 0 } as CSSProperties}>
                 <span className="zh-glyph-char">{ch}</span>
               </div>
               {m === 'hint' && hintTap > 0 && <Hand x={74} y={72} size="12cqmin" tap={hintTap} />}

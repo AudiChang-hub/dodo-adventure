@@ -210,7 +210,7 @@ test('示範一開始就搶著點錯的：示範收掉、照常判錯', async ({
   expect(rows.map((r) => `${r.phase}:${r.firstTryCorrect}`)).toEqual(['guided:false'])
 })
 
-test('發呆：15 秒上面的字跳一下，再 15 秒手指著答案點一下；點了照常算', async ({ page }) => {
+test('發呆：手先指一次字卡、6 秒再指一次，12 秒手指著答案點一下；點了照常算', async ({ page }) => {
   test.setTimeout(3 * 60_000)
   await boot(page, 1175, { to: 'home' })
   await put(page, 'zhLesson:introSeen', true)
@@ -233,6 +233,53 @@ test('發呆：15 秒上面的字跳一下，再 15 秒手指著答案點一下�
   expect(rows.map((r) => `${r.phase}:${r.hintUsed}`)).toEqual(['guided:true'])
   const st = await kv(page, 'zhLesson:glyph')
   expect((st?.recent as unknown[]).length, '手指著答案才點的不算熟練').toBe(0)
+})
+
+test('T-124：不示範時一進來手就指下面的字卡、點空白再指一次；配對成功下面整排收掉', async ({ page }) => {
+  test.setTimeout(3 * 60_000)
+  await boot(page, 1176, { to: 'home' })
+  await put(page, 'zhLesson:introSeen', true)
+  await put(page, 'zhLesson:glyph', { level: 2, recent: [], demos: 1, learned: true })
+  const cdp = await page.context().newCDPSession(page)
+  await toGlyph(page, cdp)
+  // 一進來 3 秒內：手出現、下面每一張字卡都跳過一下（不是只指答案）
+  const t0 = Date.now()
+  let hand = false
+  const hopped = new Set<string>()
+  while (Date.now() - t0 < 5000) {
+    const st = await page.evaluate(() => ({
+      hand: !!document.querySelector('.zh-glyph .demo-hand'),
+      hops: [...document.querySelectorAll<HTMLElement>('.zh-glyph-options .tile')].filter((t) => t.querySelector('.tile-in.turn-hop')).map((t) => t.dataset.char!),
+    }))
+    hand ||= st.hand
+    st.hops.forEach((h) => hopped.add(h))
+    await page.waitForTimeout(150)
+  }
+  const n = await page.evaluate(() => document.querySelectorAll('.zh-glyph-options .tile').length)
+  console.log('進來', hand ? '手出現' : '沒有手', '跳過的字卡', [...hopped].join(''), `／${n} 張`)
+  await shot(page, '11-T124-手指字卡')
+  expect(hand, '一進來手要出現').toBe(true)
+  expect(hopped.size, '每一張字卡都要被指到').toBe(n)
+  let rows = (await all(page, 'attempts')).filter((a) => a.game === 'zh-glyph')
+  expect(rows.length, '手指字卡不算作答').toBe(0)
+  // 點空白處：手再指一次
+  await page.waitForTimeout(800)
+  await touch(cdp, { x: 1000, y: 160 })
+  const again = await page.waitForSelector('.zh-glyph .demo-hand', { timeout: 2500 }).then(() => true).catch(() => false)
+  expect(again, '點空白處手要再指一次').toBe(true)
+  // 點答案：配對成功，下面整排淡出
+  await page.waitForTimeout(600)
+  await touch(cdp, (await center(page, '.zh-glyph .tile[data-answer]'))!)
+  await page.waitForTimeout(1500)
+  const ops = await page.evaluate(() => [...document.querySelectorAll<HTMLElement>('.zh-glyph-options .tile')].map((t) => Number(getComputedStyle(t).opacity)))
+  const yes = await page.evaluate(() => { const r = document.querySelector('.zh-glyph-yes')?.getBoundingClientRect(); return r ? r.width : 0 })
+  const arrow = !!(await page.$('.next-step'))
+  console.log('配對成功', '下面字卡 opacity', ops.join(','), '打勾寬', Math.round(yes), '大箭頭', arrow)
+  await shot(page, '12-T124-配對成功整排收掉')
+  expect(Math.max(...ops), '下面字卡要淡出').toBeLessThan(0.05)
+  expect(yes, '打勾要看得到').toBeGreaterThan(40)
+  rows = (await all(page, 'attempts')).filter((a) => a.game === 'zh-glyph')
+  expect(rows.map((r) => r.phase), '手只指字卡、沒有指答案：記成自己答').toEqual(['quiz'])
 })
 
 for (const vp of [
