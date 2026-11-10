@@ -318,14 +318,20 @@ for (const g of selected().filter((x) => x.kind === 'free')) {
         }
         await k.spam(await spot(), 4, '魔法筆連點')
         const ok = on && ink > 0 && (mirror === null || mirror > 0)
-        c.outcome('魔法筆亂畫', ok && (await alive(k, c, '魔法筆亂畫')), `魔法筆（${brush}）${on ? '選到' : '沒選到'}，筆跡墨 ${ink}${mirror === null ? '' : `、鏡像墨 ${mirror}`}`)
+        // 不用 alive()：它會去點畫面上的鍵（例如勾勾），畫畫就結束了，後面的白紙鍵就不在了
+        await c.screenOk('魔法筆亂畫')
+        c.outcome('魔法筆亂畫', ok, `魔法筆（${brush}）${on ? '選到' : '沒選到'}，筆跡墨 ${ink}${mirror === null ? '' : `、鏡像墨 ${mirror}`}`)
         if (!ok) await c.once('t127-magic', '困惑', '魔法筆畫不出來', `${brush}：選到 ${on}、墨 ${ink}、鏡像 ${mirror}`)
       }
 
       // 6. 白紙鍵來回點：背景拿掉、拿回來，畫的東西都留著
       k.behavior = '白紙鍵'
-      {
-        const p = (await at('.draw-paper-btn'))!
+      white: {
+        const p = await at('.draw-paper-btn')
+        if (!p) {
+          await c.once('t127-paper-btn', '困惑', '畫畫中看不到右上角的白紙鍵', `畫面 ${(await snap(page)).live}`)
+          break white
+        }
         const room = (await at('.tool-room'))!
         const probe = [0.12, 0.2, 0.28, 0.36].map((f) => ({ x: room.left + room.w * f, y: room.top + room.h * 0.5 + (f * 400) % 60 }))
         const ink0 = await inkAt(page, probe)
