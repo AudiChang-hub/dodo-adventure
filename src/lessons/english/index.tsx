@@ -23,7 +23,6 @@ import { pickVariety } from '../../lib/variety'
 import { Scene } from '../../art/storybook/scenes'
 import { PAGE_H, PAGE_W } from '../../art/storybook/layout'
 import { QUIZ_LOOKS, forcedLook, type QuizLook } from './QuizParts'
-import { Paint, WriteChoice, forcedWrite, type WriteMode } from './Paint'
 import '../../games/coplay.css'
 import './english.css'
 
@@ -32,7 +31,7 @@ type Stage = 'meet' | 'trace' | 'words' | 'write' | 'quiz' | 'end'
 const STEPS: Stage[] = ['meet', 'trace', 'words', 'write', 'quiz']
 
 /** 給大人看的一行陪玩小字（A10，角落、不收點擊；跟數學課的 HINT、中文課的 parentTip 一樣） */
-function hintOf(stage: Stage, x: LessonLetter, q?: Question, look: QuizLook = 'cards', write: WriteMode | null = 'trace') {
+function hintOf(stage: Stage, x: LessonLetter, q?: Question, look: QuizLook = 'cards') {
   const zh = lexWord(wordKey(x.words[0].w))?.zh?.replace(/\s+/g, '')
   switch (stage) {
     case 'meet':
@@ -43,9 +42,6 @@ function hintOf(stage: Stage, x: LessonLetter, q?: Question, look: QuizLook = 'c
       // 不問「家裡有沒有」：第一個字可能是 snake、volcano 這種家裡沒有的（AI 小男生測試 2026-11-02）
       return zh ? `跟他一起說：${zh}、${x.words[0].w}` : `跟他一起找：還有什麼是 ${x.L} 開頭的？`
     case 'write':
-      // 先選描字還是塗色（T-127）
-      if (!write) return `讓他自己選：左邊描字、右邊幫 ${x.L} 塗顏色、蓋印章`
-      if (write === 'paint') return `幫大的 ${x.L} 塗顏色、蓋印章：塗在字裡面就好，塗出去沒關係`
       return `換他自己寫：從綠點開始描一次大的 ${x.L}；描歪沒關係，不用重來`
     case 'quiz':
       // 每一題直接寫「現在請他點哪一個」（T-107 真人試玩：大人聽完英文也不知道這一段要做什麼）
@@ -101,8 +97,6 @@ export function EnglishLesson({ onDone }: LessonProps) {
   const [look, setLook] = useState<QuizLook>('cards')
   /** 今天的世界（T-127）：背景換成這個世界的場景；選擇題的時候看得更清楚，選項站在世界裡 */
   const [world] = useState(() => getTodayWorld())
-  /** 寫寫看：孩子選了描字還是塗色（T-127；還沒選是 null，測試可以用 dodo:en-write 固定） */
-  const [write, setWrite] = useState<WriteMode | null>(() => forcedWrite())
   const qs = useRef<Question[]>([])
   const live = useRef(true)
   /** 描字、寫寫看共用的重描次數（T-122 整堂最多一次；T-125 起 0 次：沒描好就由筆帶著描完） */
@@ -224,7 +218,7 @@ export function EnglishLesson({ onDone }: LessonProps) {
       {letter && (
         <p className="coplay-hint en-coplay" aria-hidden="true">
           <span className="coplay-tag">陪玩</span>
-          {pending ? NEXT_HINT : hintOf(stage, letter, qs.current[Math.min(quizDone, qs.current.length - 1)], look, write)}
+          {pending ? NEXT_HINT : hintOf(stage, letter, qs.current[Math.min(quizDone, qs.current.length - 1)], look)}
         </p>
       )}
       <div className="en-host" aria-hidden="true">
@@ -244,15 +238,7 @@ export function EnglishLesson({ onDone }: LessonProps) {
               {stage === 'meet' && <Meet letter={letter} review={plan!.review} repeat={plan!.repeat} onDone={() => void next('trace')} />}
               {stage === 'trace' && <Trace letter={letter} from={traceFrom} retry={retry.current} onRound={(i) => i > 0 && void markStage(plan!, 'trace', i)} onDone={() => void next('words')} />}
               {stage === 'words' && <Words letter={letter} onDone={() => void next('write')} />}
-              {stage === 'write' &&
-                // 寫寫看（T-127）：先讓他選描字，或幫字母塗顏色、蓋印章（都是那個字母的形狀）
-                (write === 'paint' ? (
-                  <Paint letter={letter} stamps={world?.stamps} onDone={() => void next('quiz')} />
-                ) : write === 'trace' ? (
-                  <Trace letter={letter} rounds={WRITE_ROUNDS} retry={retry.current} onDone={() => void next('quiz')} />
-                ) : (
-                  <WriteChoice letter={letter} stamp={world?.stamps[0] ?? 'glowing-star'} onPick={setWrite} />
-                ))}
+              {stage === 'write' && <Trace letter={letter} rounds={WRITE_ROUNDS} retry={retry.current} onDone={() => void next('quiz')} />}
               {stage === 'quiz' && (
                 <Quiz qs={qs.current} look={look} from={quizAt.from} answers={quizAt.answers} replay={quizAt.replay} onProgress={progress} onDone={(rs) => void finish(rs)} />
               )}

@@ -30,7 +30,7 @@ test.describe('英文課：餵豆豆', () => {
       await shot(page, info, '餵豆豆-示範')
 
       // 2. 拖到一半、在別的地方放手：卡片回到原位，不算答
-      const q1 = await untilTurn(page)
+      const q1 = await untilTurn(page, 20_000, true)
       if (!q1 || !q1.dodo) return void (await c.once('turn', '卡死', '餵豆豆示範完沒有輪到他', ''))
       const { right, wrong } = pickOf(q1)
       if (!right || !wrong) return

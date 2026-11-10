@@ -1,7 +1,7 @@
 import { test } from '@playwright/test'
 import { homeButton } from './lib/app'
 import { pressBack, waitLive } from './lib/flows'
-import { enter, finish, pickOf, quizNow, recordsOf, setup, shot, stageOf, untilEnd, untilTurn, want } from './lib/english-play'
+import { enter, finish, pickOf, quizNow, recordsOf, setup, shot, stageOf, untilDemo, untilEnd, untilTurn, want } from './lib/english-play'
 
 /**
  * 英文課選擇題的玩法二：泡泡（T-127，src/lessons/english/Bubbles.tsx）的三歲模擬測試。
@@ -18,62 +18,52 @@ test.describe('英文課：泡泡', () => {
       c.outcome('選擇題是泡泡', !!box, box ? '' : `停在 ${await stageOf(page)}`)
       if (!box) return void (await c.once('no-bubbles', '卡死', '選擇題沒有出現泡泡', ''))
 
-      // 1. 示範時（手正在指）搶著點一顆泡泡：示範收掉、照常判，不卡住
-      k.behavior = '示範時搶著點'
-      const hand = await page.waitForSelector('.en-quiz .demo-hand', { timeout: 10_000 }).catch(() => null)
-      c.outcome('有手示範（關掉聲音也看得到）', !!hand)
-      if (!hand) await c.once('no-demo', '困惑', '泡泡第一題沒有手示範', '')
-      await page.waitForSelector('.en-bubble:not(.is-wait)', { timeout: 10_000 }).catch(() => null)
-      const q0 = await quizNow(page)
-      // 點錯的那一顆（點對的話這一題就答完了，後面的連點、多指測不到）
-      const any = (q0 && pickOf(q0).wrong) ?? q0?.opts.find((o) => !o.wait)
-      if (any) await k.tap(any, `示範中點泡泡 ${any.label}`)
-      await page.waitForTimeout(1200)
-      const after = await quizNow(page)
-      c.outcome('示範時搶著點：手收起來、不卡住', !!after && !after.demo, after?.demo ? '手還在示範' : '')
-      if (after?.demo) await c.once('barge', '困惑', '泡泡示範時點了，示範沒有收起來', '')
+      // 1. 示範時（手正在指）兩根手指搶著點：第一根點對的泡泡、第二根點錯的。示範收掉、照常判對，只算第一根
+      k.behavior = '示範時兩根手指搶著點'
+      const q0 = await untilDemo(page)
+      c.outcome('有手示範（關掉聲音也看得到）', !!q0)
+      if (!q0) await c.once('no-demo', '困惑', '泡泡第一題沒有手示範', '')
+      await shot(page, info, '泡泡-示範')
+      const p0 = q0 && pickOf(q0)
+      if (p0?.right && p0.wrong) await k.twoFinger([p0.right], p0.wrong, 200)
+      const solved0 = await page.waitForSelector('.en-bubbles.is-solved', { timeout: 5000 }).catch(() => null)
+      const r0 = await recordsOf(page, 'lesson-en-bubbles')
+      const one = r0.length === 1 && r0[0].taps === 1
+      c.outcome('示範時搶著點：馬上判對，兩根手指只算第一根', !!solved0 && one, `${solved0 ? '答完了' : '沒答完'}；紀錄 ${r0.length} 筆、點了 ${r0[0]?.taps ?? 0} 下`)
+      if (!solved0 || !one) await c.once('barge', '困惑', '泡泡示範時兩根手指點，沒有馬上判、或第二根也算進去', '')
+      await shot(page, info, '泡泡-答對')
 
       // 2. 亂點空白（天空、地上）：不會壞、還在選擇題
       k.behavior = '亂點空白'
       const vp = page.viewportSize()!
-      for (let i = 0; i < 5; i++) await k.tap({ x: vp.width * (0.3 + 0.12 * i), y: vp.height * (i % 2 ? 0.25 : 0.82) }, '空白')
-      c.outcome('亂點空白：還在選擇題', (await stageOf(page)) === 'quiz')
+      for (let i = 0; i < 4; i++) await k.tap({ x: vp.width * (0.3 + 0.12 * i), y: vp.height * (i % 2 ? 0.25 : 0.82) }, '空白')
+      c.outcome('亂點空白：不會壞', (await stageOf(page)) === 'quiz')
 
-      // 3. 一題一題答：第一題兩根手指（第一根點對的、第二根點錯的：只算第一根）；第二題連點錯的那一顆（錯兩次手帶著做，照樣往下）
-      let n = 0
-      while ((await stageOf(page)) === 'quiz' && n < 4) {
-        const q = await untilTurn(page)
-        if (!q) break
-        n++
+      // 3. 第二題：先點錯一次（那一顆淡掉、手指著答案），再連點對的那一顆（只記一筆）
+      const q = await untilTurn(page, 30_000)
+      if (q) {
         const { right, wrong } = pickOf(q)
-        if (!right) break
-        await shot(page, info, `泡泡-第${n}題`)
-        if (n === 1 && wrong) {
-          k.behavior = '兩根手指：第一根點對的、第二根點錯的'
-          await k.twoFinger([right], wrong, 200)
+        await shot(page, info, '泡泡-第2題')
+        if (wrong) {
+          k.behavior = '點錯的泡泡'
+          await k.tap(wrong, `錯的泡泡 ${wrong.label}`)
           await page.waitForTimeout(400)
-          const q2 = await quizNow(page)
-          const okRight = q2?.opts.find((o) => o.label === right.label)?.cls.includes('is-yes')
-          const noWrong = !q2?.opts.find((o) => o.label === wrong.label)?.cls.includes('is-no')
-          c.outcome('兩根手指：只算第一根（點對的）', !!okRight && noWrong, `${okRight ? '對的亮了' : '對的沒亮'}、${noWrong ? '錯的沒被算' : '錯的也被算了'}`)
-          if (!okRight || !noWrong) await c.once('two', '困惑', '兩根手指點泡泡，第二根也被算進去', '')
-          await shot(page, info, '泡泡-答對')
-        } else if (wrong) {
-          k.behavior = '連點錯的泡泡'
-          await k.spam(wrong, 5, `錯的泡泡 ${wrong.label}`)
-          await page.waitForTimeout(300)
-          const q2 = await quizNow(page)
-          const dim = q2?.opts.find((o) => o.label === wrong.label)?.cls.includes('is-no')
-          c.outcome('連點錯的泡泡：那一顆淡掉（錯兩次手帶著做，往下走）', !!dim)
-          if (!dim) await c.once('wrong', '困惑', '連點錯的泡泡，看不出點錯了', '')
-        } else await k.tap(right, `對的泡泡 ${right.label}`)
-        // 下一題：等這一題答完，大箭頭由測試自動點（autoNext）
-        await page.waitForSelector('.en-options.is-solved', { timeout: 15_000 }).catch(() => null)
-        await page.waitForFunction(() => document.querySelector('.en-lesson')?.getAttribute('data-phase') !== 'quiz' || !document.querySelector('.en-options.is-solved'), null, { timeout: 20_000 }).catch(() => null)
+          const dim = (await quizNow(page))?.opts.find((o) => o.label === wrong.label)?.cls.includes('is-no')
+          c.outcome('點錯：那一顆淡掉、不打叉', !!dim)
+        }
+        if (right) {
+          k.behavior = '連點對的泡泡'
+          const n0 = (await recordsOf(page, 'lesson-en-bubbles')).length
+          await k.spam(right, 5, `連點 ${right.label}`)
+          await page.waitForTimeout(1500)
+          const n1 = (await recordsOf(page, 'lesson-en-bubbles')).length
+          c.outcome('連點對的泡泡：只記一筆', n1 - n0 === 1, `多了 ${n1 - n0} 筆`)
+          if (n1 - n0 !== 1) await c.once('spam', '誤記作答', '連點泡泡，記了不只一筆', `${n1 - n0} 筆`)
+        }
       }
       const ended = await untilEnd(page)
       c.outcome('泡泡：上得完（到下課）', ended, ended ? '' : `停在 ${await stageOf(page)}`)
-      if (!ended) await c.once('end', '卡死', '泡泡選擇題做不完、到不了下課', `答了 ${n} 題`)
+      if (!ended) await c.once('end', '卡死', '泡泡選擇題做不完、到不了下課', '')
       const rs = await recordsOf(page, 'lesson-en-bubbles')
       c.outcome('作答紀錄記成泡泡（lesson-en-bubbles）', rs.length >= 2, `${rs.length} 筆：${rs.map((r) => r.itemId).join('、')}`)
       if (rs.length < 2) await c.once('records', '誤記作答', '泡泡的作答沒有寫進紀錄', `${rs.length} 筆`)

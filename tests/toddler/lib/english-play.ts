@@ -1,4 +1,4 @@
-// 英文課新玩法（T-127：泡泡、餵豆豆、塗色）三個 spec 共用的小工具：開 App、固定今天的玩法、直接從選擇題或寫寫看開始。
+// 英文課選擇題新玩法（T-127：泡泡、餵豆豆）兩個 spec 共用的小工具：開 App、固定今天的玩法、直接從選擇題開始。
 import { expect, type Page, type TestInfo } from '@playwright/test'
 import fs from 'node:fs'
 import path from 'node:path'
@@ -14,22 +14,20 @@ export const LIVE = 'lesson-english'
 export type Pt = { x: number; y: number }
 
 /**
- * 開 App，固定選擇題的玩法（quiz）或寫寫看（write：不給就讓他自己選），英文進度直接放到 stage（今天、還沒上完）。
+ * 開 App，固定選擇題的玩法（quiz），英文進度直接放到 stage（今天、還沒上完）。
  * 今天的世界固定成農場（截圖、版面每次一樣）。
  */
-export async function setup(page: Page, info: TestInfo, name: string, opts: { quiz?: 'cards' | 'bubbles' | 'feed'; write?: 'trace' | 'paint' | null; stage: 'quiz' | 'write' }) {
+export async function setup(page: Page, info: TestInfo, name: string, opts: { quiz?: 'cards' | 'bubbles' | 'feed'; stage: 'quiz' | 'write' }) {
   const seed = hashSeed(BASE_SEED, 'lesson-english', name, info.project.name)
   const k = new Toddler(page, info, seed, info.project.name)
   const c = new Checker(k, page)
   k.where = `英文課／${name}`
   await page.addInitScript(
-    ({ quiz, write }) => {
+    ({ quiz }) => {
       localStorage.setItem('dodo:world', 'farm')
       if (quiz) localStorage.setItem('dodo:en-quiz', quiz)
-      if (write) localStorage.setItem('dodo:en-write', write)
-      else localStorage.removeItem('dodo:en-write')
     },
-    { quiz: opts.quiz ?? null, write: opts.write ?? null },
+    { quiz: opts.quiz ?? null },
   )
   await boot(page, seed, { to: 'home' })
   await k.init()
@@ -87,12 +85,15 @@ export const quizNow = (page: Page) =>
     }
   })
 
-/** 等到可以作答（選項出來、收作答）；回傳那一刻的樣子 */
-export async function untilTurn(page: Page, ms = 20_000) {
+/**
+ * 等到可以作答（選項出來、收作答）；回傳那一刻的樣子。
+ * noDemo：還要等示範的手收起來（第一題的示範）；點錯以後手會留在答案上等他點（T-116），那時候不用等
+ */
+export async function untilTurn(page: Page, ms = 20_000, noDemo = false) {
   const end = Date.now() + ms
   while (Date.now() < end) {
     const q = await quizNow(page)
-    if (q && q.accepting && !q.demo && !q.solved && q.opts.length && q.opts.every((o) => !o.wait)) return q
+    if (q && q.accepting && (!noDemo || !q.demo) && !q.solved && q.opts.length && q.opts.every((o) => !o.wait)) return q
     await page.waitForTimeout(200)
   }
   return null
@@ -103,6 +104,17 @@ export function pickOf(q: NonNullable<Awaited<ReturnType<typeof quizNow>>>) {
   const right = q.opts.find((o) => o.label === q.want) ?? null
   const wrong = q.opts.find((o) => o.label !== q.want) ?? null
   return { right, wrong }
+}
+
+/** 等示範的手出來、而且選項也出來了（示範時搶著點用）；回傳那一刻的樣子 */
+export async function untilDemo(page: Page, ms = 15_000) {
+  const end = Date.now() + ms
+  while (Date.now() < end) {
+    const q = await quizNow(page)
+    if (q && q.demo && !q.solved && q.opts.length && q.opts.every((o) => !o.wait)) return q
+    await page.waitForTimeout(100)
+  }
+  return null
 }
 
 /** 這一堂寫進的作答紀錄（某個 game） */
