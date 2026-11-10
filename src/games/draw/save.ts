@@ -4,8 +4,9 @@ import { requestSync } from '../../lib/sync'
 /**
  * 把一個 SVG 元素轉成縮圖（給家長區的作品集用）。
  * under：畫在 SVG 下面的畫布（例如蠟筆著色的筆觸），跟 SVG 的 viewBox 一樣大小比例，線稿蓋在它上面。
+ * over：蓋在 SVG 上面的圖（自由畫畫：今天的背景是 SVG，孩子畫的筆跡、印章蓋在上面，T-127），一樣跟 viewBox 同比例。
  */
-export async function svgThumb(svg: SVGSVGElement, maxW = 480, bg = '#FBF8F2', under?: CanvasImageSource): Promise<string> {
+export async function svgThumb(svg: SVGSVGElement, maxW = 480, bg = '#FBF8F2', under?: CanvasImageSource, over?: CanvasImageSource): Promise<string> {
   const vb = svg.viewBox.baseVal
   const clone = svg.cloneNode(true) as SVGSVGElement
   clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg')
@@ -24,6 +25,7 @@ export async function svgThumb(svg: SVGSVGElement, maxW = 480, bg = '#FBF8F2', u
     ctx.fillRect(0, 0, c.width, c.height)
     if (under) ctx.drawImage(under, 0, 0, c.width, c.height)
     ctx.drawImage(img, 0, 0, c.width, c.height)
+    if (over) ctx.drawImage(over, 0, 0, c.width, c.height)
     return c.toDataURL('image/webp', 0.8)
   } finally {
     URL.revokeObjectURL(url)
@@ -33,4 +35,12 @@ export async function svgThumb(svg: SVGSVGElement, maxW = 480, bg = '#FBF8F2', u
 export async function saveDrawing(game: string, title: string, thumb: string, strokes: unknown) {
   await db.drawings.put({ id: uid(), ts: Date.now(), date: today(), game, title, thumb, strokes: JSON.stringify(strokes), synced: 0 })
   requestSync()
+}
+
+/** data URL 的圖（例如 Ink 的 snapshot）解碼成可以畫到 canvas 上的圖 */
+export async function imageOf(url: string): Promise<HTMLImageElement> {
+  const img = new Image()
+  img.src = url
+  await img.decode()
+  return img
 }

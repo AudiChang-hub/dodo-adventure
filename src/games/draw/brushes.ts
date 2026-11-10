@@ -13,21 +13,19 @@ import type { Pt, Stroke } from './Ink'
 export const BRUSHES = ['rainbow', 'mirror', 'trail', 'dots'] as const
 export type BrushId = (typeof BRUSHES)[number]
 
-/** 本地日期 → 從 1970-01-01 起第幾天（用年月日算，不受時區、夏令時間影響） */
-export function dayNumber(d = new Date()): number {
-  return Math.floor(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()) / 86_400_000)
-}
+/** 輪換紀錄（lib/variety.ts）裡魔法筆的名字 */
+export const BRUSH_VARIETY = 'draw.brush'
+
+/** 今天能用的魔法筆：沒有今天的世界時，蓋印筆沒有小圖可以蓋，不放進來 */
+export const brushPool = (hasWorld: boolean): readonly BrushId[] => (hasWorld ? BRUSHES : BRUSHES.filter((b) => b !== 'trail'))
 
 /**
- * 今天的魔法筆：照日期輪流（第幾天 mod 種數），所以連續兩天一定不一樣、不用存任何東西。
- * pool：今天能用的筆（沒有今天的世界時蓋印筆沒有小圖，不放進來）。
- * prev：上一次玩用的筆（輪換紀錄）；輪到的剛好跟上次一樣（中間隔了幾天沒玩）就往後挪一個。
+ * 輪換紀錄還沒讀出來（或讀不到）時先用的筆：照日期輪流（第幾天 mod 種數），連續兩天一定不一樣、不用存任何東西。
+ * 真正用哪一支由 lib/variety.ts 的 pickVariety 決定（最近用過的都不挑，隔幾天沒玩也不會跟上次一樣）。
  */
-export function brushOfDay(day: number, pool: readonly BrushId[] = BRUSHES, prev?: string | null): BrushId {
+export function brushOfDay(day: number, pool: readonly BrushId[] = BRUSHES): BrushId {
   const n = pool.length
-  const i = ((day % n) + n) % n
-  if (n > 1 && pool[i] === prev) return pool[(i + 1) % n]
-  return pool[i]
+  return pool[((day % n) + n) % n]
 }
 
 // ── 小圖（Fluent Emoji）畫到 canvas 上 ─────────────────────

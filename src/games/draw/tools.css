@@ -33,7 +33,7 @@
     --tool-gap: 14px;
   }
   .tool-room {
-    /* 只有自由畫畫用這個工具欄：10 個鍵、三欄就是 4 排 */
+    /* 只有自由畫畫用這個工具欄：最多 12 個鍵（T-127 多了魔法筆、印章）、三欄就是 4 排 */
     right: calc(3 * clamp(76px, calc((94cqh - 42px) / 4), 92px) + 2 * 14px + 28px) !important;
   }
 }
@@ -165,4 +165,28 @@
   position: absolute;
   inset: 0;
   pointer-events: none;
+}
+
+/* T-127 印章：格子底下一塊淡淡的印泥色，看得出「這是蓋的」；上面是下一個要蓋的角色 */
+.tool-stamp-pad {
+  position: absolute;
+  inset: 16%;
+  border-radius: 22%;
+  background: #f3e6cf;
+  pointer-events: none;
+}
+
+/* T-127 今天的背景：畫紙右上角的「白紙」鍵，跟工具欄的格子一樣大（至少 2 cm）。
+   不在最下面（TOUCH-5）；點了只換底下的線稿，孩子畫的都留著，誤觸也不會弄掉作品 */
+.draw-paper-btn {
+  --tool: 92px;
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  z-index: 2;
+}
+@container (max-height: 500px) {
+  .draw-paper-btn {
+    --tool: 76px;
+  }
 }
