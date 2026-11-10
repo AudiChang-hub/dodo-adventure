@@ -17,6 +17,7 @@ import { Words } from './Words'
 import { Quiz } from './Quiz'
 import { makeQuiz, type Question } from './quiz-plan'
 import { loadFormats } from '../formats'
+import { resumeEnd } from '../resume-end'
 import '../../games/coplay.css'
 import './english.css'
 
@@ -58,7 +59,7 @@ function hintOf(stage: Stage, x: LessonLetter, q?: Question) {
  * 每一段、每一輪描字、每一題做完都停在做完的樣子，右下角出「下一步」的大箭頭，孩子點了才往下（T-118，ui/NextStep）；
  * 最後一題答對直接慶祝、到下課的晚安道別（LessonScreen）。
  * 同一天中途離開又回來：從離開的那一段接著上，做過的段落石頭已經亮著，描字大寫描過了就只描小寫（T-95；./plan.ts 的 markStage）。
- * 題目都做完、還沒跟恐龍說完晚安就離開：同一天回來直接回到晚安道別（T-122）。
+ * 題目都做完、還沒跟恐龍說完晚安就離開：同一天回來直接回到晚安道別（T-122），這一堂不再算一次、不會變成挑貼紙（T-125）。
  */
 /** 這一題算不算「聽完才答、一次就對」（舊的進度沒有 heard，當作聽完了） */
 const earnedBy = (r: QuizResult | undefined) => !!r && r.first && r.heard !== false
@@ -78,7 +79,7 @@ export function EnglishLesson({ onDone }: LessonProps) {
   const [cheer, setCheer] = useState(0)
   const qs = useRef<Question[]>([])
   const live = useRef(true)
-  /** 描字、寫寫看共用：整堂課最多重描一次（T-122） */
+  /** 描字、寫寫看共用的重描次數（T-122 整堂最多一次；T-125 起 0 次：沒描好就由筆帶著描完） */
   const retry = useRef<RetryBudget>({ left: LESSON_RETRIES })
 
   useEffect(() => {
@@ -95,7 +96,10 @@ export function EnglishLesson({ onDone }: LessonProps) {
         setPlan(pl)
         sfx.pop()
         await wait(900)
-        if (live.current) onDone()
+        if (!live.current) return
+        // 上完時已經算過一堂：不再算一次，不會因為貼紙的間隔剛好到了直接變成挑貼紙（T-125，盲測 0f3363f 英文 seed 2）
+        resumeEnd()
+        onDone()
         return
       }
       if (pl.resume) {

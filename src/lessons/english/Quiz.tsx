@@ -62,7 +62,7 @@ function Ask({ q }: { q: Question }) {
  * 選擇（英文課第 4 段）：一題一題問。
  * 搶點（T-108，games/barge.ts）：念題目、示範、答錯的說明都可以搶——點選項就停掉語音、收掉示範、照常判對錯；
  * 點空白就停掉語音、黃框馬上亮。題目剛出來 0.5 秒內、答對之後的稱讚到下一題不收（點了輕輕一聲）。
- * 豆豆頭上的泡泡畫出要找的樣子（Ask）。這種題型孩子還不會（../formats.ts）：這一堂的第一題先示範——
+ * 豆豆頭上的泡泡畫出要找的樣子（Ask）。這種題型孩子還不會（../formats.ts）：這一堂的第一題先示範（大寫、小寫算同一輪，只示範第一題，T-125）——
  * Watch me! → 手指泡泡、念題目 → 手點答案 → Your turn!（T-96：盲測裡他聽不懂英文題目，等手出來才點對）。
  * 示範完選項不換位置（T-100：三歲記的是位置，換邊他照手剛剛指的地方點就點錯了）；示範過的那一題記成一起練。
  * 大寫、小寫的選項卡一大一小（大 S 在大卡、小 s 在小卡），不用聽懂 big／little 也分得出來（T-100）。
@@ -125,12 +125,21 @@ export function Quiz({
   const shown = useRef(false)
   /** 這一堂的題目（大寫、小寫都照問，T-124） */
   const list = useRef<Question[]>([])
-  /** 哪幾題要先示範：每種題型的第一題，而且這種題型孩子還不會；回來接著上的那一題一定示範（上課前就決定好，不會因為流程重跑而變） */
+  /**
+   * 哪幾題要先示範：找字母（大寫、小寫算同一輪，T-125）、找開頭的圖，各自的第一題，而且這一輪裡有孩子還不會的題型；
+   * 回來接著上的那一題一定示範（上課前就決定好，不會因為流程重跑而變）。
+   * T-125（盲測 0f3363f 英文：「一直點都一樣」）：以前大寫、小寫各示範一次，Watch me → 題目 → Your turn 一模一樣走兩遍，
+   * 第一天只有 S、s 兩張卡，看起來是同一題做兩輪。現在大寫、小寫混成一輪，只在第一題示範；小寫題直接問（點錯照樣有手指著答案，T-116）。
+   */
   const demoAt = useRef<boolean[]>([])
   if (!list.current.length) {
     list.current = qs.slice()
+    const round = (x: Question) => (x.kind === 'word' ? 'word' : 'letter')
+    const later = (k: number) => list.current.filter((y, j) => j >= start && round(y) === round(list.current[k]))
     demoAt.current = list.current.map(
-      (x, k) => k >= start && ((replay && k === start) || (list.current.findIndex((y, j) => j >= start && y.kind === x.kind) === k && needsDemo(FORMAT[x.kind]))),
+      (x, k) =>
+        k >= start &&
+        ((replay && k === start) || (list.current.findIndex((y, j) => j >= start && round(y) === round(x)) === k && later(k).some((y) => needsDemo(FORMAT[y.kind])))),
     )
   }
   /** 泡泡跳一下（答錯時：先看要找的樣子） */
