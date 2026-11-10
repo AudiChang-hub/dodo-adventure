@@ -71,21 +71,26 @@
   background: color-mix(in srgb, var(--en-soft) 70%, var(--card));
   transition: background 0.4s ease;
 }
-/* 做過、但不是聽完才答一次就對（T-109）：只留一圈淡淡的框，不亮、不跳 */
-.en-steps span.is-quiz i.past {
-  background: transparent;
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--en-soft) 80%, var(--card)) inset;
-}
+/* 答完一題：填滿、跳一下（T-124，盲測 f255333：猜對的以前只留一圈淡框，他看不出往前走了，「一直點都一樣」） */
 .en-steps span.is-quiz i.on {
+  position: relative;
   background: var(--en-deep);
-  animation: en-dot 0.5s cubic-bezier(0.22, 1, 0.36, 1);
+  animation: en-dot 0.6s cubic-bezier(0.22, 1, 0.36, 1);
+}
+/* 聽完才答、一次就對（T-109）：填滿之外，中間多一顆小星星 */
+.en-steps span.is-quiz i.on.is-star::after {
+  content: '';
+  position: absolute;
+  inset: 4px;
+  background: #fff;
+  clip-path: polygon(50% 0%, 61% 35%, 98% 35%, 68% 57%, 79% 91%, 50% 70%, 21% 91%, 32% 57%, 2% 35%, 39% 35%);
 }
 @keyframes en-dot {
   0% {
     transform: scale(1);
   }
   45% {
-    transform: scale(1.6);
+    transform: translateY(-10px) scale(1.7);
   }
   100% {
     transform: scale(1);
@@ -333,6 +338,15 @@
   box-shadow: 0 8px 0 var(--paper-edge);
   transition: background 0.35s ease, box-shadow 0.35s ease, opacity 0.35s ease;
   touch-action: manipulation;
+}
+/* 第 2、3 題換一組顏色的卡片（T-124）：同樣是 S、s 兩張，看得出是新的一題（紙感螢幕：淡、低彩度） */
+.en-options:where(.q1) .en-opt {
+  background: #fdf0d8;
+  box-shadow: 0 8px 0 #e8d3ad;
+}
+.en-options:where(.q2) .en-opt {
+  background: #e3eef6;
+  box-shadow: 0 8px 0 #c3d4e2;
 }
 /* 關鍵字還沒開始念：選項先不出來、點不到（點那裡算點空白，T-109）；關鍵字一念就淡入 */
 .en-opt.is-wait {

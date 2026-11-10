@@ -362,6 +362,10 @@ test.describe('數學課', () => {
       let taps = 0
       let answered = 0
       const silent: string[] = []
+      /** T-124：交出去以後勾勾變灰；等的時候點畫面，勾勾晃一下（還沒好） */
+      let grey = false
+      let shook = 0
+      let tapsInGive = 0
       const end = Date.now() + 30_000
       while (Date.now() < end) {
         const now = await canAct()
@@ -375,8 +379,18 @@ test.describe('數學課', () => {
         }
         // 點一下打勾原本的位置（教學卡也會蓋在這裡）：要有「看這裡、等一下」的圈圈
         const before = await page.evaluate(() => performance.now())
+        const inGive = await page.evaluate(() => !!document.querySelector('.ma-give-done.is-done:not(.is-gone)'))
         await k.tap(ok, '等的時候點一下')
         taps++
+        if (inGive) {
+          tapsInGive++
+          const look = await page.evaluate(() => {
+            const b = document.querySelector('.ma-give-done')
+            return { grey: !!b?.classList.contains('is-used'), moving: (b?.getAnimations() ?? []).some((a) => a.playState === 'running') }
+          })
+          if (look.grey) grey = true
+          if (look.moving) shook++
+        }
         const ring = await page
           .waitForFunction((t) => [...document.querySelectorAll('.not-yet')].length > 0 && performance.now() - t < 900, before, { timeout: 600 })
           .then(() => true)
@@ -391,6 +405,9 @@ test.describe('數學課', () => {
       c.outcome('按完打勾 13 秒內就能動手', secs > 0 && secs <= 13, `${secs < 0 ? '30 秒內都不能動手' : `${secs} 秒`}；聽到：${heard.join('、')}`)
       if (!(secs > 0 && secs <= 13)) await c.once('give-wait', '困惑', '拿給波波按完打勾，要等很久才能動手', `${secs} 秒；聽到：${heard.join('、')}`)
       c.outcome('等的時候點畫面，每一下都有「等一下」的圈圈', taps > 0 && answered === taps, `${answered}/${taps}${silent.length ? `；沒有回應：${silent.join('、')}` : ''}`)
+      // 交出去以後、波波道謝的時候（盲測 f255333 數學 3/3：點了擋板看不到反應）：勾勾變灰、點了晃一下
+      c.outcome('道謝的時候：勾勾變灰、點畫面勾勾晃一下（T-124）', tapsInGive === 0 || (grey && shook === tapsInGive), `點了 ${tapsInGive} 下，變灰：${grey ? '有' : '沒有'}，晃了 ${shook} 次`)
+      if (tapsInGive > 0 && !(grey && shook === tapsInGive)) await c.once('give-nope', '困惑', '交給波波以後點畫面，勾勾沒有變灰或沒有晃（看不出還沒好）', `點了 ${tapsInGive} 下，變灰：${grey ? '有' : '沒有'}，晃了 ${shook} 次`)
       if (taps > 0 && answered < taps) await c.once('give-silent', '困惑', '按完打勾等的時候點畫面，看不出要等一下（沒有「看這裡」的圈圈）', `${answered}/${taps}；沒有回應：${silent.join('、')}`)
     } finally {
       await c.flush().catch(() => {})

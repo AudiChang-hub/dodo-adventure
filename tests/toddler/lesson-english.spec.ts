@@ -854,14 +854,30 @@ test.describe('英文字母課', () => {
     const page = k.page
     const t0 = Date.now()
     const seen: number[] = []
+    /** 每次進度變了：答完幾題、填滿的點有幾顆（T-124：猜對、點錯過的也要填滿） */
+    const fills: { done: number; filled: number }[] = []
+    /** 每一題的選項：題型和那一組卡片的顏色（q0、q1…） */
+    const cards: string[] = []
     let total = 0
     let taps = 0
+    const result = (secs: number | null) => ({ secs, seen, total, taps, fills, cards })
     while (Date.now() - t0 < limit) {
       const st = await stageOf(page)
-      if (st !== 'quiz') return { secs: st === 'end' || st === null ? Math.round((Date.now() - t0) / 1000) : null, seen, total, taps }
+      if (st !== 'quiz') return result(st === 'end' || st === null ? Math.round((Date.now() - t0) / 1000) : null)
       const d = await quizDots(page)
       if (d) total = d.total
-      if (d && seen[seen.length - 1] !== d.done) seen.push(d.done)
+      if (d && seen[seen.length - 1] !== d.done) {
+        seen.push(d.done)
+        fills.push({ done: d.done, filled: await page.evaluate(() => document.querySelectorAll('.en-steps .is-quiz i.on').length) })
+      }
+      const set = await page.evaluate(() => {
+        const box = [...document.querySelectorAll('.en-options')].pop()
+        if (!box) return null
+        const kind = ['big', 'little', 'word'].find((x) => box.classList.contains(`is-${x}`))
+        const q = [...box.classList].find((x) => /^q\d$/.test(x))
+        return `${kind}/${q}`
+      })
+      if (set && cards[cards.length - 1] !== set) cards.push(set)
       const b = await bigCard(page)
       if (b) {
         taps++
@@ -869,10 +885,10 @@ test.describe('英文字母課', () => {
         await page.waitForTimeout(700)
       } else await page.waitForTimeout(250)
     }
-    return { secs: null, seen, total, taps }
+    return result(null)
   }
 
-  test('只會點大的那張：選擇題也要在合理時間內上完，答完一題進度亮一顆（T-104）', async ({ page }, info) => {
+  test('只會點大的那張：選擇題也要在合理時間內上完，答完一題進度亮一顆（T-104）、填滿、換一組卡片（T-124）', async ({ page }, info) => {
     test.skip(!want('lesson-english'))
     test.setTimeout(5 * 60_000)
     const { k, c } = await setup(page, info, '只點大的')
@@ -894,6 +910,18 @@ test.describe('英文字母課', () => {
       const forward = r.total > 0 && r.seen.length >= r.total && r.seen.every((x, j) => j === 0 || x === r.seen[j - 1] + 1)
       c.outcome('答完一題，進度小點亮一顆', forward, steps ? `小點 ${steps}` : '沒有小點')
       if (!forward) await c.once('dots', '困惑', '選擇題答完一題，看不出進度往前', steps ? `小點 ${steps}` : '畫面上沒有選擇題的進度')
+      // T-124（盲測 f255333：「一直點都一樣」）：點錯過、手帶著做的那一題，進度點也要填滿；每一題換一組卡片；小寫題不會被換成大寫題
+      const filled = r.fills.filter((f) => f.done > 0)
+      const fillOk = filled.length > 0 && filled.every((f) => f.filled === f.done)
+      c.outcome('答完一題（點錯過也算）進度點就填滿', fillOk, r.fills.map((f) => `${f.done} 題／填滿 ${f.filled}`).join('、'))
+      if (!fillOk) await c.once('dots-fill', '困惑', '選擇題答完一題，進度點沒有填滿（看不出往前走）', r.fills.map((f) => `${f.done} 題／填滿 ${f.filled}`).join('、'))
+      const sets = r.cards.map((x) => x.split('/')[1])
+      const fresh = sets.length >= 2 && sets.every((q, j) => j === 0 || q !== sets[j - 1])
+      c.outcome('每一題換一組卡片', fresh, r.cards.join(' → '))
+      if (!fresh) await c.once('cards-same', '困惑', '選擇題換下一題，卡片看起來跟上一題一樣', r.cards.join(' → '))
+      const both = r.cards.some((x) => x.startsWith('big/')) && r.cards.some((x) => x.startsWith('little/'))
+      c.outcome('大寫、小寫都問到（小寫題沒有換成大寫題）', both, r.cards.join(' → '))
+      if (!both) await c.once('cases', '困惑', '選擇題只問到大寫（小寫題被換成大寫題，同一題問兩次）', r.cards.join(' → '))
       await c.flush()
     } finally {
       finish(k, c, '只點大的')

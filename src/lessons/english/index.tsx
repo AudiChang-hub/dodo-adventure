@@ -72,7 +72,7 @@ export function EnglishLesson({ onDone }: LessonProps) {
   const [quizAt, setQuizAt] = useState<{ from: number; answers: QuizResult[]; replay: boolean }>({ from: 0, answers: [], replay: false })
   /** 選擇題答完幾題（最後一顆石頭裡的小點） */
   const [quizDone, setQuizDone] = useState(0)
-  /** 哪幾題是聽完才答、一次就對（這幾顆小點才亮，T-109） */
+  /** 哪幾題是聽完才答、一次就對（這幾顆小點多一顆小星星，T-109；答完的都會填滿，T-124） */
   const [earned, setEarned] = useState<boolean[]>([])
   /** 答對一題：豆豆歡呼一下 */
   const [cheer, setCheer] = useState(0)
@@ -85,8 +85,8 @@ export function EnglishLesson({ onDone }: LessonProps) {
     live.current = true
     void Promise.all([loadProgress(), loadFormats()]).then(async ([p]) => {
       const pl = planFor(p)
-      // 中途離開、回來接著做選擇題：先只問大寫（退一級，T-100）
-      qs.current = makeQuiz(lessonLetter(pl.idx, pl.seq), pl.idx, pl.seq, pl.resume?.stage === 'quiz')
+      // 中途離開、回來接著做選擇題：題目照舊，大寫、小寫都留著（T-124：以前小寫題改問大寫，同一個大 S 問兩次，「一直點都一樣」）
+      qs.current = makeQuiz(lessonLetter(pl.idx, pl.seq), pl.idx, pl.seq)
       await markStarted(pl)
       if (!live.current) return
       if (pl.resume?.stage === 'end') {
@@ -173,7 +173,8 @@ export function EnglishLesson({ onDone }: LessonProps) {
           s === 'quiz' && stage === 'quiz' ? (
             <span key={s} className="is-now is-quiz" data-done={quizDone} data-total={qs.current.length}>
               {qs.current.map((_, j) => (
-                <i key={j} className={j < quizDone ? (earned[j] ? 'on' : 'past') : undefined} />
+                // 答完一題就填滿、跳一下（T-124：每點對一題都看得到往前走）；聽完才答、一次就對的多一顆小星星（T-109 的分別留著）
+                <i key={j} className={j < quizDone ? (earned[j] ? 'on is-star' : 'on') : undefined} />
               ))}
             </span>
           ) : (
