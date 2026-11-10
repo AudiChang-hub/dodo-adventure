@@ -29,6 +29,8 @@ const HINT_AFTER = 2
 
 /**
  * 選圖：「哪個是烏龜？」三張圖選一張（親子共讀：App 不出聲，2026-11-03）。
+ * 第 3 次的故事題（T-127，q.story）也用這一頁：題目卡換成課文的一句、答案挖空（「＿＿跑得快快快」），大人念到空格問「是誰？」，
+ * 孩子一樣點圖回答；答對了空格填上那個詞。下面一張給大人的小字條（怎麼問、答不出來就說）。
  * - 上面的題目卡字很大：「哪個是」小一點、紅字大，大人照著念給孩子聽。
  * - 卡片一出來就收作答（T-108 搶點：以前等 1.6 秒給大人念題目，孩子搶著點只出現圈圈，覺得被擋；大人還沒念完他就點對了也照常算）；
  *   答對的卡片放大、亮綠框、撒星星、叮一聲，答錯的抖一下變淡、輕輕一聲（抖的時候就可以點別張）；
@@ -139,8 +141,9 @@ export function Quiz({
       void logAttempt({
         station: 'mandarin',
         game: ZH_GAME,
-        itemId: `${t.day}:${q.word}`,
-        skill: `zhtext:${q.word}`,
+        // 故事題（第 3 次）另外記一種技能：考的是聽懂故事，不混進認字詞的熟練度（readiness 的 zhtext）
+        itemId: q.story ? `${t.day}:story:${q.word}` : `${t.day}:${q.word}`,
+        skill: q.story ? `zhstory:${q.word}` : `zhtext:${q.word}`,
         level: 1,
         phase: led.current ? 'guided' : 'quiz',
         ...(led.current ? { metrics: { led: 1 } } : {}),
@@ -171,8 +174,9 @@ export function Quiz({
     <div className="zh-quiz">
       <motion.button
         type="button"
-        className="zh-ask"
-        aria-label={`哪個是${q.word}？`}
+        className={`zh-ask${q.story ? ' zh-ask-story' : ''}`}
+        aria-label={q.story ? `${q.story.before}${q.story.who ? '誰' : '什麼'}${q.story.after}` : `哪個是${q.word}？`}
+        style={q.story ? ({ '--n': [...q.story.before + q.story.after].length + Math.max(2, q.word.length) } as CSSProperties) : undefined}
         initial={nudge || quiet || still ? false : { y: -18 }}
         animate={nudge && !still ? { y: [0, -10, 0] } : { y: 0 }}
         transition={nudge ? { duration: 0.5, ease: 'easeOut' } : { type: 'spring', stiffness: 300, damping: 22 }}
@@ -183,9 +187,24 @@ export function Quiz({
           ask()
         }}
       >
-        <span className="zh-ask-lead">哪個是</span>
-        <span className="zh-ask-word">{q.word}</span>
-        <span className="zh-ask-lead">？</span>
+        {q.story ? (
+          // 故事題（T-127）：課文的那一句，答案的地方是一個紅色虛線空格（裡面小小的「誰？」給大人看）；答對了空格填上那個詞
+          <span className="zh-ask-line">
+            {q.story.before}
+            <span className={`zh-ask-blank${solved ? ' filled' : ''}`} data-word={q.word}>
+              <span className="zh-ask-blank-w">{q.word}</span>
+              {!solved && <span className="zh-ask-blank-q">{q.story.who ? '誰？' : '什麼？'}</span>}
+            </span>
+            {/* 句尾的逗號、頓號不放（題目卡上是一整句） */}
+            {q.story.after.replace(/[，、：；,]+$/, '')}
+          </span>
+        ) : (
+          <>
+            <span className="zh-ask-lead">哪個是</span>
+            <span className="zh-ask-word">{q.word}</span>
+            <span className="zh-ask-lead">？</span>
+          </>
+        )}
       </motion.button>
       <div className={`options with-stim zh-options${solved ? ' is-solved' : ''}`}>
         {opts.map((o, i) => {
@@ -241,7 +260,24 @@ export function Quiz({
           )
         })}
       </div>
+      {q.story && <StoryNote word={q.word} story={q.story} />}
       <WaitShield on={!accepting} />
+    </div>
+  )
+}
+
+/** 故事題給大人的小字條（T-126 聊一聊的同一種樣子）：怎麼問、答不出來時示範的完整一句 */
+function StoryNote({ word, story }: { word: string; story: NonNullable<ZhQuestion['story']> }) {
+  const whole = `${story.before}${word}${story.after}`.replace(/[，、：；,]+$/, '')
+  return (
+    <div className="zh-note zh-story-note">
+      <p className="zh-talk-ask">
+        <span className="zh-talk-tag">故事題・問他</span>
+        <span className="zh-talk-q">念這一句，念到空格停下來：「{story.who ? '是誰？' : '是什麼？'}」</span>
+      </p>
+      <p className="zh-talk-model">
+        <span className="zh-talk-how">答不出來就說</span>「是{word}！{whole}」
+      </p>
     </div>
   )
 }

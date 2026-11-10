@@ -9,12 +9,13 @@ import { logTeach } from '../../lib/record'
 import type { Mood } from '../../art/Dino'
 import { leaveLesson } from '../LessonScreen'
 import type { LessonProps } from '../types'
-import { STORY_RUN, questionsOf, storyQuestionsOf, type ZhQuestion, type ZhText } from './data'
+import { STORY_RUN, questionsOf, storyRunOf, type ZhOrder, type ZhQuestion, type ZhText } from './data'
 import { doneDays, glyphState, lessonToday, markDone, saveGlyph } from './progress'
 import { NEXT_HINT, nextStep, useNextPending } from '../../ui/NextStep'
 import { Reader } from './Reader'
 import { Quiz } from './Quiz'
 import { Glyph } from './Glyph'
+import { Order } from './Order'
 import { glyphQuestion, needsDemo, type GlyphQuestion } from './match'
 import './chinese.css'
 
@@ -27,8 +28,8 @@ const INTRO_KV = 'zhLesson:introSeen'
 /** 主持的恐龍被點了：交給現在這一段（App 不出聲，只有一聲輕的音效或題目卡跳一下） */
 export type HostTap = { current: (() => void) | null }
 
-/** number：第幾題選圖；glyph：最後的找一樣的字（T-117） */
-type Scene = 'intro' | 'read' | number | 'glyph'
+/** number：第幾題選圖（第 3 次含故事題）；order：排兩張圖的順序（第 3 次，T-127）；glyph：最後的找一樣的字（T-117） */
+type Scene = 'intro' | 'read' | number | 'order' | 'glyph'
 
 /** 角落的陪玩小字：大人每一步要做什麼（PARENT-1） */
 /** 選圖的張數寫成國字（畫面上有幾張就寫幾張：教過的字詞不夠時只有兩張） */
@@ -38,16 +39,18 @@ const COUNT = ['零', '一', '兩', '三', '四']
  * 角落的陪玩小字。孩子在大人念的時候最常沒事做（AI 小男生盲測 f7c3119：不到 1 分鐘就說好久了），
  * 所以念課文的每一句都先寫「念到這行時請他點亮起來的圖」（T-114：念到哪一行，那一行的圖就亮起來）。opts 是這一題選圖有幾張。
  */
-function hintOf(scene: Scene, run: number, talk: boolean, opts = 3, demo = false): string {
+function hintOf(scene: Scene, run: number, talk: boolean, opts = 3, demo = false, story?: ZhQuestion['story']): string {
   if (scene === 'intro') return '先看一下怎麼上，看完按「開始念」。'
+  if (scene === 'order') return '問他：「故事裡先說到誰？後來呢？」請他把先說到的放進 1、後說到的放進 2。點或拖都可以，放錯會彈回來，不用幫他放。'
   if (scene === 'glyph')
     return demo
       ? '先看手示範一次：找一個跟上面長得一模一樣的字。再讓他自己找，不用念這是什麼字。'
       : '指著上面的字問他：「下面哪一個跟它長得一模一樣？」讓他自己找，不用念這是什麼字。找到了可以說：「你看得好仔細，一模一樣！」'
+  if (scene !== 'read' && story) return `故事題：念上面這一句，念到空格停下來問他「${story.who ? '是誰？' : '是什麼？'}」，等他點圖。點錯會有提示，不用幫他點。`
   if (scene !== 'read') return `念題目給他聽：「哪個是〇〇？」再指著${COUNT[opts] ?? opts}張有黃框的圖說「點一下」。點錯會有提示，不用幫他點。`
   if (talk) return '照下面的小字條問他，指著圖等他回答；答不出來就照字條說一次給他聽。右下角的「去選圖」過幾秒才按得動。'
-  if (run === 2) return '念到這行時，請他點亮起來的圖。今天第 2 次：框起來、標「停」的詞先停一下，等他說出來。念完一行按右下「下一行」。'
-  if (run >= 3) return '念到這行時，請他點亮起來的圖，再請他跟著說一次。念完一行按右下「下一行」。'
+  if (run === 2) return '今天第 2 次・接接看：念到框起來、標「停」的詞先停下來，指著有小泡泡的圖等他說出來，再請他點那張圖。念完一行按右下「下一行」。'
+  if (run >= 3) return '念到這行時，請他點亮起來的圖，再請他跟著說一次。今天第 3 次，念完會多兩題：故事題、排順序。念完一行按右下「下一行」。'
   return '念到這行時，請他點亮起來的圖（點了圖會動、不出聲）。指著字一行一行念，念完一行按右下「下一行」。'
 }
 
@@ -55,7 +58,9 @@ function hintOf(scene: Scene, run: number, talk: boolean, opts = 3, demo = false
  * 中文課的一堂（親子共讀，2026-11-03：App 不出聲，大人念給孩子聽）：
  * 第一次進來先給大人一張說明 → 念課文（大人一行一行念、按「下一行」）→ 聊一聊（開放問題）→ 選圖（每個紅字一題）
  * → 找一樣的字（T-117，一題：紅字裡的一個字，2 選 1 起，./match.ts）→ 上完叫 onDone。
- * 同一篇連上 3 次（progress.ts）：第 2 次念到框起來的紅字前停一下讓孩子接（Reader）；第 3 次再加故事題（STORY_RUN，現況對照 A8，題目還沒做）。
+ * 同一篇連上 3 次（progress.ts），3 次看起來各不一樣（T-127 B 案；課本上面一排小圖示標第幾次，Reader 的 RunMarks）：
+ * 第 1 次念＋選圖；第 2 次念到框起來的紅字前停一下，那個詞的圖亮起來、有小泡泡，讓孩子說出來、點圖接話（Reader）；
+ * 第 3 次選圖之後多一題故事題（課文挖空問「誰／什麼」，Quiz）和排兩張圖的順序（Order）；排順序出不來的篇改成兩題故事題（data.ts 的 storyRunOf）。
  * 兩段之間、每一題之間都是原地淡入淡出（ui/Scenes 的 Swap），沒有打斷課程的整頁卡片。
  */
 export function ChineseLessonBody({ onDone }: LessonProps) {
@@ -63,6 +68,8 @@ export function ChineseLessonBody({ onDone }: LessonProps) {
   /** 這一篇第幾次上 */
   const [run, setRun] = useState(1)
   const [qs, setQs] = useState<ZhQuestion[]>([])
+  /** 第 3 次的排順序（出不來的篇是 null） */
+  const [order, setOrder] = useState<ZhOrder | null>(null)
   /** 最後一題找一樣的字；這一堂要不要先讓手示範 */
   const [gq, setGq] = useState<GlyphQuestion | null>(null)
   const [gDemo, setGDemo] = useState(false)
@@ -84,7 +91,9 @@ export function ChineseLessonBody({ onDone }: LessonProps) {
       if (off) return
       setT(x)
       setRun(n)
-      setQs([...questionsOf(x, done), ...(n >= STORY_RUN ? storyQuestionsOf(x) : [])])
+      const extra = n >= STORY_RUN ? storyRunOf(x, done) : { story: [], order: null }
+      setQs([...questionsOf(x, done), ...extra.story])
+      setOrder(extra.order)
       setGq(glyphQuestion(x, n, g.level))
       setGDemo(needsDemo(g))
       setGDemoing(needsDemo(g))
@@ -116,9 +125,10 @@ export function ChineseLessonBody({ onDone }: LessonProps) {
     if (!t) return
     if (!taught.current) {
       taught.current = true
-      for (const q of qs) void logTeach({ station: 'mandarin', game: ZH_GAME, itemId: `${t.day}:${q.word}`, skill: `zhtext:${q.word}`, level: 1, ms })
+      for (const q of qs) if (!q.story) void logTeach({ station: 'mandarin', game: ZH_GAME, itemId: `${t.day}:${q.word}`, skill: `zhtext:${q.word}`, level: 1, ms })
     }
     if (qs.length) setScene(0)
+    else if (order) setScene('order')
     else if (gq) setScene('glyph')
     else void finish()
   }
@@ -132,9 +142,12 @@ export function ChineseLessonBody({ onDone }: LessonProps) {
   const next = async () => {
     setAnswered((n) => n + 1)
     setMood('idle')
-    const to: Scene | null = typeof scene === 'number' && scene + 1 < qs.length ? scene + 1 : typeof scene === 'number' && gq ? 'glyph' : null
+    const after: Scene | null = order ? 'order' : gq ? 'glyph' : null
+    const to: Scene | null =
+      typeof scene === 'number' ? (scene + 1 < qs.length ? scene + 1 : after) : scene === 'order' ? (gq ? 'glyph' : null) : null
     if (to == null) {
-      if (scene === 'glyph' && (!(await nextStep()) || !live.current)) return
+      // 找一樣的字、排順序答完：停在答對的樣子，等孩子點「下一步」才下課；最後一張選圖答完直接下課（T-113）
+      if ((scene === 'glyph' || scene === 'order') && (!(await nextStep()) || !live.current)) return
       return void finish()
     }
     if (!(await nextStep()) || !live.current) return
@@ -157,23 +170,25 @@ export function ChineseLessonBody({ onDone }: LessonProps) {
       // 大人按「下一行」亮一格，選對一題亮一格；看得出「念到哪裡、還剩多少」
       progress={
         t && scene != null && scene !== 'intro'
-          ? { total: t.lines.length + qs.length + (gq ? 1 : 0), done: (typeof scene === 'number' || scene === 'glyph' ? t.lines.length : read) + answered }
+          ? { total: t.lines.length + qs.length + (order ? 1 : 0) + (gq ? 1 : 0), done: (scene === 'read' ? read : t.lines.length) + answered }
           : undefined
       }
       onExit={leaveLesson}
       onHost={() => host.current?.()}
-      hintText={scene == null ? undefined : pending ? NEXT_HINT : hintOf(scene, run, talk, typeof scene === 'number' ? qs[scene]?.options.length : undefined, gDemoing)}
+      hintText={scene == null ? undefined : pending ? NEXT_HINT : hintOf(scene, run, talk, typeof scene === 'number' ? qs[scene]?.options.length : undefined, gDemoing, typeof scene === 'number' ? qs[scene]?.story : undefined)}
     >
       {t && scene != null && (
         <Swap id={typeof scene === 'number' ? `q${scene}` : scene}>
           {scene === 'intro' ? (
             <Intro onStart={start} />
           ) : scene === 'read' ? (
-            <Reader t={t} run={run} host={host} goLabel={qs.length ? '去選圖' : gq ? '去找字' : '下課'} onTalk={setTalk} onNext={toQuiz} onLine={onLine} setMood={setMood} />
+            <Reader t={t} run={run} host={host} goLabel={qs.length ? '去選圖' : order ? '去排排看' : gq ? '去找字' : '下課'} onTalk={setTalk} onNext={toQuiz} onLine={onLine} setMood={setMood} />
+          ) : scene === 'order' ? (
+            order && <Order t={t} o={order} host={host} setMood={setMood} onNext={next} />
           ) : scene === 'glyph' ? (
             gq && <Glyph t={t} q={gq} demo={gDemo} host={host} setMood={setMood} onResult={(r) => void saveGlyph(r)} onDemoEnd={() => setGDemoing(false)} onNext={next} />
           ) : (
-            <Quiz key={scene} t={t} q={qs[scene]} last={scene + 1 >= qs.length && !gq} host={host} setMood={setMood} onNext={next} />
+            <Quiz key={scene} t={t} q={qs[scene]} last={scene + 1 >= qs.length && !gq && !order} host={host} setMood={setMood} onNext={next} />
           )}
         </Swap>
       )}
@@ -202,7 +217,7 @@ function Intro({ onStart }: { onStart: () => void }) {
             <b>一行一行念</b>：畫面一次亮一行，你指著字念，念完按右下「下一行」。念到的那一行，圖會放大、亮起來，請他點；點了圖會動。
           </li>
           <li>
-            <b>同一篇上 3 次</b>：第 2 次念到框起來、標「停」的詞前停一下，等他說出來。
+            <b>同一篇上 3 次，每次不一樣</b>：第 2 次念到框起來、標「停」的詞前停一下，那個詞的圖會亮起來，等他說出來；第 3 次念完多兩題：故事題、把兩張圖排先後。
           </li>
           <li>
             <b>念完聊一聊</b>：卡片上有一個問題（誰、什麼、哪裡），問他、等他回答；答不出來，卡片上有一句你可以說給他聽。
