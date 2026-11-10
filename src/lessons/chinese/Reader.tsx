@@ -92,6 +92,10 @@ function Bits({ n }: { n: number }) {
  *   圖亮綠框、撒星星、莫莫開心，「去選圖」馬上出現（大人的按鈕，不用再等 4 秒）。
  *   「去選圖」「再念一次」不放在卡片上（第三次盲測：孩子自己按掉了這一段），跟「下一行」一樣放在右下角的大人位置、同樣低調的樣子，
  *   聊一聊出來 4 秒後（或孩子指了圖之後）才出現（大人問完、等他回答的時間）；同一顆連點只算一下。
+ * - 聊一聊改成孩子看得懂的畫面（T-126，盲測 0f3363f 中文 2：大卡全是字，「好多字喔，我不要玩了」）：
+ *   課本收起來，中間一張大圖（問題的主角；主角沒有圖的篇放問題裡提到的、或第一個紅字的圖），點得到；
+ *   問題、示範句、還可以做的事收成下面一張小字條（給大人看）。往下走的按鈕一出來就看得到（淡淡的），
+ *   4 秒後（或孩子點了圖）才按得動；還按不動時點它、點空白處、點字條，大圖再亮黃框、跳一下。
  */
 export function Reader({
   t,
@@ -103,6 +107,7 @@ export function Reader({
   onLine,
   setMood,
   startAt = 0,
+  startTalk = false,
 }: {
   t: ZhText
   run?: number
@@ -118,10 +123,12 @@ export function Reader({
   setMood?: (m: Mood) => void
   /** 一開始亮第幾行（排版檢查 scripts/check-zh-layout.mjs 用：直接看每一行亮起來、圖放大的樣子；課裡一律從第 0 行） */
   startAt?: number
+  /** 一開始就是聊一聊（排版檢查用：180 篇的聊一聊卡片都要量；課裡一律從念課文開始） */
+  startTalk?: boolean
 }) {
   const still = useReducedMotion()
   const [cur, setCur] = useState(startAt)
-  const [talk, setTalk] = useState(false)
+  const [talk, setTalk] = useState(startTalk)
   /** 聊一聊出來一陣子了（或孩子已經用指的回答了）：「去選圖」「再念一次」才出現在右下角 */
   const [talkReady, setTalkReady] = useState(false)
   /** 同一張圖再點：換下一種動作、冒出小東西、配那個動作的音效 */
@@ -243,10 +250,23 @@ export function Reader({
     return () => clearInterval(k)
   }, [curKeys, curTouched, still])
 
+  /** 聊一聊剛出來、往下走的按鈕還按不動時點了：主角的圖跳一下（「先看這個」），不跳過 */
+  const waitTap = (e: React.PointerEvent) => {
+    e.stopPropagation()
+    if (!firstFinger(e.nativeEvent) || left.current || answered) return
+    nod()
+    setLook((n) => n + 1)
+  }
+
   /** 點在課本的空白處（沒點中圖、不是大人的按鈕）：當作點了亮的那一行的圖 */
   const tapBlank = (e: React.PointerEvent) => {
-    if (talk || left.current || !firstFinger(e.nativeEvent)) return
-    if ((e.target as Element).closest('button, .zh-controls, .zh-talk')) return
+    if (left.current || !firstFinger(e.nativeEvent)) return
+    if ((e.target as Element).closest('button, .zh-controls, .zh-talk-pic')) return
+    // 聊一聊時點空白處、點小字條：主角的圖再亮黃框、跳一下（「點這個」，T-126）
+    if (talk) {
+      if (!answered) setLook((n) => n + 1)
+      return
+    }
     const p = pics[cur]?.[0]
     if (p) tapWord(p.word, cur)
   }
@@ -300,6 +320,10 @@ export function Reader({
   const { units, rows } = pageUnits(t, times)
   const tk = talkFor(t)
   const more = talkOf(t.parentTip).rest
+  // 聊一聊的大圖（T-126）：問題的主角；主角沒有圖的篇（例如「誰讓燈泡亮起來？」），放問題裡提到的紅字（燈泡），沒提到就放這篇第一個有圖的紅字
+  const drawn = t.redWords.filter((w) => t.emoji[w])
+  const star = tk.pic && t.emoji[tk.pic] ? tk.pic : (drawn.find((w) => tk.q.includes(w)) ?? drawn[0] ?? null)
+  const starIsAnswer = star != null && star === tk.pic
   return (
     <div
       className={`zh-read${talk ? ' talking' : ''}`}
@@ -405,14 +429,18 @@ export function Reader({
         </div>
       </motion.article>
 
-      {/* 大人的按鈕：課本右下角，課文和圖以外。念課文時是上一行／下一行；聊一聊時（出來 4 秒後）是再念一次／去選圖 */}
-      <div className={`zh-controls${!talk || talkReady ? ' on' : ''}`} aria-hidden={talk && !talkReady}>
+      {/*
+        大人的按鈕：課本右下角，課文和圖以外。念課文時是上一行／下一行；聊一聊時是再念一次／去選圖。
+        聊一聊（T-126）：往下走的箭頭一出來就看得到（淡淡的），4 秒後（或孩子點了圖）才按得動、變清楚；
+        還按不動的時候點了，主角的圖跳一下（「先看這個」），不會跳過這一段（T-102）
+      */}
+      <div className={`zh-controls${!talk || talkReady ? ' on' : ' wait'}`}>
         {talk ? (
           <>
-            <button type="button" className="zh-prev" onPointerDown={adult('again', again)} tabIndex={talkReady ? 0 : -1}>
+            <button type="button" className="zh-prev" onPointerDown={talkReady ? adult('again', again) : waitTap} tabIndex={talkReady ? 0 : -1}>
               再念一次
             </button>
-            <button type="button" className="zh-next zh-go-quiz" onPointerDown={adult('go', go)} tabIndex={talkReady ? 0 : -1}>
+            <button type="button" className="zh-next zh-go-quiz" onPointerDown={talkReady ? adult('go', go) : waitTap} tabIndex={talkReady ? 0 : -1}>
               <span>{goLabel}</span>
               <NextIcon />
             </button>
@@ -431,6 +459,8 @@ export function Reader({
       </div>
 
       {talk && (
+        // 聊一聊（T-126，盲測 0f3363f 中文 2：大卡全是字，「好多字喔，我不要玩了」就走了）：
+        // 孩子看到的是一張大圖（點得到，用指的回答）；給大人的問題、示範句收成下面一張小字條
         <motion.div
           className="zh-talk"
           role="dialog"
@@ -439,38 +469,43 @@ export function Reader({
           animate={{ opacity: 1, y: 0, scale: 1 }}
           transition={{ duration: 0.45, ease: EASE.out }}
         >
-          <div className="zh-talk-tag">聊一聊・問他</div>
           <div className="zh-talk-main">
-            <p className="zh-talk-q">{tk.q}</p>
-            {tk.pic && t.emoji[tk.pic] && (
-              // 問題的主角：孩子可以用指的回答（點了跳一下；第一次亮綠框、撒星星，T-111）。點莫莫時換 key：再亮黃框、跳一下
+            {star && (
+              // 主角的圖：孩子可以用指的回答（點了跳一下；第一次撒星星、莫莫開心，是答案的話亮綠框，T-111）。點莫莫、點空白時換 key：再亮黃框、跳一下
               <motion.button
                 key={`talk-${look}`}
                 type="button"
-                className={`zh-talk-pic${answered ? ' said' : ' cue turn-hop'}`}
-                aria-label={tk.pic}
-                animate={pop?.w === tk.pic && !still ? { scale: [1, 1.15, 1] } : { scale: 1 }}
+                className={`zh-talk-pic${answered ? (starIsAnswer ? ' said' : '') : ' cue turn-hop'}`}
+                aria-label={star}
+                data-word={star}
+                animate={pop?.w === star && !still ? { scale: [1, 1.15, 1] } : { scale: 1 }}
                 transition={{ duration: 0.5, ease: EASE.out }}
                 onPointerDown={(e) => {
-                  if (firstFinger(e.nativeEvent)) answerTalk(tk.pic!)
+                  if (firstFinger(e.nativeEvent)) answerTalk(star)
                 }}
               >
                 <span
-                  key={act?.key === `talk:${tk.pic}` ? act.n : 0}
-                  className={`zh-pic-in${act?.key === `talk:${tk.pic}` ? ` act-${act.kind}` : ''}`}
-                  data-act={act?.key === `talk:${tk.pic}` ? act.kind : undefined}
+                  key={act?.key === `talk:${star}` ? act.n : 0}
+                  className={`zh-pic-in${act?.key === `talk:${star}` ? ` act-${act.kind}` : ''}`}
+                  data-act={act?.key === `talk:${star}` ? act.kind : undefined}
                 >
-                  <Pic name={t.emoji[tk.pic]!} />
+                  <Pic name={t.emoji[star]!} />
                 </span>
-                {burst?.key === `talk:${tk.pic}` && <Sparkles key={burst.n} count={14} />}
-                {act?.key === `talk:${tk.pic}` && <Bits key={`bits-${act.n}`} n={act.n} />}
+                {burst?.key === `talk:${star}` && <Sparkles key={burst.n} count={14} />}
+                {act?.key === `talk:${star}` && <Bits key={`bits-${act.n}`} n={act.n} />}
               </motion.button>
             )}
           </div>
-          <p className="zh-talk-model">
-            <span className="zh-talk-how">他答不出來，你可以說：</span>「{tk.a}」
-          </p>
-          <p className="zh-talk-more">等他說；他說一兩個字，你幫他說成完整的一句。{more && `還可以：${more}`}</p>
+          <div className="zh-talk-note">
+            <p className="zh-talk-ask">
+              <span className="zh-talk-tag">聊一聊・問他</span>
+              <span className="zh-talk-q">{tk.q}</span>
+            </p>
+            <p className="zh-talk-model">
+              <span className="zh-talk-how">答不出來就說</span>「{tk.a}」
+            </p>
+            <p className="zh-talk-more">等他說；他說一兩個字，你幫他說成完整的一句。{more && `還可以：${more}`}</p>
+          </div>
         </motion.div>
       )}
     </div>

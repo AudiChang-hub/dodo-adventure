@@ -5,6 +5,7 @@
 //   - 不能超出課本那一頁；圖、「停」也不能超出課本那一頁。
 // 開一個 vite dev（tests/layout/zh-layout.html，真的舞台 games/Shell 裡排 Reader），在瀏覽器裡一篇一篇換著量。
 // 用法：node scripts/check-zh-layout.mjs [--day 2] [--shots DIR]（--shots：把每個有問題的畫面截圖存下來）
+// 聊一聊（T-126）：每篇量一次——大圖、給大人的小字條、往下走的按鈕都在畫面裡、不互相蓋住，小字條的字不被圖蓋住。
 // 結果最後一行：「排版問題 N 個」；不是 0 就以 1 結束（npm run verify 的「中文課文排版」）。
 import { spawn } from 'node:child_process'
 import path from 'node:path'
@@ -103,6 +104,44 @@ try {
               })
             }
           }
+          // 聊一聊（T-126）：中間一張大圖、下面給大人的小字條。圖（含外面一圈黃框）不能蓋到小字條的字；
+          // 圖、小字條、往下走的按鈕都要在畫面裡，彼此不重疊
+          window.zhLayout(day, 1, 'talk')
+          n++
+          const view = { left: 0, top: 0, right: innerWidth, bottom: innerHeight }
+          const pic = document.querySelector('.zh-talk-pic')
+          const note = document.querySelector('.zh-talk-note')
+          const go = document.querySelector('.zh-go-quiz')
+          if (!pic) out.push({ day, run: 1, line: 'talk', row: -1, what: '聊一聊沒有圖' })
+          if (!note || !go) out.push({ day, run: 1, line: 'talk', row: -1, what: '聊一聊沒有排出來' })
+          if (pic && note && go) {
+            const p0 = pic.getBoundingClientRect()
+            // 外面一圈黃框（.zh-talk-pic::after inset -5%）也算
+            const ring = { left: p0.left - p0.width * 0.05, right: p0.right + p0.width * 0.05, top: p0.top - p0.height * 0.05, bottom: p0.bottom + p0.height * 0.05 }
+            const nr = note.getBoundingClientRect()
+            const btns = [...document.querySelectorAll('.zh-controls button')].map((e) => e.getBoundingClientRect())
+            if (p0.width < 120) out.push({ day, run: 1, line: 'talk', row: -1, what: `聊一聊的圖太小（${Math.round(p0.width)}px）` })
+            for (const [r, name] of [[ring, '圖'], [nr, '小字條'], ...btns.map((b) => [b, '大人的按鈕'])]) if (!inside(r, view)) out.push({ day, run: 1, line: 'talk', row: -1, what: `聊一聊的${name}超出畫面` })
+            if (hit(ring, nr)) out.push({ day, run: 1, line: 'talk', row: -1, what: '聊一聊的圖蓋到小字條' })
+            for (const b of btns) {
+              if (hit(ring, b)) out.push({ day, run: 1, line: 'talk', row: -1, what: '聊一聊的圖蓋到大人的按鈕' })
+              if (hit(nr, b)) out.push({ day, run: 1, line: 'talk', row: -1, what: '聊一聊的小字條蓋到大人的按鈕' })
+            }
+            const walker = document.createTreeWalker(note, NodeFilter.SHOW_TEXT)
+            const range = document.createRange()
+            for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+              const s = node.textContent ?? ''
+              for (let k = 0; k < s.length; k++) {
+                if (!s[k].trim()) continue
+                range.setStart(node, k)
+                range.setEnd(node, k + 1)
+                const r = range.getBoundingClientRect()
+                if (!r.width) continue
+                if (!inside(r, nr)) out.push({ day, run: 1, line: 'talk', row: -1, ch: s[k], what: '聊一聊小字條的字超出字條' })
+                if (hit(r, ring)) out.push({ day, run: 1, line: 'talk', row: -1, ch: s[k], what: '聊一聊小字條的字被圖蓋住' })
+              }
+            }
+          }
         }
         return { out, n }
       },
@@ -118,7 +157,7 @@ try {
         if (seen.has(k) || seen.size >= 12) continue
         seen.add(k)
         await page.evaluate(({ day, run, line }) => window.zhLayout(day, run, line), p)
-        await page.screenshot({ path: path.join(shots, `${vp.width}x${vp.height}-第${p.day}篇-第${p.run}次-第${p.line + 1}行.png`) })
+        await page.screenshot({ path: path.join(shots, `${vp.width}x${vp.height}-第${p.day}篇-第${p.run}次-${p.line === 'talk' ? '聊一聊' : `第${p.line + 1}行`}.png`) })
       }
     }
     await page.close()
@@ -132,7 +171,7 @@ try {
     if (!uniq.has(k)) uniq.set(k, p)
   }
   for (const p of [...uniq.values()].slice(0, 40))
-    console.log(`  ${p.vp} 第 ${p.day} 篇 第 ${p.run} 次 亮第 ${p.line + 1} 行：${p.row >= 0 ? `第 ${p.row + 1} 行「${p.ch}」` : ''}${p.what}`)
+    console.log(`  ${p.vp} 第 ${p.day} 篇 ${p.line === 'talk' ? '聊一聊' : `第 ${p.run} 次 亮第 ${p.line + 1} 行`}：${p.row >= 0 ? `第 ${p.row + 1} 行「${p.ch}」` : ''}${p.what}`)
   console.log(`180 篇 × 3 種尺寸共 ${measured} 個畫面，排版問題 ${uniq.size} 個`)
   code = uniq.size ? 1 : 0
 } finally {
