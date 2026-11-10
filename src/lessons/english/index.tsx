@@ -79,7 +79,7 @@ export function EnglishLesson({ onDone }: LessonProps) {
   const [cheer, setCheer] = useState(0)
   const qs = useRef<Question[]>([])
   const live = useRef(true)
-  /** 描字、寫寫看共用：整堂課最多重描一次（T-122） */
+  /** 描字、寫寫看共用的重描次數（T-122 整堂最多一次；T-125 起 0 次：沒描好就由筆帶著描完） */
   const retry = useRef<RetryBudget>({ left: LESSON_RETRIES })
 
   useEffect(() => {
