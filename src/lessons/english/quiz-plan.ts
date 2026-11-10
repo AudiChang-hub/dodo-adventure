@@ -28,11 +28,6 @@ export interface Question {
   yes: string
   /** 沒聽完就點、猜對了：稱讚之後把關鍵字和答案再念一次（Yes! Big S!、Yes! Sun. S… s, s…） */
   echo: string[]
-  /**
-   * 小寫題的退一級（T-100，準則 LOAD-5「big 先於 small、答錯自動變簡單」、指引 EN-4「4 歲才認得一些小寫」）：
-   * 這一堂大寫題第一次沒答對、或中途離開又回來，小寫題改問同一個字母的大寫
-   */
-  easy?: Question
 }
 
 /** 跟 x 長得像、或念起來容易混的，不放在同一題（三歲還在認形狀，先不考 b／d） */
@@ -73,9 +68,10 @@ function letterOptions(X: string, big: boolean, taught: string[], learned: strin
  * 以前是 4 題，第一天做不出來的兩題都退回成同樣的大 S、小 s，一堂問 4 次 S／s（盲測 b637ff7：「好久喔，一直點都不知道要幹嘛」，
  * 準則 LOAD-3 一回合 3～5 題——英文課前面還有認識、描字、單字三段，選擇題這一段再短一點）。
  * 選項數：前三個字母 2 選 1，之後 3 選 1（教過的不夠就少一個）。
- * bigOnly：小寫題一開始就換成大寫題（同一天中途離開又回來，T-100）。
+ * 大寫、小寫都照問（T-124）：以前 T-100 的退一級（大寫題錯過、或中途離開又回來，小寫題改問大寫）會讓同一個「Big S」連問兩次，
+ * 盲測 f255333 英文 4 次離開都在選擇題（「一直點都一樣」）。小寫題點錯時手指著答案、答案亮、跳（T-116），照樣上得完。
  */
-export function makeQuiz(letter: LessonLetter, idx: number, seq = ORDER, bigOnly = false): Question[] {
+export function makeQuiz(letter: LessonLetter, idx: number, seq = ORDER): Question[] {
   const learned = [...seq.slice(0, idx)]
   const taught = [...seq.slice(0, idx + 1)]
   const n = idx < 3 ? 1 : 2
@@ -111,14 +107,13 @@ export function makeQuiz(letter: LessonLetter, idx: number, seq = ORDER, bigOnly
       echo: [`ph.word.${wordId(ans)}`, `ph.${l}.sound`],
     }
   }
-  const little = (X: string): Question => ({ ...letterQ(X, false), easy: letterQ(X, true) })
-  qs.push(letterQ(L, true), little(L))
+  qs.push(letterQ(L, true), letterQ(L, false))
   const starts = shuffle(letter.starts.map((w) => w.w))
   const word = (starts.length && wordQ(starts[0])) || null
   const review = learned.length ? letterQ(pick(learned.slice(-3)), true) : null
   const third = idx % 2 ? (word ?? review) : (review ?? word)
   if (third) qs.push(third)
-  return bigOnly ? qs.map((q) => q.easy ?? q) : qs
+  return qs
 }
 
 /**

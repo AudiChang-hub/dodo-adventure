@@ -20,7 +20,6 @@ import { wrongKeys, type Opt, type Question } from './quiz-plan'
 const FORMAT: Record<Question['kind'], Format> = { big: 'en-big', little: 'en-little', word: 'en-word' }
 
 /** 大寫或小寫題有一題不是一次就對：後面的小寫題改問大寫（退一級，LOAD-5） */
-const missedLetter = (rs: QuizResult[]) => rs.some((r) => r.kind !== 'word' && !r.first)
 
 /** 點錯一次、等他點答案：答案每隔這麼久再跳一下、手再按一下（T-116） */
 const BECKON_MS = 4000
@@ -76,9 +75,12 @@ function Ask({ q }: { q: Question }) {
  * 同一題錯兩次：手帶著做（手點答案、答案亮起來，記成一起練），然後照樣往下。所以一題最多點錯兩次，題數固定，一定上得完（T-104）。
  * 答對（T-104，AI 小男生盲測：只有 Yes 和綠框，他看不出對了）：答對的那張放大、跳一下、右上角綠色大打勾、星星，其他的淡掉；
  * 下面的進度（第四顆石頭裡的小點）亮一顆（onProgress）。跟中文課選圖（T-97）一樣不用聽懂話也看得出來。
- * 這個慶祝只給「聽完才答、一次就對」（T-109）；沒聽完就猜對、點錯過、手帶著做的只有安靜的綠框和再念一次，進度點不亮。
+ * 這個慶祝只給「聽完才答、一次就對」（T-109）；沒聽完就猜對、點錯過、手帶著做的只有安靜的綠框和再念一次。
+ * 進度點不管哪一種都填滿、跳一下（T-124：每點對一題都看得到往前走），聽完才答、一次就對的多一顆小星星。
+ * 每一題的選項卡換一組顏色、從右邊滑進來（T-124：第一天只有 S、s 兩張，看得出是新的一題）。
  * 點錯：輕輕一聲、那張淡掉，不搖、不打叉。
- * 字母題有一題不是一次就對：後面的小寫題改問大寫（退一級，quiz-plan.ts 的 easy）。
+ * 大寫、小寫題都照問，不再把小寫題換成大寫題（T-124，盲測 f255333：以前大寫題錯過、或中途離開又回來，小寫題改問大寫（T-100 退一級），
+ * 同樣的「Big S」連問兩次，他說「一直點都一樣」「好久喔」，英文 4 次離開都在這裡）。小寫題點錯照樣有手指著答案、答案亮、跳（T-116）。
  * 同一天中途離開又回來（from、answers）：從下一題接著問，先重播這一題的示範（replay），不直接丟回題目（T-104）。
  * 發呆 8 秒手安靜地指著答案、15 秒再念一次題目（PHASE-7，T-112；以前 15／30 秒）。
  * 關鍵字放最前面（T-109）：題目先講關鍵字（Big S!；找開頭音的圖先念 S… s, s…），選項在關鍵字開始念的那一刻才出來。
@@ -121,13 +123,12 @@ export function Quiz({
   const [show, setShow] = useState<'ask' | 'answer' | null>(null)
   const [press, setPress] = useState(0)
   const shown = useRef(false)
-  /** 這一堂的題目（小寫題可能換成退一級的大寫題；接著上的時候前面錯過，一開始就換） */
+  /** 這一堂的題目（大寫、小寫都照問，T-124） */
   const list = useRef<Question[]>([])
   /** 哪幾題要先示範：每種題型的第一題，而且這種題型孩子還不會；回來接著上的那一題一定示範（上課前就決定好，不會因為流程重跑而變） */
   const demoAt = useRef<boolean[]>([])
   if (!list.current.length) {
-    const before = answers.slice(0, start)
-    list.current = qs.map((x, k) => (k >= start && x.easy && missedLetter(before) ? x.easy : x))
+    list.current = qs.slice()
     demoAt.current = list.current.map(
       (x, k) => k >= start && ((replay && k === start) || (list.current.findIndex((y, j) => j >= start && y.kind === x.kind) === k && needsDemo(FORMAT[x.kind]))),
     )
@@ -420,12 +421,6 @@ export function Quiz({
     // 停在答完的這一題（打勾、綠框留著），等孩子點「下一步」才換題（T-118：不自己換）。
     // 箭頭一出來就跳、手馬上點給他看（T-122，盲測 ca0d1e1 英文 seed 2 重跑：答完他「不知道要幹嘛，好久喔」按返回離開）
     if (!(await nextStep({ cue: true })) || !live.current) return
-    // 字母題有一題沒有一次就對：小寫題改問大寫（退一級）。大寫題已經示範過，這一題不再示範
-    const nx = list.current[i + 1]
-    if (nx.easy && missedLetter(results.current)) {
-      list.current[i + 1] = nx.easy
-      demoAt.current[i + 1] = false
-    }
     setI(i + 1)
     void ask(i + 1)
   }
@@ -464,12 +459,13 @@ export function Quiz({
       <AnimatePresence initial={false}>
         <motion.div
           key={i}
-          className={`en-options is-${q.kind} n${q.options.length}${show && !solved ? ' is-demo' : ''}${solved ? ' is-solved' : ''}${solved === 'plain' ? ' is-plain' : ''}`}
+          // 每一題換一組顏色的卡片、從右邊滑進來（T-124，盲測 f255333：第一天只有 S、s 兩張，兩題長得一模一樣，「一直點都一樣」）
+          className={`en-options is-${q.kind} n${q.options.length} q${i % 3}${show && !solved ? ' is-demo' : ''}${solved ? ' is-solved' : ''}${solved === 'plain' ? ' is-plain' : ''}`}
           data-accepting={accept ? undefined : 'false'}
           data-dim={show ? 'true' : undefined}
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1, transition: { duration: 0.45 } }}
-          exit={{ opacity: 0, transition: { duration: 0.3, delay: 0.1 } }}
+          initial={{ opacity: 0, x: still ? 0 : 90 }}
+          animate={{ opacity: 1, x: 0, transition: { duration: 0.45, ease: [0.22, 1, 0.36, 1] } }}
+          exit={{ opacity: 0, x: still ? 0 : -90, transition: { duration: 0.3, delay: 0.1 } }}
         >
           {q.options.map((o, k) => (
             <motion.button
