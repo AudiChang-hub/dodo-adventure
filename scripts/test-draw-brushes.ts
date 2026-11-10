@@ -6,7 +6,7 @@ import { hasLine, line } from '../src/content/registry'
 import { EMOJI } from '../src/art/emoji.generated'
 import { WORLDS } from '../src/lib/today-world'
 import { chooseVariety, type VarietyState } from '../src/lib/variety'
-import { BRUSHES, BRUSH_VARIETY, along, brushOfDay, brushPool, makePaint, rainbowAt } from '../src/games/draw/brushes'
+import { BRUSHES, BRUSH_VARIETY, along, brushOfDay, brushPool, isStampTap, makePaint, rainbowAt } from '../src/games/draw/brushes'
 import { DRAW_IDEA, ideaKey } from '../src/games/draw/lines'
 import type { Stroke } from '../src/games/draw/Ink'
 
@@ -98,8 +98,15 @@ const ok = (s: string) => console.log(`ok ${++n} ${s}`)
   // 沒有載入圖（node 裡沒有 Image）：蓋印筆、印章先畫淡淡的圓，不會整個沒反應
   assert.equal(run('trail:cow,pig'), true)
   assert.ok(calls.filter((c) => c === 'arc').length >= 3, '蓋印筆沿著筆跡蓋好幾個')
-  assert.equal(run('stamp:cow'), true)
-  assert.equal(calls.filter((c) => c === 'arc').length, 1, '印章蓋一個')
+  // 拿著印章拖遠了（30 個點、290 長）：是在畫線，照一般的筆
+  assert.equal(run('stamp:cow'), false, '拿著印章拖遠了照一般的筆畫線')
+  assert.equal(isStampTap(stroke('stamp:cow')), false)
+  const tap: Stroke = { color: '#E58A7B', size: 16, pts: [pts[0], { ...pts[0], x: pts[0].x + 30 }], brush: 'stamp:cow' }
+  calls.length = 0
+  assert.equal(paint(ctx, tap, true, () => {}), true)
+  assert.equal(calls.filter((c) => c === 'arc').length, 1, '點一下（挪一點點）蓋一個印章')
+  assert.equal(isStampTap(tap), true)
+  assert.equal(isStampTap({ ...tap, brush: 'dots' }), false, '不是印章的筆不算蓋章')
   assert.equal(run(undefined), false, '沒有 brush 的照一般的筆')
   assert.equal(run('stamp:'), false)
   assert.equal(run('trail:'), false)
@@ -107,7 +114,7 @@ const ok = (s: string) => console.log(`ok ${++n} ${s}`)
   assert.match(rainbowAt(0), /^rgb\(\d+,\d+,\d+\)$/)
   assert.notEqual(rainbowAt(0.1), rainbowAt(0.5), '彩虹筆畫越長顏色會變')
   assert.equal(rainbowAt(0.25), rainbowAt(1.25), '一輪之後重來')
-  ok('四種魔法筆、印章都畫得出來；對稱筆以正中間為軸；不認得的照一般的筆')
+  ok('四種魔法筆、印章都畫得出來；對稱筆以正中間為軸；拿著印章拖遠了是畫線；不認得的照一般的筆')
 }
 
 // ── 每個世界的印章和今天的一句 ───────────────

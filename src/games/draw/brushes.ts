@@ -6,7 +6,7 @@
 //   mirror             對稱筆：左邊畫、右邊同時畫出鏡像（以畫紙正中間為軸）
 //   trail:ewe,cow      蓋印筆：沿著筆跡蓋出一串今天的小圖（冒號後面是 Fluent Emoji 的名字）
 //   dots               點點筆：畫出一顆一顆的點
-//   stamp:ewe          印章：手指放開的地方蓋一個今天的角色（拖著走的時候印章跟著手指）
+//   stamp:ewe          印章：手指放開的地方蓋一個今天的角色（稍微挪一下印章會跟著手指；拖遠了就變成用現在的顏色畫線）
 import { EMOJI } from '../../art/emoji.generated'
 import type { Pt, Stroke } from './Ink'
 
@@ -101,6 +101,19 @@ const TRAIL_GAP = 78
 const TRAIL_SIZE = 64
 /** 印章的大小（邏輯座標，畫紙 1000 寬）：1200×786 上大約 140 px */
 export const STAMP_SIZE = 150
+/**
+ * 拿著印章在畫紙上拖超過這麼遠（邏輯座標，1200×786 上大約 70 px）就當成在畫線，不是蓋章：
+ * 三歲不小心點到印章再亂畫，以前只在放手的地方蓋一個，畫的線都沒出來（三歲測試 1280×800「畫了卻只有 6% 有墨」）。
+ * 點一下、手指抖一下、稍微挪一下位置，都還是蓋章。
+ */
+export const STAMP_DRAG = 76
+
+/** 這一筆是蓋章（點一下或只挪一點點），不是拿著印章畫線 */
+export function isStampTap(s: Stroke): boolean {
+  if (!s.brush?.startsWith('stamp:') || !s.pts.length) return false
+  const o = s.pts[0]
+  return s.pts.every((p) => Math.hypot(p.x - o.x, p.y - o.y) <= STAMP_DRAG)
+}
 
 /**
  * 給 Ink 的 paint：有 brush 的筆畫怎麼畫。回 false 就照一般的筆畫。
@@ -158,6 +171,8 @@ export function makePaint(w: number) {
       case 'stamp': {
         const p = s.pts[s.pts.length - 1]
         if (!arg || !p) return false
+        // 拖得很遠：是在畫線，照一般的筆畫（用現在的顏色）
+        if (!isStampTap(s)) return false
         drawEmoji(ctx, arg, p.x, p.y, STAMP_SIZE)
         return true
       }
