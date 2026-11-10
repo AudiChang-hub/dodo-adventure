@@ -6,7 +6,6 @@ import { EASE } from '../../ui/motion'
 import { Sparkles } from '../../ui/Sparkles'
 import type { Mood } from '../../art/Dino'
 import { linePics, pieces, talkFor, talkOf, type ZhText } from './data'
-import { gapOf } from './cloze'
 import { pageUnits } from './layout'
 import { Pic } from './Pic'
 import type { HostTap } from './Lesson'
@@ -85,11 +84,7 @@ function Bits({ n }: { n: number }) {
  *   - 點課本上的空白處（沒點中圖，盲測 seed 2 第 3、4 步）：當作點了亮的那一行的圖，每一下照樣輪替動作；
  *   - 陪玩小字寫「念到這行時請他點亮起來的圖」。
  * - 點莫莫（T-111）：莫莫開心跳一下、彈一聲，亮的那一行的圖再亮黃框、跳一下（莫莫在說「看這裡」），8 秒內第 3 下起只點一下頭。
- * - 第 2 次上同一篇（run = 2，現況對照 A3）：每一行最後一個紅字框起來、上面一個「停」字，提醒大人念到這裡停一下，讓他接。
- *   孩子看得到的不同（T-127 B 案「點圖接話」）：亮的那一行，要接的那個詞的圖亮珊瑚色的光、角落一個小泡泡（「換你說」），
- *   同一行其他的圖不亮；他說了、點了那張圖（或點框起來的詞）：泡泡收起來、框裡的詞填滿、撒星星、莫莫開心。
- * - 課本上面一排 3 個小圖示（RunMarks，T-127）：第 1 次聽（書）、第 2 次說（泡泡）、第 3 次排（兩張卡），今天是哪一個就亮哪一個；
- *   課本頂上的紙膠帶也跟著換顏色，孩子看得出「今天跟上次不一樣」。
+ * - 同一篇上 3 次，3 次都一樣（T-131，家長：「拿掉，每次一樣」）：以前第 2 次框起來的紅字和「停」（T-86）拿掉了。
  * - 最後一行念完按「念完了」：「聊一聊」卡片（對話式共讀，T-102）：3 歲問得出來的一題（誰、什麼、哪裡，./talk.json），
  *   有圖的放那張圖讓孩子用指的回答；下面一句「他答不出來，你可以說：…」給大人示範。
  *   孩子點了那張圖（用指的回答了，T-111：盲測裡媽媽問「誰跑得快快快？」他點兔子，什麼都沒發生，只好一直點）：
@@ -103,7 +98,6 @@ function Bits({ n }: { n: number }) {
  */
 export function Reader({
   t,
-  run: times = 1,
   host,
   goLabel = '去選圖',
   onTalk,
@@ -114,7 +108,6 @@ export function Reader({
   startTalk = false,
 }: {
   t: ZhText
-  run?: number
   host: HostTap
   /** 聊一聊卡片上往下走的按鈕（沒有選圖題時是「下課」） */
   goLabel?: string
@@ -149,8 +142,6 @@ export function Reader({
   const [pop, setPop] = useState<{ w: string; k: number } | null>(null)
   /** 孩子點過的圖（第幾行:哪個詞）：點過就收起「點我」的外框 */
   const [touched, setTouched] = useState<Set<string>>(() => new Set())
-  /** 第 2 次：接過話的行（點了要接的那個詞的圖） */
-  const [said, setSaid] = useState<Set<number>>(() => new Set())
   /** 第一次點到某一行的圖：那張圖撒一把星星（第幾行:哪個詞、第幾次） */
   const [burst, setBurst] = useState<{ key: string; n: number } | null>(null)
   /** 撒過星星的圖（第幾行:哪個詞）：每張只撒一次，點莫莫也不會重來 */
@@ -170,9 +161,6 @@ export function Reader({
   const left = useRef(false)
   const last = t.lines.length - 1
   const pics = linePics(t)
-  const gaps = times === 2 ? t.lines.map((l) => gapOf(l)?.word ?? null) : t.lines.map(() => null)
-  /** 第 2 次：每一行要接的那個詞有圖的話，就是那張圖（在這一行旁邊、不是借來的） */
-  const sayPic = gaps.map((g, i) => (g && pics[i].some((p) => p.word === g && !p.echo) ? g : null))
 
   /** 大人的按鈕：連點、兩根手指只算一下（id 是哪一顆） */
   const adult = (id: string, fn: () => void) => (e: React.PointerEvent) => {
@@ -234,11 +222,6 @@ export function Reader({
     } else playAct(key)
     if (!touched.has(key)) setTouched((s) => new Set(s).add(key))
     setPop({ w, k: performance.now() })
-    // 第 2 次：點了要接的那個詞（他說出來了）：泡泡收起來、框裡的詞填滿、莫莫開心（只有第一次）
-    if (gaps[line] === w && !said.has(line)) {
-      setSaid((s) => new Set(s).add(line))
-      happy()
-    }
   }
 
   /** 聊一聊：孩子點了問題的主角（用指的回答）：圖跳一下；第一次再加綠框、星星、莫莫開心，「去選圖」馬上出來 */
@@ -329,8 +312,8 @@ export function Reader({
     }
   })
 
-  // 字級照最寬的那一行算（字＋放大的圖＋「停」都要放得進課本，./layout.ts）
-  const { units, rows } = pageUnits(t, times)
+  // 字級照最寬的那一行算（字＋放大的圖都要放得進課本，./layout.ts）
+  const { units, rows } = pageUnits(t)
   const tk = talkFor(t)
   const more = talkOf(t.parentTip).rest
   // 聊一聊的大圖（T-126）：問題的主角；主角沒有圖的篇（例如「誰讓燈泡亮起來？」），放問題裡提到的紅字（燈泡），沒提到就放這篇第一個有圖的紅字
@@ -340,16 +323,12 @@ export function Reader({
   return (
     <div
       className={`zh-read${talk ? ' talking' : ''}`}
-      data-run={times}
       data-at={talk ? 'talk' : cur}
       style={{ '--units': units, '--rows': rows } as CSSProperties}
       onPointerDown={tapBlank}
     >
       <motion.article className="zh-page" initial={still ? false : { y: 14 }} animate={{ y: 0 }} transition={{ duration: 0.5, ease: EASE.out }}>
-        <div className="zh-head">
-          <h2 className="zh-title">{t.title}</h2>
-          <RunMarks run={times} />
-        </div>
+        <h2 className="zh-title">{t.title}</h2>
         <div className="zh-lines">
           {t.lines.map((l, i) => {
             const on = !talk && cur === i
@@ -371,15 +350,9 @@ export function Reader({
                   {pieces(l).map((p, j) =>
                     p.red ? (
                       <Fragment key={j}>
-                        {/* 第 2 次：框起來的詞前面一個「停」，提醒大人念到這裡停一下（排在字的同一行，不疊在上一行） */}
-                        {on && gaps[i] === p.text && (
-                          <span className="zh-gap-tag" aria-hidden="true">
-                            停
-                          </span>
-                        )}
                         <button
                           type="button"
-                          className={`zh-red${pop?.w === p.text ? ' pop' : ''}${on && gaps[i] === p.text ? ' gap' : ''}${on && gaps[i] === p.text && said.has(i) ? ' said' : ''}`}
+                          className={`zh-red${pop?.w === p.text ? ' pop' : ''}`}
                           data-word={p.text}
                           tabIndex={seen ? 0 : -1}
                           onPointerDown={(e) => {
@@ -400,15 +373,12 @@ export function Reader({
                     const key = `${i}:${word}`
                     const popped = pop?.w === word
                     const again = on && cueTick > 0 && act?.key !== key
-                    // 第 2 次接話的行：只有要接的那張圖亮（有小泡泡），其他的圖安靜
-                    const say = on && sayPic[i] === word
-                    const hush = on && !!sayPic[i] && !say
                     return (
                       <motion.button
                         key={word}
                         type="button"
                         // 亮的那一行：圖放大、一圈淡黃框、依序輕輕跳一下（點我，T-84 同一套）；點過就收起外框（點莫莫會再亮一次）
-                        className={`zh-pic${echo ? ' echo' : ''}${on ? ' big' : ''}${on && !hush && !touched.has(key) ? ' cue turn-hop' : ''}${say ? ' say' : ''}${say && said.has(i) ? ' said' : ''}${hush ? ' hush' : ''}`}
+                        className={`zh-pic${echo ? ' echo' : ''}${on ? ' big' : ''}${on && !touched.has(key) ? ' cue turn-hop' : ''}`}
                         data-word={word}
                         style={{ '--turn-i': j, pointerEvents: seen ? 'auto' : 'none', zIndex: on || popped ? 2 : undefined } as CSSProperties}
                         aria-label={word}
@@ -438,7 +408,6 @@ export function Reader({
                         </span>
                         {burst?.key === key && <Sparkles key={burst.n} count={10} />}
                         {act?.key === key && <Bits key={`bits-${act.n}`} n={act.n} />}
-                        {say && !said.has(i) && <SayBubble />}
                       </motion.button>
                     )
                   })}
@@ -529,51 +498,6 @@ export function Reader({
         </motion.div>
       )}
     </div>
-  )
-}
-
-/** 第 2 次要接的那張圖角落的小泡泡（「換你說」）：三個點，不是字 */
-function SayBubble() {
-  return (
-    <span className="zh-say" aria-hidden="true">
-      <svg viewBox="0 0 40 34">
-        <path d="M6 3h28a4 4 0 0 1 4 4v14a4 4 0 0 1-4 4H17l-8 7v-7H6a4 4 0 0 1-4-4V7a4 4 0 0 1 4-4Z" fill="#fffdf8" stroke="#e0826a" strokeWidth={3} strokeLinejoin="round" />
-        <circle cx={12} cy={14} r={2.8} fill="#e0826a" />
-        <circle cx={20} cy={14} r={2.8} fill="#e0826a" />
-        <circle cx={28} cy={14} r={2.8} fill="#e0826a" />
-      </svg>
-    </span>
-  )
-}
-
-/** 第幾次的小圖示：1 聽（打開的書）、2 說（泡泡）、3 排（兩張卡、一個箭頭） */
-const RUN_ICONS = [
-  <path key="1" d="M6 12c5-2 10-2 14 1v19c-4-3-9-3-14-1Zm28 0c-5-2-10-2-14 1v19c4-3 9-3 14-1Z" />,
-  <path key="2" d="M9 10h22a4 4 0 0 1 4 4v10a4 4 0 0 1-4 4H19l-7 6v-6H9a4 4 0 0 1-4-4V14a4 4 0 0 1 4-4Z" />,
-  <>
-    <rect x={4} y={12} width={12} height={16} rx={3} />
-    <rect x={24} y={12} width={12} height={16} rx={3} />
-    <path d="M17.5 20h5" />
-  </>,
-]
-
-/**
- * 課本上面一排 3 個小圖示（T-127 B 案：同一篇上 3 次，孩子看得出「今天跟上次不一樣」）：今天這一次的亮起來（有顏色、大一點），
- * 上過的淡淡的有顏色，還沒到的只有外框。只是看的，不能點（不出聲、不是按鈕）。顏色跟課本頂上的紙膠帶一樣（chinese.css 的 data-run）。
- */
-function RunMarks({ run }: { run: number }) {
-  return (
-    <span className="zh-runs" aria-label={`第 ${run} 次`} role="img" data-run={run}>
-      {RUN_ICONS.map((ic, i) => (
-        <span key={i} className={`zh-run${i + 1 === run ? ' now' : i + 1 < run ? ' past' : ''}`} data-i={i + 1}>
-          <svg viewBox="0 0 40 40" aria-hidden="true">
-            <g fill="none" stroke="currentColor" strokeWidth={3.4} strokeLinecap="round" strokeLinejoin="round">
-              {ic}
-            </g>
-          </svg>
-        </span>
-      ))}
-    </span>
   )
 }
 
