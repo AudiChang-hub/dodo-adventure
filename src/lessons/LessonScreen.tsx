@@ -12,6 +12,7 @@ import { BackButton } from '../ui/Back'
 import { HomeIcon } from '../games/Shell'
 import { finishRun, startRun } from '../lib/lesson-log'
 import { holdBedtime, isTimeUp } from '../lib/session'
+import { takeResumeEnd } from './resume-end'
 import '../ui/celebrate.css'
 import '../games/coplay.css'
 import './lessons.css'
@@ -32,6 +33,8 @@ import './lessons.css'
  * 每一堂記開始、上完（lib/lesson-log.ts），家長區的下一步準備度算中途離開用。
  * 下課畫面按返回（Android 的返回手勢）也回首頁；挑貼紙時按返回，貼紙留著下次有貼紙時再挑（StickerPicker 的「等一下再選」一樣）。
  * 課自己的返回鍵照路由回上一層（首頁），不用另外處理。
+ * 上完了、還沒說完晚安就離開，同一天回來（英文課，T-122）：課先叫 resumeEnd() 再叫 onDone，直接回到晚安道別，
+ * 不再算一堂（T-125：以前又算一次，貼紙的間隔剛好到了就變成挑貼紙）。貼紙沒挑完就離開的，貼紙照舊留著下次再挑。
  * 下課畫面的遮罩蓋住課自己左上角的房子（看起來變淡、點不到，AI 小男生盲測三次都碰到，T-99）：
  * 遮罩上同一個位置再放一顆房子，一出現就點得動（準則 NAV-1、NAV-7：看得到的返回鍵一定點得動、永遠在最上層）。
  */
@@ -56,10 +59,12 @@ export function LessonScreen({ subject }: { subject: Subject }) {
   useEffect(() => holdBedtime(), [])
 
   const onDone = () => {
+    const again = takeResumeEnd()
     if (done.current) return
     done.current = true
     setTimeUp(isTimeUp())
-    setEnd(lessonDone() ? 'pick' : 'bye')
+    // 回到還沒說完的晚安道別（T-125）：這一堂上完時已經算過，不再算一次、也不會變成挑貼紙
+    setEnd(!again && lessonDone() ? 'pick' : 'bye')
     void run.current?.then((start) => {
       if (start) void finishRun(start)
     })

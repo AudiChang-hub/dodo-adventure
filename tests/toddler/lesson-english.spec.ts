@@ -758,6 +758,64 @@ test.describe('英文字母課', () => {
       finish(k, c, '上完回來')
     }
   })
+  test('在晚安道別離開、同一天回來：先回到晚安道別，不會變成挑貼紙（T-125）', async ({ page }, info) => {
+    // 盲測 0f3363f 英文 seed 2：題目做完、晚安道別出來時按返回，去畫畫，回來直接出現挑貼紙。
+    // 這一堂上完時已經算過一堂（下課是晚安道別、沒有貼紙）；回來接上晚安道別時又算一堂，貼紙的間隔剛好到了，就變成挑貼紙
+    test.skip(!want('lesson-english') || info.project.name !== 'tab1200')
+    test.setTimeout(2 * 60_000)
+    const { k, c } = await setup(page, info, '道別離開回來')
+    try {
+      const d = new Date()
+      const today = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+      // 上完時的樣子：英文進度記成 end（plan.ts 的 markDone），貼紙的間隔已經算過這一堂（since 1），下一堂就有貼紙（next 2）
+      await page.evaluate(
+        ({ p, today }) =>
+          new Promise<void>((res) => {
+            const rq = indexedDB.open('dodo-adventure')
+            rq.onsuccess = () => {
+              const tx = rq.result.transaction('kv', 'readwrite')
+              const st = tx.objectStore('kv')
+              st.put({ key: 'lesson.english', value: { ...p, date: today } })
+              const a = st.get('achieve')
+              a.onsuccess = () => st.put({ key: 'achieve', value: { ...(a.result?.value ?? { v: 2 }), gap: { since: 1, next: 2 } } })
+              tx.oncomplete = () => {
+                rq.result.close()
+                res()
+              }
+            }
+          }),
+        { p: { idx: 0, done: true, good: true, stage: 'end' }, today },
+      )
+      await page.evaluate(() => sessionStorage.setItem('dodo.resume', 'home'))
+      await page.reload()
+      await page.waitForSelector('.screen.home', { timeout: 20_000 })
+      k.behavior = '道別離開回來'
+      if (!(await enter(k, c))) return
+      const end = await page.waitForSelector('.cheer-scrim .lesson-bye, .cheer-scrim .picker', { timeout: 6000 }).catch(() => null)
+      const got = await page.evaluate(() => (document.querySelector('.cheer-scrim .picker') ? 'picker' : document.querySelector('.cheer-scrim .lesson-bye') ? 'bye' : null))
+      c.outcome('回來先是晚安道別（不是挑貼紙）', !!end && got === 'bye', got === 'picker' ? '直接出現挑貼紙' : got ?? `停在 ${await stageOf(page)}`)
+      if (got !== 'bye') await c.once('end-sticker', '誤記作答', '在晚安道別離開、同一天回來，沒有回到晚安道別', got === 'picker' ? '直接出現挑貼紙（同一堂又算了一次）' : `停在 ${await stageOf(page)}`)
+      // 同一堂不再算一次：貼紙的間隔還是 since 1
+      const gap = await page.evaluate(
+        () =>
+          new Promise<{ since: number; next: number } | null>((res) => {
+            const rq = indexedDB.open('dodo-adventure')
+            rq.onsuccess = () => {
+              const g = rq.result.transaction('kv').objectStore('kv').get('achieve')
+              g.onsuccess = () => {
+                rq.result.close()
+                res(g.result?.value?.gap ?? null)
+              }
+            }
+          }),
+      )
+      c.outcome('同一堂沒有再算一次', gap?.since === 1, `since ${gap?.since}／next ${gap?.next}`)
+      if (gap?.since !== 1) await c.once('end-count', '誤記作答', '回到晚安道別時同一堂又算了一次', `since ${gap?.since}`)
+    } finally {
+      await c.flush().catch(() => {})
+      finish(k, c, '道別離開回來')
+    }
+  })
 
   test('找大 S、小 s：照示範的手剛剛點的位置點下去，要點到對的那張（T-100）', async ({ page }, info) => {
     test.skip(!want('lesson-english'))
