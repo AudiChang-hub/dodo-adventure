@@ -396,3 +396,13 @@
     0 0 0 6px var(--good, #7fb77e),
     0 16px 26px -18px rgba(46, 42, 37, 0.5);
 }
+
+/* 今天的世界（T-127 ⑤）：整個故事書的背景是今天的場景，淡淡的（插畫、書才是主角）；靜止不動 */
+.book-world {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0.42;
+  pointer-events: none;
+}
