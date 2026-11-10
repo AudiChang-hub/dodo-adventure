@@ -15,6 +15,8 @@ export interface Stroke {
   color: string
   size: number
   pts: Pt[]
+  /** 自由畫畫的魔法筆、印章（./brushes.ts）。沒有就是一般的筆（描字、寫數字都沒有） */
+  brush?: string
 }
 
 export interface InkHandle {
@@ -44,6 +46,15 @@ interface Props {
   onDown?: (p: Pt, type: string) => void
   onMove?: (p: Pt) => void
   onUp?: () => void
+  /**
+   * 選用（T-127，只有自由畫畫給）：新的一筆記上這個筆刷（./brushes.ts）。沒給就跟以前一樣是一般的筆。
+   */
+  brush?: string
+  /**
+   * 選用（T-127，只有自由畫畫給）：有 brush 的筆畫怎麼畫，回 true 表示畫好了；回 false 或沒給就照一般的筆畫。
+   * plain(s) 是一般的筆（例如對稱筆畫兩次）。沒有 brush 的筆畫不會叫它。
+   */
+  paint?: (ctx: CanvasRenderingContext2D, s: Stroke, last: boolean, plain: (s: Stroke) => void) => boolean
 }
 
 // 防手掌誤觸：只有在筆正在接觸螢幕或懸停、以及筆離開後約 1 秒內，才忽略手指與手掌。
@@ -77,7 +88,7 @@ function toPath(outline: number[][]): Path2D {
   return p
 }
 
-export const Ink = forwardRef<InkHandle, Props>(function Ink({ w, h, color = '#2E2A25', size = 14, ink = true, disabled = false, onBlocked, onDown, onMove, onUp }, ref) {
+export const Ink = forwardRef<InkHandle, Props>(function Ink({ w, h, color = '#2E2A25', size = 14, ink = true, disabled = false, onBlocked, onDown, onMove, onUp, brush, paint }, ref) {
   const base = useRef<HTMLCanvasElement>(null)
   const live = useRef<HTMLCanvasElement>(null)
   const strokes = useRef<Stroke[]>([])
@@ -89,11 +100,15 @@ export const Ink = forwardRef<InkHandle, Props>(function Ink({ w, h, color = '#2
   const [ghost, setGhost] = useState<{ x: number; y: number; n: number } | null>(null)
   const ghostTimer = useRef(0)
   useEffect(() => () => clearTimeout(ghostTimer.current), [])
-  const props = useRef({ color, size, ink, disabled, onBlocked, onDown, onMove, onUp })
-  props.current = { color, size, ink, disabled, onBlocked, onDown, onMove, onUp }
+  const props = useRef({ color, size, ink, disabled, onBlocked, onDown, onMove, onUp, brush, paint })
+  props.current = { color, size, ink, disabled, onBlocked, onDown, onMove, onUp, brush, paint }
   const notYet = useNotYet()
 
   const draw = (ctx: CanvasRenderingContext2D, s: Stroke, last: boolean) => {
+    if (s.brush && props.current.paint?.(ctx, s, last, (x) => plain(ctx, x, last))) return
+    plain(ctx, s, last)
+  }
+  const plain = (ctx: CanvasRenderingContext2D, s: Stroke, last: boolean) => {
     const out = getStroke(
       s.pts.map((p) => [p.x, p.y, p.p]),
       // 手指的線要緊跟著手（T-51：streamline 0.45 時快速轉彎會被抄近路，線不在手指走過的地方）；筆維持比較平順
@@ -258,7 +273,7 @@ export const Ink = forwardRef<InkHandle, Props>(function Ink({ w, h, color = '#2
         /* 指標已經消失時拿不到 capture，照樣可以畫 */
       }
     const p = toPt(e)
-    cur.current = { color: props.current.color, size: props.current.size, pts: [p] }
+    cur.current = { color: props.current.color, size: props.current.size, pts: [p], ...(props.current.brush ? { brush: props.current.brush } : {}) }
     redrawLive()
     props.current.onDown?.(p, e.pointerType)
   }
