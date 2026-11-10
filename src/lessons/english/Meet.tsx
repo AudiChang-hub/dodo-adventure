@@ -18,7 +18,7 @@ type Lit = 'big' | 'little' | 'both' | null
  * 搶點（T-108，games/barge.ts）：介紹還沒念完就點字母或圖：停掉介紹，直接念他點的那一個（圖也馬上出來），念完照常停一下就往下走。
  * 正在念他點的那一個時又點：字母輕輕跳一下、有聲音，不重念（三歲會一直點，不能每點一下就重念）。
  */
-export function Meet({ letter, review, onDone }: { letter: LessonLetter; review: boolean; onDone: () => void }) {
+export function Meet({ letter, review, repeat = false, onDone }: { letter: LessonLetter; review: boolean; repeat?: boolean; onDone: () => void }) {
   const [lit, setLit] = useState<Lit>(null)
   const [pic, setPic] = useState(false)
   const [bump, setBump] = useState<{ which: 'big' | 'little' | 'pic'; n: number } | null>(null)
@@ -59,7 +59,9 @@ export function Meet({ letter, review, onDone }: { letter: LessonLetter; review:
       const ok = flow.begin(live)
       await wait(350)
       if (!ok()) return
-      await say(review ? `ph.${l}.again` : `ph.${l}.today`)
+      // 開場：今天新的字母 Today's letter is S!；同一天複習 Let's practice S again!；
+      // 隔天重上同一個字母 Look! S is back!（T-127：以前跟第一天一字不差，孩子聽到一模一樣的開場）
+      await say(review ? `ph.${l}.again` : repeat ? `ph.${l}.back` : `ph.${l}.today`)
       if (!ok()) return
       setLit('big')
       await say(`ph.${l}.big`)

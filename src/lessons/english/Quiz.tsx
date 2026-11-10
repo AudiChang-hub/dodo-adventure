@@ -1,6 +1,5 @@
-import { useEffect, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from 'react'
+import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react'
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
-import { Emoji } from '../../art/Emoji'
 import { Hand } from '../../games/Demo'
 import { useIdle } from '../../games/idle'
 import { onBlank, sayRevealing, useFlow } from '../../games/barge'
@@ -10,12 +9,14 @@ import { praiseKey, retryKey, wait } from '../../games/lines'
 import { heardSince, say, sfx, stopSpeech } from '../../lib/audio'
 import { hasLine } from '../../content/lines'
 import { logAttempt } from '../../lib/record'
-import { Sparkles } from '../../ui/Sparkles'
 import { nextStep } from '../../ui/NextStep'
 import { pointIn } from '../math/kit'
 import { needsDemo, noteFormat, type Format } from '../formats'
 import type { QuizResult } from './plan'
 import { wrongKeys, type Opt, type Question } from './quiz-plan'
+import { OptFace, QUIZ_GAME, turnStyle, type OptView, type QuizLook } from './QuizParts'
+import { Bubbles } from './Bubbles'
+import { Feed } from './Feed'
 
 const FORMAT: Record<Question['kind'], Format> = { big: 'en-big', little: 'en-little', word: 'en-word' }
 
@@ -93,6 +94,7 @@ export function Quiz({
   from = 0,
   answers = [],
   replay = false,
+  look = 'cards',
   onProgress,
   onDone,
 }: {
@@ -103,6 +105,8 @@ export function Quiz({
   answers?: QuizResult[]
   /** 中途離開又回來：這一題先示範一次 */
   replay?: boolean
+  /** 今天的玩法（T-127）：找卡片、泡泡、餵豆豆。出題、對錯、紀錄都一樣，只換外觀和操作 */
+  look?: QuizLook
   /** 又答完一題：答完幾題、到現在的結果 */
   onProgress?: (done: number, rs: QuizResult[]) => void
   onDone: (rs: QuizResult[]) => void
@@ -120,7 +124,12 @@ export function Quiz({
   /** 輪到你了：念完題目、這一題還沒點過（T-84） */
   const [cue, setCue] = useState(false)
   /** 示範中、答錯時：手在泡泡上（ask）或答案上（answer） */
-  const [show, setShow] = useState<'ask' | 'answer' | null>(null)
+  const [show, setShow] = useState<'ask' | 'answer' | 'mouth' | null>(null)
+  /** 餵豆豆：正被送進嘴巴的那一張（示範、餵對） */
+  const [carry, setCarry] = useState<string | null>(null)
+  const mouth = useRef<HTMLElement | null>(null)
+  /** 餵豆豆：手指拿起卡片的那一刻已經記下「聽完了沒、手指著沒」（放開時才判對錯） */
+  const gripped = useRef(false)
   const [press, setPress] = useState(0)
   const shown = useRef(false)
   /** 這一堂的題目（大寫、小寫都照問，T-124） */
@@ -208,6 +217,7 @@ export function Quiz({
     if (was === 'demo') {
       setShow(null)
       setState({})
+      setCarry(null)
     } else if (was === 'fb') {
       // 答錯的說明被搶掉：手直接停到答案上等他點（T-116）
       setShow('answer')
@@ -230,6 +240,8 @@ export function Quiz({
       setAccept(true)
     }, PACE.BARGE_ARM)
     setState({})
+    setCarry(null)
+    gripped.current = false
     setHint(false)
     setBeckon(false)
     setCue(false)
@@ -260,13 +272,19 @@ export function Quiz({
       if (!ok()) return
       setPress((p) => p + 1)
       setState({ [qk.answer]: 'yes' })
+      if (look === 'feed') {
+        // 餵豆豆：手帶著答案卡走到豆豆嘴巴，豆豆吃一口
+        setShow('mouth')
+        setCarry(qk.answer)
+      }
       sfx.pop()
       await say(qk.yes)
       await wait(500)
       if (!ok()) return
-      // 你做：手收起來，選項留在原地（不換位置）
+      // 你做：手收起來，選項留在原地（不換位置；餵豆豆的卡片回到原位）
       setShow(null)
       setState({})
+      setCarry(null)
       phase.current = 'ask'
       await wait(400)
       if (!ok()) return
@@ -315,6 +333,28 @@ export function Quiz({
     takeOver()
   }
 
+  /**
+   * 餵豆豆：手指拿起一張卡（還沒放開、還不知道餵不餵）。擋板時間不能拿（出「看這裡」的圈圈）；
+   * 示範、念題目、答錯說明的時候拿起來就搶掉（T-108）。第一次拿的那一刻記下關鍵字念完了沒、手指著答案沒，放開時才判對錯
+   */
+  const grab = (at: { clientX: number; clientY: number }) => {
+    if (!armed.current || phase.current === 'done') {
+      if (layer.current) {
+        const p = localPoint(layer.current, at.clientX, at.clientY)
+        notYet.ping(p.x, p.y)
+      }
+      return false
+    }
+    if (!taps.current.length && !gripped.current) {
+      heard.current = heardSince(q.prompt[0], qStart.current)
+      led.current = hint || show === 'answer'
+      gripped.current = true
+    }
+    if (phase.current !== 'turn') takeOver()
+    idle.poke()
+    return true
+  }
+
   const choose = async (o: Opt, at?: { clientX: number; clientY: number }) => {
     // 擋板時間（剛出來的 0.5 秒、答完之後）點的：輕輕一聲、按的地方出「看這裡」的圈圈，不跳、不好玩（T-109；T-112 加上看得見的圈圈）
     if (!armed.current || phase.current === 'done') {
@@ -323,7 +363,7 @@ export function Quiz({
       return notYet.ping(p.x, p.y)
     }
     // 第一次點：題目的關鍵字念完了沒（要在 takeOver 停掉語音之前問）
-    if (!taps.current.length) {
+    if (!taps.current.length && !gripped.current) {
       heard.current = heardSince(q.prompt[0], qStart.current)
       led.current = hint || show === 'answer'
     }
@@ -384,6 +424,8 @@ export function Quiz({
     // 題型會了沒只看聽完才答、自己答的（猜對、跟著手點對都不代表懂這種題目在問什麼）
     if (h && !led.current) noteFormat(FORMAT[q.kind], first)
     setState({ [q.answer]: 'yes' })
+    // 餵豆豆：答案卡飛進嘴巴吃掉
+    if (look === 'feed') setCarry(q.answer)
     // 好玩的回饋只留給「聽完才答、一次就對」（T-109，家長：他把 App 當遊戲在亂試）：放大、打勾、星星、豆豆歡呼、進度點亮。
     // 沒聽完就猜對、點錯過才對、手帶著做的：答案安靜地亮著、其他的淡掉，把關鍵字或答案再念一次，不慶祝
     // 手正指著答案時點的（T-111）也一樣不慶祝：答案是看手的
@@ -392,7 +434,7 @@ export function Quiz({
     if (full) sfx.correct()
     void logAttempt({
       station: 'english',
-      game: 'lesson-en',
+      game: QUIZ_GAME[look],
       itemId: `${q.kind}:${q.answer}`,
       skill: q.skill,
       // 剛看手示範過的：算一起練。第一次就點錯的算自己答、沒答對（T-109：以前也算一起練，答錯不會讓熟練度退，
@@ -458,72 +500,79 @@ export function Quiz({
   const handAt = q.options.findIndex((o) => o.id === q.answer)
   /** 字母題：大寫放大卡、小寫放小卡 */
   const size = (o: Opt) => (q.kind === 'word' || !o.text ? '' : o.text === o.text.toUpperCase() ? ' is-upper' : ' is-lower')
-  const at = show === 'ask' ? pointIn(bubble.current, layer.current, 0.5, 0.62) : show === 'answer' ? pointIn(tiles.current.get(q.answer), layer.current) : null
+  const at =
+    show === 'ask'
+      ? pointIn(bubble.current, layer.current, 0.5, 0.62)
+      : show === 'answer'
+        ? pointIn(tiles.current.get(q.answer), layer.current)
+        : show === 'mouth'
+          ? pointIn(mouth.current, layer.current, 0.5, 0.5)
+          : null
+  /** 三種玩法共用的選項狀態（T-127：泡泡、餵豆豆只換外觀和操作） */
+  const view: OptView = {
+    q,
+    i,
+    still: !!still,
+    boxClass: `is-${q.kind} n${q.options.length} q${i % 3}${show && !solved ? ' is-demo' : ''}${solved ? ' is-solved' : ''}${solved === 'plain' ? ' is-plain' : ''}`,
+    accept,
+    ready: opts || !!solved,
+    state,
+    optClass: (o) =>
+      `en-opt${opts || solved ? '' : ' is-wait'}${size(o)}${show && o.id === q.answer ? ' is-shown' : ''}${state[o.id] === 'yes' ? ' is-yes' : state[o.id] === 'no' ? ' is-no' : ''}${hint && o.id === q.answer ? ' is-hint' : ''}${beckon && o.id === q.answer ? ' is-beckon' : ''}${cue ? ' is-cue turn-hop' : ''}`,
+    tile: (id) => (el) => {
+      if (el) tiles.current.set(id, el)
+    },
+    choose: (o, e) => void choose(o, e),
+    grab,
+    face: (o, k) => <OptFace o={o} hand={hint && !show && k === handAt} cheer={solved === 'full' && state[o.id] === 'yes'} still={!!still} />,
+    cheer: (o) => solved === 'full' && state[o.id] === 'yes',
+  }
   return (
-    <div className="en-quiz" ref={layer} onPointerDown={blank}>
+    <div className={`en-quiz is-${look}`} ref={layer} onPointerDown={blank}>
       {/* 要找什麼：豆豆頭上的泡泡（每題換 key 輕輕出來一次，不循環） */}
       <motion.div key={`ask${i}-${hop}`} ref={bubble} className="en-ask" aria-hidden="true" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4 }}>
         <Ask q={q} />
       </motion.div>
-      <AnimatePresence initial={false}>
-        <motion.div
-          key={i}
-          // 每一題換一組顏色的卡片、從右邊滑進來（T-124，盲測 f255333：第一天只有 S、s 兩張，兩題長得一模一樣，「一直點都一樣」）
-          className={`en-options is-${q.kind} n${q.options.length} q${i % 3}${show && !solved ? ' is-demo' : ''}${solved ? ' is-solved' : ''}${solved === 'plain' ? ' is-plain' : ''}`}
-          data-accepting={accept ? undefined : 'false'}
-          data-dim={show ? 'true' : undefined}
-          initial={{ opacity: 0, x: still ? 0 : 90 }}
-          animate={{ opacity: 1, x: 0, transition: { duration: 0.45, ease: [0.22, 1, 0.36, 1] } }}
-          exit={{ opacity: 0, x: still ? 0 : -90, transition: { duration: 0.3, delay: 0.1 } }}
-        >
-          {q.options.map((o, k) => (
-            <motion.button
-              key={o.id}
-              animate={solved === 'full' && state[o.id] === 'yes' ? { scale: still ? 1.08 : [1, 1.18, 1.08], y: still ? -8 : [0, -20, -8] } : { scale: 1, y: 0 }}
-              transition={{ duration: 0.55, ease: [0.22, 1, 0.36, 1] }}
-              ref={(el: HTMLButtonElement | null) => {
-                if (el) tiles.current.set(o.id, el)
-              }}
-              type="button"
-              className={`en-opt${opts || solved ? '' : ' is-wait'}${size(o)}${show && o.id === q.answer ? ' is-shown' : ''}${state[o.id] === 'yes' ? ' is-yes' : state[o.id] === 'no' ? ' is-no' : ''}${hint && o.id === q.answer ? ' is-hint' : ''}${beckon && o.id === q.answer ? ' is-beckon' : ''}${cue ? ' is-cue turn-hop' : ''}`}
-              style={{ '--turn-i': k } as CSSProperties}
-              aria-label={o.text ?? o.id}
-              // 手指一按下就收（T-112：以前用 click，要放開才算，手指滑一下就被瀏覽器取消、毫無反應）；鍵盤（detail 0）照樣可以按
-              onPointerDown={(e) => {
-                if (firstFinger(e.nativeEvent)) void choose(o, e)
-              }}
-              onClick={(e) => {
-                if (e.detail === 0) void choose(o)
-              }}
-            >
-              {/* 點了不跳、點錯不搖（T-109：點錯、亂點都平平的，沒有好玩的動畫，也不打叉） */}
-              <span>
-                {o.icon ? <Emoji name={o.icon} /> : <span className="en-opt-letter">{o.text}</span>}
-              </span>
-              {hint && !show && k === handAt && (
-                <span className="en-opt-hand" aria-hidden="true">
-                  <Hand x={58} y={58} tap={1} size="38%" cuff="#BFE0CC" />
-                </span>
-              )}
-              {/* 答對：星星撒開、右上角綠色大打勾（跟中文課選圖一樣，T-97） */}
-              {solved === 'full' && state[o.id] === 'yes' && <Sparkles count={16} />}
-              {solved === 'full' && state[o.id] === 'yes' && (
-                <motion.span
-                  className="en-yes"
-                  aria-hidden="true"
-                  initial={still ? false : { scale: 0, rotate: -20 }}
-                  animate={{ scale: 1, rotate: 0 }}
-                  transition={{ type: 'spring', stiffness: 420, damping: 15, delay: 0.12 }}
-                >
-                  <svg viewBox="0 0 48 48" width="62%" aria-hidden="true">
-                    <path d="M11 25 L20 34 L37 15" fill="none" stroke="#FBF8F2" strokeWidth={7} strokeLinecap="round" strokeLinejoin="round" />
-                  </svg>
-                </motion.span>
-              )}
-            </motion.button>
-          ))}
-        </motion.div>
-      </AnimatePresence>
+      {look === 'bubbles' ? (
+        <Bubbles v={view} />
+      ) : look === 'feed' ? (
+        <Feed v={view} carry={carry} onMouth={(el) => (mouth.current = el)} />
+      ) : (
+        <AnimatePresence initial={false}>
+          <motion.div
+            key={i}
+            // 每一題換一組顏色的卡片、從右邊滑進來（T-124，盲測 f255333：第一天只有 S、s 兩張，兩題長得一模一樣，「一直點都一樣」）
+            className={`en-options ${view.boxClass}`}
+            data-accepting={accept ? undefined : 'false'}
+            data-dim={show ? 'true' : undefined}
+            initial={{ opacity: 0, x: still ? 0 : 90 }}
+            animate={{ opacity: 1, x: 0, transition: { duration: 0.45, ease: [0.22, 1, 0.36, 1] } }}
+            exit={{ opacity: 0, x: still ? 0 : -90, transition: { duration: 0.3, delay: 0.1 } }}
+          >
+            {q.options.map((o, k) => (
+              <motion.button
+                key={o.id}
+                animate={view.cheer(o) ? { scale: still ? 1.08 : [1, 1.18, 1.08], y: still ? -8 : [0, -20, -8] } : { scale: 1, y: 0 }}
+                transition={{ duration: 0.55, ease: [0.22, 1, 0.36, 1] }}
+                ref={view.tile(o.id)}
+                type="button"
+                className={view.optClass(o, k)}
+                style={turnStyle(k)}
+                aria-label={o.text ?? o.id}
+                // 手指一按下就收（T-112：以前用 click，要放開才算，手指滑一下就被瀏覽器取消、毫無反應）；鍵盤（detail 0）照樣可以按
+                onPointerDown={(e) => {
+                  if (firstFinger(e.nativeEvent)) void choose(o, e)
+                }}
+                onClick={(e) => {
+                  if (e.detail === 0) void choose(o)
+                }}
+              >
+                {view.face(o, k)}
+              </motion.button>
+            ))}
+          </motion.div>
+        </AnimatePresence>
+      )}
       <AnimatePresence>{at && <Hand key="demo" x={at.x} y={at.y} tap={press} size="min(110px, 13vmin)" cuff="#BFE0CC" />}</AnimatePresence>
       {notYet.view}
     </div>

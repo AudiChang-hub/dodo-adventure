@@ -31,6 +31,9 @@ const findWord = (w: string) => (BARE.has(w) && w !== 'ice cream' && w !== 'zero
 def('le.en.write', 'dodo', "Let's write it!")
 def('le.en.play', 'dodo', "Let's play!")
 def('le.en.done', 'dodo', 'You did it! See you tomorrow!')
+// 寫寫看先選（T-127）：描字還是塗顏色；塗好了
+def('le.en.choose', 'dodo', 'Trace it, or paint it?')
+def('le.en.pretty', 'dodo', 'So pretty!')
 
 for (const x of LESSON_LETTERS) {
   const { L, l } = x
@@ -38,6 +41,10 @@ for (const x of LESSON_LETTERS) {
   if (!hasLine(`ph.${l}.sound`)) def(`ph.${l}.sound`, 'dodo', cueText({ unit: x.unit, names: 1, sound: true }))
   def(`ph.${l}.today`, 'dodo', `Today's letter is | ${L}!`)
   def(`ph.${l}.again`, 'dodo', `Let's practice | ${L} again!`)
+  // 隔天重上同一個字母（T-127）：開場換一句，不要跟第一天一字不差
+  def(`ph.${l}.back`, 'dodo', `Look! | ${L} is back!`)
+  // 幫字母塗顏色、蓋印章（T-127）
+  def(`ph.${l}.paint`, 'dodo', `Paint big | ${L}!`)
   def(`ph.${l}.big`, 'dodo', `Big | ${L}!`)
   def(`ph.${l}.little`, 'dodo', `Little | ${l}!`)
   def(`ph.${l}.words`, 'dodo', x.starts.length === 3 ? `These words start with | ${L}!` : `Find ${L} in these words!`)
