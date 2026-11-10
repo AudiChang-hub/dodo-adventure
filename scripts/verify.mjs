@@ -47,7 +47,7 @@ const CHECKS = [
   { id: 'test-zh-course', name: '單元：中文課文每篇 3 次、聊一聊、中文課不出聲', cmd: ['npx', 'tsx', 'scripts/test-zh-course.ts'], check: unit },
   {
     id: 'zh-layout',
-    name: '中文課文排版（180 篇 × 每行亮起來 × 第 1、2 次 × 3 種尺寸，字不被圖蓋住、不超出課本）',
+    name: '中文課文排版（180 篇 × 每行亮起來 × 3 種尺寸，字不被圖蓋住、不超出課本）',
     cmd: ['node', 'scripts/check-zh-layout.mjs'],
     check: (s) => {
       const m = /共 (\d+) 個畫面，排版問題 (\d+) 個/.exec(s)

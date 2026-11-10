@@ -70,51 +70,9 @@ export interface ZhQuestion {
   word: string
   /** 三張圖：[字詞, 圖名]，答案在第一個（出題時再洗牌） */
   options: { word: string; icon: string }[]
-  /** 故事題（第 STORY_RUN 次）：課文的一句，答案的地方挖空（「＿＿跑得快快快」→ 誰？）；沒有就是一般的「哪個是〇〇？」 */
-  story?: ZhStory
-}
-
-/** 故事題挖空的那一句：line 第幾行；before、after 是空格前後的字（去掉【】）；who：答案是會動的（問「誰」），不然問「什麼」 */
-export interface ZhStory {
-  line: number
-  before: string
-  after: string
-  who: boolean
 }
 
 const iconOf = (t: ZhText, w: string) => t.emoji[w] ?? null
-
-/**
- * 會動、會說話的（動物、人、雪人、泰迪熊）：故事題問「誰」；其他的（東西、吃的）問「什麼」。
- * 用圖的名字判斷（同一個詞在每一篇都是同一張圖）；新的課文用了新的動物圖要加進來，scripts/test-zh-course.ts 會列出沒分到的圖。
- */
-export const WHO_ICONS: ReadonlySet<string> = new Set(
-  (
-    'rabbit turtle pig lion mouse dog cat bird ant fish baby-chick shrimp blackbird butterfly turkey fox elephant goose bear tiger ' +
-    'parrot frog cow honeybee chicken snowman deer horse donkey santa-claus ewe spouting-whale duck swan giraffe monkey rooster baby ' +
-    'teddy-bear dove snake dolphin snail goat dragon crab spider panda bug peacock old-man eagle mosquito cricket bat tropical-fish wolf'
-  ).split(' '),
-)
-export const isWho = (t: ZhText, w: string) => WHO_ICONS.has(iconOf(t, w) ?? '')
-
-/** 這一篇和上過的篇（最近上的先）：教過的字詞 → 圖（這一篇的圖優先） */
-function taughtOf(t: ZhText, done: ReadonlySet<number>) {
-  const earlier = ZH_TEXTS.filter((x) => x.day !== t.day && done.has(x.day)).sort((a, b) => b.day - a.day)
-  const taught = new Map<string, string>()
-  for (const x of [t, ...earlier]) for (const w of x.redWords) if (!taught.has(w) && iconOf(x, w)) taught.set(w, iconOf(x, w)!)
-  return { earlier, taught }
-}
-
-/** w 的陪襯（最多 2 張）：照 order 的順序挑教過的、圖不一樣的 */
-function distractors(t: ZhText, w: string, order: readonly string[], taught: ReadonlyMap<string, string>): string[] {
-  const used = new Set([iconOf(t, w)!])
-  const ds: string[] = []
-  for (const x of order) {
-    const ic = taught.get(x)
-    if (ds.length < 2 && x !== w && ic && !used.has(ic)) used.add(ic), ds.push(x)
-  }
-  return ds
-}
 
 /**
  * 一篇要考哪些字詞：
@@ -142,112 +100,24 @@ export function quizWords(t: ZhText): string[] {
  * - 連一張教過的陪襯都沒有的題目不出。
  */
 export function questionsOf(t: ZhText, done: ReadonlySet<number> = new Set()): ZhQuestion[] {
-  const { earlier, taught } = taughtOf(t, done)
+  const earlier = ZH_TEXTS.filter((x) => x.day !== t.day && done.has(x.day)).sort((a, b) => b.day - a.day)
+  // 教過的字詞 → 圖（這一篇的圖優先）
+  const taught = new Map<string, string>()
+  for (const x of [t, ...earlier]) for (const w of x.redWords) if (!taught.has(w) && iconOf(x, w)) taught.set(w, iconOf(x, w)!)
   const out: ZhQuestion[] = []
   for (const w of quizWords(t)) {
     const icon = iconOf(t, w)!
     const pref = w === t.quiz.answer ? t.quiz.distractors : []
-    const ds = distractors(t, w, [...pref, ...t.redWords, ...earlier.flatMap((e) => e.redWords)], taught)
+    const used = new Set([icon])
+    const ds: string[] = []
+    for (const x of [...pref, ...t.redWords, ...earlier.flatMap((e) => e.redWords)]) {
+      const ic = taught.get(x)
+      if (ds.length < 2 && x !== w && ic && !used.has(ic)) used.add(ic), ds.push(x)
+    }
     if (!ds.length) continue
     out.push({ word: w, options: [{ word: w, icon }, ...ds.map((x) => ({ word: x, icon: taught.get(x)! }))] })
   }
   return out
-}
-
-/** 同一篇上到第幾次才問故事題（現況對照 A8：第一次聽的那天不考理解） */
-export const STORY_RUN = 3
-
-/** 標點（挖空的句子至少要有兩個不是標點的字，才看得出在問哪一句） */
-const PUNCT = /[，。！？、：；「」『』—…,.!?:;"'\s]/g
-
-/** 故事題的候選：課文裡每個有圖的紅字（第幾行、在那一行的第幾段） */
-function storySpots(t: ZhText) {
-  const out: { line: number; word: string; story: ZhStory }[] = []
-  t.lines.forEach((l, line) => {
-    const ps = pieces(l)
-    ps.forEach((p, k) => {
-      if (!p.red || !iconOf(t, p.text)) return
-      const before = ps.slice(0, k).map((x) => x.text).join('')
-      const after = ps.slice(k + 1).map((x) => x.text).join('')
-      if ((before + after).replace(PUNCT, '').length < 2) return
-      out.push({ line, word: p.text, story: { line, before, after, who: isWho(t, p.text) } })
-    })
-  })
-  return out
-}
-
-/**
- * 故事題（現況對照 A8、T-127 B 案的第 3 次）：大人念課文的一句，念到挖空的地方停下來問「誰？」（動物、人）或「什麼？」，孩子點圖回答。
- * 題目從課文產生，每篇都有，不用家長另外寫，也不出聲（中文課是親子共讀，App 不念）：
- * - 挖空的是一個有圖的紅字；那一句除了空格還要有兩個字以上（看得出問哪一句）。
- * - 先挑問「誰」的（3 歲理解看角色，幼教指引 ZH-1），再挑不是「聊一聊」主角、不是家長定的選圖答案的（同一堂不問一樣的），再挑後面的句子（要記得故事）。
- * - 陪襯：教過的字詞（不教不考），問「誰」的先用會動的當陪襯；連一張陪襯都沒有就不出這一題。
- * - n：最多幾題（排順序出不來的篇多出一題，Lesson.tsx 的退路；每題答案不一樣）。
- */
-export function storyQuestionsOf(t: ZhText, done: ReadonlySet<number> = new Set(), n = 1): ZhQuestion[] {
-  const { earlier, taught } = taughtOf(t, done)
-  const talk = talkFor(t)?.pic ?? null
-  const score = (s: { word: string; story: ZhStory }) => (s.story.who ? 4 : 0) + (s.word !== talk ? 2 : 0) + (s.word !== t.quiz.answer ? 1 : 0)
-  const spots = storySpots(t)
-    .map((s, i) => ({ ...s, i }))
-    .sort((a, b) => score(b) - score(a) || b.line - a.line || a.i - b.i)
-  const pool = [...t.redWords, ...earlier.flatMap((e) => e.redWords)]
-  const out: ZhQuestion[] = []
-  for (const s of spots) {
-    if (out.length >= n || out.some((q) => q.word === s.word)) continue
-    // 那一句裡說到的其他字詞不當陪襯（「＿＿和牛都來看他」的牛：他會以為也對）
-    const said = s.story.before + s.story.after
-    const ok = pool.filter((w) => !said.includes(w))
-    const whoFirst = s.story.who ? [...ok.filter((w) => taught.has(w) && WHO_ICONS.has(taught.get(w)!)), ...ok] : ok
-    const ds = distractors(t, s.word, whoFirst, taught)
-    if (!ds.length) continue
-    out.push({ word: s.word, story: s.story, options: [{ word: s.word, icon: iconOf(t, s.word)! }, ...ds.map((x) => ({ word: x, icon: taught.get(x)! }))] })
-  }
-  return out
-}
-
-/** 排順序的一張圖：哪個紅字、第幾行說到的 */
-export interface ZhOrderCard {
-  word: string
-  icon: string
-  line: number
-}
-
-/** 排兩張圖的順序（T-127 B 案的第 3 次）：故事裡先說到 first、後說到 then */
-export interface ZhOrder {
-  first: ZhOrderCard
-  then: ZhOrderCard
-}
-
-/**
- * 排順序的題目：課文裡最先說到的有圖紅字當「先」，後面說到的另一張圖當「後」（從課文產生，每篇都有；不出聲）。
- * - 「後」先挑不同行的（最後面那一行說到的：先後差最遠，最好分），整篇只有一行有圖的，挑同一行後面說到的；
- * - 兩張圖要不一樣；整篇有圖的紅字不到兩張不一樣的，回傳 null（Lesson.tsx 改成多一題故事題）。
- */
-export function orderOf(t: ZhText): ZhOrder | null {
-  const seen = new Map<string, ZhOrderCard & { at: number }>()
-  let at = 0
-  t.lines.forEach((l, line) => {
-    for (const p of pieces(l)) {
-      at++
-      const icon = iconOf(t, p.text)
-      if (p.red && icon && !seen.has(p.text)) seen.set(p.text, { word: p.text, icon, line, at })
-    }
-  })
-  const cards = [...seen.values()]
-  const first = cards[0]
-  if (!first) return null
-  const rest = cards.filter((c) => c.icon !== first.icon && c.at > first.at)
-  const then = rest.filter((c) => c.line > first.line).sort((a, b) => b.line - a.line || a.at - b.at)[0] ?? rest[0]
-  if (!then) return null
-  const card = ({ word, icon, line }: ZhOrderCard) => ({ word, icon, line })
-  return { first: card(first), then: card(then) }
-}
-
-/** 第 STORY_RUN 次多的題目：故事題一題＋排順序；排順序出不來的篇，改成故事題兩題（退路：不出壞題） */
-export function storyRunOf(t: ZhText, done: ReadonlySet<number> = new Set()): { story: ZhQuestion[]; order: ZhOrder | null } {
-  const order = orderOf(t)
-  return { story: storyQuestionsOf(t, done, order ? 1 : 2), order }
 }
 
 /** 選圖題念的那一句 */

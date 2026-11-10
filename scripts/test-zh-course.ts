@@ -1,12 +1,11 @@
-// 中文課文的排課（src/lessons/chinese/course.ts）、第 2 次停一下的提示（cloze.ts）、聊一聊（data.ts 的 talkOf）、中文課不出聲：每篇剛好上 3 次才換、跳過的日子不往前、
+// 中文課文的排課（src/lessons/chinese/course.ts）、聊一聊（data.ts 的 talkOf）、中文課不出聲：每篇剛好上 3 次才換、跳過的日子不往前、
 // 同一天再進來還是同一次、家長挑的那篇從第 1 次開始、舊版（照日期）的進度接得上。對照 docs/全球幼教指引-現況對照.md A3。
 // 執行：npx tsx scripts/test-zh-course.ts（npm run verify 的「單元：中文課文每篇 3 次」）
 import assert from 'node:assert/strict'
 import { LEGACY, RUNS_PER_TEXT, applyPick, current, finishRun, migrate, nextDay, undoPick, type Course } from '../src/lessons/chinese/course'
 import { readFileSync, readdirSync, statSync } from 'node:fs'
 import { join } from 'node:path'
-import { gapOf } from '../src/lessons/chinese/cloze'
-import { WHO_ICONS, ZH_TEXTS, linePics, orderOf, pieces, plain, storyRunOf, talkFor, talkOf, type ZhOrder, type ZhQuestion, type ZhText } from '../src/lessons/chinese/data'
+import { ZH_TEXTS, linePics, plain, talkFor, talkOf, type ZhText } from '../src/lessons/chinese/data'
 import { FAR, GLYPH_START, NEAR_MAX, afterGlyph, charOf, glyphPool, glyphQuestion, glyphSim, needsDemo, type GlyphQuestion, type GlyphState } from '../src/lessons/chinese/match'
 
 /** 固定的亂數（同一個 seed 每次一樣） */
@@ -49,51 +48,6 @@ function glyphBad(t: ZhText, q: GlyphQuestion): string[] {
   }
   if (q.level < 3 && !ds.every(far)) out.push(`第 ${q.level} 級的干擾字不夠不像：${ds.map((d) => `${d} ${glyphSim(q.char, d)?.toFixed(2)}`).join('、')}`)
   if (q.level === 3 && !ds.some(far)) out.push('第 3 級至少要有一個差很多的字')
-  return out
-}
-
-/**
- * 故事題有什麼不對（T-127）：挖空的句子要是課文的原句、答案是有圖的紅字、問誰／什麼跟圖對得上；
- * 選項 2～3 張、答案在第一個、圖不重複；陪襯是教過的（這一篇或上過的篇的紅字），而且不在那一句裡。
- */
-function storyBad(t: ZhText, q: ZhQuestion, done: ReadonlySet<number>): string[] {
-  const out: string[] = []
-  const s = q.story
-  if (!s) return ['不是故事題']
-  if (plain(t.lines[s.line] ?? '') !== s.before + q.word + s.after) out.push(`句子跟課文第 ${s.line + 1} 行對不上`)
-  if (!t.redWords.includes(q.word) || !t.emoji[q.word]) out.push(`答案「${q.word}」不是有圖的紅字`)
-  if (s.who !== WHO_ICONS.has(t.emoji[q.word] ?? '')) out.push(`「${q.word}」該問${s.who ? '什麼' : '誰'}`)
-  if ((s.before + s.after).replace(/[，。！？、：；「」『』—…\s]/g, '').length < 2) out.push('句子只剩空格')
-  if (q.options.length < 2 || q.options.length > 3) out.push(`${q.options.length} 張圖`)
-  if (q.options[0]?.word !== q.word || q.options[0]?.icon !== t.emoji[q.word]) out.push('答案不在第一個')
-  if (new Set(q.options.map((o) => o.icon)).size !== q.options.length) out.push('圖重複')
-  const taught = new Set([...t.redWords, ...ZH_TEXTS.filter((x) => done.has(x.day)).flatMap((x) => x.redWords)])
-  for (const o of q.options.slice(1)) {
-    if (!taught.has(o.word)) out.push(`陪襯「${o.word}」沒教過`)
-    if ((s.before + s.after).includes(o.word)) out.push(`陪襯「${o.word}」就在句子裡`)
-  }
-  return out
-}
-
-/** 排順序有什麼不對：兩張都是有圖的紅字、圖不一樣、first 在課文裡比 then 先說到、行號是第一次說到的那一行 */
-function orderBad(t: ZhText, o: ZhOrder): string[] {
-  const out: string[] = []
-  const at = (w: string) => {
-    let k = 0
-    for (const [line, l] of t.lines.entries())
-      for (const p of pieces(l)) {
-        k++
-        if (p.red && p.text === w) return { k, line }
-      }
-    return null
-  }
-  const a = at(o.first.word)
-  const b = at(o.then.word)
-  for (const c of [o.first, o.then]) if (!t.redWords.includes(c.word) || t.emoji[c.word] !== c.icon) out.push(`「${c.word}」不是有圖的紅字`)
-  if (o.first.icon === o.then.icon) out.push('兩張圖一樣')
-  if (!a || !b || a.k >= b.k) out.push(`「${o.first.word}」不是比「${o.then.word}」先說到`)
-  if (a && a.line !== o.first.line) out.push(`「${o.first.word}」的行號不對`)
-  if (b && b.line !== o.then.line) out.push(`「${o.then.word}」的行號不對`)
   return out
 }
 
@@ -231,22 +185,6 @@ function main() {
     assert.deepEqual(c, { day: first, runs: [D(3)] })
     console.log('ok 7 180 篇上完從第 1 篇再來')
   }
-  // ── 第 2 次：念到框起來的紅字前停一下（親子共讀：提示大人） ─────────────
-  {
-    assert.deepEqual(gapOf('三隻【小豬】蓋【房子】，'), { word: '房子', before: '三隻小豬蓋', after: '，' }, '一行兩個紅字框後面那個')
-    assert.equal(gapOf('沒有紅字。'), null)
-    // 180 篇每一行：框起來的詞是紅字、前後接起來是原句
-    let gaps = 0
-    for (const t of ZH_TEXTS)
-      for (const l of t.lines) {
-        const g = gapOf(l)
-        if (!g) continue
-        gaps++
-        assert.ok(t.redWords.includes(g.word), `〈${t.title}〉${l}`)
-        assert.equal(g.before + g.word + g.after, l.replace(/[【】]/g, ''))
-      }
-    console.log(`ok 8 第 2 次：每行最後一個紅字框起來提示大人停一下；180 篇共 ${gaps} 行`)
-  }
   // ── 聊一聊（對話式共讀，T-102）：3 歲問得出來的一題，答不出來時大人示範 ─────────────
   {
     // 舊的陪讀小字：問句拿掉，剩下的（動一動、生活延伸）當「還可以」
@@ -375,69 +313,6 @@ function main() {
     for (let i = 0; i < 12; i++) z = afterGlyph(z, { date: D2(i), first: true, demo: false, led: false })
     assert.equal(z.level, 3, '最多第 3 級（4 選 1、很像的字留給 4 歲）')
     console.log('ok 13 找一樣的字升降級：8 題 ≥ 7 題第一次就對、≥ 3 天才升；同一天全對不升；示範、手指著才點的不算；連錯 2 題退一級；最多第 3 級')
-  }
-  // ── 第 3 次的故事題、排順序（T-127 B 案）：180 篇都從課文產生，題目合法，出不來的篇有退路 ─────────────
-  {
-    const t1 = ZH_TEXTS.find((t) => t.title === '龜兔賽跑')!
-    const prev = (t: ZhText) => new Set(ZH_TEXTS.filter((x) => x.day < t.day).map((x) => x.day))
-    let stories = 0
-    let orders = 0
-    const fallback: number[] = []
-    const empty: number[] = []
-    const bad: string[] = []
-    for (const t of ZH_TEXTS)
-      for (const [name, done] of [
-        ['前面的篇都上過', prev(t)],
-        ['第一次上中文課就挑這篇', new Set<number>()],
-      ] as const) {
-        const where = `第 ${t.day} 篇〈${t.title}〉（${name}）`
-        const r = storyRunOf(t, done)
-        for (const q of r.story) {
-          stories++
-          bad.push(...storyBad(t, q, done).map((b) => `${where}故事題：${b}`))
-        }
-        if (new Set(r.story.map((q) => q.word)).size !== r.story.length) bad.push(`${where}故事題問了兩次一樣的`)
-        if (r.order) {
-          orders++
-          bad.push(...orderBad(t, r.order).map((b) => `${where}排順序：${b}`))
-          if (r.story.length > 1) bad.push(`${where}有排順序還出兩題故事題`)
-        } else if (name === '前面的篇都上過') fallback.push(t.day)
-        // 前面的篇都上過（照順序上課）：每一篇的第 3 次至少多一題
-        if (name === '前面的篇都上過' && !r.story.length && !r.order) empty.push(t.day)
-      }
-    assert.deepEqual(bad.slice(0, 10), [], '故事題、排順序有壞題')
-    assert.deepEqual(empty, [], '照順序上課時，第 3 次一題都沒有多的篇')
-    // 排順序出不來的篇（整篇有圖的紅字只有一種圖）：改成故事題（照順序上課時每篇都有）
-    for (const d of fallback) {
-      const t = ZH_TEXTS.find((x) => x.day === d)!
-      assert.equal(new Set(t.redWords.map((w) => t.emoji[w]).filter(Boolean)).size <= 1 || !orderOf(t), true)
-      assert.ok(storyRunOf(t, prev(t)).story.length >= 1, `第 ${d} 篇排順序出不來，也沒有故事題`)
-    }
-    assert.ok(fallback.length <= 20, `排順序出不來的篇太多：${fallback.length} 篇`)
-    // 龜兔賽跑：問「誰」（會動的），不問「聊一聊」問過的兔子；先兔子、後烏龜
-    const s1 = storyRunOf(t1, new Set())
-    assert.equal(s1.story[0]?.word, '烏龜', '龜兔賽跑的故事題：聊一聊問過兔子，故事題問烏龜')
-    assert.equal(s1.story[0]?.story?.who, true, '烏龜問「誰」')
-    assert.equal(`${s1.story[0]?.story?.before}［］${s1.story[0]?.story?.after}`, '［］慢慢爬呀爬，')
-    assert.deepEqual([s1.order?.first.word, s1.order?.then.word], ['兔子', '烏龜'], '龜兔賽跑：先說到兔子，後說到烏龜')
-    // 壞例子一定要抓到
-    const q1 = s1.story[0]!
-    const story = q1.story!
-    const o1 = s1.order!
-    const bads: [string, string[]][] = [
-      ['答案跟句子對不上', storyBad(t1, { ...q1, word: '兔子', options: [{ word: '兔子', icon: 'rabbit' }, q1.options[1]] }, new Set())],
-      ['陪襯在句子裡', storyBad(t1, { ...q1, story: { ...story, after: '和兔子慢慢爬呀爬，' }, options: [q1.options[0], { word: '兔子', icon: 'rabbit' }] }, new Set())],
-      ['沒教過的陪襯', storyBad(t1, { ...q1, options: [q1.options[0], { word: '飛機', icon: 'airplane' }] }, new Set())],
-      ['只有答案一張', storyBad(t1, { ...q1, options: [q1.options[0]] }, new Set())],
-      ['東西問成誰', storyBad(t1, { ...q1, story: { ...story, who: false } }, new Set())],
-      ['先後顛倒', orderBad(t1, { first: o1.then, then: o1.first })],
-      ['兩張一樣', orderBad(t1, { first: o1.first, then: { ...o1.first } })],
-    ]
-    for (const [name, b] of bads) assert.ok(b.length > 0, `壞例子沒擋下：${name}`)
-    console.log(
-      `ok 14 第 3 次的故事題、排順序（T-127）：180 篇 × 2 種上課情形，故事題 ${stories} 題、排順序 ${orders} 題都合法（句子是課文原句、答案是有圖的紅字、陪襯教過而且不在句子裡、先後照課文）；` +
-        `排順序出不來的 ${fallback.length} 篇改成故事題；壞例子擋下 ${bads.length}/${bads.length}`,
-    )
   }
   console.log('ALL PASS')
 }
