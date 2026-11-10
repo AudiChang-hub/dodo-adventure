@@ -5,8 +5,13 @@
  */
 .zh-read,
 .zh-intro-wrap,
-.zh-quiz {
+.zh-quiz,
+.zh-order {
   --zh-red: #c8463a;
+  /* 第幾次的顏色（T-127：課本上面的小圖示、紙膠帶）：1 聽＝藍、2 說＝珊瑚、3 排＝綠 */
+  --zh-run1: #6f9cc8;
+  --zh-run2: #e0826a;
+  --zh-run3: #6fae86;
   --zh-blue: #a3c4e4;
   --zh-blue-deep: #6f9cc8;
 }
@@ -55,8 +60,73 @@
   border-radius: 4px;
   background: color-mix(in srgb, var(--zh-blue) 62%, transparent);
 }
-.zh-title {
+/* 第 2、3 次：紙膠帶換成那一次的顏色（第 1 次照舊是藍的） */
+.zh-read[data-run='2'] .zh-page::before {
+  background: color-mix(in srgb, var(--zh-run2) 55%, transparent);
+}
+.zh-read[data-run='3'] .zh-page::before {
+  background: color-mix(in srgb, var(--zh-run3) 55%, transparent);
+}
+/* 標題一行：標題置中，右邊一排第幾次的小圖示（不佔標題的位置；scripts/check-zh-layout.mjs 量它不能蓋到標題和課文） */
+.zh-head {
+  position: relative;
   margin: 0 0 1.6cqh;
+}
+/*
+ * 第幾次（T-127，Reader 的 RunMarks）：3 個小圓，今天這一次有顏色、大一點；上過的淡淡的；還沒到的只有虛線外框。
+ * 靜態（紙感螢幕不閃），進課本時今天那一個輕輕跳一下就停。
+ */
+.zh-runs {
+  position: absolute;
+  right: 0;
+  top: 50%;
+  translate: 0 -50%;
+  display: flex;
+  align-items: center;
+  gap: calc(var(--zh-fs) * 0.12);
+  pointer-events: none;
+}
+.zh-run {
+  --c: var(--zh-run1);
+  width: calc(var(--zh-fs) * 0.58);
+  aspect-ratio: 1;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  color: color-mix(in srgb, var(--c) 45%, transparent);
+  outline: 2px dashed color-mix(in srgb, var(--c) 40%, transparent);
+  outline-offset: -2px;
+}
+.zh-run[data-i='2'] {
+  --c: var(--zh-run2);
+}
+.zh-run[data-i='3'] {
+  --c: var(--zh-run3);
+}
+.zh-run svg {
+  width: 72%;
+  height: 72%;
+}
+.zh-run.past {
+  outline: 0;
+  background: color-mix(in srgb, var(--c) 22%, #fffdf8);
+  color: color-mix(in srgb, var(--c) 70%, transparent);
+}
+.zh-run.now {
+  width: calc(var(--zh-fs) * 0.76);
+  outline: 0;
+  background: var(--c);
+  color: #fffdf8;
+  box-shadow: 0 3px 0 color-mix(in srgb, var(--c) 60%, #2e2a25);
+  animation: zh-run-in 0.7s var(--ease-spring) 0.3s both;
+}
+@keyframes zh-run-in {
+  40% {
+    translate: 0 -18%;
+  }
+}
+.zh-title {
+  margin: 0;
   font: 400 calc(var(--zh-fs) * 0.42) / 1.3 'Huninn', sans-serif;
   letter-spacing: 0.18em;
   color: var(--ink-faint);
@@ -178,6 +248,13 @@
   pointer-events: none;
 }
 
+/* 第 2 次：他說出來、點了圖（T-127）：框裡的詞填滿淡珊瑚色，虛線變實線 */
+.zh-red.gap.said::before {
+  border-style: solid;
+  border-color: color-mix(in srgb, var(--zh-run2) 80%, transparent);
+  background: color-mix(in srgb, var(--zh-run2) 22%, #fffdf8);
+}
+
 /* 這一行紅字的圖：唸過才淡入，一直留著 */
 .zh-pics {
   position: relative;
@@ -222,6 +299,51 @@
     0 0 calc(var(--zh-lh) * 0.32) calc(var(--zh-lh) * 0.05) rgba(255, 214, 120, 0.75),
     0 6px 0 rgba(46, 42, 37, 0.1);
   transition: box-shadow 0.4s var(--ease-out), background 0.4s var(--ease-out);
+}
+/*
+ * 第 2 次接話（T-127）：要接的那個詞的圖亮珊瑚色的光（跟平常的暖黃分得出來），左上角一個小泡泡（換你說）；
+ * 同一行其他的圖不亮（只看這一張）。說了、點了：換成淡綠光、泡泡收起來
+ */
+.zh-line.on .zh-pic.say {
+  background: #fff6f1;
+  box-shadow:
+    0 0 0 max(3px, 0.45cqmin) color-mix(in srgb, var(--zh-run2) 70%, transparent),
+    0 0 calc(var(--zh-lh) * 0.36) calc(var(--zh-lh) * 0.06) color-mix(in srgb, var(--zh-run2) 55%, transparent),
+    0 6px 0 rgba(46, 42, 37, 0.1);
+}
+.zh-line.on .zh-pic.say.cue::after {
+  border-color: color-mix(in srgb, var(--zh-run2) 85%, transparent);
+}
+.zh-line.on .zh-pic.said {
+  box-shadow:
+    0 0 0 max(3px, 0.45cqmin) color-mix(in srgb, var(--good) 75%, transparent),
+    0 6px 0 rgba(46, 42, 37, 0.1);
+}
+.zh-line.on .zh-pic.hush {
+  background: rgba(255, 255, 255, 0.86);
+  box-shadow: 0 4px 0 rgba(46, 42, 37, 0.08);
+}
+/* 小泡泡：在圖裡面的左上角（不伸出圖外：不會蓋到課文，./layout.ts 不用多算寬度） */
+.zh-say {
+  position: absolute;
+  left: 2%;
+  top: 2%;
+  z-index: 2;
+  width: 40%;
+  pointer-events: none;
+  animation: zh-say-in 0.6s var(--ease-spring) both;
+}
+.zh-say svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  filter: drop-shadow(0 2px 0 rgba(46, 42, 37, 0.12));
+}
+@keyframes zh-say-in {
+  from {
+    scale: 0.3;
+    opacity: 0;
+  }
 }
 .zh-pic.cue::after {
   content: '';
@@ -668,6 +790,206 @@
   pointer-events: none;
 }
 
+/*
+ * 故事題（T-127，第 3 次，./Quiz.tsx 的 q.story）：題目卡是課文的一句，答案的地方一個紅色虛線空格（裡面小小的「誰？」給大人看）。
+ * 字級照這一句有幾個字算（--n），放得進題目卡；答對了空格填上那個詞（紅字）。
+ */
+.zh-ask.zh-ask-story {
+  max-width: 76cqw;
+  padding: 0 4cqh;
+}
+.zh-ask-line {
+  font: 400 min(8.5cqh, calc(62cqw / (var(--n, 10) + 1))) / 1.2 'Huninn', sans-serif;
+  letter-spacing: 0.06em;
+  color: var(--ink);
+  white-space: nowrap;
+}
+.zh-ask-blank {
+  position: relative;
+  display: inline-grid;
+  margin: 0 0.12em;
+  padding: 0 0.1em;
+  border-radius: 0.22em;
+  outline: max(3px, 0.06em) dashed color-mix(in srgb, var(--zh-red) 70%, transparent);
+  outline-offset: -0.02em;
+  background: color-mix(in srgb, var(--zh-red) 5%, #fffdf8);
+}
+/* 詞先排好位置（空格跟詞一樣寬），看不到；答對了才出現 */
+.zh-ask-blank-w,
+.zh-ask-blank-q {
+  grid-area: 1 / 1;
+}
+.zh-ask-blank-w {
+  color: var(--zh-red);
+  visibility: hidden;
+}
+.zh-ask-blank-q {
+  place-self: center;
+  font-size: 0.42em;
+  letter-spacing: 0;
+  color: color-mix(in srgb, var(--zh-red) 80%, transparent);
+}
+.zh-ask-blank.filled {
+  outline-style: solid;
+  outline-color: var(--good);
+  background: #e6f3ea;
+  animation: zh-pop 0.5s var(--ease-spring);
+}
+.zh-ask-blank.filled .zh-ask-blank-w {
+  visibility: visible;
+}
+
+/* 給大人的小字條（T-126 聊一聊的同一種樣子）：故事題、排順序放在最下面，不搶孩子的圖 */
+.zh-note {
+  position: absolute;
+  left: calc(50% + 4cqw);
+  bottom: 3cqh;
+  translate: -50% 0;
+  width: min(640px, 66cqw);
+  padding: 1cqh 16px 1.1cqh;
+  border-radius: 14px;
+  background: rgba(251, 248, 242, 0.96);
+  box-shadow: 0 0 0 1px rgba(46, 42, 37, 0.12) inset, 0 3px 0 rgba(46, 42, 37, 0.05);
+  color: var(--ink-soft);
+  font: 400 15px / 1.45 'Huninn', sans-serif;
+  pointer-events: none;
+}
+.zh-note p {
+  margin: 0;
+}
+.zh-note .zh-talk-q {
+  font-size: 17px;
+}
+/* 故事題有小字條：選項往上一點，讓出字條的位置 */
+.zh-quiz:has(.zh-story-note) .options.with-stim {
+  top: 38%;
+}
+
+/*
+ * 排兩張圖的順序（T-127，第 3 次，./Order.tsx）：上面兩個大虛線格（1 一個點、2 兩個點，中間一個箭頭），下面兩張圖，最下面給大人的小字條。
+ * 格子跟圖一樣大：放進去剛好蓋滿。
+ */
+.zh-order {
+  position: absolute;
+  inset: 0;
+  --zh-card: min(25cqh, 19cqw);
+}
+.zh-order-slots {
+  position: absolute;
+  left: calc(50% + 4cqw);
+  top: 4%;
+  translate: -50% 0;
+  display: grid;
+  grid-template-columns: auto auto;
+  column-gap: calc(var(--zh-card) * 0.62);
+}
+.zh-order-cell {
+  display: grid;
+  justify-items: center;
+  gap: 1.6cqh;
+}
+/* 排好了的打勾、星星：一排透明的格子疊在最上面（放進去的圖在托盤那一層，z-index 5） */
+.zh-order-over {
+  z-index: 6;
+  pointer-events: none;
+}
+.zh-order-over .zh-order-slot {
+  outline: 0;
+  background: none;
+}
+.zh-order-over .zh-order-tag {
+  visibility: hidden;
+}
+.zh-order-slot {
+  position: relative;
+  width: var(--zh-card);
+  aspect-ratio: 1;
+  border-radius: var(--radius-lg);
+  background: rgba(251, 248, 242, 0.55);
+  outline: 5px dashed rgba(46, 42, 37, 0.22);
+  outline-offset: -5px;
+  transition:
+    outline-color 0.3s var(--ease-out),
+    background 0.3s var(--ease-out);
+}
+/* 下一個要放的格子：虛線變暖黃（「放這裡」） */
+.zh-order-slot.next {
+  outline-color: rgba(226, 178, 64, 0.85);
+  background: rgba(255, 246, 222, 0.7);
+}
+.zh-order-slot.full,
+.zh-order-slot.correct {
+  outline-color: transparent;
+}
+.zh-order-slot .zh-yes {
+  z-index: 7;
+}
+/* 格子左上角：1 一個點、2 兩個點（不用認數字也看得出先後） */
+.zh-order-dots {
+  position: absolute;
+  left: 9%;
+  top: 9%;
+  display: flex;
+  gap: calc(var(--zh-card) * 0.04);
+}
+.zh-order-dots i {
+  width: calc(var(--zh-card) * 0.09);
+  aspect-ratio: 1;
+  border-radius: 50%;
+  background: rgba(46, 42, 37, 0.32);
+}
+.zh-order-tag {
+  font: 400 15px / 1 'Huninn', sans-serif;
+  letter-spacing: 0.1em;
+  color: var(--ink-faint);
+}
+.zh-order-arrow {
+  position: absolute;
+  left: 50%;
+  top: calc(var(--zh-card) / 2);
+  width: calc(var(--zh-card) * 0.4);
+  translate: -50% -50%;
+  color: rgba(46, 42, 37, 0.3);
+}
+.zh-order-tray {
+  position: absolute;
+  left: calc(50% + 4cqw);
+  top: calc(4% + var(--zh-card) + 9cqh);
+  translate: -50% 0;
+  display: flex;
+  gap: calc(var(--zh-card) * 0.62);
+}
+.zh-order-home {
+  position: relative;
+  width: var(--zh-card);
+  aspect-ratio: 1;
+  border-radius: var(--radius-lg);
+  /* 圖拿走了：留一個淡淡的空位 */
+  background: rgba(46, 42, 37, 0.04);
+}
+.zh-order-card.tile {
+  position: absolute;
+  inset: 0;
+  width: auto;
+  padding: 0;
+  border: 0;
+  touch-action: none;
+  -webkit-tap-highlight-color: transparent;
+  cursor: grab;
+}
+.zh-order-card.dragging,
+.zh-order-card.placed {
+  z-index: 5;
+}
+.zh-order-card.dragging {
+  cursor: grabbing;
+  box-shadow: 0 16px 24px rgba(46, 42, 37, 0.18);
+}
+.zh-order[data-solved] .zh-order-card {
+  background: #e6f3ea;
+  box-shadow: 0 8px 0 #b9dcc5, 0 0 0 5px var(--good) inset;
+}
+
 /* ── 找一樣的字（T-117，./Glyph.tsx）──────────────────────────
  * 上面：要找的字（實心卡）＋旁邊一個虛線空格（「找一個放這裡，配成一對」）；下面：選項（跟選圖一樣的卡片）。
  * 字全部同一種字型（粉圓體）、同一個墨色：比的只有字的樣子，顏色不是線索。 */
@@ -815,6 +1137,34 @@
   .zh-ask {
     left: 50%;
     max-width: 94vw;
+  }
+  /* 故事題、排順序（T-127）：跟選圖一樣用螢幕的寬度 */
+  .zh-ask.zh-ask-story {
+    max-width: 94vw;
+    padding: 0 3vw;
+  }
+  .zh-ask-line {
+    font-size: min(6cqh, calc(78vw / (var(--n, 10) + 1.5)));
+  }
+  .zh-order {
+    right: auto;
+    width: min(100%, 100vw);
+    --zh-card: min(20cqh, 30vw);
+  }
+  .zh-order-slots,
+  .zh-order-tray {
+    left: 50%;
+  }
+  /* 小字條放在圖的下面、恐龍的上面（手機上恐龍在下面一整排） */
+  .zh-note {
+    left: 50%;
+    top: 64%;
+    bottom: auto;
+    width: 92vw;
+    font-size: 13px;
+  }
+  .zh-note .zh-talk-q {
+    font-size: 14px;
   }
   /* 找一樣的字：兩張卡並排要放得進手機的寬度（舞台 .stage-main 在手機直式比螢幕寬，用 vw 算） */
   .zh-glyph-pair {

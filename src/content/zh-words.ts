@@ -2,7 +2,7 @@
 // 這裡只放資料：每個字要唸的中文、音檔檔名、三明治台詞的 key。什麼時候唸在 lib/words.ts 的 bridgeLines。
 //
 // 範圍：教學卡上教的單字（lexicon.ts 的全部單字：動物村、字母森林的關鍵字和複習字、學習單）、顏色、形狀。
-// 數字、字母不加；說明句、讚美、故事、情緒詞一律不加中文。
+// 數字、字母不加；說明句、讚美、情緒詞一律不加中文。故事只有主角名詞第一次出現時念三明治（T-127，content/story/words.ts），不念整句中文。
 //
 // 中文聲音：BreezyVoice（台灣華語 TTS，Apache-2.0），在電腦上預先產生（scripts/gen_zh_words.py），
 // 音檔在 public/audio/zh/<檔名>.mp3，產生好的詞列在 public/audio/zh/index.json；還沒產生的詞自動只唸英文。
@@ -10,6 +10,7 @@ import { fnv1a } from '../lib/hash'
 import { LEXICON } from './lexicon'
 import { COLORS, SHAPES } from './park'
 import type { Speaker } from './registry'
+import { STORY_NOUNS, storyNounEn, storyNounKey } from './story/words'
 
 export interface ZhWord {
   /** 單字 key（lexicon 的 key）；顏色是 color.red、形狀是 shape.circle */
@@ -30,6 +31,8 @@ export const ZH_WORDS: ZhWord[] = [
   // park.ts 的顏色中文是「紅」「粉紅」：單獨唸的時候說「紅色」「粉紅色」
   ...COLORS.map((c) => ({ key: colorKey(c.id), zh: `${c.zh}色`, en: `${cap(c.en)}.` })),
   ...SHAPES.map((s) => ({ key: shapeKey(s.id), zh: s.zh, en: `${cap(s.en)}.` })),
+  // 故事的主角名詞（T-127：每句的主角名詞第一次出現時念三明治，content/story/words.ts）；跟課程同一個中文的共用同一個音檔
+  ...Object.entries(STORY_NOUNS).map(([id, w]) => ({ key: storyNounKey(id), zh: w.zh, en: storyNounEn(id) })),
 ]
 
 const byKey = new Map(ZH_WORDS.map((w) => [w.key, w]))

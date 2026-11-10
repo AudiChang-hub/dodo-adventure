@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type CSSProperties } from 'react'
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
 import { Dino } from '../art/Dino'
 import { BackButton } from '../ui/Back'
 import { StoryPic } from '../ui/StoryPic'
@@ -7,17 +7,25 @@ import { useBack } from '../lib/nav'
 import { HomeIcon } from '../games/Shell'
 import { motion, useAnimate } from 'motion/react'
 import { audioClock, onSpeech, say, sfx, stopSpeech } from '../lib/audio'
-import { finishTold, saveToldAt, todaysStory, toldAt, toldChapters, type ToldChapter } from '../lib/story'
+import { REPEAT, finishTold, saveToldAt, storyState, todaysStory, toldAt, toldChapters, toldTimes, type ToldChapter } from '../lib/story'
 import { Emoji } from '../art/Emoji'
 import { Sparkles } from '../ui/Sparkles'
 import { arcOf, chapterLook, chapterOf, type Pic } from '../content/story'
 import { theme as themeDef, type ThemeId } from '../content/themes'
-import { line, hasLine } from '../content/lines'
+import { line, hasLine, type Speaker } from '../content/lines'
 import { wait } from '../games/lines'
 import { holdBedtime } from '../lib/session'
-import { StoryPage } from '../art/storybook/Page'
-import { fromPic, hopTimes, hopsOf, sceneOf, type PageArt } from '../art/storybook/layout'
-import { artForBeat } from '../content/story/pages'
+import { StoryPage, type PageMotion } from '../art/storybook/Page'
+import { PAGE_H, PAGE_W, hopTimes, type PageArt } from '../art/storybook/layout'
+import { Scene } from '../art/storybook/scenes'
+import { getTodayWorld } from '../lib/today-world'
+import { flowOf, modeOfDay, peekOf, type ActStop, type LookAsk, type Mode, type StoryFlow, type TellPick } from '../content/story/flow'
+import { STORY_NOUNS, storyNounKey } from '../content/story/words'
+import { bridgeKey } from '../content/zh-words'
+import { storyWhereKey, storyNextKey, storyWordKey } from '../content/lines-story'
+import { zhClipReady } from '../lib/words'
+import { ActWait } from './story/Act'
+import { AskCard, Choose, TellCard } from './story/Tell'
 import './story.css'
 
 /** 一頁幾本書（平板 3×2；手機直式 2×3，一樣 6 本） */
@@ -34,10 +42,40 @@ function coverOf(r: ToldChapter): { title: string; pic: Pic; spine: string } {
   return { title: door?.title ?? '', pic: door?.icon ?? 'open-book', spine: door?.deep ?? '#C9A57E' }
 }
 
-/** 正在講的那一本：isNew 是今天的新章節（講完才收進書架，中途離開下次接著講） */
+/** 正在講的那一本：isNew 是今天的新章節（講完才收進書架，中途離開下次接著講）；mode 是今天的玩法（第 1 天看、第 2 天一起演、第 3 天你來說） */
 interface Open {
   r: ToldChapter
   isNew: boolean
+  mode: Mode
+}
+
+/** 一章的會動繪本（頁、動作、三明治、停頓點、選圖）：同一筆紀錄只算一次 */
+const flows = new WeakMap<ToldChapter, StoryFlow>()
+function flowFor(r: ToldChapter): StoryFlow {
+  let f = flows.get(r)
+  if (!f) {
+    const ch = chapterOf(r.ref)
+    const look = ch ? chapterLook(ch, r.door as ThemeId | undefined) : null
+    const texts = r.script.map((b) => (hasLine(b.k) ? line(b.k).text : ''))
+    // 三明治只念中文音檔產生好了的名詞（還沒產生的照舊只念英文句子）
+    f = flowOf(ch, r.script, texts, look?.scene, coverOf(r).pic, (id) => !!STORY_NOUNS[id] && zhClipReady(STORY_NOUNS[id].zh))
+    flows.set(r, f)
+  }
+  return f
+}
+const hostOf = (r: ToldChapter): Speaker => {
+  const ch = chapterOf(r.ref)
+  return (ch ? chapterLook(ch, r.door as ThemeId | undefined)?.host : null) ?? 'momo'
+}
+
+/** 正在等他做的事：第 2 天點角色（act）、第 3 天選下一頁（tell）、第 1 天最後的問題（ask） */
+type Wait = { kind: 'act'; stop: ActStop } | { kind: 'tell'; pick: TellPick } | { kind: 'ask'; ask: LookAsk; key: string }
+
+/** 這一句的動作：哪一句、什麼時候開始（null 還沒開始）、是不是第 2 天探出頭等他點 */
+interface Motion {
+  beat: number
+  go: number | null
+  peek: boolean
 }
 
 /**
@@ -45,7 +83,11 @@ interface Open {
  * - 點進來，今天有還沒講完的新章節就先講（lib/story.ts 的 todaysStory）；講完有「讀完了」，可以再聽一次或回書架，這一本收進書架。
  * - 中途按返回：回書架，新章節的書在最前面亮著；下次進來（或點那本書）從離開的那一句接著講，講到最後才算講完。
  * - 書架：講過的書有一顆星；點一本就重聽。
- * - 一句一張圖，下面是說話的恐龍；點圖只讓圖動一下，不跳過正在念的這一句（三歲點圖是想看它動）。
+ * - 會動的繪本（T-127）：一頁 1～3 句、一章最多 6 頁；每一句只有說到的那個角色做一個慢慢的大動作（content/story/flow.ts）。
+ *   每句的主角名詞第一次出現時，念完那一句接著念三明治（Rabbit. → 兔子 → Rabbit.）。
+ * - 同一章連講 3 天（lib/story.ts 的 REPEAT）：第 1 天看（念完問一題 Where is the egg?）、第 2 天一起演（./story/Act.tsx）、
+ *   第 3 天你來說（./story/Tell.tsx）。書架上的書一圈三格，亮幾格是聽了幾天（不給獎品）。
+ * - 念的當下點圖只有輕輕一聲（不放熱點，Takacs 2015），不跳過正在念的這一句。
  * 返回：講故事、讀完了 → 書架；書架 → 首頁。
  */
 export function StoryBook() {
@@ -55,8 +97,13 @@ export function StoryBook() {
   const [open, setOpen] = useState<Open | null>(null)
   const [done, setDone] = useState(false)
   const [at, setAt] = useState(0)
+  const [motion, setMotion] = useState<Motion>({ beat: 0, go: null, peek: false })
+  const [waiting, setWaiting] = useState<Wait | null>(null)
+  const resolveWait = useRef<(() => void) | null>(null)
+  const [told, setTold] = useState<Record<string, number>>({})
   const backing = useRef(false)
   const run = useRef(0)
+  const world = useMemo(() => getTodayWorld(), [])
 
   // 每天的時間到了，不在故事講到一半時換成睡覺畫面（T-118、準則 TIME-2）：在故事書裡就擋著，回首頁才去睡覺畫面。
   // 放著不管超過上限 6 分鐘（lib/session 的 GRACE_MAX_SEC）照舊會結束
@@ -66,9 +113,12 @@ export function StoryBook() {
     let live = true
     void Promise.all([toldChapters(), todaysStory()]).then(async ([r, t]) => {
       if (!live) return
+      const st = await storyState()
+      if (!live) return
+      setTold(st.told ?? {})
       setRows(r)
       setFresh(t)
-      if (t) return start({ r: t, isNew: true }, await toldAt(t.date))
+      if (t) return start({ r: t, isNew: true, mode: modeOf(st.told ?? {}, t) }, await toldAt(t.date))
       void say('story.book.hello')
     })
     return () => {
@@ -83,8 +133,23 @@ export function StoryBook() {
     run.current++
     stopSpeech()
     backing.current = true
+    resolveWait.current = null
+    setWaiting(null)
     setDone(false)
     setOpen(null)
+  }
+
+  /** 停下來等他做一件事（點角色、選圖），做完（或 30 秒內手幫他做完）才往下；離開了就不再往下 */
+  const waitFor = (w: Wait) =>
+    new Promise<void>((res) => {
+      resolveWait.current = res
+      setWaiting(w)
+    })
+  const waitDone = () => {
+    const r = resolveWait.current
+    resolveWait.current = null
+    setWaiting(null)
+    r?.()
   }
 
   // 返回鍵、Android 的返回：講故事、讀完了先回書架，書架才回首頁
@@ -97,25 +162,67 @@ export function StoryBook() {
     const me = ++run.current
     const gone = () => run.current !== me
     const { r } = o
+    const f = flowFor(r)
+    const host = hostOf(r)
     await wait(500)
     for (let i = from; i < r.script.length; i++) {
       if (gone()) return
+      // 第 3 天：新的一頁之前先問 What happens next?，選完才翻到那一頁
+      const pick = o.mode === 'tell' ? f.tellPicks.find((t) => t.beat === i) : undefined
+      if (pick) {
+        await waitFor({ kind: 'tell', pick })
+        if (gone()) return
+      }
       setAt(i)
       if (o.isNew) void saveToldAt(r.date, i)
+      // 第 2 天：這一句之前停下來，換他點那個角色（點了動作才做、才念）
+      const stop = o.mode === 'act' ? f.actStops.find((x) => x.beat === i) : undefined
+      setMotion({ beat: i, go: null, peek: !!stop })
+      if (stop) {
+        await wait(400)
+        if (gone()) return
+        await waitFor({ kind: 'act', stop })
+        if (gone()) return
+        setMotion({ beat: i, go: 0, peek: true })
+        await wait(700)
+        if (gone()) return
+      }
       const k = r.script[i].k
       if (hasLine(k)) await say(k)
       if (gone()) return
+      // 主角名詞第一次出現：念三明治（Rabbit. → 兔子 → Rabbit.）
+      const noun = f.sandwiches.get(i)
+      if (noun && hasLine(k)) {
+        const sp = line(k).speaker
+        const head = storyWordKey(sp, noun)
+        const br = bridgeKey(storyNounKey(noun), sp)
+        if (hasLine(head) && hasLine(br)) {
+          await wait(350)
+          if (gone()) return
+          await say(head, br)
+          if (gone()) return
+        }
+      }
       await wait(450)
     }
     if (gone()) return
+    // 第 1 天：念完問一題（Where is the egg?），他點圖回答
+    const askKey = f.ask ? storyWhereKey(host, f.ask.noun) : ''
+    if (o.mode === 'look' && f.ask && hasLine(askKey)) {
+      await wait(300)
+      if (gone()) return
+      await waitFor({ kind: 'ask', ask: f.ask, key: askKey })
+      if (gone()) return
+    }
     // 講到最後才算講完：新章節收進書架（書架上的星星）
     if (o.isNew) {
       await finishTold(r)
-      const told = await toldChapters()
+      const [shelf, st] = await Promise.all([toldChapters(), storyState()])
       if (gone()) return
-      setRows(told)
+      setRows(shelf)
+      setTold(st.told ?? {})
       setFresh(null)
-      setOpen({ r, isNew: false })
+      setOpen({ r, isNew: false, mode: o.mode })
     }
     sfx.done()
     setDone(true)
@@ -124,7 +231,11 @@ export function StoryBook() {
   const start = (o: Open, from = 0) => {
     backing.current = false
     setDone(false)
-    setAt(Math.min(from, Math.max(0, o.r.script.length - 1)))
+    resolveWait.current = null
+    setWaiting(null)
+    const at0 = Math.min(from, Math.max(0, o.r.script.length - 1))
+    setAt(at0)
+    setMotion({ beat: at0, go: null, peek: false })
     setOpen(o)
     void play(o, from)
   }
@@ -135,7 +246,8 @@ export function StoryBook() {
     void toldAt(o.r.date).then((from) => start(o, from))
   }
 
-  const books: Open[] = [...(fresh ? [{ r: fresh, isNew: true }] : []), ...(rows ?? []).map((r) => ({ r, isNew: false }))]
+  // 書架上的書：今天的新書照今天是第幾天決定玩法；聽過的書重聽一律「看」
+  const books: Open[] = [...(fresh ? [{ r: fresh, isNew: true, mode: modeOf(told, fresh) }] : []), ...(rows ?? []).map((r) => ({ r, isNew: false, mode: 'look' as Mode }))]
   const pages = Math.max(1, Math.ceil(books.length / PER_PAGE))
   const shown = books.slice(page * PER_PAGE, page * PER_PAGE + PER_PAGE)
   const turn = (d: number) => {
@@ -147,19 +259,28 @@ export function StoryBook() {
   const id = !open ? 'shelf' : done ? `done-${open.r.id}` : `replay-${open.r.id}`
 
   return (
-    <div className="screen book-screen">
+    <div className="screen book-screen" data-world={world?.id ?? undefined}>
+      {/* 今天的世界（T-127 ⑤）：書架、講故事、讀完了的背景換成今天的場景；書裡的插畫照故事自己的場景（同一個故事連講 3 天，不換） */}
+      {world && (
+        <svg className="book-world" viewBox={`0 0 ${PAGE_W} ${PAGE_H}`} preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+          <Scene id={world.scene} />
+        </svg>
+      )}
       <Scenes id={id} move={move} className="scene is-clear">
         {open && done ? (
-          <BookDone r={open.r} onAgain={() => pickBook({ r: open.r, isNew: false })} onShelf={toShelf} />
+          <BookDone r={open.r} plain={!!world} onAgain={() => pickBook({ r: open.r, isNew: false, mode: 'look' })} onShelf={toShelf} />
         ) : open ? (
-          <Replay r={open.r} at={at} onClose={toShelf} />
+          <Replay r={open.r} plain={!!world} at={at} motion={motion} setMotion={setMotion} waiting={waiting} onWaitDone={waitDone} onClose={toShelf} />
         ) : (
-          <Shelf ready={rows != null} shown={shown} page={page} pages={pages} onPick={pickBook} onTurn={turn} />
+          <Shelf ready={rows != null} shown={shown} told={told} page={page} pages={pages} onPick={pickBook} onTurn={turn} />
         )}
       </Scenes>
     </div>
   )
 }
+
+/** 今天的新章節是第幾天：講完過幾天再加 1（最多 REPEAT） */
+const modeOf = (told: Record<string, number>, r: ToldChapter): Mode => modeOfDay(Math.min(REPEAT, toldTimes({ told }, r.ref) + 1))
 
 /**
  * 返回鍵：每一段（書架、重聽）都放在自己那一層裡，位置一樣（NAV-1）。
@@ -183,7 +304,23 @@ function BookBack({ onClose }: { onClose?: () => void }) {
   )
 }
 
-function Shelf({ ready, shown, page, pages, onPick, onTurn }: { ready: boolean; shown: Open[]; page: number; pages: number; onPick: (o: Open) => void; onTurn: (d: number) => void }) {
+function Shelf({
+  ready,
+  shown,
+  told,
+  page,
+  pages,
+  onPick,
+  onTurn,
+}: {
+  ready: boolean
+  shown: Open[]
+  told: Record<string, number>
+  page: number
+  pages: number
+  onPick: (o: Open) => void
+  onTurn: (d: number) => void
+}) {
   if (!ready) return <BookBack />
   return (
     <div className="screen">
@@ -202,10 +339,11 @@ function Shelf({ ready, shown, page, pages, onPick, onTurn }: { ready: boolean; 
             >
               <StoryPic pic={c.pic} />
               <span className="book-card-title">{c.title}</span>
-              {/* 聽過的書：書角一顆星；今天的新書沒有星，整本微微亮著 */}
-              {!o.isNew && (
-                <span className="book-star" aria-hidden="true">
-                  <Emoji name="glowing-star" />
+              {/* 聽過的書：書角一顆星；今天的新書沒有星，整本微微亮著。外面一圈三格：這一章聽了幾天（1～3，T-127；不給獎品） */}
+              {(!o.isNew || toldTimes({ told }, o.r.ref) > 0) && (
+                <span className="book-star" aria-hidden="true" data-told={Math.min(REPEAT, toldTimes({ told }, o.r.ref))}>
+                  <ToldRing n={toldTimes({ told }, o.r.ref)} />
+                  {!o.isNew && <Emoji name="glowing-star" />}
                 </span>
               )}
             </button>
@@ -242,7 +380,7 @@ const DONE_SKY: [number, number, number][] = [
 ]
 
 /** 讀完了：封面、星星、歡呼的恐龍；兩個大按鈕：再聽一次、回書架（返回鍵也回書架） */
-function BookDone({ r, onAgain, onShelf }: { r: ToldChapter; onAgain: () => void; onShelf: () => void }) {
+function BookDone({ r, plain, onAgain, onShelf }: { r: ToldChapter; plain?: boolean; onAgain: () => void; onShelf: () => void }) {
   const ch = chapterOf(r.ref)
   const look = ch ? chapterLook(ch, r.door as ThemeId | undefined) : null
   const c = coverOf(r)
@@ -256,7 +394,7 @@ function BookDone({ r, onAgain, onShelf }: { r: ToldChapter; onAgain: () => void
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
   return (
-    <div className="book-replay book-done" style={{ background: look?.tint }}>
+    <div className="book-replay book-done" style={{ background: plain ? undefined : look?.tint }}>
       <BookBack onClose={onShelf} />
       {/* 點封面（蛋、書）：晃一下（T-123，盲測 ca0d1e1：故事講完孩子點蛋，以為恐龍會孵出來，沒有反應）。只晃一下，不換頁、不自己往下走 */}
       <div
@@ -355,46 +493,114 @@ function Arrow({ dir }: { dir: 1 | -1 }) {
   )
 }
 
+/** 書架上的書外面一圈三格：這一章聽了幾天（1～3），亮幾格就是幾天。靜態的（不閃、不轉） */
+function ToldRing({ n }: { n: number }) {
+  const r = 21
+  const arc = (i: number) => {
+    const a0 = ((-90 + i * 120 + 8) * Math.PI) / 180
+    const a1 = ((-90 + i * 120 + 112) * Math.PI) / 180
+    return `M${24 + r * Math.cos(a0)} ${24 + r * Math.sin(a0)} A${r} ${r} 0 0 1 ${24 + r * Math.cos(a1)} ${24 + r * Math.sin(a1)}`
+  }
+  return (
+    <svg className="book-told" viewBox="0 0 48 48" aria-hidden="true">
+      {Array.from({ length: REPEAT }, (_, i) => (
+        <path key={i} d={arc(i)} fill="none" strokeWidth={5} strokeLinecap="round" stroke={i < n ? '#E39B3A' : 'rgba(46,42,37,0.16)'} data-on={i < n ? '' : undefined} />
+      ))}
+    </svg>
+  )
+}
+
 /**
- * 講故事的畫面（新章節、重聽都是這個）：一頁手繪插畫（T-119，一句一頁，場景＋角色）、說話的恐龍、講到第幾句。
- * - 念到角色的名字（Rabbit、Turtle、egg…），那個角色輕輕跳一下：照語音的逐字時間（字幕用的同一份），只跳一次。
- * - 點角色：那個角色跳一下（不跳過正在念的這一句）；點插畫別的地方：整頁輕輕動一下。
- * - 講到第幾句的小點點放在插畫下面（以前在上面，被字幕蓋住）。
+ * 講故事的畫面（新章節、重聽都是這個）：會動的繪本（T-127）。一頁手繪插畫（T-119）、說話的恐龍、講到第幾頁。
+ * - 一頁 1～3 句：同一頁換句子時不翻頁，只有這一句說到的那個角色做一個慢慢的大動作（走進來、走過去、跳過去、睡著、門打開），做完就停；
+ *   念到那個角色的名字時才開始動（照語音的逐字時間），沒說到名字的從這一句開始念時動。換頁才翻頁（淡入淡出）。
+ * - 第 2 天停下來等他點的時候，要走進來的角色在畫面邊邊探出頭（./story/Act.tsx）；第 3 天選圖、第 1 天最後的問題蓋在插畫上（./story/Tell.tsx）。
+ * - 念的當下點插畫只有輕輕一聲（不放熱點）。講到第幾頁的小點點放在插畫下面。
  */
-function Replay({ r, at, onClose }: { r: ToldChapter; at: number; onClose: () => void }) {
-  const [card, animate] = useAnimate<HTMLDivElement>()
+function Replay({
+  r,
+  plain,
+  at,
+  motion,
+  setMotion,
+  waiting,
+  onWaitDone,
+  onClose,
+}: {
+  r: ToldChapter
+  /** 背景是今天的世界：不塗這一章的底色 */
+  plain?: boolean
+  at: number
+  motion: Motion
+  setMotion: (m: Motion) => void
+  waiting: Wait | null
+  onWaitDone: () => void
+  onClose: () => void
+}) {
   const ch = chapterOf(r.ref)
   const look = ch ? chapterLook(ch, r.door as ThemeId | undefined) : null
-  // 這一句的插畫；沒有圖的句子沿用前面最近的一張，一開始都沒有就用封面
-  let art: PageArt | null = null
-  for (let i = 0; i <= at && i < r.script.length; i++) art = artForBeat(ch, r.script[i].k, r.script[i].pic, look?.scene) ?? art
-  art ??= fromPic(coverOf(r).pic, sceneOf(look?.scene))
+  const f = flowFor(r)
+  const art: PageArt = f.arts[at] ?? f.arts[0] ?? { scene: 'meadow', cast: [] }
+  const page = f.pageOf[at] ?? 0
   const k = r.script[at]?.k
-  const who = k && hasLine(k) ? line(k).speaker : (look?.host ?? 'momo')
-  const hop = useHops(k, art)
+  const host = hostOf(r)
+  const who = k && hasLine(k) ? line(k).speaker : host
+  const act = motion.beat === at ? (f.acts[at] ?? null) : null
+  useActGo(k, at, art, act, motion, setMotion)
+  const from = act ? (motion.peek ? peekOf(act, art) : { dx: act.dx, dy: act.dy }) : null
+  const pm: PageMotion | null = act && from ? { cast: act.cast, kind: act.kind, dx: from.dx, dy: from.dy, fromPose: act.fromPose, go: motion.go, id: `${r.id}:${at}` } : null
+  // 同一頁新出現、但不是這一句主角的東西：淡淡地出現
+  const fresh = useMemo(() => {
+    if (at === 0 || f.pageOf[at - 1] !== f.pageOf[at]) return []
+    const was = new Set(f.arts[at - 1].cast.map((c) => `${c.who}${c.two ? '×2' : ''}`))
+    return art.cast.flatMap((c, i) => (!was.has(`${c.who}${c.two ? '×2' : ''}`) && i !== act?.cast ? [i] : []))
+  }, [f, at, art, act?.cast])
   return (
-    <div className="book-replay" style={{ background: look?.tint }}>
+    <div className="book-replay" style={{ background: plain ? undefined : look?.tint }}>
       <BookBack onClose={onClose} />
       <div className="book-progress" aria-hidden="true">
-        {r.script.map((_, i) => (
-          <i key={i} className={i <= at ? 'is-done' : undefined} />
+        {Array.from({ length: f.pages }, (_, i) => (
+          <i key={i} className={i <= page ? 'is-done' : undefined} />
         ))}
       </div>
-      <motion.div
-        ref={card}
+      <div
         className="book-art"
         style={{ '--deep': look?.deep } as CSSProperties}
-        onPointerDown={(e) => {
-          sfx.tap()
-          const c = (e.target as Element).closest?.('[data-cast]')?.getAttribute('data-cast')
-          if (c != null && Number(c) >= 0) hop.poke(Number(c))
-          else void animate(card.current!, { rotate: [0, -1.2, 1.2, 0], scale: [1, 1.015, 1] }, { duration: 0.45 })
+        data-page={page}
+        data-beat={at}
+        data-wait={waiting?.kind}
+        onPointerDown={() => {
+          // 念的當下點插畫：輕輕一聲就好（不放會跳的熱點，Takacs 2015）；等他做事的時候由 Act、Choose 自己回應
+          if (!waiting) sfx.tap()
         }}
       >
-        <Swap id={k ?? 'cover'} className="swap-pic" arm={false}>
-          {art && <StoryPage art={art} hop={hop.n} />}
+        <Swap id={`p${page}`} className="swap-pic" arm={false}>
+          <StoryPage art={art} motion={pm} fresh={fresh} />
         </Swap>
-      </motion.div>
+        {waiting?.kind === 'act' && (
+          <ActWait key={`act${waiting.stop.beat}`} art={art} cast={waiting.stop.cast} peek={pm ? { dx: pm.dx, dy: pm.dy } : { dx: 0, dy: 0 }} host={host} onDone={onWaitDone} />
+        )}
+        {waiting?.kind === 'tell' && (
+          <Choose
+            key={`tell${waiting.pick.beat}`}
+            kind="tell"
+            ask={storyNextKey(host)}
+            answer={waiting.pick.answer}
+            cards={[<TellCard key="a" art={f.arts[waiting.pick.arts[0]]} />, <TellCard key="b" art={f.arts[waiting.pick.arts[1]]} />]}
+            onDone={onWaitDone}
+          />
+        )}
+        {waiting?.kind === 'ask' && (
+          <Choose
+            key="ask"
+            kind="ask"
+            ask={waiting.key}
+            answer={waiting.ask.answer}
+            cards={[<AskCard key="a" who={waiting.ask.picks[0]} scene={art.scene} />, <AskCard key="b" who={waiting.ask.picks[1]} scene={art.scene} />]}
+            onDone={onWaitDone}
+          />
+        )}
+      </div>
       <div className="story-home-dino">
         <Dino who={who} mood="happy" size="100%" />
       </div>
@@ -402,44 +608,39 @@ function Replay({ r, at, onClose }: { r: ToldChapter; at: number; onClose: () =>
   )
 }
 
+/** 沒有語音事件（沒有音檔、平板內建語音也不能用）時，最晚多久讓角色動：不會一直卡在畫面外 */
+const GO_FALLBACK_MS = 1500
+
 /**
- * 念到名字的角色跳一下：聽語音播放的事件（lib/audio 的 onSpeech），這一句開始播時照逐字時間排好誰在第幾毫秒跳。
- * 沒有逐字時間（平板內建語音備援）就在開始念時一起跳。換句子就重來；一個角色一句只跳一次（點它另外算）。
+ * 這一句的動作什麼時候開始：聽語音播放的事件（lib/audio 的 onSpeech），這一句開始播時照逐字時間算出念到那個角色的名字是第幾毫秒；
+ * 句子沒說到它的名字，就在開始念的時候動。第 2 天探出頭等他點的那一句由他點的時候開始（StoryBook 設好 go），這裡不管。
  */
-function useHops(k: string | undefined, art: PageArt | null) {
-  // 跳的次數記在「哪一句」底下：換句子時新的一頁從 0 開始（不然新的一頁一出來就跳）
-  const [state, setState] = useState<{ k?: string; n: Record<number, number> }>({ n: {} })
-  const bump = (key: string | undefined, cast: number) => setState((x) => ({ k: key, n: { ...(x.k === key ? x.n : {}), [cast]: ((x.k === key ? x.n[cast] : 0) ?? 0) + 1 } }))
-  const artRef = useRef(art)
-  artRef.current = art
+function useActGo(k: string | undefined, at: number, art: PageArt, act: StoryFlow['acts'][number], motion: Motion, setMotion: (m: Motion) => void) {
+  const now = useRef({ art, act, motion })
+  now.current = { art, act, motion }
   useEffect(() => {
     if (!k) return
-    const timers: number[] = []
-    const fire = (cast: number) => bump(k, cast)
-    const done = new Set<number>()
+    let set = false
+    const go = (ms: number) => {
+      const m = now.current.motion
+      if (set || !now.current.act || m.beat !== at || m.go != null || m.peek) return
+      set = true
+      setMotion({ beat: at, go: Math.max(0, Math.round(ms)), peek: false })
+    }
     const off = onSpeech((e) => {
-      const a = artRef.current
-      if (!a || !hasLine(k) || ('key' in e && e.key !== k)) return
-      const en = line(k).text
+      const { art: a, act: x } = now.current
+      if (!x || !hasLine(k) || ('key' in e && e.key !== k)) return
       if (e.type === 'seg' && e.words?.length) {
         const lead = (e.at - audioClock()) * 1000
-        for (const h of hopTimes(en, a, e.words))
-          if (!done.has(h.cast)) {
-            done.add(h.cast)
-            timers.push(window.setTimeout(() => fire(h.cast), Math.max(0, lead + h.ms)))
-          }
-      } else if (e.type === 'whole' || e.type === 'seg') {
-        hopsOf(en, a).forEach((h, i) => {
-          if (done.has(h.cast)) return
-          done.add(h.cast)
-          timers.push(window.setTimeout(() => fire(h.cast), 300 + i * 400))
-        })
-      }
+        const h = hopTimes(line(k).text, a, e.words).find((t) => t.cast === x.cast)
+        go(lead + (h?.ms ?? 250))
+      } else if (e.type === 'whole' || e.type === 'seg') go(300)
     })
+    const t = window.setTimeout(() => go(0), GO_FALLBACK_MS)
     return () => {
       off()
-      timers.forEach(clearTimeout)
+      clearTimeout(t)
     }
-  }, [k])
-  return { n: state.k === k ? state.n : {}, poke: (cast: number) => bump(k, cast) }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [k, at])
 }

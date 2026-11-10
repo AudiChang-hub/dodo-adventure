@@ -69,7 +69,7 @@ const pickDay = (page: Page, day: number) => putKV(page, 'zhLesson:pick', { date
 const state = (page: Page) =>
   page.evaluate(() => {
     const root = [...document.querySelectorAll<HTMLElement>('.scene')].filter((e) => !e.inert).pop() ?? document
-    const top = [...root.querySelectorAll('.zh-read, .zh-quiz, .zh-intro')].pop()
+    const top = [...root.querySelectorAll('.zh-read, .zh-quiz, .zh-intro, .zh-order')].pop()
     const read = root.querySelector<HTMLElement>('.zh-read')
     return {
       title: root.querySelector('.zh-title')?.textContent ?? null,
@@ -89,6 +89,20 @@ const state = (page: Page) =>
       hand: !!top?.querySelector('.demo-hand'),
       accepting: top?.querySelector('.wait-shield')?.getAttribute('data-accepting') === 'true',
       cheer: !!document.querySelector('.cheer-scrim'),
+      /** 課本上面亮的那個「第幾次」小圖示（T-127） */
+      runMark: Number(read?.querySelector<HTMLElement>('.zh-run.now')?.dataset.i ?? 0),
+      /** 第 2 次：亮的那一行要接話的圖、有沒有小泡泡、同一行安靜的圖幾張、接過話沒 */
+      say: root.querySelector('.zh-line.on .zh-pic.say')?.getAttribute('data-word') ?? null,
+      bubble: !!root.querySelector('.zh-line.on .zh-say'),
+      hush: root.querySelectorAll('.zh-line.on .zh-pic.hush').length,
+      said: !!root.querySelector('.zh-line.on .zh-red.gap.said'),
+      /** 第 3 次：故事題（挖空的那一句）、空格填上了沒、排順序 */
+      story: !!top?.querySelector('.zh-ask-story'),
+      filled: !!top?.querySelector('.zh-ask-blank.filled'),
+      order: top?.classList.contains('zh-order') ?? false,
+      /** 排順序：兩張圖各在哪（tray、0、1）、排好了沒 */
+      spots: [...(top?.querySelectorAll<HTMLElement>('.zh-order-card') ?? [])].map((e) => `${e.dataset.order}:${e.dataset.spot}`).sort().join(','),
+      solved: !!top?.hasAttribute('data-solved'),
     }
   })
 
@@ -209,6 +223,16 @@ async function readAll(k: Toddler, c: Checker) {
   return true
 }
 
+/** 排順序（第 3 次，T-127）：先點該放 1 號格的、再點 2 號的（每張連點幾下） */
+async function solveOrder(k: Toddler, spam = 1) {
+  for (const n of [1, 2]) {
+    const c = (await points(k.page, `.zh-order-card[data-order="${n}"][data-spot="tray"]`))[0]
+    if (c) await (spam > 1 ? k.spam(c, spam, `排順序第 ${n} 張`) : k.tap(c, `排順序第 ${n} 張`))
+    await k.wait(700)
+  }
+  await k.wait(1200)
+}
+
 /** 選圖：一題一題答對（每題連點答案幾下）直到下課 */
 async function answerAll(k: Toddler, c: Checker, spam = 3) {
   for (let i = 0; i < 20; i++) {
@@ -217,9 +241,13 @@ async function answerAll(k: Toddler, c: Checker, spam = 3) {
       await k.wait(800)
       continue
     }
-    const s = await waitFor(k, (s) => s.cheer || (s.quiz && s.accepting), 25_000)
+    const s = await waitFor(k, (s) => s.cheer || (s.quiz && s.accepting) || (s.order && s.accepting && !s.solved), 25_000)
     if (!s) return false
     if (s.cheer) return true
+    if (s.order) {
+      await solveOrder(k, spam)
+      continue
+    }
     const ans = (await points(k.page, '.tile[data-answer]'))[0]
     if (ans) await k.spam(ans, spam, `答案 ${s.ask}`)
     await k.wait(900)
@@ -234,9 +262,13 @@ async function toGlyph(k: Toddler, c: Checker) {
       await k.wait(800)
       continue
     }
-    const s = await waitFor(k, (s) => s.cheer || s.glyph || (s.quiz && s.accepting), 25_000)
+    const s = await waitFor(k, (s) => s.cheer || s.glyph || (s.quiz && s.accepting) || (s.order && s.accepting && !s.solved), 25_000)
     if (!s || s.cheer) break
     if (s.glyph) return true
+    if (s.order) {
+      await solveOrder(k, 1)
+      continue
+    }
     const ans = (await points(k.page, '.tile[data-answer]'))[0]
     if (ans) await k.tap(ans, `答案 ${s.ask}`)
     await k.wait(1800)
@@ -466,7 +498,7 @@ test.describe('中文課', () => {
     }
   })
 
-  test('第 2 次上同一篇：每行最後一個紅字框起來、標「停」提醒大人；照樣念得完', async ({ page }, info) => {
+  test('第 2 次上同一篇：每行最後一個紅字框起來、標「停」提醒大人；要接的圖有小泡泡、點了看得出接到了；照樣念得完', async ({ page }, info) => {
     test.skip(!want('lesson-chinese-gap'))
     test.setTimeout(6 * 60_000)
     const { k, c } = await setup(page, info, '第2次停一下')
@@ -479,13 +511,27 @@ test.describe('中文課', () => {
       c.outcome('第 2 次', s.run === 2, `data-run=${s.run}`)
       if (s.run !== 2) return void (await c.once('run2', '困惑', '排了第 2 次，課本卻不是第 2 次', `data-run=${s.run}`))
       // 每一行：有紅字的行，最後一個紅字框起來、有「停」；孩子點那個框照樣看圖、不會跳行
+      c.outcome('課本上面亮第 2 個小圖示', s.runMark === 2, `亮第 ${s.runMark} 個`)
+      if (s.runMark !== 2) await c.once('run2-mark', '困惑', '第 2 次課本上面的小圖示沒有亮第 2 個', `亮第 ${s.runMark} 個`)
       let marked = 0
+      let sayLines = 0
       for (let i = 0; i < s.lines; i++) {
         s = await state(page)
         if (s.talk) break
         if (s.gap) {
           marked++
           c.outcome(`第 ${s.at} 行標「停」`, s.gapTag, `「${s.gap}」`)
+          // T-127：要接的那個詞有圖的話，那張圖有小泡泡、同一行其他的圖安靜；點了圖：泡泡收起來、框裡的詞填滿
+          if (s.say) {
+            sayLines++
+            c.outcome(`第 ${s.at} 行要接的圖有小泡泡`, s.bubble && s.say === s.gap, `「${s.say}」${s.bubble ? '有泡泡' : '沒有泡泡'}、同一行安靜的圖 ${s.hush} 張`)
+            const pic = (await points(page, '.zh-line.on .zh-pic.say'))[0]
+            if (pic) await k.spam(pic, 3, `接話的圖 ${s.say}`)
+            await k.wait(500)
+            const s3 = await state(page)
+            c.outcome('點了接話的圖：泡泡收起來、框裡的詞填滿', !s3.bubble && s3.said, `${s3.bubble ? '泡泡還在' : '泡泡收了'}、${s3.said ? '填滿' : '沒有填滿'}`)
+            if (s3.bubble || !s3.said) await c.once('say-tap', '困惑', '第 2 次點了要接話的圖，看不出接到了', `「${s.say}」`)
+          }
           const g = (await points(page, '.zh-line.on .zh-red.gap'))[0]
           if (g) await k.spam(g, 2, `框起來的 ${s.gap}`)
           await k.wait(600)
@@ -495,6 +541,8 @@ test.describe('中文課', () => {
         await adult(k, '.zh-next', '下一行（大人）')
       }
       c.outcome('有紅字的行都標了「停」', marked > 0, `${marked} 行`)
+      c.outcome('第 2 次有接話的圖（小泡泡）', sayLines > 0, `${sayLines} 行`)
+      if (!sayLines) await c.once('no-say', '困惑', '第 2 次沒有任何一行有接話的圖', '')
       if (!marked) await c.once('no-gap', '困惑', '第 2 次沒有任何一行標「停」', '')
       const t = await waitFor(k, (s) => s.talk, 6000)
       c.outcome('第 2 次也念得完 → 聊一聊', !!t, t ? '聊一聊' : '沒有念完')
@@ -506,6 +554,183 @@ test.describe('中文課', () => {
       finish(k, c, '第2次停一下')
     }
   })
+  test('第 3 次（T-127）：故事題搶點、兩指、點錯；排順序示範時搶點、拖到一半放手、手掌、發呆、拖進格子、連點；返回再進來', async ({ page }, info) => {
+    test.skip(!want('lesson-chinese-run3'))
+    test.setTimeout(9 * 60_000)
+    const { k, c } = await setup(page, info, '第3次')
+    try {
+      await putKV(page, 'zhLesson:introSeen', true)
+      // 第 1 篇（龜兔賽跑）上過 2 次 → 今天第 3 次
+      await putKV(page, 'zhLesson:course', { day: 1, runs: ['2026-01-01', '2026-01-02'] })
+      if (!(await enter(k, c))) return
+      let s = await state(page)
+      c.outcome('第 3 次、課本上面亮第 3 個小圖示', s.run === 3 && s.runMark === 3, `data-run=${s.run}、亮第 ${s.runMark} 個`)
+      if (s.run !== 3 || s.runMark !== 3) return void (await c.once('run3', '困惑', '排了第 3 次，課本不是第 3 次的樣子', `data-run=${s.run}、亮第 ${s.runMark} 個`))
+      if (!(await readAll(k, c))) return
+
+      // 選圖答到故事題出來
+      k.behavior = '答選圖到故事題'
+      for (let i = 0; i < 8; i++) {
+        if (await page.$('.next-step')) {
+          await k.wait(800)
+          continue
+        }
+        s = (await waitFor(k, (s) => (s.quiz && s.accepting) || s.order || s.glyph || s.cheer, 25_000)) ?? s
+        if (!s.quiz || s.story) break
+        const ans = (await points(page, '.tile[data-answer]'))[0]
+        if (ans) await k.tap(ans, `答案 ${s.ask}`)
+        await k.wait(1800)
+      }
+      s = (await waitFor(k, (s) => s.story, 6000)) ?? (await state(page))
+      c.outcome('第 3 次選圖之後有故事題（挖空的一句）', s.story, s.story ? '故事題' : s.order ? '直接排順序' : '沒有')
+      if (!s.story) return void (await c.once('no-story', '困惑', '第 3 次沒有故事題', ''))
+      await c.screenOk('故事題')
+      const storyRows = async () => (await attempts(page)).filter((a) => a.itemId.includes(':story:'))
+      // 題目剛出來搶著點、兩根手指一起按兩張：最多一筆
+      k.behavior = '故事題搶點、兩指'
+      const tiles = await points(page, '.zh-quiz .tile')
+      if (tiles.length >= 2) {
+        await k.palm(tiles.slice(0, 2) as Pt[], 250)
+        await k.wait(2200)
+        const n = (await storyRows()).length
+        c.outcome('故事題兩指同時按兩張：最多一筆', n <= 1, `${n} 筆`)
+        if (n > 1) await c.once('story-two', '誤記作答', '故事題兩指按兩張，記了好幾筆', `${n} 筆`)
+      }
+      s = await state(page)
+      if (s.story && !s.filled) {
+        k.behavior = '故事題點錯再連點答案'
+        const wrong = (await points(page, '.zh-quiz .tile:not([data-answer])'))[0]
+        if (wrong) await k.tap(wrong, '錯的圖')
+        await k.wait(900)
+        const ans = (await points(page, '.zh-quiz .tile[data-answer]'))[0]
+        if (ans) await k.spam(ans, 4, '答案')
+      }
+      const f = await waitFor(k, (s) => s.filled || s.order, 5000)
+      c.outcome('故事題答對：空格填上那個詞', !!f?.filled || !!f?.order, f?.filled ? '填上了' : f?.order ? '已經換到排順序' : '沒有填上')
+      const sr = await storyRows()
+      c.outcome('故事題只記一筆', sr.length === 1, `${sr.length} 筆`)
+      if (sr.length !== 1) await c.once('story-rows', '誤記作答', '故事題記了不只一筆', `${sr.length} 筆`)
+
+      // 排順序：大箭頭點了（boot 的 autoNext）就換過來
+      s = (await waitFor(k, (s) => s.order, 20_000)) ?? (await state(page))
+      c.outcome('故事題之後有排順序', s.order, s.order ? '排順序' : '沒有')
+      if (!s.order) return void (await c.once('no-order', '困惑', '第 3 次故事題之後沒有排順序', ''))
+      const orderRows = async () => (await attempts(page)).filter((a) => a.itemId.includes(':order:'))
+      await k.wait(700)
+      // 示範的手出來的時候搶著點「後」的那張：不放進去、搖一搖，不記作答
+      k.behavior = '示範時搶點'
+      s = await state(page)
+      const demoOn = !!(await page.$('.zh-order .demo-hand'))
+      c.outcome('一進來手示範一次', demoOn || s.hand, demoOn ? '有示範' : '沒看到示範')
+      const later = (await points(page, '.zh-order-card[data-order="2"]'))[0]
+      if (later) await k.tap(later, '搶著點「後」的那張')
+      await k.wait(900)
+      s = await state(page)
+      c.outcome('示範時點錯的那張：不放進去、示範收掉', s.spots === '1:tray,2:tray' && !(await page.$('.zh-order .demo-hand')), `${s.spots}`)
+      if (s.spots !== '1:tray,2:tray') await c.once('order-grab', '困惑', '排順序先點「後」的那張，被放進格子了', s.spots)
+      // 拖到一半放手、拖到一半被系統手勢搶走：回到下面，不算作答
+      k.behavior = '拖到一半放手'
+      const first = (await points(page, '.zh-order-card[data-order="1"]'))[0]
+      const slot1 = (await points(page, '.zh-order-slot[data-slot="1"]'))[0]
+      if (first && slot1) {
+        await k.drag([first, { x: first.x + (slot1.x - first.x) * 0.3, y: first.y + (slot1.y - first.y) * 0.3 }], { label: '拖一點點就放手' })
+        await k.wait(800)
+        await k.drag([first, { x: (first.x + slot1.x) / 2, y: (first.y + slot1.y) / 2 + 40 }], { cancel: true, label: '拖到一半被搶走' })
+        await k.wait(900)
+        s = await state(page)
+        c.outcome('拖到一半放手：回到下面、不算作答', s.spots === '1:tray,2:tray' && !(await orderRows()).length, s.spots)
+        if (s.spots !== '1:tray,2:tray') await c.once('order-half', '困惑', '排順序拖到一半放手，圖沒有回到下面', s.spots)
+      }
+      // 手掌壓在兩張圖上：只算第一根手指，兩張不會一起進格子
+      k.behavior = '手掌壓兩張'
+      const both = await points(page, '.zh-order-card[data-spot="tray"]')
+      if (both.length === 2) {
+        await k.palm(both as Pt[], 300)
+        await k.wait(1200)
+        s = await state(page)
+        const inSlots = s.spots.split(',').filter((x) => !x.endsWith(':tray')).length
+        c.outcome('手掌壓兩張：最多一張進格子、還沒排好', inSlots <= 1 && !s.solved, s.spots)
+        if (inSlots > 1) await c.once('order-palm', '誤記作答', '手掌壓兩張，兩張一起進了格子', s.spots)
+      }
+      // 發呆：手指出該放的那張（精簡版不發呆）
+      s = await state(page)
+      if (!info.project.metadata?.lite && !s.solved) {
+        k.behavior = '發呆'
+        const t0 = Date.now()
+        let hinted = false
+        while (Date.now() - t0 < 36_000 && !hinted) {
+          await k.wait(1000)
+          hinted = !!(await points(page, '.zh-order-card.hint')).length
+        }
+        c.outcome('發呆：手出來指該放的那張', hinted, hinted ? `${Math.round((Date.now() - t0) / 1000)} 秒` : '36 秒內沒有提示')
+        if (!hinted) await c.once('order-idle', '卡死', '排順序發呆 36 秒都沒有提示', '')
+      }
+      // 拖「先」的那張進 1 號格（還在下面的話），再連點「後」的那張
+      k.behavior = '拖進格子、連點'
+      const f1 = (await points(page, '.zh-order-card[data-order="1"][data-spot="tray"]'))[0]
+      const s1 = (await points(page, '.zh-order-slot[data-slot="1"]'))[0]
+      if (f1 && s1) {
+        await k.drag([f1, { x: (f1.x + s1.x) / 2, y: (f1.y + s1.y) / 2 }, s1], { label: '拖「先」的那張進 1 號格' })
+        await k.wait(900)
+      }
+      s = await state(page)
+      c.outcome('拖進 1 號格：放進去了', s.spots.startsWith('1:0'), s.spots)
+      if (!s.spots.startsWith('1:0')) await c.once('order-drag', '困惑', '把「先」的那張拖進 1 號格，沒有放進去', s.spots)
+      const t2 = (await points(page, '.zh-order-card[data-order="2"][data-spot="tray"]'))[0]
+      if (t2) await k.spam(t2, 4, '連點「後」的那張')
+      const done = await waitFor(k, (s) => s.solved || s.glyph || s.cheer, 5000)
+      c.outcome('兩張都放好：排好了', !!done, done ? '排好了' : '沒有排好')
+      if (!done) await alive(k, c, '排順序')
+      await k.wait(1500)
+      const or = await orderRows()
+      c.outcome('排順序只記一筆', or.length === 1, `${or.length} 筆`)
+      if (or.length !== 1) await c.once('order-rows', '誤記作答', '排順序記了不只一筆', `${or.length} 筆`)
+      // 接著找一樣的字、下課
+      const end = await answerAll(k, c, 2)
+      c.outcome('第 3 次上得完 → 下課', end, end ? '下課' : '沒有下課')
+      if (!end) await alive(k, c, '第 3 次')
+      await checkDoubleRecords(k, c)
+      await c.flush()
+
+      // 換一篇的第 3 次：排順序到一半按返回 → 首頁；再進來從念課文開始，作答不重複
+      k.behavior = '排順序到一半按返回'
+      await putKV(page, 'zhLesson:course', { day: 2, runs: ['2026-01-01', '2026-01-02'] })
+      if (!(await toHome(k, c))) return
+      if (!(await enter(k, c))) return
+      if (!(await readAll(k, c))) return
+      for (let i = 0; i < 12; i++) {
+        if (await page.$('.next-step')) {
+          await k.wait(800)
+          continue
+        }
+        s = (await waitFor(k, (s) => (s.quiz && s.accepting) || s.order || s.glyph || s.cheer, 25_000)) ?? s
+        if (!s.quiz) break
+        const ans = (await points(page, '.tile[data-answer]'))[0]
+        if (ans) await k.tap(ans, `答案 ${s.ask}`)
+        await k.wait(1800)
+      }
+      s = (await waitFor(k, (s) => s.order, 15_000)) ?? (await state(page))
+      if (!s.order) return void (await c.once('no-order2', '困惑', '第 2 篇第 3 次沒有排順序', ''))
+      const c1 = (await points(page, '.zh-order-card[data-order="1"]'))[0]
+      if (c1) await k.tap(c1, '放一張')
+      await k.wait(600)
+      const h = await homeButton(page)
+      if (!h) return void (await c.once('order-noback', '無法返回', '排順序沒有返回鍵', ''))
+      await pressBack(k, h)
+      const live = await waitLive(page, (l) => l === 'home', 4000)
+      c.outcome('排順序按返回 → 首頁', live === 'home', `到 ${live}`)
+      if (live !== 'home') await c.once('order-back', '無法返回', '排順序按返回鍵沒有回首頁', `停在 ${live}`)
+      await k.wait(1200)
+      if (!(await enter(k, c))) return
+      const s2 = await state(page)
+      c.outcome('再進來從念課文開始、還是第 3 次', !s2.order && s2.at === '0' && s2.run === 3, s2.order ? '在排順序' : `第 ${s2.at} 行、第 ${s2.run} 次`)
+      await checkDoubleRecords(k, c)
+      await c.flush()
+    } finally {
+      finish(k, c, '第3次')
+    }
+  })
+
   test('找一樣的字（T-117）：示範時亂點、搶著點、兩指、發呆、連點答案；返回再進來', async ({ page }, info) => {
     test.skip(!want('lesson-chinese-glyph'))
     test.setTimeout(8 * 60_000)

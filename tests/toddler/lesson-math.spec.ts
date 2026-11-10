@@ -1,7 +1,7 @@
 import { test, expect, type Page } from '@playwright/test'
 import { attempts, boot, homeButton, settle, snap } from './lib/app'
 import { Toddler, hashSeed, type Pt } from './lib/toddler'
-import { Checker, alive, audit, checkDoubleRecords, doorAt, grabDuringTeach, ignoreNext, pressBack, toHome, toddlerStep, waitLive } from './lib/flows'
+import { Checker, alive, audit, checkDoubleRecords, doorAt, grabDuringTeach, ignoreNext, linesSince, pressBack, toHome, toddlerStep, waitLive } from './lib/flows'
 import type { GameDef } from './catalog'
 
 /**
@@ -16,11 +16,16 @@ const want = () => !only.length || only.some((s) => s === 'screens' || s === 'le
 /** grabDuringTeach 只用到 id（記錄用） */
 const LESSON = { id: 'lesson-math', station: 'math', kind: 'lesson', title: '數學課' } as unknown as GameDef
 
-async function setup(page: Page, info: Parameters<Parameters<typeof test>[2]>[1], name: string, lessonSticker?: boolean, autoNext = true) {
+/** 「拿給波波」那一段的玩法（T-127，src/lessons/math/plays.ts）：每天輪流，測試指定一種（localStorage 的 dodo:variety:math.give） */
+type GivePlay = 'give' | 'train' | 'plant'
+
+async function setup(page: Page, info: Parameters<Parameters<typeof test>[2]>[1], name: string, lessonSticker?: boolean, autoNext = true, play: GivePlay = 'give') {
   const seed = hashSeed(BASE_SEED, 'lesson-math', name, info.project.name)
   const k = new Toddler(page, info, seed, info.project.name)
   const c = new Checker(k, page)
   k.where = `數學課／${name}`
+  // 原本的測試都是測「拿給波波」：固定用那一種（不然每天輪到小火車、種花，.ma-give-plate 那些就找不到）
+  await page.addInitScript((play) => localStorage.setItem('dodo:variety:math.give', play), play)
   await boot(page, seed, { to: 'home', lessonSticker, autoNext })
   await k.init()
   // 今天的數字：每個 seed 不一樣（1～10），10 是兩筆的「10」。
@@ -864,4 +869,229 @@ test.describe('數學課', () => {
       finish(k, c, '描到一半')
     }
   })
+  // ── T-127：拿給波波的另外兩種玩法（小火車 Train.tsx、種花 Plant.tsx，流程在 Load.tsx）────────────────
+  // 三歲的操作全部做一次：示範時搶點、連點同一個、多指（手掌）、拖到一半放手、多拿（小火車）、空的就按勾勾、發呆、
+  // 返回再進來（同一天同一種玩法、接著上）、做完記成 give:N（選項照拿給波波）、往下一段走得到。
+  for (const play of ['train', 'plant'] as const) {
+    const title = play === 'train' ? '小火車' : '種花'
+    test(`${title}（T-127）：示範時搶點、連點、多指、拖到一半放手、發呆、返回再進來，做完記成 give:N`, async ({ page }, info) => {
+      test.skip(!want())
+      test.setTimeout(6 * 60_000)
+      const lite = !!info.project.metadata?.lite
+      const { k, c } = await setup(page, info, title, false, true, play)
+      try {
+        const day = await page.evaluate(() => {
+          const d = new Date()
+          return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+        })
+        // 同一天從「拿給波波」那一段接著上，今天的數字 3（第一次拿 3 個、第一次玩這種：先示範）
+        const N = 3
+        await setMath(page, { next: N + 1, firm: false, day, n: N, mode: 'new', part: 1, asked: 0, missed: 0 })
+        k.behavior = '連點「數學數字」進來'
+        if (!(await enter(k, c, true))) return
+
+        const st = () =>
+          page.evaluate(() => {
+            const root = [...document.querySelectorAll('.ma-load')].pop()
+            if (!root) return null
+            const c = (el: Element | null | undefined) => {
+              if (!el) return null
+              const r = el.getBoundingClientRect()
+              return r.width > 4 ? { x: r.left + r.width / 2, y: r.top + r.height / 2 } : null
+            }
+            const things = [...root.querySelectorAll('.ma-give-thing')]
+            const taken = (e: Element) => (e.getAttribute('aria-label') ?? '').startsWith('拿回')
+            const slots = [...root.querySelectorAll('.ma-slot')]
+            return {
+              play: root.getAttribute('data-play'),
+              want: Number(root.querySelector('.ma-give-num')?.textContent ?? 0),
+              dots: root.querySelectorAll('.ma-give-dots i').length,
+              slots: slots.length,
+              filled: slots.filter((e) => e.classList.contains('is-full')).length,
+              free: things.filter((e) => !taken(e)).map(c).filter(Boolean) as { x: number; y: number }[],
+              taken: things.filter(taken).map(c).filter(Boolean) as { x: number; y: number }[],
+              done: c(root.querySelector('.ma-give-done')),
+              extra: root.querySelectorAll('.is-extra').length,
+              demo: !!document.querySelector('[data-demo="1"]'),
+              glad: !!root.querySelector('.ma-give-done.is-done'),
+            }
+          })
+        type St = NonNullable<Awaited<ReturnType<typeof st>>>
+        const until = async (pred: (s: St) => boolean, ms: number) => {
+          const end = Date.now() + ms
+          while (Date.now() < end) {
+            const s = await st()
+            if (s && pred(s)) return s
+            await k.wait(150)
+          }
+          return null
+        }
+
+        // 1. 示範（第一次玩這種）：手在放的時候搶著點一個 → 示範收掉、那一下照常算（放進去 1 個）
+        const demo = await until((s) => s.demo && s.free.length > 0, 25_000)
+        c.outcome(`${title}：第一次玩先示範（熟練前不考）`, !!demo, demo ? '' : '沒有看到示範')
+        if (!demo) await c.once(`${play}-no-demo`, '困惑', `第一次玩${title}沒有先示範`, '')
+        const first = await st()
+        const mute = !!first && first.want === N && first.dots === N && first.slots === N
+        c.outcome(`${title}：靜音也看得懂（大數字、點點、${play === 'train' ? '車廂' : '洞'}都是 ${N} 個）`, mute, JSON.stringify(first && { want: first.want, dots: first.dots, slots: first.slots }))
+        if (!mute) await c.once(`${play}-mute`, '困惑', `${title}看不出要幾個（數字、點點、位置數不一樣）`, JSON.stringify(first))
+        if (demo) {
+          k.behavior = '示範時搶著點'
+          await k.wait(600)
+          const s0 = (await st())!
+          const target = s0.free[s0.free.length - 1]
+          if (target) await k.tap(target, '搶點一個')
+          const after = await until((s) => !s.demo, 3000)
+          await k.wait(500)
+          const s1 = await st()
+          const ok = !!after && !!s1 && s1.filled === 1
+          c.outcome(`${title}：示範時搶點 → 示範收掉、放進 1 個`, ok, JSON.stringify(s1 && { demo: s1.demo, filled: s1.filled }))
+          if (!ok) await c.once(`${play}-grab`, '困惑', `${title}示範時搶點，示範沒收掉或那一下沒算`, JSON.stringify(s1))
+        }
+
+        // 2. 連點同一個：放進去、拿出來，不會亂（位置數不超過 N、沒有卡住）
+        k.behavior = '連點同一個'
+        let s = await until((s) => !s.demo && s.free.length > 0, 10_000)
+        if (s) {
+          await k.spam(s.free[0], 5, '連點同一個')
+          await k.wait(700)
+          s = (await st())!
+          c.outcome(`${title}：連點同一個不會亂`, s.filled <= N, `放了 ${s.filled} 個`)
+          if (s.filled > N) await c.once(`${play}-spam`, '困惑', `${title}連點以後放了超過 ${N} 個`, JSON.stringify(s))
+        }
+
+        // 3. 手掌壓（多指）：只算第一根手指，最多多放一個
+        k.behavior = '手掌壓在東西上'
+        s = (await st())!
+        if (s.free.length >= 2) {
+          const before = s.filled
+          await k.palm(s.free.slice(0, 3), 400)
+          await k.wait(700)
+          s = (await st())!
+          const ok = Math.abs(s.filled - before) <= 1
+          c.outcome(`${title}：多指只算一根手指`, ok, `${before} → ${s.filled}`)
+          if (!ok) await c.once(`${play}-palm`, '困惑', `${title}手掌一壓放了好幾個`, `${before} → ${s.filled}`)
+        }
+
+        // 4. 拖到一半放手（touchcancel）：不會卡住，之後照樣點得動
+        k.behavior = '拖到一半放手'
+        s = (await st())!
+        if (s.free[0]) {
+          const a = s.free[0]
+          await k.drag([a, { x: a.x + 80, y: a.y + 60 }, { x: a.x + 160, y: a.y + 120 }], { cancel: true, label: '拖到一半手指滑走' })
+          await k.wait(700)
+          s = (await st())!
+          c.outcome(`${title}：拖到一半放手不會亂`, s.filled <= N, `放了 ${s.filled} 個`)
+        }
+
+        // 5. 返回：回首頁；再進來同一種玩法、接著上這一段（同一天不換玩法）
+        k.behavior = '上到一半按返回'
+        const h = await homeButton(page)
+        if (h) await pressBack(k, h)
+        const live = await waitLive(page, (l) => l === 'home', 4000)
+        c.outcome(`${title}：上到一半按返回 → 首頁`, live === 'home', `到 ${live}`)
+        if (live !== 'home') await c.once(`${play}-back`, '無法返回', `${title}上到一半按返回沒有回首頁`, `停在 ${live}`)
+        await k.wait(800)
+        if (!(await enter(k, c))) return
+        const again = await until((s) => s.free.length > 0, 30_000)
+        const part = await partNow(page)
+        c.outcome(`${title}：再進來還是同一種玩法、接著上`, !!again && again.play === play && part === 'give', `${part}，${again?.play}`)
+        if (!again || again.play !== play || part !== 'give') await c.once(`${play}-resume`, '困惑', `${title}上到一半離開，再進來換了玩法或沒接著上`, `${part}，${again?.play}`)
+        await until((s) => !s.demo, 25_000)
+
+        // 6. 空的就按勾勾：不算錯、不記錄，再說一次要幾個（放了東西的話先全部拿出來）
+        k.behavior = '空的就按勾勾'
+        for (let i = 0; i < 8; i++) {
+          s = (await st())!
+          if (!s.taken.length) break
+          await k.tap(s.taken[0], '拿出來')
+          await k.wait(500)
+        }
+        s = (await st())!
+        if (s.done && s.filled === 0) {
+          await k.tap(s.done, '空的按勾勾')
+          await k.wait(1500)
+        }
+        // 示範看完會記一筆教學（teach），那不是作答
+        const rows0 = (await attempts(page)).filter((a) => a.game === `m-${play}` && a.phase !== 'teach')
+        c.outcome(`${title}：空的按勾勾不記錄`, rows0.length === 0, `${rows0.length} 筆`)
+        if (rows0.length) await c.once(`${play}-empty`, '誤記作答', `${title}空的按勾勾就記了作答`, JSON.stringify(rows0))
+
+        // 7. 發呆：15 秒重說一次要幾個、30 秒手出來指下一步，之後照樣點得動
+        if (!lite) {
+          k.behavior = '發呆'
+          const t0 = await page.evaluate(() => performance.now())
+          let hand = false
+          const end = Date.now() + 34_000
+          while (Date.now() < end) {
+            if (await page.evaluate(() => !!document.querySelector('.ma-load .demo-hand'))) hand = true
+            await k.wait(500)
+          }
+          const vs = (await linesSince(page, t0)).map((v) => Math.round((v.t - t0) / 1000))
+          const ok = vs.some((t) => t >= 12 && t <= 18) && hand
+          c.outcome(`${title}：發呆時重說、手出來指`, ok, `語音 ${vs.join('s ')}s；手${hand ? '有' : '沒有'}`)
+          if (!ok) await c.once(`${play}-idle`, '困惑', `${title}發呆時沒有重說或沒有手來指`, `語音 ${vs.join('、')} 秒；手${hand ? '有' : '沒有'}`)
+        }
+
+        // 8. 放夠；小火車再多拿一個（搖一搖、不會多坐一個）；按勾勾：火車開走／花長大，記成 give:N
+        k.behavior = '放夠、按勾勾'
+        for (let i = 0; i < 12; i++) {
+          s = (await st())!
+          if (s.filled >= N || !s.free.length) break
+          await k.tap(s.free[0], '放一個')
+          await k.wait(600)
+        }
+        s = (await st())!
+        if (play === 'train' && s.free.length) {
+          await k.tap(s.free[0], '坐滿了還拿一個')
+          await k.wait(300)
+          const x = (await st())!
+          const ok = x.filled === N && x.extra === 1
+          c.outcome('小火車：坐滿了還拿 → 搖一搖、不會多坐', ok, `坐了 ${x.filled}，搖 ${x.extra}`)
+          if (!ok) await c.once('train-over', '困惑', '小火車坐滿了還拿，看不出多了', JSON.stringify(x))
+          await k.wait(1400)
+          s = (await st())!
+        }
+        c.outcome(`${title}：放夠了`, s.filled === N, `放了 ${s.filled}`)
+        if (s.done) await k.tap(s.done, '按勾勾')
+        const fin = await until((s) => s.glad, 4000)
+        c.outcome(`${title}：按勾勾 → 完成（勾勾變綠）`, !!fin, '')
+        if (!fin) await c.once(`${play}-done`, '卡死', `${title}放夠了按勾勾沒有完成`, JSON.stringify(await st()))
+        await k.wait(1500)
+        const recs = await page.evaluate(
+          () =>
+            new Promise<{ game: string; skill: string; options: string[]; phase: string; ok: boolean }[]>((res) => {
+              const rq = indexedDB.open('dodo-adventure')
+              rq.onsuccess = () => {
+                const g = rq.result.transaction('attempts').objectStore('attempts').getAll()
+                g.onsuccess = () => {
+                  rq.result.close()
+                  res((g.result as { game: string; skill: string; options: string[]; phase: string; firstTryCorrect: boolean }[]).map((a) => ({ game: a.game, skill: a.skill, options: a.options, phase: a.phase, ok: a.firstTryCorrect })))
+                }
+              }
+            }),
+        )
+        const mine = recs.filter((r) => r.game === `m-${play}` && r.phase !== 'teach')
+        const r0 = mine[0]
+        // 示範過、又被手指過（發呆）：記成一起練（guided），不計入熟練（熟練前不考）
+        const recOk = mine.length === 1 && r0.skill === `give:${N}` && r0.options.join(',') === '0,1,2,3,4,5' && r0.phase === 'guided'
+        c.outcome(`${title}：記成一筆 give:${N}、選項跟拿給波波一樣、示範過記成一起練`, recOk, JSON.stringify(mine))
+        if (!recOk) await c.once(`${play}-record`, '誤記作答', `${title}的作答紀錄不對`, JSON.stringify(mine), false)
+
+        // 9. 往下一段（比多少）走得到
+        k.behavior = '等下一段'
+        const next = await page
+          .waitForFunction(() => [...document.querySelectorAll('[data-lesson-part]')].pop()?.getAttribute('data-lesson-part') === 'compare', null, { timeout: 30_000 })
+          .then(() => true)
+          .catch(() => false)
+        c.outcome(`${title}：做完往下一段（比多少）`, next, `停在 ${await partNow(page)}`)
+        if (!next) await c.once(`${play}-next`, '卡死', `${title}做完沒有往下一段`, `停在 ${await partNow(page)}`)
+        await checkDoubleRecords(k, c)
+        await c.flush()
+      } finally {
+        await c.flush().catch(() => {})
+        finish(k, c, title)
+      }
+    })
+  }
 })

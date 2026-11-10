@@ -4,6 +4,7 @@
 import { fromPic, sceneOf, type Cast, type PageArt, type SceneId, type Size, type Slot } from '../../art/storybook/layout'
 import type { Beat, Chapter } from './types'
 import { beatKey } from './index'
+import { SHORTER } from './evergreen'
 
 const c = (who: string, at: Slot = 'C', size: Size = 'M', more: Partial<Cast> = {}): Cast => ({ who, at, size, ...more })
 const P = (scene: SceneId, cast: Cast[], back?: Cast[]): PageArt => (back ? { scene, cast, back } : { scene, cast })
@@ -197,6 +198,12 @@ export const pageArtOf = (key: string, inline?: PageArt): PageArt | null => inli
  * 講故事時這一句的畫面：手寫的照 key 查表；每週新劇本寫在句子的 art；都沒有的照 pic 自動排一頁（場景用這一章的）。
  * ch：這一章（每週新劇本的 art 要從句子裡找）；sceneKind：這一章的場景（ChapterLook.scene）。
  */
+// 通用章節縮短的開場、結尾（T-127，evergreen.ts 的 SHORTER）：插畫跟門原本那一句一樣
+for (const [door, x] of Object.entries(SHORTER)) {
+  x?.intro?.forEach((_, i) => (PAGE_ART[`story.ev-${door}.intro.${i}`] ??= PAGE_ART[`theme.${door}.intro`]))
+  x?.end?.forEach((_, i) => (PAGE_ART[`story.ev-${door}.finale.${i}`] ??= PAGE_ART[`theme.${door}.end`]))
+}
+
 export function artForBeat(ch: Chapter | null, key: string, pic: string | undefined, sceneKind: string | undefined): PageArt | null {
   if (PAGE_ART[key]) return PAGE_ART[key]
   const inline = ch ? beatsOf(ch).find(([k]) => k === key)?.[1].art : undefined

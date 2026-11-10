@@ -82,7 +82,7 @@ const DRAW: Record<string, (pose: string) => ReactElement> = {
   apples: () => <T.Apples />,
   'book-open': () => <T.BookOpen />,
   'book-closed': () => <T.BookClosed />,
-  door: () => <T.Door />,
+  door: (p) => <T.Door open={p === 'open'} />,
   house: () => <T.House />,
   bed: () => <T.Bed />,
   yarn: () => <T.Yarn />,

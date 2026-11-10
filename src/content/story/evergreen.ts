@@ -32,7 +32,19 @@ export const doorStop = (t: ThemeDef, i: number): Beat => {
 export const doorIntro = (t: ThemeDef): Beat => ({ who: t.host, en: BEATS[t.id].intro, key: `theme.${t.id}.intro` })
 export const doorEnd = (t: ThemeDef): Beat => ({ who: t.host, en: BEATS[t.id].end, key: `theme.${t.id}.end` })
 
+/**
+ * 一句超過 6 個字的開場、結尾（T-127：小班段一句最多 6 個字，FRAME-4）：通用章節改念這幾句短的（key 是 story.ev-<門>.intro.<i>、
+ * finale.<i>）。門原本的 theme.<門>.intro／end 不動（scripts/check-story-themes.ts 比對時把這幾句換成新的）。
+ */
+export const SHORTER: Partial<Record<ThemeId, { intro?: string[]; end?: string[] }>> = {
+  bus: { intro: ['Today, we ride the | bus.', 'We go to the | zoo.'], end: ['Hooray. We are at the | zoo.'] },
+  fire: { intro: ['Wee-oo! Fire truck needs | help!'] },
+  ocean: { end: ['Hooray. We are at the | beach.'] },
+}
+
 function evergreen(t: ThemeDef): Chapter {
+  const short = SHORTER[t.id]
+  const mine = (ens: string[]): Beat[] => ens.map((en) => ({ who: t.host, en }))
   return {
     id: `ev-${t.id}`,
     kind: 'evergreen',
@@ -43,10 +55,10 @@ function evergreen(t: ThemeDef): Chapter {
     faith: null,
     door: t.id,
     title: doorTitle(t),
-    intro: [doorIntro(t)],
+    intro: short?.intro ? mine(short.intro) : [doorIntro(t)],
     // 5 站都用門原本的旁白
     stops: [null, null, null, null, null],
-    finale: [doorEnd(t)],
+    finale: short?.end ? mine(short.end) : [doorEnd(t)],
     end: [],
   }
 }

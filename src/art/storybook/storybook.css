@@ -21,3 +21,97 @@
     animation: none;
   }
 }
+
+/*
+ * 會動的繪本（T-127）：一句只有一個角色做一個慢慢的大動作，做完就停（MOTION-2）。紙感螢幕：慢、大、一次一個，
+ * 只用位移和淡入淡出，不縮放、不彈跳（MOTION-1）。--go 是幾毫秒後開始；.sb-hold 是還沒開始（停在開始的位置）。
+ */
+.sb-move {
+  animation: sb-walk 1.8s cubic-bezier(0.45, 0, 0.3, 1) var(--go, 0ms) both;
+}
+.sb-move.sb-hold,
+.sb-zzz.sb-hold text,
+.sb-old.sb-hold {
+  animation: none;
+}
+.sb-move.sb-hold {
+  transform: translate(var(--dx), var(--dy));
+}
+@keyframes sb-walk {
+  from {
+    transform: translate(var(--dx), var(--dy));
+  }
+  to {
+    transform: translate(0, 0);
+  }
+}
+/* 跳過去：一個慢慢的弧（上去再下來，落地不彈） */
+.sb-move.sb-jump {
+  animation-name: sb-jump;
+  animation-timing-function: linear;
+}
+@keyframes sb-jump {
+  0% {
+    transform: translate(var(--dx), var(--dy));
+    animation-timing-function: cubic-bezier(0.3, 0, 0.6, 1);
+  }
+  50% {
+    transform: translate(calc(var(--dx) * 0.5), calc(var(--dy) * 0.5 - 90px));
+    animation-timing-function: cubic-bezier(0.4, 0, 0.7, 1);
+  }
+  100% {
+    transform: translate(0, 0);
+  }
+}
+/* 換姿勢、門打開：舊的樣子蓋在上面，慢慢淡掉 */
+.sb-old {
+  animation: sb-fade-out 1.2s ease-in-out var(--go, 0ms) both;
+}
+@keyframes sb-fade-out {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+/* 睡著：Z 一個接一個慢慢浮起來，浮到位置就停 */
+.sb-zzz text {
+  animation: sb-zzz 1.6s ease-out calc(var(--go, 0ms) + 500ms + var(--i) * 450ms) both;
+}
+.sb-zzz.sb-hold text {
+  opacity: 0;
+}
+@keyframes sb-zzz {
+  from {
+    opacity: 0;
+    transform: translateY(28px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+/* 同一頁新出現、但不是這一句主角的東西：淡淡地出現 */
+.sb-fresh {
+  animation: sb-fade-in 0.6s ease-out both;
+}
+@keyframes sb-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .sb-move,
+  .sb-old,
+  .sb-zzz text,
+  .sb-fresh {
+    animation-duration: 0.01ms;
+  }
+  .sb-move.sb-hold {
+    transform: none;
+  }
+}

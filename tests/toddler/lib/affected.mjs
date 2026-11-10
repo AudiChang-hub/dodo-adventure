@@ -52,7 +52,7 @@ export const SCREEN_TESTS = [
   { token: 'settings', spec: 'screens', files: [], games: [] },
   // 來回換畫面：首頁 ↔ 三堂課、故事、畫畫
   { token: 'layers', spec: 'screens', files: ['src/screens/StoryBook.tsx'], games: ['d-free'] },
-  { token: 'story', spec: 'story', files: ['src/screens/StoryBook.tsx', 'src/content/story/'], games: [] },
+  { token: 'story', spec: 'story', files: ['src/screens/StoryBook.tsx', 'src/screens/story/', 'src/content/story/', 'src/content/lines-story.ts'], games: [] },
   // 學校的首頁（home.spec）：三大門會進每一堂課（各課資料夾的 index.tsx 是入口；登記表、LessonScreen 被 App、首頁 import，改了跑完整版）
   { token: 'home-doors', spec: 'home', files: ['src/lessons/english/index.tsx', 'src/lessons/chinese/index.tsx', 'src/lessons/math/index.tsx', 'src/screens/StoryBook.tsx'], games: ['d-free'] },
   // 英文字母課自己的測試（tests/toddler/lesson-english.spec.ts）：英文課資料夾裡的檔都從 index.tsx 走得到

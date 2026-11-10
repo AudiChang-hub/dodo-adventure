@@ -156,6 +156,9 @@ export async function loadZhAudio() {
   }
 }
 
+/** 這個中文的音檔產生好了沒（故事的單字三明治用，T-127）；家長關掉中文三明治時一律當作沒有 */
+export const zhClipReady = (zh: string) => getSettings().zhBridge !== false && zhReady.has(zhClip(zh))
+
 /** 這個字這次教的時候要不要唸中文 */
 export function wantsZh(key: string): boolean {
   if (getSettings().zhBridge === false) return false

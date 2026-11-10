@@ -1,8 +1,14 @@
-import { useContext, useEffect, useRef, useState } from 'react'
+import { useContext, useEffect, useMemo, useRef, useState } from 'react'
 import { Resting, Shell, HomeIcon, type GameProps } from '../Shell'
 import { Ink, type InkHandle } from './Ink'
 import { Palette, CheckButton, ClearButton, PALETTE } from './Palette'
-import { saveDrawing } from './save'
+import { imageOf, saveDrawing, svgThumb } from './save'
+import { Backdrop, MirrorGuide, PaperButton, PAPER_H, PAPER_W } from './Backdrop'
+import { MagicButton, StampButton } from './Stamps'
+import { BRUSH_VARIETY, brushOfDay, brushPool, makePaint, preloadEmoji, type BrushId } from './brushes'
+import { ideaKey } from './lines'
+import { dayNumber, getTodayWorld } from '../../lib/today-world'
+import { pickVariety } from '../../lib/variety'
 import { Hand, HandArt, easeInOut, tween } from '../Demo'
 import { game as gameDef } from '../../content/games'
 import { markPlayed } from '../../lib/adaptive'
@@ -38,10 +44,16 @@ const SHOW_STARS = [
 const STAR_PATH = 'M10 0 L12.6 7.4 L20 10 L12.6 12.6 L10 20 L7.4 12.6 L0 10 L7.4 7.4 Z'
 const STAR_COLORS = ['#F1D27C', '#E99A84', '#8FCBAA', '#A3C4E4', '#BFB2DF']
 
+/** 畫筆、魔法筆、印章：工具欄上選到哪一種 */
+type Mode = 'pen' | 'magic' | 'stamp'
+
 /**
- * 自由畫畫：一張空白畫布，畫完存進作品集。
+ * 自由畫畫：一張畫紙，畫完存進作品集。
+ * 今天的世界（lib/today-world.ts，T-127）：畫紙底下鋪今天的淡色線稿（右上角「白紙」鍵可以拿掉、再拿回來），
+ * 工具欄多「印章」（點畫紙蓋一個今天的角色，2～3 種輪流）和「今天的魔法筆」（brushes.ts，4 種輪流、連續兩次不一樣）。
+ * 沒有今天的世界（回傳 null）時：空白畫紙、沒有印章，魔法筆照樣有（不含要用小圖的蓋印筆）。
  * 完成、清空都是點一下（不用按住）；清空要再點一次確認（垃圾桶先晃一下）。
- * 發呆時：15 秒再說一次「Draw anything you like!」，再 15 秒手在畫紙中間比劃一下，之後每 40 秒手再安靜地比劃一次（三歲模擬測試 B10）。
+ * 發呆時：15 秒說今天的一句（例如「Draw a home for the cow!」，沒有世界時是「Draw anything you like!」），再 15 秒手在畫紙中間比劃一下，之後每 40 秒手再安靜地比劃一次（三歲模擬測試 B10）。
  * 按勾勾：作品留在畫紙上、星星撒下來，停 4 秒才交出去（之後是每局的慶祝）；慶祝完回到作品上，工具收起來，
  * 右邊換成一顆大房子（PlayGame 的 Resting），點房子才回首頁（T-110：以前點畫面任何地方就被帶回首頁，他只是想再看一下、去點星星）。
  * 展示、停下來的時候點畫紙、星星：畫紙跳一下、冒一點星星（溫和的回應，不會離開）；停下來時再讓手在房子上點一下給他看。
@@ -50,6 +62,19 @@ export function FreeDraw({ gameId, onDone, onExit }: GameProps) {
   const def = gameDef(gameId)
   const [color, setColor] = useState(PALETTE[2])
   const [thick, setThick] = useState(false)
+  /** 今天的世界：進來的時候決定，玩到一半過了午夜也不換 */
+  const world = useMemo(() => getTodayWorld(), [])
+  const stamps = world?.stamps ?? []
+  const pool = brushPool(!!world)
+  const [mode, setMode] = useState<Mode>('pen')
+  /** 今天的魔法筆：先照日期，輪換紀錄讀出來再換成紀錄挑的（通常在轉場結束前就決定了） */
+  const [brush, setBrush] = useState<BrushId>(() => brushOfDay(dayNumber(new Date()), pool))
+  /** 蓋了幾個印章：下一個蓋 stamps[stampIx % 種數] */
+  const [stampIx, setStampIx] = useState(0)
+  /** 按了「白紙」：今天的背景拿掉 */
+  const [blank, setBlank] = useState(false)
+  const backdrop = useRef<SVGSVGElement>(null)
+  const paint = useMemo(() => makePaint(PAPER_W), [])
   const ink = useRef<InkHandle>(null)
   const t0 = useRef(performance.now())
   const live = useRef(true)
@@ -76,8 +101,12 @@ export function FreeDraw({ gameId, onDone, onExit }: GameProps) {
     const boot = window.setTimeout(async () => {
       markPlayed(def.id)
       await say(def.intro)
-      if (live.current) idle.start({ repeat: () => void say(def.intro), hint: () => void showAgain() })
+      // 發呆時說今天的一句（T-127）：「什麼都可以畫」對三歲等於沒有起點
+      const idea = world ? ideaKey(world.id) : def.intro
+      if (live.current) idle.start({ repeat: () => void say(idea), hint: () => void showAgain() })
     }, 0)
+    if (world) void preloadEmoji(world.stamps)
+    void pickVariety(BRUSH_VARIETY, pool).then((b) => live.current && setBrush(b))
     return () => {
       live.current = false
       clearTimeout(boot)
@@ -108,9 +137,19 @@ export function FreeDraw({ gameId, onDone, onExit }: GameProps) {
     idle.stop()
     hideHand()
     sfx.done()
-    const compact = strokes.map((s) => ({ c: s.color, s: s.size, p: s.pts.filter((_, i) => i % 2 === 0).map((p) => [Math.round(p.x), Math.round(p.y), Math.round(p.p * 100) / 100]) }))
+    const compact = strokes.map((s) => ({ c: s.color, s: s.size, ...(s.brush ? { b: s.brush } : {}), p: s.pts.filter((_, i) => i % 2 === 0).map((p) => [Math.round(p.x), Math.round(p.y), Math.round(p.p * 100) / 100]) }))
+    // 作品的縮圖：有今天的背景就把背景放在最底下、筆跡和印章蓋在上面（T-127）；背景轉不出來就只存筆跡
+    const thumb = async () => {
+      const bd = backdrop.current
+      if (!bd) return ink.current!.snapshot()
+      try {
+        return await svgThumb(bd, 480, '#FBF8F2', undefined, await imageOf(ink.current!.snapshot('transparent')))
+      } catch {
+        return ink.current!.snapshot()
+      }
+    }
     // 存作品、說話等不到（剛從背景切回來、資料庫出錯）也一定收尾（三歲模擬測試 B01）
-    await within(Promise.resolve().then(() => saveDrawing(def.id, '自由畫畫', ink.current!.snapshot(), compact)), 3000, undefined)
+    await within(Promise.resolve().then(async () => saveDrawing(def.id, '自由畫畫', await thumb(), compact)), 3000, undefined)
     void logAttempt({
       station: 'draw',
       game: def.id,
@@ -125,7 +164,13 @@ export function FreeDraw({ gameId, onDone, onExit }: GameProps) {
       attempts: 1,
       responseMs: Math.round(performance.now() - t0.current),
       hintUsed: false,
-      metrics: { strokes: strokes.length, colors: new Set(strokes.map((s) => s.color)).size },
+      metrics: {
+        strokes: strokes.length,
+        colors: new Set(strokes.map((s) => s.color)).size,
+        stamps: strokes.filter((s) => s.brush?.startsWith('stamp:')).length,
+        magic: strokes.filter((s) => s.brush && !s.brush.startsWith('stamp:')).length,
+        backdrop: backdrop.current ? 1 : 0,
+      },
     })
     // 作品和星星：停 SHOW_MS（點畫紙不會提早結束，T-110）
     const showAt = performance.now()
@@ -166,12 +211,16 @@ export function FreeDraw({ gameId, onDone, onExit }: GameProps) {
   return (
     <Shell station="draw" mood="idle" onExit={onExit} hideHost>
       <div ref={room} className="tool-room" style={{ position: 'absolute', inset: '0 13% 4% 3%', borderRadius: 32, background: '#FBF8F2', boxShadow: '0 8px 0 rgba(46,42,37,.08)', overflow: 'hidden' }}>
+        {world && !blank && <Backdrop ref={backdrop} scene={world.scene} />}
+        {mode === 'magic' && brush === 'mirror' && !show && !home && <MirrorGuide />}
         <Ink
           ref={ink}
-          w={1000}
-          h={620}
+          w={PAPER_W}
+          h={PAPER_H}
           color={color}
           size={thick ? 34 : 16}
+          brush={mode === 'stamp' && stamps.length ? `stamp:${stamps[stampIx % stamps.length]}` : mode === 'magic' ? (brush === 'trail' ? `trail:${stamps.join(',')}` : brush) : undefined}
+          paint={paint}
           onDown={() => {
             drawing.current = true
             hideHand()
@@ -183,8 +232,22 @@ export function FreeDraw({ gameId, onDone, onExit }: GameProps) {
             drawing.current = false
             liftedAt.current = performance.now()
             idle.poke()
+            // 蓋好一個印章：下一個換下一種角色（格子上的圖跟著換）
+            if (mode === 'stamp' && stamps.length) {
+              sfx.pop()
+              setStampIx((i) => i + 1)
+            }
           }}
         />
+        {world && !show && !home && (
+          <PaperButton
+            blank={blank}
+            onToggle={() => {
+              setBlank((b) => !b)
+              idle.poke()
+            }}
+          />
+        )}
         {show && (
           <div
             className="draw-show"
@@ -256,9 +319,11 @@ export function FreeDraw({ gameId, onDone, onExit }: GameProps) {
       {/* 展示作品的時候工具都不能按（不會一碰垃圾桶就把作品清掉）；停在作品上的時候整個收起來 */}
       <div style={{ display: home ? 'none' : 'contents', pointerEvents: show ? 'none' : undefined }}>
         <Palette
-          value={color}
+          value={mode === 'pen' ? color : ''}
           onChange={(c) => {
             setColor(c)
+            // 點顏色：回到一般的筆（三歲點顏色就是想用那個顏色畫）
+            setMode('pen')
             idle.poke()
           }}
         >
@@ -275,6 +340,29 @@ export function FreeDraw({ gameId, onDone, onExit }: GameProps) {
           >
             <span style={{ width: thick ? 46 : 18, height: thick ? 46 : 18, borderRadius: '50%', background: color, transition: 'all .25s' }} />
           </button>
+          <MagicButton
+            brush={brush}
+            color={color}
+            stamps={stamps}
+            on={mode === 'magic'}
+            onPress={() => {
+              setMode('magic')
+              idle.poke()
+            }}
+          />
+          {stamps.length > 0 && (
+            <StampButton
+              next={stamps[stampIx % stamps.length]}
+              count={stampIx}
+              on={mode === 'stamp'}
+              onPress={() => {
+                // 已經是印章：再點一下換下一個角色
+                if (mode === 'stamp') setStampIx((i) => i + 1)
+                else setMode('stamp')
+                idle.poke()
+              }}
+            />
+          )}
         </Palette>
       </div>
     </Shell>
