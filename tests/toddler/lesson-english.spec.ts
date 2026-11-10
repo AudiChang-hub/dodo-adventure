@@ -842,8 +842,20 @@ test.describe('英文字母課', () => {
       const toQuiz = await waitStage(page, 'quiz', 60_000)
       c.outcome('從單字走到選擇題', toQuiz, toQuiz ? '' : `停在 ${await stageOf(page)}`)
       if (!toQuiz) return void (await c.once('to-quiz', '卡死', '單字念完沒有往下走到選擇', `停在 ${await stageOf(page)}`))
-      // 前兩題（大寫、小寫）是新帳號第一次碰到的題型：手先示範。記下手點的那張卡在畫面上的位置，輪到孩子時照那個位置點
+      // 大寫題是新帳號第一次碰到的題型：手先示範。記下手點的那張卡在畫面上的位置，輪到孩子時照那個位置點
+      // 小寫題跟大寫題算同一輪，不再示範（T-125，盲測 0f3363f：Watch me 走兩遍，「一直點都一樣」）：直接問、選項出來就收作答
       for (const kind of ['big', 'little']) {
+        if (kind === 'little') {
+          k.behavior = '找小寫：不再示範，直接問'
+          const first = await page
+            .waitForSelector('.en-options.is-little .en-opt.is-yes, .en-options.is-little:not([data-accepting="false"]) .en-opt.is-cue', { timeout: 30_000 })
+            .catch(() => null)
+          const demoed = !!first && (await first.evaluate((el) => el.classList.contains('is-yes')))
+          c.outcome('little：跟大寫同一輪，不再示範（T-125）', !!first && !demoed, first ? (demoed ? '小寫題又示範了一次' : '') : '沒有等到小寫題')
+          if (!first) await c.once('little-ask', '卡死', '大寫題答完，沒有出現小寫題', `停在 ${await stageOf(page)}`)
+          else if (demoed) await c.once('little-demo', '困惑', '小寫題又示範一次（Watch me 走兩遍，看起來一直一樣）', '')
+          continue
+        }
         k.behavior = `找${kind === 'big' ? '大寫' : '小寫'}：照手剛剛點的位置點`
         const shown = await page.waitForSelector(`.en-options.is-${kind} .en-opt.is-yes`, { timeout: 30_000 }).catch(() => null)
         if (!shown) {
