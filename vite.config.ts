@@ -26,6 +26,15 @@ const APP_VERSION = gitVersion()
 
 export default defineConfig({
   base: '/dodo-adventure/',
+  server: {
+    watch: {
+      // 主 repo 底下的 .claude/worktrees（二十幾個 worktree、約 20 萬個檔，裡面還有連回主 repo 的 public/audio）、docs/（上萬個報告、截圖）、
+      // dist/（打包結果）都不是 App 的原始碼。vite dev 一啟動就去監看 .claude/worktrees，Windows 上會整個卡住：
+      // 在主 repo 跑 check-zh-layout，zh-layout.html 150 秒載不完；排除以後 2 秒內好（2026-11-10 實測）。
+      // test-results、node_modules、.git vite 本來就不看。public/audio 照樣監看：開發時新產生的語音要馬上找得到。
+      ignored: ['**/.claude/**', '**/docs/**', '**/dist/**'],
+    },
+  },
   define: {
     __APP_VERSION__: JSON.stringify(APP_VERSION),
     __BUILD_TIME__: JSON.stringify(new Date().toISOString()),
