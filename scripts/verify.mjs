@@ -41,6 +41,7 @@ const CHECKS = [
   { id: 'tsc-toddler', name: '型別檢查（三歲測試）', cmd: ['npx', 'tsc', '-p', 'tests/toddler/tsconfig.json'], check: (s) => ({ ok: true, key: `${(s.match(/error TS\d+/g) ?? []).length} 個錯誤` }) },
   { id: 'test-reset-cloud', name: '單元：重置的雲端刪除', cmd: ['npx', 'tsx', 'scripts/test-reset-cloud.ts'], check: unit },
   { id: 'test-readiness', name: '單元：下一步準備度', cmd: ['npx', 'tsx', 'scripts/test-readiness.ts'], check: unit },
+  { id: 'test-today-world', name: '單元：今天的世界（相鄰兩天不重複、素材都在）、玩法輪替', cmd: ['npx', 'tsx', 'scripts/test-today-world.ts'], check: unit },
   { id: 'test-math-plan', name: '單元：數學課出題與熟練', cmd: ['npx', 'tsx', 'scripts/test-math-plan.ts'], check: unit },
   { id: 'test-zh-course', name: '單元：中文課文每篇 3 次、聊一聊、中文課不出聲', cmd: ['npx', 'tsx', 'scripts/test-zh-course.ts'], check: unit },
   {
