@@ -61,6 +61,11 @@ export function GivePart({ ctx }: { ctx: PartCtx }) {
   const [glad, setGlad] = useState<false | 'full' | 'plain'>(false)
   /** 道謝說完、要換下一段了：交出去的勾勾淡掉（T-110） */
   const [gone, setGone] = useState(false)
+  /**
+   * 交出去、勾勾跳完以後（T-124，盲測 f255333 數學 3/3：波波道謝的那幾秒他再按勾勾，點到擋板、看不到任何反應）：
+   * 勾勾變灰，看得出「已經按過、現在不能按」；這段時間點畫面，勾勾左右晃一下（還沒好），不靠語言
+   */
+  const [used, setUsed] = useState(false)
   const [want, setWant] = useState(0)
   /** 多拿、正在退回去的（搖一搖那幾個） */
   const [extra, setExtra] = useState<number[]>([])
@@ -77,6 +82,12 @@ export function GivePart({ ctx }: { ctx: PartCtx }) {
   const since = useRef(performance.now())
   const heard = useRef(false)
   const live = useLive()
+  /** 交出去以後、道謝的時候點畫面：灰掉的勾勾左右晃一下（還沒好，T-124）；減少動態效果時不晃（圈圈照常出現） */
+  const nope = () => {
+    const el = doneRef.current
+    if (!el || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
+    el.animate([{ rotate: '0deg' }, { rotate: '-9deg' }, { rotate: '8deg' }, { rotate: '-5deg' }, { rotate: '0deg' }], { duration: 420, easing: 'ease-out' })
+  }
   /** demo 示範、intro 說明、fb 答錯的說明、help 錯兩次手幫忙放（這幾段可以搶）；turn 輪到孩子；done 交出去了 */
   const phase = useRef<'demo' | 'intro' | 'fb' | 'help' | 'turn' | 'done'>('intro')
   /** 剛出來的 0.5 秒過了（PACE.BARGE_ARM） */
@@ -331,14 +342,15 @@ export function GivePart({ ctx }: { ctx: PartCtx }) {
       sfx.correct()
     }
     setGlad(full ? 'full' : 'plain')
+    // 跳一下（ma-give-done 520ms）做完就變灰
+    window.setTimeout(() => live.current && setUsed(true), 600)
     // 「There is one! Yum! Thank you!」就是稱讚，不再多一句 Yes!：按完打勾到下一段能動手要快（盲測三次都說「好久喔」）
     await say(...(full ? [`m.total.${n}`, 'ma.give.thanks'] : [`m.total.${n}`]))
     // 道謝說完，綠色勾勾先淡掉再換下一段（T-110，盲測 e6ecd05 數學第 6、7 步）：
     // 勾勾一直亮著，他以為還要再按一次；下一段的教學卡（整張卡就是「再聽一次」）剛好蓋在勾勾的位置，
     // 那一下就點到教學卡、把波波正在講的教學句搶掉了。勾勾不在了，就不會對著原來的位置再按。
     setGone(true)
-    // 道謝念了 4 秒，打勾跳一下、盤子亮起來早就看完了：用短的停頓接下一段（教學卡本身的節奏不動）
-    await wait(PACE.NEXT_REVIEW)
+    // 接著就是「下一步」的大箭頭（T-118），下一段要孩子點了才出來，勾勾淡掉的這 0.3 秒不用再另外等（T-124：以前多等 0.4 秒）
     // 沒聽完就交的（猜的）不算進「錯很多隔天重上」（T-109）
     if (live.current) ctx.done(heard.current ? 1 : 0, heard.current && !firstTry ? 1 : 0)
   }
@@ -430,14 +442,15 @@ export function GivePart({ ctx }: { ctx: PartCtx }) {
         ref={doneRef}
         type="button"
         data-poke={poke || undefined}
-        className={`ma-give-done${glad ? ` is-done${glad === 'plain' ? ' is-plain' : ''}${gone ? ' is-gone' : ''}` : !hold && plate.length > 0 ? ` on${poke ? ' poke' : ''}` : ''}`} style={{ left: `${DONE.x}%`, top: `${DONE.y}%` }} aria-label="好了，交給波波" onPointerDown={(e) => firstFinger(e.nativeEvent) && check()}>
+        className={`ma-give-done${glad ? ` is-done${glad === 'plain' ? ' is-plain' : ''}${used ? ' is-used' : ''}${gone ? ' is-gone' : ''}` : !hold && plate.length > 0 ? ` on${poke ? ' poke' : ''}` : ''}`} style={{ left: `${DONE.x}%`, top: `${DONE.y}%` }} aria-label="好了，交給波波" onPointerDown={(e) => firstFinger(e.nativeEvent) && check()}>
         <svg viewBox="0 0 48 48" aria-hidden="true">
           <path d="M12 25 L21 34 L37 15" fill="none" stroke="currentColor" strokeWidth={6} strokeLinecap="round" strokeLinejoin="round" />
         </svg>
       </button>
       <AnimatePresence>{hand && <Hand key="hand" x={hand.x} y={hand.y} tap={hand.tap} size="11cqmin" cuff="#F0B088" />}</AnimatePresence>
       {notYet.view}
-      <WaitShield on={hold} />
+      {/* 擋著的時候點畫面：「看這裡」的圈圈之外，交出去以後勾勾左右晃一下（還沒好，T-124） */}
+      <WaitShield on={hold} onTap={glad ? nope : undefined} />
     </div>
   )
 }
