@@ -69,6 +69,37 @@ const NEAT_OFF = 0.75
 const GOOD_OFF = 0.4
 
 /**
+ * 描到這一筆的三分之一就放手，算過關（T-139，盲測 61ee1cf：描大 S 描到四成左右就放手，以前走「沒描好」→ You drew it! →
+ * 筆帶著描完，平平地帶過、沒有彩虹，接著又是小 s 的示範；他說「一直畫都不知道對不對，好久喔」「我畫了好多次，還是不知道對不對」離開）。
+ * 英文描字比共用的 LIFT_FINISH（60%，數學寫數字也用）寬：從綠點沿著跑道描到第一顆小星星再放手，剩下的很快補滿（fillRest）、
+ * 彩虹、Great writing!，跟自己描完一樣慶祝。作答紀錄照樣嚴格：沒描到 LIFT_FINISH 就放手的不算描好（short）。
+ */
+const PASS = 1 / 3
+/** 跑道上的小星星（T-139）：描到就亮、叮一聲，一筆畫下去看得到自己描到哪裡；第一顆就是過關的地方（PASS） */
+const MILES = [PASS, 2 / 3]
+/** 這一筆夠長（取樣點數）才放小星星：短短的一橫放兩顆會擠在一起 */
+const MILE_MIN = 30
+/** 描到第幾顆小星星了（進度 p，這一筆共 total 段） */
+const litOf = (p: number, total: number) => (total >= MILE_MIN ? MILES.filter((m) => p >= Math.round(m * total)).length : 0)
+/** 小星星的形狀（跟終點的星星一樣是五角，小一點） */
+const MILE_PTS = Array.from({ length: 10 }, (_, i) => {
+  const r = i % 2 ? 1.9 : 4.4
+  const a = -Math.PI / 2 + (i * Math.PI) / 5
+  return `${(r * Math.cos(a)).toFixed(2)},${(r * Math.sin(a)).toFixed(2)}`
+}).join(' ')
+
+/** 跑道上的一顆小星星：還沒描到是白色空心，描到變金色、跳一下（T-139） */
+function MileStar({ at, lit, color }: { at: P2; lit: boolean; color: string }) {
+  return (
+    <g data-trace-mile={lit ? 'lit' : ''} transform={`translate(${at.x} ${at.y})`} pointerEvents="none">
+      <motion.g initial={false} animate={lit ? { scale: [1, 1.8, 1.15], rotate: [0, 24, 0] } : { scale: 1, rotate: 0 }} transition={{ duration: 0.45, ease: 'easeOut' }}>
+        <polygon points={MILE_PTS} fill={lit ? '#F4C85A' : '#FFFFFF'} stroke={lit ? '#FFFFFF' : color} strokeWidth={lit ? 1 : 0.9} strokeLinejoin="round" />
+      </motion.g>
+    </g>
+  )
+}
+
+/**
  * 一次「沒描好」：放開手指時這一筆還沒描完（也沒到 LIFT_FINISH 帶著描完），而且畫了一段（墨水 ≥ 這麼長，描字板單位，約 9 mm），
  * 不管進度有沒有跟著走。只點一下、碰一下不算。
  * T-112 只算「一大段墨水、進度幾乎沒動」（盲測 b637ff7 seed 3 跳過 S 上面的彎）；拖到一半放手、進度有走的照舊不說話、接著描。
@@ -111,7 +142,7 @@ function strokeStart(d: string) {
  *     描了一段（ATTEMPT_INK 以上）才放手的算一次「沒描好」（下面，T-113），筆從斷掉的地方帶著描完（T-122）；
  *   - 一直偏離跑道：圓點彈一下、還沒描的跑道亮兩下（不說話；以前說 Almost! Follow the line!，T-112 拿掉）；
  *   - 沒描好（放開時這一筆還沒描完，ATTEMPT_INK，T-112、T-113）：沒描上的那條線淡掉。
- *     描到一半放手：「You drew it!」、筆從他停下來的地方帶著描完，往下走（T-122：不要他重描）；
+ *     描不到三分之一就放手（描到 PASS 以上的算過關，T-139）：「You drew it!」、筆從他停下來的地方帶著描完，往下走（T-122：不要他重描）；
  *     完全沒描上（亂畫）：一樣「You drew it!」、筆帶著描完，往下走（T-125：不再要他重描，LESSON_RETRIES 0；
  *     以前整堂第一次是 Nice try! 再描一次）。不說 Almost、不讓他覺得錯了；
  *     筆示範時搶著畫的那一下、多指或手掌壓著的那一下不算沒描好（T-134）：示範收掉、輪到他，綠點等他描；
@@ -126,7 +157,8 @@ function strokeStart(d: string) {
  *     下一輪的格子跳一下（接下來描它）；這時候點描字板，彩虹字再跳一下、彈一聲（不會卡住、不會多記一筆）；
  *     稱讚念完只再停 0.2 秒就換下一輪（以前 0.45 秒）。作答紀錄在稱讚之前就記好了；稱讚本身照 T-108 不能搶；
  *   - 輪到他描 45 秒還沒描完（HELP_MS）：筆帶著把剩下的描完、照樣慶祝（不算自己描好）；
- *   - 描到這一筆的 60% 以上就放手（LIFT_FINISH，T-101、T-106）：剩下的一段補滿，算他描完（照常慶祝、往下走）；
+ *   - 描到這一筆的三分之一以上就放手（PASS，T-139；以前是共用的 LIFT_FINISH 60%，T-101、T-106）：剩下的一段補滿，算他描完（照常慶祝、往下走）；
+ *   - 跑道上有兩顆小星星（三分之一、三分之二，T-139）：描到就變金色、跳一下、叮一聲，看得到自己描到哪裡、描對了；第一顆就是過關的地方；
  *   - 還剩哪一段（T-106）：描到一半，還沒描的跑道輕輕亮、小點往終點流（RestGuide），終點有星星，描過一半輕輕晃（GoalStar）。
  * from：同一天回來接著上時，從第幾輪開始（大寫描過了就只描小寫）；onRound 每一輪開始時告訴外面（記下接續點）。
  */
@@ -199,6 +231,8 @@ export function Trace({
   const helped = useRef(false)
   /** 這一輪沒描好幾次（ATTEMPT_INK） */
   const tries = useRef(0)
+  /** 這一輪有一筆描到 PASS、還沒到 LIFT_FINISH 就放手、補滿的（照樣慶祝；作答紀錄不算描好，T-139） */
+  const short = useRef(false)
   /** 已經說過 You drew it!（第二次沒描上，筆帶著描完之前先說） */
   const affirmed = useRef(false)
   /** 這一下（按下到放開）：墨水多長（描字板單位）、上一點 */
@@ -354,6 +388,7 @@ export function Trace({
     clearTimeout(helpTimer.current)
     helped.current = false
     tries.current = 0
+    short.current = false
     affirmed.current = false
     setNeat(true)
     setReview(false)
@@ -504,7 +539,7 @@ export function Trace({
     const g = glyphOf(rounds[i].big)
     const off = devs.current.reduce((a, d) => a + d.offRatio, 0) / devs.current.length
     // 熟練照樣嚴格（T-112 只放寬回饋）：自己描完、大部分在跑道裡、中間沒有沒描上的那一次
-    const ok = off < GOOD_OFF && !helped.current && !tries.current
+    const ok = off < GOOD_OFF && !helped.current && !tries.current && !short.current
     if (ok) good.current++
     void logAttempt({
       station: 'english',
@@ -525,6 +560,7 @@ export function Trace({
         offRatio: Math.round(off * 100) / 100,
         ...(helped.current ? { helped: 1 } : {}),
         ...(tries.current ? { tries: tries.current } : {}),
+        ...(short.current ? { short: 1 } : {}),
       },
     })
     // 依描的品質給回饋（T-111；T-112 放寬，盲測 b637ff7：連兩次被說不對就離開了）：
@@ -588,10 +624,15 @@ export function Trace({
     if (inkLast.current) inkLen.current += Math.hypot(p.x - inkLast.current.x, p.y - inkLast.current.y)
     inkLast.current = p
     if (!drawing.current) return
+    const before = t.progress
     if (t.feed(p)) {
       moved.current = true
       strayed.current = 0
       setProg(t.progress)
+      // 描到跑道上的小星星：叮一聲（越後面越高，T-139）；星星本身在畫面上變金色、跳一下
+      const total = t.samples.length - 1
+      const lit = litOf(t.progress, total)
+      if (lit > litOf(before, total)) sfx.chime(lit + 1)
       if (t.done) {
         drawing.current = false
         void strokeDone()
@@ -602,7 +643,7 @@ export function Trace({
       setGlow((g) => g + 1)
     }
   }
-  /** 描到大部分就放手（LIFT_FINISH）：剩下的一小段很快補滿，接著跟描到底一樣 */
+  /** 描到三分之一以上就放手（PASS，T-139）：剩下的一段很快補滿，接著跟描到底一樣 */
   const fillRest = async (t: PathTracker) => {
     busy.current = true
     const at = t.progress
@@ -622,8 +663,9 @@ export function Trace({
     inkLen.current = 0
     inkLast.current = null
     const open = !!t && !t.done && !busy.current && phase.current === 'turn'
-    if (open && drawing.current && t.progress > 0 && t.ratio >= LIFT_FINISH) {
-      // 描到大部分就放手：算描完（T-101）
+    if (open && drawing.current && t.progress > 0 && t.ratio >= PASS) {
+      // 描到第一顆小星星以後放手：算描完、照樣慶祝（T-139；T-101 起是描到大部分）。沒到 LIFT_FINISH 的作答紀錄不算描好
+      if (t.ratio < LIFT_FINISH) short.current = true
       void fillRest(t)
     } else if (open && was && isAttempt(t, len) && !extra.current) {
       // 沒描好（沒描上、描到一半放手都算，T-112、T-113）：描到一半放手的，筆從斷掉的地方帶著描完往下走；
@@ -729,6 +771,12 @@ export function Trace({
                   {glowLane(LANE - 6, '#FFE07A')}
                   <path d={strokes[stroke]} fill="none" stroke={look.lane} strokeWidth={LANE} strokeLinecap="round" strokeLinejoin="round" pathLength={total} strokeDasharray={`${prog} ${total + 5}`} />
                   <path d={strokes[stroke]} fill="none" stroke={look.dash} strokeWidth={1.2} strokeDasharray="3 3" strokeLinecap="round" />
+                  {/* 跑道上的小星星（T-139）：描到就變金色、跳一下；第一顆描到就算過關（PASS） */}
+                  {total >= MILE_MIN &&
+                    MILES.map((m, i) => {
+                      const at = samples[Math.round(m * total)]
+                      return at && <MileStar key={`${r}-${stroke}-${i}`} at={at} lit={prog >= Math.round(m * total)} color={look.dash} />
+                    })}
                   {/* 這一筆的起點：一圈光往外擴（每一筆開始時兩次），看得出要從哪裡開始 */}
                   {prog === 0 && !demo && !hold && (
                     <motion.circle
