@@ -267,6 +267,61 @@ test.describe('中文課', () => {
     }
   })
 
+  test('選圖沒有大人帶（T-135，盲測 becf39a 中文 2）：一出來手就輪流點每一張、發呆 3 秒圖再跳、6 秒手再點；手不洩露答案，照著點對算自己答的', async ({ page }, info) => {
+    test.skip(!want('lesson-chinese-ask'))
+    test.setTimeout(4 * 60_000)
+    const { k, c } = await setup(page, info, '沒人帶的選圖', false, false)
+    try {
+      await putKV(page, 'zhLesson:introSeen', true)
+      if (!(await enter(k, c))) return
+      if (!(await readAll(k, c))) return
+      const cue = await page.waitForSelector('.zh-quiz .tile.cue', { timeout: 30_000 }).catch(() => null)
+      if (!cue) return void (await c.once('ask-cue', '卡死', '念完課文沒有出現選圖', ''))
+      /** 手在第幾張（沒有手是 -1）、有沒有標出答案（錯兩次、發呆 30 秒的提示） */
+      const look = () =>
+        page.evaluate(() => {
+          const tiles = [...document.querySelectorAll('.zh-quiz .zh-options .tile')]
+          return { hand: tiles.findIndex((t) => t.querySelector('.demo-hand')), hint: tiles.some((t) => t.classList.contains('hint')), n: tiles.length, wake: Number(document.querySelector('.zh-quiz .zh-options')?.getAttribute('data-wake') ?? 0) }
+        })
+      /** ms 內手去過哪幾張 */
+      const watch = async (ms: number) => {
+        const seen = new Set<number>()
+        let hint = false
+        let wake = 0
+        let n = 0
+        for (const end = Date.now() + ms; Date.now() < end; ) {
+          const x = await look()
+          if (x.hand >= 0) seen.add(x.hand)
+          hint ||= x.hint
+          wake = Math.max(wake, x.wake)
+          n = x.n
+          await page.waitForTimeout(120)
+        }
+        return { seen, hint, wake, n }
+      }
+      // 一出來（大人還沒念題目、孩子不知道要做什麼）：3 秒內手輪流點過每一張，不是只點答案
+      const a = await watch(3500)
+      c.outcome('選圖一出來手輪流點每一張', a.seen.size === a.n && a.n >= 2, `手點過 ${a.seen.size}／${a.n} 張`)
+      if (a.seen.size < a.n) await c.once('ask-first-hand', '困惑', '選圖一出來沒有人帶，畫面沒有手告訴他要點一張圖', `手點過 ${a.seen.size}／${a.n} 張`)
+      c.outcome('手不洩露答案（沒有標出答案）', !a.hint, a.hint ? '答案被標出來了' : '')
+      // 孩子發呆：3 秒圖再跳一下、6 秒手再輪流點一次（不等 15、30 秒）
+      const b = await watch(9500)
+      c.outcome('發呆幾秒：圖再跳一下、手再輪流點', b.wake > 0 && b.seen.size === b.n, `跳 ${b.wake} 次、手點過 ${b.seen.size}／${b.n} 張`)
+      if (!(b.wake > 0 && b.seen.size === b.n)) await c.once('ask-idle', '困惑', '選圖發呆好幾秒都沒有東西提醒他點圖', `跳 ${b.wake} 次、手點過 ${b.seen.size}／${b.n} 張`)
+      c.outcome('發呆 13 秒還沒標出答案', !b.hint, b.hint ? '答案被標出來了' : '')
+      // 照著點對：算他自己答的（quiz，不是 guided）
+      const ans = (await points(page, '.zh-quiz .tile[data-answer]'))[0]
+      await k.tap(ans, '點對的那張')
+      await k.wait(1200)
+      const rows = await quizRows(page)
+      c.outcome('點對記一筆、算自己答的', rows.length === 1, `作答 ${rows.length} 筆（${(await attempts(page)).filter((r) => r.game === 'zh-lesson').map((r) => r.phase).join('、')}）`)
+      if (rows.length !== 1) await c.once('ask-led', '誤記作答', '手輪流點過以後點對，沒有記成自己答的', '')
+      await c.flush()
+    } finally {
+      finish(k, c, '沒人帶的選圖')
+    }
+  })
+
   test('親子共讀走完一堂：說明卡、大人還沒按下一行時亂點、連點下一行、聊一聊、連點選項，下課', async ({ page }, info) => {
     test.skip(!want('lesson-chinese-play'))
     test.setTimeout(8 * 60_000)
