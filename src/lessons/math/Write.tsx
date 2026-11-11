@@ -23,6 +23,17 @@ import '../../games/draw/glyph.css'
 const LANE = 20
 const H = 140
 
+/**
+ * 一次「沒描好」（跟英文描字一樣，english/Trace.tsx 的 ATTEMPT_INK）：放開手指時這一筆還沒描完（也沒到 LIFT_FINISH 帶著描完），
+ * 而且畫了一段（墨水 ≥ 這麼長，描字板單位，約 9 mm），進度有沒有走都算。只點一下、碰一下不算；筆示範時搶著畫的那一下不算。
+ */
+const ATTEMPT_INK = 12
+/**
+ * 一遍裡沒描好幾次，就由筆從他停下來的地方帶著描完、照樣慶祝、算過關（T-135，盲測 becf39a 數學 1：
+ * 描 1 拖了好幾次，「好久喔」離開；以前只有 45 秒的 HELP_MS）。比照英文描字由筆帶著描完（T-125），作答紀錄照舊記成筆帶著的
+ */
+const WRITE_TRIES = 2
+
 /** 數字的筆順（座標系 W × 140）：1～9 用描字的 GLYPHS；10 是 1 和 0 並排（寬一點的畫布），一樣是兩筆 */
 function digit(n: number): { w: number; strokes: string[] } {
   if (n < 10) return { w: 100, strokes: GLYPHS[String(n)] }
@@ -59,7 +70,8 @@ function strokeStart(d: string) {
  * T-95（AI 小男生盲測：描 1 畫了 4 次，看不出畫對了沒、什麼時候算畫完）：
  * - 起點、斷掉的地方附近按下去都吸過去（track.ts 的 SNAP_MM）；放手不歸零，綠點移到斷掉的地方（TraceFx 的 ResumeDot）；
  * - 畫完：數字變彩虹色、跳一下、星星，不靠語言；
- * - 輪到他描 45 秒還沒描完（HELP_MS）：筆帶著把剩下的描完、照樣慶祝（不算自己描好）；
+ * - 輪到他描 45 秒還沒描完（HELP_MS），或這一遍沒描好兩次（WRITE_TRIES，T-135）：筆帶著把剩下的描完、照樣慶祝（不算自己描好）；
+ * - 第二遍開頭說「Let's write one!」（T-135：以前說 One more time!，描好了聽起來也像沒描好要重來）；
  * - 描到這一筆的 60% 以上就放手（LIFT_FINISH，T-101、T-106）：剩下的一段補滿，算他描完；
  * - 還剩哪一段（T-106，跟英文描字一樣）：描到一半，還沒描的跑道輕輕亮、小點往終點流（RestGuide），終點有星星，描過一半輕輕晃（GoalStar）。
  */
@@ -92,6 +104,13 @@ export function WritePart({ ctx }: { ctx: PartCtx }) {
   const strokeRef = useRef(0)
   const drawing = useRef(false)
   const moved = useRef(false)
+  /** 這一下畫了多長（墨水，不管有沒有描上）、上一個點、按下去時是哪一筆、是不是筆示範時搶著畫的 */
+  const inkLen = useRef(0)
+  const inkLast = useRef<{ x: number; y: number } | null>(null)
+  const dragT = useRef<PathTracker | null>(null)
+  const barged = useRef(false)
+  /** 這一遍沒描好幾次（WRITE_TRIES） */
+  const misses = useRef(0)
   /** 不能搶的那幾段：描完的慶祝、筆帶著描完、放手後補滿 */
   const busy = useRef(false)
   /** intro 說明、demo 筆的示範（可以搶）；turn 輪到孩子 */
@@ -221,6 +240,7 @@ export function WritePart({ ctx }: { ctx: PartCtx }) {
     const ok = flow.begin(live)
     clearTimeout(helpTimer.current)
     helped.current = false
+    misses.current = 0
     busy.current = false
     phase.current = 'intro'
     t0.current = 0
@@ -248,7 +268,7 @@ export function WritePart({ ctx }: { ctx: PartCtx }) {
         phase.current = 'intro'
         await say('teach.turn.bobo')
       } else await say(`ma.write.${n}`)
-    } else await say('ma.write.again')
+    } else await say(`ma.write.${n}`)
     if (!ok()) return
     openTurn()
   }
@@ -348,12 +368,17 @@ export function WritePart({ ctx }: { ctx: PartCtx }) {
 
   const onDown = (p: { x: number; y: number }) => {
     if (!tracker.current || busy.current || !armed.current) return
+    // 筆正在示範的那一下：放開時不算「沒描好」
+    barged.current = phase.current === 'demo'
     // 說明、示範的時候下筆：示範收掉，這一筆照常描（示範最後整個數字亮起來的那一刻也算，先收掉才看描完了沒）
     if (phase.current !== 'turn') takeOver()
     if (doneRef.current) return
     idle.poke()
     setAgain(null)
     moved.current = false
+    inkLen.current = 0
+    inkLast.current = p
+    dragT.current = tracker.current
     // 接著描、從起點沿著描好的部分走回來、或起點和斷掉的地方附近吸過去（track.ts 的 penDown）
     const how = tracker.current.penDown(p, snapUnits())
     drawing.current = !!how
@@ -362,6 +387,8 @@ export function WritePart({ ctx }: { ctx: PartCtx }) {
     const t = tracker.current
     if (!t || doneRef.current || busy.current || phase.current !== 'turn') return
     idle.poke()
+    if (inkLast.current) inkLen.current += Math.hypot(p.x - inkLast.current.x, p.y - inkLast.current.y)
+    inkLast.current = p
     if (!drawing.current) return
     if (t.feed(p)) {
       moved.current = true
@@ -457,8 +484,15 @@ export function WritePart({ ctx }: { ctx: PartCtx }) {
             onMove={onMove}
             onUp={() => {
               const t = tracker.current
+              const len = inkLen.current
+              const was = inkLast.current
+              inkLen.current = 0
+              inkLast.current = null
+              const open = !!t && !t.done && !busy.current && !doneRef.current && phase.current === 'turn'
               // 描到大部分就放手：剩下的一小段很快補滿，算描完（T-101）
-              if (drawing.current && t && !t.done && t.progress > 0 && !busy.current && t.ratio >= LIFT_FINISH) void fillRest(t)
+              if (open && drawing.current && t.progress > 0 && t.ratio >= LIFT_FINISH) void fillRest(t)
+              // 沒描好（畫了一段、這一筆還沒描完；這一下描完一筆換到下一筆的不算）：第二次就由筆帶著描完（WRITE_TRIES）
+              else if (open && was && t === dragT.current && len >= ATTEMPT_INK && !barged.current && ++misses.current >= WRITE_TRIES) void helpFinish()
               drawing.current = false
               if (!moved.current) ink.current?.fadeLast()
               moved.current = false

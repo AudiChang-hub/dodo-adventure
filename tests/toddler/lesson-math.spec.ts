@@ -78,7 +78,7 @@ const partNow = (page: Page) =>
 const lessonEnd = (page: Page) => page.evaluate(() => !!document.querySelector('.cheer-scrim'))
 const stickerUp = (page: Page) => page.evaluate(() => !!document.querySelector('.cheer-scrim .picker'))
 
-/** 把課往下上一步：數下一個、拿給波波（盤子裡不夠就拿、太多就拿回來、剛好就點勾勾）、點發光的（沒有就隨便挑一張）、沿著跑道描、點念完的教學卡 */
+/** 把課往下上一步：數下一個、拿給波波（盤子裡不夠就拿、太多就拿回來、剛好就點勾勾）、點發光的（沒有就隨便挑一張）、沿著跑道描 */
 async function solve(k: Toddler) {
   const page = k.page
   const s = await page.evaluate(() => {
@@ -89,7 +89,6 @@ async function solve(k: Toddler) {
       const r = el.getBoundingClientRect()
       return r.width > 4 ? { x: r.left + r.width / 2, y: r.top + r.height / 2 } : null
     }
-    const card = live.querySelector('.teach-card.ready')
     // 拿給波波：要幾個（大數字）、盤子裡有幾個（拿回…的那幾個）
     const want = Number(live.querySelector('.ma-give-num')?.textContent ?? 0)
     const inPlate = [...live.querySelectorAll('.ma-give-thing')].filter((e) => e.getAttribute('aria-label')?.startsWith('拿回'))
@@ -119,10 +118,9 @@ async function solve(k: Toddler) {
         return { x: m.a * q.x + m.e, y: m.d * q.y + m.f }
       })
     }
-    return { card: c(card), give, thing: thing[0] ?? null, hint, tiles, stroke }
+    return { give, thing: thing[0] ?? null, hint, tiles, stroke }
   })
   if (!s) return
-  if (s.card) return k.tap(s.card as Pt, '點教學卡')
   if (s.give) return k.tap(s.give as Pt, '拿給波波')
   if (s.thing) return k.tap(s.thing as Pt, '數下一個')
   if (s.hint) return k.tap(s.hint as Pt, '點發光的')
@@ -256,7 +254,7 @@ test.describe('數學課', () => {
   })
 
   // T-104（第一、四次盲測）：拿給波波按完打勾，同一個位置馬上冒出別的功能（下一段的教學卡「再聽一次」），他一直點、聽到重播，看不懂。
-  // 按完打勾後在同一個位置連點：不能觸發別的功能（教學卡要停在「等他點」）；停一下再點一次，教學卡才重播、往下走
+  // 按完打勾後在同一個位置連點：不能觸發別的功能（T-135 起比多少第一次是手的示範：示範要照常做完、不能被記成作答）；停一下點答案才算作答
   test('拿給波波：按完打勾連點同一個位置，不會觸發別的功能', async ({ page }, info) => {
     test.skip(!want())
     test.setTimeout(3 * 60_000)
@@ -266,7 +264,7 @@ test.describe('數學課', () => {
         const d = new Date()
         return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
       })
-      // 同一天從「拿給波波」接著上，今天的數字 1（新的：比多少會先出教學卡）
+      // 同一天從「拿給波波」接著上，今天的數字 1（新的：比多少會先由手示範）
       await setMath(page, { next: 2, firm: false, day, n: 1, mode: 'new', part: 1, asked: 0, missed: 0 })
       if (!(await enter(k, c))) return
       const ready = await page
@@ -284,30 +282,39 @@ test.describe('數學課', () => {
       await k.tap((await at('.ma-give-thing'))!, '拿一個')
       await k.wait(700)
       const ok = (await at('.ma-give-done'))!
+      const before = (await attempts(page)).length
       await k.tap(ok, '打勾')
       // 按完打勾，在同一個位置一直點（三歲：按了好像就好了，再點點看）
       k.behavior = '打勾後連點同一個位置'
-      // 22 秒：蓋過下一段教學卡念完、變成「等他點」的時間（兩句，大約按完打勾後 12 秒；以前三句 16 秒）
+      // 一直連點到比多少手的示範做完、輪到他選（最多 22 秒）。輪到他選以後還在連點，點到的那一堆就是他選的（選擇題本來就這樣，T-108）
       const end = Date.now() + 22_000
+      let seenDemo = false
       while (Date.now() < end) {
         await k.tap(ok, '同一個位置')
         await k.wait(300)
+        const d = await page.evaluate(() => !!document.querySelector('[data-teach-demo]'))
+        if (d) seenDemo = true
+        else if (seenDemo) break
       }
-      const st = await page.evaluate(() => ({ part: [...document.querySelectorAll('[data-lesson-part]')].pop()?.getAttribute('data-lesson-part') ?? null, card: !!document.querySelector('.teach-card'), ready: !!document.querySelector('.teach-card.ready') }))
-      const held = st.part === 'compare' && st.card
-      c.outcome('連點不會觸發別的功能（教學卡還在等他點）', held, `${st.part}，教學卡${st.card ? (st.ready ? '在等他點' : '還在') : '已經被點掉了'}`)
-      if (!held) await c.once('carry-tap', '困惑', '按完打勾後連點同一個位置，觸發了下一段教學卡的重播、往下走', `停在 ${st.part}`)
-      // 停一下、再點一次教學卡：重播、往下走（原本的功能還在）
+      const st = await page.evaluate(() => ({ part: [...document.querySelectorAll('[data-lesson-part]')].pop()?.getAttribute('data-lesson-part') ?? null, demo: !!document.querySelector('[data-teach-demo]') }))
+      const rows = (await attempts(page)).slice(before).filter((a) => a.game === 'm-compare')
+      const taught = rows.some((a) => a.phase === 'teach')
+      const answered = rows.filter((a) => a.phase !== 'teach').length
+      const held = st.part === 'compare' && taught && answered === 0
+      c.outcome('連點不會觸發別的功能（比多少手的示範照常做完、沒有被記成作答）', held, `${st.part}，示範${taught ? '做完了' : st.demo ? '還在' : '沒有做'}，作答 ${answered} 筆`)
+      if (!held) await c.once('carry-tap', '困惑', '按完打勾後連點同一個位置，比多少的示範被跳過或被記成作答', `停在 ${st.part}，示範${taught ? '做完了' : '沒做完'}，作答 ${answered} 筆`)
+      // 停一下、點答案：照常作答（原本的功能還在）
       if (held) {
-        k.behavior = '停一下再點教學卡'
+        k.behavior = '停一下再點答案'
         await k.wait(1500)
-        await k.tap((await at('.teach-card'))!, '教學卡')
-        const gone = await page
-          .waitForFunction(() => !document.querySelector('.teach-card'), null, { timeout: 10_000 })
-          .then(() => true)
-          .catch(() => false)
-        c.outcome('停一下再點教學卡：重播、往下走', gone, gone ? '' : '教學卡沒有反應')
-        if (!gone) await c.once('card-dead', '卡死', '停一下再點教學卡沒有反應', '')
+        await k.tap((await at('.ma-quiz .ma-tile[data-answer]'))!, '點答案')
+        let got = false
+        for (let i = 0; i < 20 && !got; i++) {
+          await k.wait(250)
+          got = (await attempts(page)).slice(before).some((a) => a.game === 'm-compare' && a.phase !== 'teach')
+        }
+        c.outcome('停一下再點答案：記一筆作答', got, got ? '' : '點了沒有反應')
+        if (!got) await c.once('compare-dead', '卡死', '比多少停一下再點答案沒有反應', '')
       }
     } finally {
       await c.flush().catch(() => {})
@@ -347,14 +354,14 @@ test.describe('數學課', () => {
       const ok = (await at('.ma-give-done'))!
       const t0 = await page.evaluate(() => performance.now())
       await k.tap(ok, '打勾')
-      // 能動手了：比多少的教學卡念完、等他點（或已經直接到題目、選項收作答）
+      // 能動手了：比多少出來、擋板收掉（手的示範中點「多」的那一堆就換他，T-135）
       // 等 1.5 秒（中間一能動手就記下那一刻，用頁面裡的時間）
       const canAct = () =>
         page
           .waitForFunction(
             () => {
               const part = [...document.querySelectorAll('[data-lesson-part]')].pop()?.getAttribute('data-lesson-part')
-              const can = !!document.querySelector('.teach-card.ready') || (part === 'compare' && !document.querySelector('.teach-card') && !!document.querySelector('.ma-lesson [data-accepting="true"]'))
+              const can = part === 'compare' && !!document.querySelector('.ma-lesson [data-accepting="true"]')
               return can ? performance.now() : false
             },
             null,
@@ -378,11 +385,11 @@ test.describe('數學課', () => {
           waited = now - t0
           if (process.env.TODDLER_SHOTS && info.project.name === 'tab1280') {
             await k.wait(600)
-            await page.screenshot({ path: `${process.env.TODDLER_SHOTS}/教學卡念完等他點.png` })
+            await page.screenshot({ path: `${process.env.TODDLER_SHOTS}/比多少能動手.png` })
           }
           break
         }
-        // 點一下打勾原本的位置（教學卡也會蓋在這裡）：要有「看這裡、等一下」的圈圈
+        // 點一下打勾原本的位置：要有「看這裡、等一下」的圈圈
         const before = await page.evaluate(() => performance.now())
         const inGive = await page.evaluate(() => !!document.querySelector('.ma-give-done.is-done:not(.is-gone)'))
         await k.tap(ok, '等的時候點一下')
@@ -401,9 +408,7 @@ test.describe('數學課', () => {
           .then(() => true)
           .catch(() => false)
         if (ring) answered++
-        if (ring && process.env.TODDLER_SHOTS && info.project.name === 'tab1280' && (await page.evaluate(() => !!document.querySelector('.teach-card'))))
-          await page.screenshot({ path: `${process.env.TODDLER_SHOTS}/教學卡念的時候點-${taps}.png` })
-        if (!ring) silent.push(`${((before - t0) / 1000).toFixed(1)}s ${await page.evaluate(() => (document.querySelector('.teach-card') ? '教學卡' : ([...document.querySelectorAll('[data-lesson-part]')].pop()?.getAttribute('data-lesson-part') ?? '?')))}`)
+        if (!ring) silent.push(`${((before - t0) / 1000).toFixed(1)}s ${await page.evaluate(() => (document.querySelector('[data-teach-demo]') ? '比多少示範' : ([...document.querySelectorAll('[data-lesson-part]')].pop()?.getAttribute('data-lesson-part') ?? '?')))}`)
       }
       const heard = await page.evaluate((t) => window.__toddler.voices.filter((v) => v.t >= t && v.text).map((v) => `${((v.t - t) / 1000).toFixed(1)}s ${v.text}`), t0)
       const secs = waited < 0 ? -1 : Math.round(waited / 100) / 10
@@ -423,7 +428,7 @@ test.describe('數學課', () => {
   // T-106（第六次盲測第 7、8 步，報告標「要再確認」）：按完打勾（手多點一下），下一個動作是從恐龍拖到盤子，程式記到的卻是「再聽一次」。
   // 重現：按完打勾後 0.3～2 秒內點同一個位置、點附近、從恐龍拖到盤子 → 不能觸發「再聽一次」（下一段的教學卡要停在等他點），每一下都有「等一下」的回應。
   // 再照盲測的時間點（AI 小男生的大腦想了 11 秒：截圖在打勾後 2 秒，拖的時候已經是打勾後約 13 秒）拖一次，記下那時候手指落在什麼上面。
-  test('拿給波波：按完打勾 0.3～2 秒內再點、再拖，不會觸發再聽一次', async ({ page }, info) => {
+  test('拿給波波：按完打勾 0.3～2 秒內再點、再拖，不會跳過比多少的示範', async ({ page }, info) => {
     test.skip(!want())
     test.setTimeout(3 * 60_000)
     const { k, c } = await setup(page, info, '打勾後馬上再點')
@@ -432,7 +437,7 @@ test.describe('數學課', () => {
         const d = new Date()
         return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
       })
-      // 跟盲測一樣：同一天從「拿給波波」接著上，今天的數字 1（新的：比多少會先出教學卡）
+      // 跟盲測一樣：同一天從「拿給波波」接著上，今天的數字 1（新的：比多少會先由手示範）
       await setMath(page, { next: 2, firm: false, day, n: 1, mode: 'new', part: 1, asked: 0, missed: 0 })
       if (!(await enter(k, c))) return
       const ready = await page
@@ -498,37 +503,21 @@ test.describe('數學課', () => {
         if (ring) answered++
         early.push(`${((t - t0) / 1000).toFixed(1)}s ${s.how}→${hit}${ring ? '（等一下的圈圈）' : ''}`)
       }
-      // 等教學卡念完、等他點：早先那幾下不能被算成點教學卡（教學卡要還在、還在等他點），也不能有重播
-      const cardReady = await page
-        .waitForFunction(() => (document.querySelector('.teach-card.ready') ? performance.now() : false), null, { timeout: 25_000, polling: 50 })
+      // 等比多少手的示範做完、輪到他選（T-135）：早先那幾下不能把示範跳過，也不能被記成作答
+      const demoEnd = await page
+        .waitForFunction(() => (!document.querySelector('[data-teach-demo]') && document.querySelector('.ma-quiz .ma-tile') ? performance.now() : false), null, { timeout: 30_000, polling: 50 })
         .then((h) => h.jsonValue() as Promise<number>)
         .catch(() => null)
       const voices = () => page.evaluate((t) => window.__toddler.voices.filter((v) => v.t >= t && v.text).map((v) => `${((v.t - t) / 1000).toFixed(1)}s ${v.text}`), t0)
-      if (!cardReady) {
-        const st = await page.evaluate(() => ({ part: [...document.querySelectorAll('[data-lesson-part]')].pop()?.getAttribute('data-lesson-part'), card: !!document.querySelector('.teach-card') }))
-        c.outcome('0.3～2 秒內的點擊不會觸發再聽一次（教學卡念完還在等他點）', false, `${early.join('、')}；之後 ${st.part}，教學卡${st.card ? '還在' : '已經被點掉了'}；聽到：${(await voices()).join('、')}`)
-        await c.once('give-early-replay', '困惑', '按完打勾 0.3～2 秒內的點擊，觸發了下一段教學卡的再聽一次', early.join('、'))
-        return
-      }
-      await k.wait(800)
-      const held = await page.evaluate(() => !!document.querySelector('.teach-card.ready'))
+      const rows = (await attempts(page)).filter((a) => a.game === 'm-compare')
+      const shown = rows.some((a) => a.phase === 'teach')
+      const picked = rows.filter((a) => a.phase !== 'teach').length
       const heard = await voices()
-      c.outcome('0.3～2 秒內的點擊不會觸發再聽一次（教學卡念完還在等他點）', held, `${early.join('、')}；教學卡念完是打勾後 ${((cardReady - t0) / 1000).toFixed(1)} 秒；聽到：${heard.join('、')}`)
-      if (!held) await c.once('give-early-replay', '困惑', '按完打勾 0.3～2 秒內的點擊，觸發了下一段教學卡的再聽一次', early.join('、'))
+      const held = !!demoEnd && shown && picked === 0 && heard.some((v) => /This side has (more|fewer)/.test(v))
+      c.outcome('0.3～2 秒內的點擊不會跳過比多少的示範（手點了多的那一堆、念了 This side has more）', held, `${early.join('、')}；示範做完是打勾後 ${demoEnd ? ((demoEnd - t0) / 1000).toFixed(1) : '?'} 秒；作答 ${picked} 筆；聽到：${heard.join('、')}`)
+      if (!held) await c.once('give-early-skip', '困惑', '按完打勾 0.3～2 秒內的點擊，跳過了比多少的示範或被記成作答', early.join('、'))
       c.outcome('0.3～2 秒內每一下都有「等一下」的回應', answered === plan.length, `${answered}/${plan.length}`)
       if (answered < plan.length) await c.once('give-early-silent', '困惑', '按完打勾 0.3～2 秒內點畫面，看不出要等一下', `${answered}/${plan.length}：${early.join('、')}`)
-      // 盲測的時間點：打勾後約 13 秒，從那隻恐龍原本的位置拖到盤子（記錄那時候手指落在什麼上面，不判對錯）
-      if (held) {
-        const now = await page.evaluate(() => performance.now())
-        if (now - t0 < 13_200) await k.wait(13_200 - (now - t0))
-        const hit = await what(pile!)
-        const t13 = await page.evaluate(() => performance.now())
-        k.behavior = '照盲測的時間點（打勾後 13 秒）從恐龍原本的位置拖到盤子'
-        await k.drag([pile!, plate], { stepMs: 16, label: '打勾後 13 秒拖' })
-        await k.wait(1500)
-        const after = await page.evaluate((t) => window.__toddler.voices.filter((v) => v.t >= t && v.text).map((v) => v.text), t13)
-        c.outcome('盲測的時間點（打勾後 13 秒）：手指落在念完的教學卡上，算點教學卡（重播一次、往下走）', true, `落在：${hit}；之後聽到：${after.join('、')}`)
-      }
     } finally {
       await c.flush().catch(() => {})
       finish(k, c, '打勾後馬上再點')
@@ -869,6 +858,215 @@ test.describe('數學課', () => {
       finish(k, c, '描到一半')
     }
   })
+  // ── T-135（盲測 becf39a 數學 2、9792b5d 數學 2：比多少「一直點都不知道要幹嘛」離開）────────────────
+  // 比多少第一次：手先點「多」的那一堆給他看（不靠英文）；示範中點空白、點另一堆不會跳過示範；點「多」的那一堆就換他；
+  // 輪到他選 10 秒沒點：手再指一次答案、再念一次題目，那一下算一起練
+  /** 同一天從比多少接著上（今天的數字 1，比多少第一次：先由手示範）；回傳示範有沒有出來 */
+  async function toCompareDemo(page: Page, k: Toddler, c: Checker) {
+    const day = await page.evaluate(() => {
+      const d = new Date()
+      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+    })
+    await setMath(page, { next: 2, firm: false, day, n: 1, mode: 'new', part: PARTS.indexOf('compare'), asked: 0, missed: 0 })
+    if (!(await enter(k, c))) return false
+    const ok = await page
+      .waitForFunction(() => !!document.querySelector('[data-teach-demo]'), null, { timeout: 30_000 })
+      .then(() => true)
+      .catch(() => false)
+    if (!ok) await c.once('no-demo', '困惑', '比多少第一次沒有手的示範', `停在 ${await partNow(page)}`)
+    return ok
+  }
+  const box = (page: Page, sel: string) =>
+    page.evaluate((sel) => {
+      const r = [...document.querySelectorAll(sel)].pop()?.getBoundingClientRect()
+      return r && r.width > 2 ? { x: r.left + r.width / 2, y: r.top + r.height / 2, l: r.left, t: r.top, r: r.right, b: r.bottom } : null
+    }, sel)
+
+  test('比多少第一次（T-135）：手先點多的那一堆；示範中亂點不會跳過；10 秒沒點手再指一次', async ({ page }, info) => {
+    test.skip(!want())
+    test.setTimeout(3 * 60_000)
+    const { k, c } = await setup(page, info, '比多少示範')
+    try {
+      if (!(await toCompareDemo(page, k, c))) return
+      const t0 = await page.evaluate(() => performance.now())
+      // 兩堆出來（念題目）以後：點空白、點另一堆（少的那一堆）——都只有「看這裡」的圈圈，示範照常做
+      await page.waitForFunction(() => [...document.querySelectorAll('.ma-teach .ma-tile')].some((e) => getComputedStyle(e).opacity === '1'), null, { timeout: 10_000 }).catch(() => {})
+      k.behavior = '示範中點空白、點另一堆'
+      const other = await box(page, '.ma-teach .ma-tile:not([data-answer])')
+      const ring = () =>
+        page
+          .waitForFunction(() => !!document.querySelector('.not-yet'), null, { timeout: 900, polling: 30 })
+          .then(() => true)
+          .catch(() => false)
+      let rings = 0
+      // 示範畫面裡、兩堆上面的空白（離兩堆都超過 NEAR_PX）
+      const blank = await page.evaluate(() => {
+        const t = [...document.querySelectorAll('.ma-teach .ma-tile')].map((e) => e.getBoundingClientRect())
+        const top = Math.min(...t.map((r) => r.top))
+        return { x: (t[0].right + t[1].left) / 2, y: top - 50 }
+      })
+      await k.tap(blank, '示範中點空白')
+      if (await ring()) rings++
+      await k.wait(400)
+      if (other) {
+        await k.tap({ x: other.x, y: other.y }, '示範中點另一堆')
+        if (await ring()) rings++
+      }
+      const still = await page.evaluate(() => !!document.querySelector('[data-teach-demo]'))
+      c.outcome('示範中點空白、點另一堆：示範照常做、有「看這裡」的圈圈', still && rings === 2, `示範${still ? '還在' : '被跳過了'}，圈圈 ${rings}/2`)
+      if (!still) await c.once('demo-skipped', '困惑', '比多少的示範被亂點跳過了（他沒看到手點多的那一堆）', '')
+      // 手移到「多」的那一堆、點下去：那一堆亮綠框（不用聽懂英文）
+      let onPile = false
+      const lit = await page
+        .waitForFunction(() => !!document.querySelector('.ma-teach .ma-tile[data-answer].correct'), null, { timeout: 12_000, polling: 50 })
+        .then(() => true)
+        .catch(() => false)
+      const hand = await box(page, '.ma-teach .demo-hand')
+      const pile = await box(page, '.ma-teach .ma-tile[data-answer]')
+      if (hand && pile) onPile = hand.x >= pile.l && hand.x <= pile.r && hand.y >= pile.t - 40 && hand.y <= pile.b + 40
+      if (process.env.TODDLER_SHOTS && info.project.name === 'tab1280') await page.screenshot({ path: `${process.env.TODDLER_SHOTS}/比多少示範-手點多的那一堆.png` })
+      c.outcome('手點了多的那一堆、那一堆亮起來', lit && onPile, `亮${lit ? '了' : '沒有'}，手${onPile ? '在那一堆上' : hand ? '不在那一堆上' : '不見了'}`)
+      if (!(lit && onPile)) await c.once('demo-hand', '困惑', '比多少的示範看不出手點的是哪一堆', '')
+      // 示範做完換題目：記一筆教學、還沒有作答
+      const quiz = await page
+        .waitForFunction(() => !document.querySelector('[data-teach-demo]') && !!document.querySelector('.ma-quiz .ma-tile.cue'), null, { timeout: 15_000, polling: 50 })
+        .then(() => true)
+        .catch(() => false)
+      const tq = await page.evaluate(() => performance.now())
+      const rows = (await attempts(page)).filter((a) => a.game === 'm-compare')
+      c.outcome('示範做完換他選：記一筆教學、沒有作答', quiz && rows.some((a) => a.phase === 'teach') && !rows.some((a) => a.phase !== 'teach'), `${quiz ? '換題目了' : '沒有換題目'}；紀錄：${rows.map((a) => a.phase).join('、') || '沒有'}；示範 ${((tq - t0) / 1000).toFixed(1)} 秒`)
+      if (!quiz) return void (await c.once('demo-stuck', '卡死', '比多少示範做完沒有換題目', ''))
+      // 發呆：10 秒沒點，手再指一次答案（答案亮起來）、再念一次題目
+      k.behavior = '輪到他選，發呆'
+      const nudged = await page
+        .waitForFunction(() => (document.querySelector('.ma-quiz .ma-tile.hint') && document.querySelector('.ma-quiz .demo-hand') ? performance.now() : false), null, { timeout: 16_000, polling: 100 })
+        .then((h) => h.jsonValue() as Promise<number>)
+        .catch(() => null)
+      const secs = nudged ? (nudged - tq) / 1000 : -1
+      c.outcome('輪到他選 10 秒沒點：手再指一次答案', secs >= 8 && secs <= 13, secs < 0 ? '16 秒內手都沒有出來' : `${secs.toFixed(1)} 秒`)
+      if (!(secs >= 8 && secs <= 13)) await c.once('compare-nudge', '困惑', '比多少發呆時，手沒有在 10 秒左右再指一次答案', `${secs.toFixed(1)} 秒`)
+      // 照著手點答案：算一起練（不是自己答的）
+      await k.tap((await box(page, '.ma-quiz .ma-tile[data-answer]'))!, '照著手點答案')
+      let row: { phase: string } | undefined
+      for (let i = 0; i < 20 && !row; i++) {
+        await k.wait(250)
+        row = (await attempts(page)).find((a) => a.game === 'm-compare' && a.phase !== 'teach')
+      }
+      c.outcome('照著手點答案：記成一起練', row?.phase === 'guided', row ? row.phase : '沒有記')
+      if (row?.phase !== 'guided') await c.once('compare-led', '誤記作答', '比多少照著發呆手點的答案沒有記成一起練', row?.phase ?? '沒有記')
+    } finally {
+      await c.flush().catch(() => {})
+      finish(k, c, '比多少示範')
+    }
+  })
+
+  test('比多少第一次（T-135）：示範中點多的那一堆，直接換他', async ({ page }, info) => {
+    test.skip(!want())
+    test.setTimeout(3 * 60_000)
+    const { k, c } = await setup(page, info, '比多少示範搶點')
+    try {
+      if (!(await toCompareDemo(page, k, c))) return
+      // 兩堆出來就點「多」的那一堆（看手學會了）
+      await page.waitForFunction(() => [...document.querySelectorAll('.ma-teach .ma-tile[data-answer]')].some((e) => getComputedStyle(e).opacity === '1'), null, { timeout: 10_000 }).catch(() => {})
+      k.behavior = '示範中點多的那一堆'
+      const t1 = await page.evaluate(() => performance.now())
+      await k.tap((await box(page, '.ma-teach .ma-tile[data-answer]'))!, '示範中點多的那一堆')
+      const quiz = await page
+        .waitForFunction(() => (!document.querySelector('[data-teach-demo]') && document.querySelector('.ma-quiz .ma-tile') ? performance.now() : false), null, { timeout: 4000, polling: 50 })
+        .then((h) => h.jsonValue() as Promise<number>)
+        .catch(() => null)
+      const rows = (await attempts(page)).filter((a) => a.game === 'm-compare')
+      c.outcome('示範中點多的那一堆：直接換他（不等示範念完、不記成作答）', !!quiz && rows.some((a) => a.phase === 'teach') && !rows.some((a) => a.phase !== 'teach'), quiz ? `${((quiz - t1) / 1000).toFixed(1)} 秒換題目` : '4 秒內沒有換題目')
+      if (!quiz) await c.once('demo-grab', '困惑', '比多少示範中點了多的那一堆，還要等示範念完', '')
+      // 題目照常可以答
+      if (quiz) {
+        await page.waitForFunction(() => !!document.querySelector('.ma-quiz .ma-tile.cue'), null, { timeout: 10_000 }).catch(() => {})
+        await k.tap((await box(page, '.ma-quiz .ma-tile[data-answer]'))!, '點答案')
+        let got = false
+        for (let i = 0; i < 20 && !got; i++) {
+          await k.wait(250)
+          got = (await attempts(page)).some((a) => a.game === 'm-compare' && a.phase !== 'teach')
+        }
+        c.outcome('換他以後照常作答', got, got ? '' : '點了沒有反應')
+        if (!got) await c.once('compare-dead', '卡死', '比多少示範被搶掉以後，點答案沒有反應', '')
+      }
+    } finally {
+      await c.flush().catch(() => {})
+      finish(k, c, '比多少示範搶點')
+    }
+  })
+
+  test('寫數字（T-135）：沒描好兩次，筆帶著描完、算過關；第二遍不說 One more time', async ({ page }, info) => {
+    test.skip(!want())
+    test.setTimeout(3 * 60_000)
+    const { k, c } = await setup(page, info, '描數字沒描好')
+    try {
+      const day = await page.evaluate(() => {
+        const d = new Date()
+        return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+      })
+      // 今天的數字 1（盲測描的就是 1），同一天從寫數字接著上
+      await setMath(page, { next: 2, firm: true, day, n: 1, mode: 'review', part: PARTS.indexOf('write'), asked: 0, missed: 0 })
+      if (!(await enter(k, c))) return
+      const p = await firstPart(page)
+      if (p !== 'write') return void (await c.once('to-write', '困惑', '沒有從寫數字開始', `從 ${p} 開始`))
+      const ready = () =>
+        page
+          .waitForFunction(() => !![...document.querySelectorAll('.ma-paper canvas[data-accepting="true"]')].length && !document.querySelector('[data-demo="1"]'), null, { timeout: 30_000 })
+          .then(() => true)
+          .catch(() => false)
+      if (!(await ready())) return void (await c.once('write-ready', '卡死', '寫數字一直不能畫', ''))
+      await k.wait(400)
+      const along = (from: number, to: number, n = 10) =>
+        page.evaluate(
+          ({ from, to, n }) => {
+            const p = [...document.querySelectorAll('.ma-paper')].pop()!.querySelector<SVGPathElement>('path[stroke-dasharray="3 3"]')!
+            const m = p.getScreenCTM()!
+            const len = p.getTotalLength()
+            return Array.from({ length: n + 1 }, (_, i) => {
+              const q = p.getPointAtLength(len * (from + ((to - from) * i) / n))
+              return new DOMPoint(q.x, q.y).matrixTransform(m)
+            }).map((s) => ({ x: s.x, y: s.y }))
+          },
+          { from, to, n },
+        )
+      const finished = () => page.evaluate(() => !!document.querySelector('.ma-paper [data-trace-finished]'))
+      // 第一次：描到三成放手（沒描好一次：綠點等他接著描，不帶著描完）
+      k.behavior = '描到三成放手'
+      await k.drag(await along(0, 0.3), { stepMs: 16, label: '描 1 到三成' })
+      await k.wait(1500)
+      const first = await finished()
+      c.outcome('沒描好一次：還讓他自己描', !first, first ? '第一次就帶著描完了' : '')
+      // 第二次：從斷掉的地方再描一點又放手 → 筆帶著描完、照樣慶祝
+      k.behavior = '接著描一點又放手'
+      await k.drag(await along(0.28, 0.45), { stepMs: 16, label: '接著描到四成五放手' })
+      const t2 = Date.now()
+      const done = await page
+        .waitForFunction(() => !!document.querySelector('.ma-paper [data-trace-finished]'), null, { timeout: 5000 })
+        .then(() => true)
+        .catch(() => false)
+      c.outcome('沒描好兩次：筆帶著描完、慶祝（算過關）', done, done ? `${((Date.now() - t2) / 1000).toFixed(1)} 秒` : '5 秒內沒有描完')
+      if (!done) await c.once('write-twice', '困惑', '寫數字沒描好兩次，還要他一直描', '')
+      let row: { ok: boolean } | undefined
+      for (let i = 0; i < 12 && !row; i++) {
+        await k.wait(250)
+        row = (await attempts(page)).find((a) => a.game === 'd-glyph' && a.phase !== 'teach')
+      }
+      c.outcome('筆帶著描完的記成沒有自己描好', !!row && !row.ok, row ? (row.ok ? '記成描好' : '記成筆帶著的') : '沒有記')
+      if (row?.ok) await c.once('write-helped', '誤記作答', '寫數字筆帶著描完，記成自己描好', '')
+      // 第二遍（點下一步之後）：開頭說 Let's write one!，不說 One more time!（聽起來像沒描好要重來）
+      const t3 = await page.evaluate(() => performance.now())
+      if (!(await ready())) return void (await c.once('write-ready2', '卡死', '第二遍一直不能畫', ''))
+      const said = await page.evaluate((t) => window.__toddler.voices.filter((v) => v.t >= t && v.text).map((v) => v.text ?? ''), t3)
+      const okLine = said.some((v) => /write/i.test(v)) && !said.some((v) => /one more time/i.test(v))
+      c.outcome('第二遍開頭說 Let’s write one!、不說 One more time', okLine, said.join('、'))
+      if (!okLine) await c.once('write-again-line', '困惑', '寫數字第二遍的開頭聽起來像沒描好要重來', said.join('、'))
+    } finally {
+      await c.flush().catch(() => {})
+      finish(k, c, '描數字沒描好')
+    }
+  })
+
   // ── T-127：拿給波波的另外兩種玩法（小火車 Train.tsx、種花 Plant.tsx，流程在 Load.tsx）────────────────
   // 三歲的操作全部做一次：示範時搶點、連點同一個、多指（手掌）、拖到一半放手、多拿（小火車）、空的就按勾勾、發呆、
   // 返回再進來（同一天同一種玩法、接著上）、做完記成 give:N（選項照拿給波波）、往下一段走得到。

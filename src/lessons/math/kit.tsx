@@ -84,6 +84,11 @@ export interface QuizSpec {
   format?: Format
   /** 這一堂的最後一題：答對了不等稱讚念完，馬上交給下課的慶祝（T-113） */
   last?: boolean
+  /**
+   * 輪到他選、這麼久沒點：手點一下答案（答案亮起來）、再念一次題目，不等 15＋15 秒（比多少，T-135）。
+   * 之後照共用的閒置規則。手指著答案時點的照舊算一起練（led）
+   */
+  nudgeMs?: number
 }
 
 export interface QuizResult {
@@ -157,7 +162,18 @@ export function Quiz({ spec, host, onDone, showing }: { spec: QuizSpec; host: Pa
     setOpts(true)
     if (!taps.current.length) setReady(true)
     if (!t0.current) t0.current = performance.now()
-    idle.start({ repeat: () => void say(...spec.prompt), hint: show })
+    if (spec.nudgeMs)
+      idle.start(
+        {
+          repeat: () => {
+            show()
+            void say(...spec.prompt)
+          },
+          hint: show,
+        },
+        { repeat: spec.nudgeMs },
+      )
+    else idle.start({ repeat: () => void say(...spec.prompt), hint: show })
   }
 
   /** 孩子搶點：停掉語音、示範收起來，直接輪到他（不再說 Your turn、不重講） */

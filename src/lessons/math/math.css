@@ -304,7 +304,8 @@
 }
 
 /* ── 選擇題（比多少、小複習）──────────────────────────────── */
-.ma-quiz {
+.ma-quiz,
+.ma-teach {
   position: absolute;
   inset: 0;
 }
