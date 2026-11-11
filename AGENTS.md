@@ -8,7 +8,7 @@
 - 孩子端只有首頁的三堂課，加上故事、畫畫和貼紙本：
   - 三堂課：英文字母（豆豆）、中文課文（莫莫）、數學數字（波波），程式在 `src/lessons/`，介面約定見 [src/lessons/README.md](src/lessons/README.md)。
   - 故事：`src/screens/StoryBook.tsx`。
-  - 畫畫：自由畫畫 `d-free`，程式在 `src/games/draw/`。
+  - 畫畫：自由畫畫 `d-free`、著色本 `d-color`（家長 2026-11-11 明確要求），程式在 `src/games/draw/`。畫畫的門進去先選白紙還是著色本（`DrawPick.tsx`）。
   - 貼紙本：只看不改，程式在 `src/screens/StickerBook.tsx`（家長 2026-11-11 明確要求恢復：要能回頭看自己有哪些貼紙）。
 - 已經停做的功能不要恢復：地圖、冒險、魔法屋、程式車庫、爸爸回合、成長系統、第 3 階段遊戲，以及中文課文和數學的中文語音。家長沒有明確要求，就不要提議做回來。
 - 語音：

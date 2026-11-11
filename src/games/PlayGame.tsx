@@ -6,14 +6,17 @@ import { beginRound, endRound, type RoundSummary } from '../lib/achievements'
 import { useBack } from '../lib/nav'
 import { stopSpeech } from '../lib/audio'
 import { FreeDraw } from './draw/FreeDraw'
+import { ColoringGame } from './draw/ColoringGame'
 import type { GameKind } from '../content/games'
 
 /**
- * 孩子點得到的遊戲只剩首頁「畫畫」那一扇門進去的自由畫畫（2026-10-31 改成學校的三堂課；舊的站點、冒險遊戲 T-75 拿掉了）。
+ * 孩子點得到的遊戲只剩首頁「畫畫」那一扇門進去的自由畫畫、著色本（2026-10-31 改成學校的三堂課；舊的站點、冒險遊戲 T-75 拿掉了；著色本 T-138 恢復）。
  * 其他 id（舊的網址、舊資料）沒有畫面：直接交回上一層。
  */
 const BY_KIND: Partial<Record<GameKind, (p: GameProps) => ReactElement>> = {
   free: FreeDraw,
+  // 著色本（T-138，家長 2026-11-11 要求）：從畫畫的「著色本」選一張圖進來
+  coloring: ColoringGame,
 }
 
 export function PlayGame(props: GameProps) {

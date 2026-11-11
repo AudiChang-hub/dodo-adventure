@@ -83,7 +83,7 @@ const TINT: Record<Speaker, { door: string; deep: string; glass: string }> = {
 /** 首頁另外兩個小入口：故事書、自由畫畫（遊戲畫面還是畫畫小屋的那一個） */
 const SIDE: { id: 'story' | 'draw'; label: string; icon: string; to: Route }[] = [
   { id: 'story', label: '故事', icon: 'open-book', to: { name: 'storybook' } },
-  { id: 'draw', label: '畫畫', icon: 'artist-palette', to: { name: 'play', game: 'd-free', station: 'draw' } },
+  { id: 'draw', label: '畫畫', icon: 'artist-palette', to: { name: 'draw' } },
 ]
 
 /**

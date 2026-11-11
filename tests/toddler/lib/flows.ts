@@ -2,7 +2,7 @@ import type { Page } from '@playwright/test'
 import { attempts, drain, homeButton, settle, snap, targets, type Target } from './app'
 import type { Pt, Severity, Toddler } from './toddler'
 import type { GameDef } from '../catalog'
-import { HOME_GAMES, upOf } from './features'
+import { HOME_GAMES, PICK, upOf } from './features'
 
 /** 一段行為的結果，報告的結果表用 */
 export interface Outcome {
@@ -118,7 +118,7 @@ export class Checker {
 
 // ── 移動到某個畫面 ─────────────────────────────────────────
 
-async function centerOf(page: Page, sel: string): Promise<Pt | null> {
+export async function centerOf(page: Page, sel: string): Promise<Pt | null> {
   return page.evaluate((sel) => {
     const scenes = [...document.querySelectorAll<HTMLElement>('.scene')].filter((e) => !e.inert)
     const root: ParentNode = scenes.pop() ?? document
@@ -234,10 +234,22 @@ async function enterFromHome(k: Toddler, c: Checker, g: GameDef, opts: { spam?: 
     return false
   }
   let live: string | null
+  // 門進去還要再選一次（T-138：畫畫先選白紙自由畫還是著色本）
+  const pick = PICK[g.id]
+  const first = pick ? pick.live : `play-${g.id}`
   if (opts.spam) {
     await k.spam(door, 5 + k.r.int(5), '首頁的門')
-    live = await waitLive(page, (l) => l === `play-${g.id}`)
-  } else live = await tapDoor(k, c, HOME_GAMES[g.id], '首頁的門', (l) => l === `play-${g.id}`, 6000)
+    live = await waitLive(page, (l) => l === first)
+  } else live = await tapDoor(k, c, HOME_GAMES[g.id], '首頁的門', (l) => l === first, 6000)
+  if (pick && live === pick.live) {
+    await settle(page, 4000)
+    const p = await centerOf(page, `[data-pick="${pick.pick}"]`)
+    if (p) {
+      if (opts.spam) await k.spam(p, 4 + k.r.int(4), `選 ${pick.pick}`)
+      else await k.tap(p, `選 ${pick.pick}`)
+      live = await waitLive(page, (l) => l === `play-${g.id}`)
+    }
+  }
   if (live !== `play-${g.id}`) {
     await c.once('enter-door', '卡死', `點首頁的門沒有進到遊戲（停在 ${live}）`, '')
     return false
