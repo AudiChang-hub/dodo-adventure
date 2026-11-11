@@ -410,6 +410,110 @@
 /* ── 故事時間的英文版課文（T-129）────────────────────────────── */
 /* 一頁：中文課文那一行的圖（1～3 張）在中間，下面一行英文（給大人看）；右下角是下一句的大箭頭 */
 /*
+ * 舊篇講完的選擇畫面（T-140，./story/EnNext.tsx）：左邊舊篇的書打勾、撒星星，中間大的「再一篇」（新的書，亮黃框、New!，手指著），
+ * 右邊「回家」（小房子）。跟講故事的插畫同一塊地方（左下角是莫莫）
+ */
+.en-between-row {
+  position: absolute;
+  top: 16vh;
+  left: calc(50% + 7vw);
+  translate: -50% 0;
+  display: flex;
+  align-items: center;
+  gap: 4vw;
+}
+.en-cover {
+  position: relative;
+  width: clamp(180px, 34vh, 300px);
+  aspect-ratio: 0.82;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: 24px;
+  background: var(--card, #fbf8f2);
+  box-shadow:
+    0 0 0 8px var(--card, #fbf8f2),
+    0 20px 40px -26px rgba(46, 42, 37, 0.5);
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+.en-cover-pic {
+  width: 72%;
+  aspect-ratio: 1;
+}
+.en-cover.is-done .en-cover-pic {
+  opacity: 0.55;
+}
+.en-cover.is-new {
+  box-shadow:
+    0 0 0 8px var(--card, #fbf8f2),
+    0 0 0 14px rgba(241, 210, 124, 0.95),
+    0 0 0 22px rgba(241, 210, 124, 0.32),
+    0 20px 40px -26px rgba(46, 42, 37, 0.5);
+}
+.en-cover-check {
+  position: absolute;
+  top: -9%;
+  right: -9%;
+  width: 32%;
+  aspect-ratio: 1;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--good);
+  box-shadow:
+    0 5px 0 color-mix(in srgb, var(--good) 70%, #2e2a25),
+    0 0 0 6px #fbf8f2;
+}
+.en-cover-new {
+  position: absolute;
+  top: -8%;
+  right: -10%;
+  padding: 0.35em 0.7em;
+  border-radius: 99px;
+  background: #e8907e;
+  color: #fffdf8;
+  font: 400 clamp(18px, 3vh, 26px) / 1 'Huninn', sans-serif;
+  letter-spacing: 0.04em;
+  box-shadow: 0 0 0 5px #fbf8f2;
+}
+.en-cover.is-done {
+  width: clamp(130px, 24vh, 210px);
+}
+.en-choice-home {
+  width: clamp(96px, 17vh, 150px);
+  aspect-ratio: 1;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 50%;
+  background: var(--card, #fbf8f2);
+  box-shadow:
+    0 7px 0 rgba(46, 42, 37, 0.12),
+    0 0 0 3px rgba(46, 42, 37, 0.05) inset;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+.en-choice-home > svg {
+  width: 56%;
+  height: auto;
+}
+@media (orientation: portrait) {
+  .en-between-row {
+    left: 50%;
+    flex-direction: column;
+    gap: 3vh;
+  }
+  .en-cover {
+    width: min(40vw, 24vh);
+  }
+  .en-choice-home {
+    width: min(26vw, 14vh);
+  }
+}
+
+/*
  * 跳過舊篇（T-136：一天兩篇、一舊一新，跟中文課的 .zh-skip-old 同一個樣子）：大人用的，插畫下面的右下角
  * （右上角是家長閘門、插畫是孩子點的、下一句的箭頭在插畫裡面），淡淡的底線字、沒有底色，不像給孩子按的大按鈕
  */

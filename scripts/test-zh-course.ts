@@ -6,7 +6,7 @@ import assert from 'node:assert/strict'
 import { LEGACY, OLD_BACK, REVIEW_BACK, RUNS_PER_TEXT, applyPick, current, finishRun, logSession, migrate, nextDay, planOf, seedLog, undoPick, type Course, type Session } from '../src/lessons/chinese/course'
 import { stepsOf } from '../src/lessons/chinese/steps'
 import { enTodayOf, type EnSkip, type Heard } from '../src/screens/story/en-pages'
-import { ZH_RUN_MAX, zhRunKV } from '../tests/ai-toddler/lib/zh-run'
+import { ZH_RUN_MAX, zhRunKV, zhRunToday } from '../tests/ai-toddler/lib/zh-run'
 import { readFileSync, readdirSync, statSync } from 'node:fs'
 import { join } from 'node:path'
 import { ZH_TEXTS, linePics, plain, questionsOf, talkFor, talkOf, type ZhText } from '../src/lessons/chinese/data'
@@ -292,10 +292,31 @@ function main() {
       // 英文故事也先講舊篇（同一份排課）
       assert.equal(enTodayOf(p, {}, undefined, today).day, p.old ?? p.day, `--zh-run ${n}：英文故事先講的`)
     }
+    // 報告上寫今天排到什麼（T-140：測試員才分得出孩子在舊篇還是新篇）
+    assert.equal(zhRunToday(5, today), '第 5 次課：先上舊篇 第 2 篇〈三隻小豬〉，再上新篇 第 5 篇〈獅子與老鼠〉；結尾小題 第 4 篇〈牛頓與蘋果〉')
+    assert.ok(zhRunToday(1, today).includes('只有新篇 第 1 篇'))
     assert.throws(() => zhRunKV(0))
     assert.throws(() => zhRunKV(ZH_RUN_MAX + 1))
     assert.throws(() => zhRunKV(2.5))
     console.log(`ok 8 盲測工具 --zh-run 1～${ZH_RUN_MAX}：第 4 次起排得出「先上舊篇」（舊篇是第 N-3 篇）、第 8 次起有前 7 次的小題，中文課和英文故事一樣`)
+  }
+  {
+    // 舊篇上完選「回家」（T-140）：這次只算上完舊篇——不記上完（finishRun、logSession 都不做），新篇不消耗；
+    // 今天再進來、隔天都還是同一篇新篇，第幾次課沒有往前，舊篇、結尾小題照實際上過的紀錄（同一篇舊篇）
+    let c: Course = { day: first, runs: [] }
+    let log: Session[] = []
+    for (const d of [0, 1, 2, 3]) ({ c, log } = session(c, log, D(d)))
+    const before = planOf(c, log, D(4))
+    assert.deepEqual([before.day, before.old, before.idx], [ZH_TEXTS[4].day, ZH_TEXTS[1].day, 4])
+    // D(4) 上完舊篇、選回家：什麼都不記
+    const same = planOf(c, log, D(4))
+    const next = planOf(c, log, D(5))
+    assert.deepEqual([same.day, same.old, same.review], [before.day, before.old, before.review], '今天再進來還是同一次')
+    assert.deepEqual([next.day, next.old, next.idx, next.review], [before.day, before.old, before.idx, before.review], '隔天還是同一篇新篇、同一篇舊篇')
+    // 隔天選再一篇、上完：才換下一篇
+    ;({ c, log } = session(c, log, D(5)))
+    assert.equal(planOf(c, log, D(6)).day, ZH_TEXTS[5].day)
+    console.log('ok 14 舊篇上完選回家：新篇不消耗，今天再進來、隔天都還是同一篇新篇，舊篇、小題照實際上過的')
   }
   // ── 聊一聊（對話式共讀，T-102）：3 歲問得出來的一題，答不出來時大人示範 ─────────────
   {

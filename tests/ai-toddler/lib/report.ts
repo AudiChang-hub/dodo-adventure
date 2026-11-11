@@ -48,6 +48,8 @@ export interface Run {
   model: string
   brain: string
   brainNote?: string
+  /** 中文課、故事：今天排到的課（--zh-run，./zh-run.ts 的 zhRunToday） */
+  today?: string
   version: string
   started: string
   ended?: string
@@ -170,6 +172,7 @@ export async function writeReport(R: Run, brain: Brain, analystFile: string) {
   md.push(`# AI 小男生測試：${R.lesson}（${R.started.slice(0, 10)}）`, '')
   md.push('> 3 歲 3 個月的小男生（由 Claude 扮演，角色設定 `tests/ai-toddler/persona.md`）自己玩，看截圖決定下一步，手指照三歲孩子的誤差偏開。', '> 這是探索測試：「真的孩子看得懂嗎」。固定腳本的回歸測試是 `npm run test:toddler`。', '')
   md.push('| 項目 | 結果 |', '|---|---|')
+  if (R.today) md.push(`| 今天排的課 | ${cell(R.today)} |`)
   md.push(`| 完成這一課 | ${R.completed ? `✅ 第 ${R.completed.step} 步（${mmss(R.completed.t)}）${R.completed.what}` : `❌ 沒有（完成的意思：${R.doneMeans}）`} |`)
   md.push(`| 玩了多久 | ${mmss(lastT)}、${S.length} 步；結束原因：${cell(R.endReason)} |`)
   md.push(`| 去過的畫面 | ${route.map((r) => `${r.name}（${r.from === r.to ? `第 ${r.from} 步` : `${r.from}～${r.to}`}）`).join(' → ')} |`)

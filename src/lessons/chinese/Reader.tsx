@@ -36,6 +36,18 @@ const MOMO_HAPPY_MS = 1300
  * 第一下照舊撒星星；之後依序跳、轉一圈、搖一搖、壓扁彈回、躲起來又冒出來，每一種配不同的短音效。中文課 App 不說話，只有音效。
  */
 const ACTS = ['hop', 'spin', 'wiggle', 'squish', 'peek'] as const
+/**
+ * 躲貓貓（T-140）：這一行的角色在課本外面的空白處探出頭的位置（舞台的 %；右邊大人按鈕那一欄的上半、左邊莫莫頭上），
+ * 點一下就躲起來、換一個地方冒出來
+ */
+/** .zh-read 的左邊在舞台的幾 cqw（chinese.css 的 inset） */
+const READ_LEFT = 17
+const PEEK_SPOTS: [number, number][] = [
+  [91, 26],
+  [8.5, 34],
+  [91, 50],
+  [8.5, 52],
+]
 /** 點過的圖下面最多幾顆小星星（T-139） */
 const STAR_MAX = 3
 const STAR_D = 'M12 2.5l2.9 6 6.6.8-4.9 4.6 1.3 6.5L12 17.2l-5.9 3.2 1.3-6.5L2.5 9.3l6.6-.8z'
@@ -155,6 +167,12 @@ export function Reader({
    * 動作 0.6 秒就停，回頭看「兔子都不動」「一直點都一樣」）。每點一下圖轉個方向（停在那裡），下面多一顆小星星（最多 3 顆）
    */
   const [taps, setTaps] = useState<ReadonlyMap<string, number>>(() => new Map())
+  /**
+   * 躲貓貓（T-140，AI 小男生盲測 73d57c7：大人念的那一分鐘，他只能點亮的那張圖，點幾下就「好久喔，不知道要幹嘛」）：
+   * 這一行的角色在課本外面探出頭，點一下就躲起來、換一個地方冒出來（每一下位置都不一樣），大人念的時候他一直有東西可以找、可以點。
+   * 不出聲音以外的東西（中文課不出聲：只有輕輕一聲音效）；不蓋課文、不蓋大人的按鈕。spot 是在哪裡，n 是第幾次冒出來
+   */
+  const [peek, setPeek] = useState({ spot: 0, n: 0 })
   /** 現在在動的那張圖：哪一張、第幾下（換 key 重播）、什麼動作（ACTS） */
   const [act, setAct] = useState<{ key: string; n: number; kind: Act } | null>(null)
   /** 亮的那一行的圖沒被點：第幾次自己跳一下（換行從 0 開始） */
@@ -275,6 +293,22 @@ export function Reader({
     if (p) tapWord(p.word, cur)
   }
 
+  /** 點到探出頭的角色：躲起來、換一個地方冒出來；每 3 下莫莫開心一下。也算點了這一行的圖（亮的那張不再自己跳） */
+  const tapPeek = (e: React.PointerEvent) => {
+    e.stopPropagation()
+    if (left.current || talk || !firstFinger(e.nativeEvent)) return
+    const p = pics[cur]?.[0]
+    if (!p) return
+    const key = `${cur}:${p.word}`
+    sfx.pop()
+    if (!touched.has(key)) setTouched((s) => new Set(s).add(key))
+    setPeek((x) => {
+      const others = PEEK_SPOTS.map((_, i) => i).filter((i) => i !== x.spot)
+      if ((x.n + 1) % 3 === 0) happy()
+      return { spot: others[(x.n * 7 + cur) % others.length], n: x.n + 1 }
+    })
+  }
+
   // 上面的進度：念完幾行（聊一聊的時候整篇都念完了）
   useEffect(() => {
     onLine?.(talk ? t.lines.length : cur)
@@ -335,6 +369,24 @@ export function Reader({
       style={{ '--units': units, '--rows': rows } as CSSProperties}
       onPointerDown={tapBlank}
     >
+      {/* 躲貓貓（T-140）：這一行的角色在課本外面探出頭；換一行就換那一行的角色 */}
+      {!talk && pics[cur]?.[0] && (
+        <motion.button
+          key={`peek-${cur}-${peek.n}`}
+          type="button"
+          className="zh-peek"
+          aria-label={pics[cur][0].word}
+          data-spot={peek.spot}
+          // 舞台的 %（cqw、cqh）；.zh-read 從舞台左邊 17cqw 開始（左邊讓給莫莫，chinese.css）
+          style={{ left: `${PEEK_SPOTS[peek.spot][0] - READ_LEFT}cqw`, top: `${PEEK_SPOTS[peek.spot][1]}cqh` } as CSSProperties}
+          initial={still ? false : { scale: 0.2, opacity: 0, rotate: -18 }}
+          animate={{ scale: 1, opacity: 1, rotate: 0 }}
+          transition={{ type: 'spring', stiffness: 320, damping: 16, delay: peek.n ? 0.15 : 0.6 }}
+          onPointerDown={tapPeek}
+        >
+          <Pic name={t.emoji[pics[cur][0].word]!} />
+        </motion.button>
+      )}
       <motion.article className="zh-page" initial={still ? false : { y: 14 }} animate={{ y: 0 }} transition={{ duration: 0.5, ease: EASE.out }}>
         <h2 className="zh-title">{t.title}</h2>
         <div className="zh-lines">

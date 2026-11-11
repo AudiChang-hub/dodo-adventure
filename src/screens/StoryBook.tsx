@@ -31,6 +31,8 @@ import './story.css'
 
 // 故事時間的英文版課文（T-129）：跟著中文課文 180 篇分開載入
 const EnBook = lazy(() => import('./story/EnBook'))
+/** 舊篇講完、換新篇的畫面（T-140） */
+const EnNext = lazy(() => import('./story/EnNext').then((m) => ({ default: m.EnNext })))
 type EnShelf = { today: EnBookRow | null; heard: EnBookRow[]; from: number }
 /** 載入失敗（離線又沒有快取）：書架照樣出來，只是沒有英文版 */
 const loadEnShelf = (): Promise<EnShelf> =>
@@ -127,6 +129,8 @@ export function StoryBook() {
   const [en, setEn] = useState<EnShelf | null>(null)
   const [enOpen, setEnOpen] = useState<EnOpen | null>(null)
   const [enDone, setEnDone] = useState<EnBookRow | null>(null)
+  /** 今天的舊篇講完了、等他點新的書（T-140） */
+  const [enNext, setEnNext] = useState<{ old: EnBookRow; o: EnOpen } | null>(null)
   const backing = useRef(false)
   const run = useRef(0)
   const world = useMemo(() => getTodayWorld(), [])
@@ -167,6 +171,7 @@ export function StoryBook() {
     setOpen(null)
     setEnOpen(null)
     setEnDone(null)
+    setEnNext(null)
     // 書架上今天那本書的進度（講到第幾句、舊篇還是新篇）重新讀：講到一半回書架再點，從離開的那一句接著講
     void loadEnShelf().then((e) => setEn(e))
   }
@@ -180,6 +185,7 @@ export function StoryBook() {
     setDone(false)
     setOpen(null)
     setEnDone(null)
+    setEnNext(null)
     setEnOpen(o)
   }
 
@@ -200,7 +206,12 @@ export function StoryBook() {
       // 等的時候按了返回（回書架了）：不再自己開始講
       if (run.current !== me) return
       setEn(e)
-      if (e.today?.isNew && e.today.day !== row.day) return startEn({ row: e.today, from: e.from })
+      if (e.today?.isNew && e.today.day !== row.day) {
+        // 大人跳過：直接講新篇；講完舊篇：先慶祝、出「新的故事」的畫面，點新的書才講（T-140，盲測 73d57c7：中間沒有停頓）
+        if (skipped) return startEn({ row: e.today, from: e.from })
+        setEnOpen(null)
+        return setEnNext({ old: row, o: { row: e.today, from: e.from } })
+      }
       setEnOpen(null)
       setEnDone(row)
     })()
@@ -221,7 +232,7 @@ export function StoryBook() {
 
   // 返回鍵、Android 的返回：講故事、讀完了先回書架，書架才回首頁
   useBack(() => {
-    if (!open && !enOpen && !enDone) return false
+    if (!open && !enOpen && !enDone && !enNext) return false
     toShelf()
   })
 
@@ -340,7 +351,7 @@ export function StoryBook() {
   }
 
   const move = (): SceneMove => ({ back: backing.current })
-  const id = enOpen ? `en-${enOpen.row.day}` : enDone ? `endone-${enDone.day}` : !open ? 'shelf' : done ? `done-${open.r.id}` : `replay-${open.r.id}`
+  const id = enOpen ? `en-${enOpen.row.day}` : enNext ? `ennext-${enNext.o.row.day}` : enDone ? `endone-${enDone.day}` : !open ? 'shelf' : done ? `done-${open.r.id}` : `replay-${open.r.id}`
 
   return (
     <div className="screen book-screen" data-world={world?.id ?? undefined}>
@@ -361,6 +372,10 @@ export function StoryBook() {
               onDone={() => enFinished(enOpen.row)}
               onSkip={enOpen.row.isNew && enOpen.row.part === 'old' ? () => enFinished(enOpen.row, true) : undefined}
             />
+          </Suspense>
+        ) : enNext ? (
+          <Suspense fallback={<BookBack onClose={toShelf} />}>
+            <EnNext old={enNext.old} next={enNext.o.row} back={<BookBack onClose={toShelf} />} onGo={() => startEn(enNext.o)} />
           </Suspense>
         ) : enDone ? (
           <DoneView pic={enDone.pic as Pic} host="momo" plain={!!world} onAgain={() => pickEn({ ...enDone, isNew: false })} onShelf={toShelf} />

@@ -5,6 +5,7 @@
  */
 .zh-read,
 .zh-intro-wrap,
+.zh-between,
 .zh-quiz {
   --zh-red: #c8463a;
   --zh-blue: #a3c4e4;
@@ -216,6 +217,33 @@
   height: 100%;
   pointer-events: none;
 }
+/*
+ * 躲貓貓（T-140，Reader 的 PEEK_SPOTS）：這一行的角色在課本外面（右邊大人按鈕那一欄的上半、左邊莫莫頭上）探出頭，
+ * 點了躲起來、換個地方冒出來。用舞台的 cqw、cqh 放（跟課本多寬無關）；一圈淡黃框＝點這個（跟亮的那一行的圖一樣）
+ */
+.zh-peek {
+  position: absolute;
+  z-index: 4;
+  width: min(9cqw, 14cqh);
+  aspect-ratio: 1;
+  translate: -50% -50%;
+  padding: 1.2%;
+  border: 0;
+  border-radius: 26%;
+  background: rgba(255, 255, 255, 0.92);
+  box-shadow:
+    0 0 0 4px rgba(241, 210, 124, 0.9),
+    0 6px 0 rgba(46, 42, 37, 0.1);
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+.zh-peek::after {
+  /* 三歲手指點不準：外面多一圈看不見的範圍 */
+  content: '';
+  position: absolute;
+  inset: -18%;
+}
+
 /* 點一下轉個方向、停在那裡（T-139：動作播完還看得出它變了）；外面那層的動作（act-*）照樣播 */
 .zh-pic-face {
   display: block;
@@ -801,8 +829,135 @@
   touch-action: manipulation;
 }
 
+/*
+ * 舊篇上完的選擇畫面（T-140，./Between.tsx）：左邊舊篇的書打勾、撒星星（上完了），中間大的「再一篇」（新篇的書、角上「新」，手指著），
+ * 右邊「回家」（小房子）。跟課本同一塊地方（左邊讓給莫莫）；沒有字（書名是給大人看的小字），靜態為主，進場動一下就停（紙感螢幕）
+ */
+.zh-between {
+  position: absolute;
+  inset: 0 2.5cqw 4cqh 17cqw;
+  display: grid;
+  place-items: center;
+}
+.zh-between-row {
+  display: flex;
+  align-items: center;
+  gap: 3cqw;
+}
+.zh-book {
+  position: relative;
+  width: min(24cqw, 34cqh);
+  border: 0;
+  color: inherit;
+  font: inherit;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+  aspect-ratio: 0.8;
+  display: grid;
+  grid-template-rows: 1fr auto;
+  justify-items: center;
+  padding: 8% 8% 7%;
+  border-radius: 22px;
+  background: #fbf8f2;
+  box-shadow:
+    0 10px 0 rgba(46, 42, 37, 0.07),
+    0 0 0 3px rgba(46, 42, 37, 0.05) inset;
+}
+.zh-book::before {
+  /* 書頂上的紙膠帶，跟課本一樣 */
+  content: '';
+  position: absolute;
+  top: -4%;
+  left: 50%;
+  width: 34%;
+  height: 7%;
+  translate: -50% 0;
+  rotate: -2deg;
+  border-radius: 3px;
+  background: color-mix(in srgb, var(--zh-blue) 70%, transparent);
+}
+.zh-book-pic {
+  width: 78%;
+  aspect-ratio: 1;
+  align-self: center;
+}
+.zh-book-title {
+  font: 400 min(2.4cqw, 3.2cqh) / 1.2 'Huninn', sans-serif;
+  letter-spacing: 0.12em;
+  color: var(--ink-soft);
+  text-align: center;
+}
+.zh-book.is-done {
+  width: min(17cqw, 25cqh);
+}
+.zh-book.is-done .zh-book-pic {
+  opacity: 0.55;
+}
+.zh-book-check {
+  position: absolute;
+  top: -10%;
+  right: -10%;
+  width: 34%;
+  aspect-ratio: 1;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--good);
+  box-shadow:
+    0 5px 0 color-mix(in srgb, var(--good) 70%, #2e2a25),
+    0 0 0 6px #fbf8f2;
+}
+.zh-book.is-new {
+  box-shadow:
+    0 10px 0 rgba(46, 42, 37, 0.07),
+    0 0 0 5px rgba(241, 210, 124, 0.95),
+    0 0 0 12px rgba(241, 210, 124, 0.3);
+}
+.zh-book-new {
+  position: absolute;
+  top: -9%;
+  right: -9%;
+  width: 30%;
+  aspect-ratio: 1;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--zh-red);
+  color: #fffdf8;
+  font: 400 min(2.6cqw, 3.4cqh) / 1 'Huninn', sans-serif;
+  box-shadow: 0 0 0 6px #fbf8f2;
+}
+.zh-choice-home {
+  width: min(13cqw, 19cqh);
+  aspect-ratio: 1;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 50%;
+  background: #fbf8f2;
+  box-shadow:
+    0 7px 0 rgba(46, 42, 37, 0.1),
+    0 0 0 3px rgba(46, 42, 37, 0.05) inset;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+.zh-choice-home > svg {
+  width: 56%;
+  height: auto;
+}
+
 /* 手機直式（家長遠端看）：不壞版就好——課本佔滿寬度，按鈕排到下面 */
 @media (orientation: portrait) {
+  .zh-peek {
+    /* 手機直式（家長遠端看）：課本佔滿寬度，旁邊沒有空白，不放 */
+    display: none;
+  }
+  .zh-between {
+    inset: 0 3cqw 26cqh 3cqw;
+  }
+  .zh-book {
+    width: min(36vw, 30cqh);
+  }
   .zh-skip-old {
     /* 手機直式：右上角是陪玩小字、下面是課本，排到最下面中間（左下角是恐龍、右下角是大箭頭） */
     top: auto;

@@ -60,6 +60,8 @@ export const enQKey = (day: number) => `storyen.q.${day}`
 export const enWhichKey = (zh: string) => `storyen.which.${enWordId(zh)}`
 /** 找一樣的英文字的題目 */
 export const EN_SAME_KEY = 'storyen.same'
+/** 舊篇講完：Yay! One more story?（T-140，一天兩篇，讓他選再一篇或回家） */
+export const EN_NEXT_KEY = 'storyen.next'
 
 const cap = (s: string) => s[0].toUpperCase() + s.slice(1)
 /** 三明治前後那一次英文：Rabbit. */
