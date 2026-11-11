@@ -18,7 +18,8 @@
 //   --no-lock         不跟 test:toddler 排隊（預設同一台機器同時只跑一個）
 //   --fresh           故事：新裝置（書架上什麼都沒有）；預設是已經聽過 8 本的舊裝置
 //                     貼紙本：新裝置（空的貼紙本）；預設是已經有 9 張貼紙的舊裝置（最新 2 張還沒點過）
-//   --zh-run N        中文課：今天是同一篇的第幾次（1～3，預設 1；2 是念到框起來的紅字前停下來讓孩子接）
+//   --zh-run N        中文課、故事：今天是第幾次課（1～180，預設 1）。前面 N-1 次課已經上過第 1～N-1 篇（./lib/zh-run.ts）；
+//                     第 4 次起先上 3 次前的舊篇、再上新篇（一天兩篇、一舊一新，T-136），結尾小題是前 1 次、前 7 次的
 //                     中文課是親子共讀（App 不出聲）：每一步之前「媽媽」先做她的部分（念一行、按下一行、問聊一聊、念題目），見 mom()
 //   --external LABEL  不自己打包、不開 vite：用已經開在 AI_TODDLER_PORT 的打包版（例如在主 checkout 自己 build + vite preview），
 //                     報告的版本寫 LABEL 和網頁上的 index-*.js（盲測用：測試員不看那個資料夾的 git）
@@ -35,6 +36,7 @@ import { Brain, type Answer, type BrainKind } from './lib/brain'
 import { Finger, type Touch } from './lib/finger'
 import { ALIASES, LESSONS, doneNow, seedStickers, seedStory } from './lib/lessons'
 import { writeReport, type AppIssue, type Step, type Run } from './lib/report'
+import { zhRunKV } from './lib/zh-run'
 
 const here = path.dirname(fileURLToPath(import.meta.url))
 const root = path.resolve(here, '../..')
@@ -239,23 +241,22 @@ try {
   // 故事：預設是舊裝置（書架上已經有 8 本講過的書，今天的新章節照樣先講）；--fresh 是新裝置（什麼都沒有）
   if (lesson.id === 'story' && !flag('fresh')) await seedStory(page)
   if (lesson.id === 'stickers' && !flag('fresh')) await seedStickers(page)
-  // 中文課：第 1 篇已經上過 N-1 次（很久以前），今天是第 N 次（src/lessons/chinese/course.ts 的 Course）
-  const zhRun = Number(opt('zh-run', '1'))
-  if (lesson.id === 'zh' && zhRun > 1)
+  // 中文課、英文故事：今天是第 N 次課，前面 N-1 次課上過第 1～N-1 篇（./lib/zh-run.ts；App 自己排今天的舊篇、新篇）
+  const zhRun = zhRunKV(Number(opt('zh-run', '1')))
+  if ((lesson.id === 'zh' || lesson.id === 'story') && Object.keys(zhRun).length)
     await page.evaluate(
-      (runs) =>
+      (kv) =>
         new Promise<void>((res, rej) => {
           const rq = indexedDB.open('dodo-adventure')
           rq.onerror = () => rej(rq.error)
           rq.onsuccess = () => {
             const tx = rq.result.transaction('kv', 'readwrite')
-            tx.objectStore('kv').put({ key: 'zhLesson:course', value: { day: 1, runs } })
-            tx.objectStore('kv').put({ key: 'zhLesson:done', value: [1] })
+            for (const [key, value] of Object.entries(kv)) tx.objectStore('kv').put({ key, value })
             tx.oncomplete = () => (rq.result.close(), res())
             tx.onerror = () => rej(tx.error)
           }
         }),
-      ['2026-01-01', '2026-01-02'].slice(0, Math.min(2, zhRun - 1)),
+      zhRun,
     )
   await settle(page)
   finger = new Finger(page, SEED, VP)

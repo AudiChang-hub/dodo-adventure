@@ -790,6 +790,51 @@ test.describe('故事', () => {
 
   // 念完 4 句的三題：故事題發呆（手來指、不自己往下）、點錯淡下去；認角色手掌壓兩張只算第一下；
   // 找一樣的英文字：第一次手先示範（搶著點照常算）、點錯搖一搖淡下去、發呆手來指、點對一對字放大跳一下 → 讀完了
+  test('T-139 英文故事選圖、找字一進來就有手指示範（盲測 ccf7ac7：沒有手的那幾秒就說聽不懂、都是字）；找字做過很多次也一樣', async ({ page }, info) => {
+    test.skip(!want('story-en-hand'))
+    test.setTimeout(5 * 60_000)
+    const { k, c } = await setup(page, info, '英文版一進來就有手')
+    try {
+      // 找一樣的英文字已經做過 5 次（以前只有前 2 次示範）；今天的第 1 篇講到第 4 句
+      await seedStory(page, { kv: { storyEn: { heard: {}, matched: 5, at: { date: todayId(), day: 1, at: 3 } } } })
+      await k.tap((await center(page, DOOR))!, '故事')
+      await waitLive(page, (l) => (l ?? '').startsWith('en-'), 10_000)
+      const seen: string[] = []
+      const end = Date.now() + 120_000
+      while (Date.now() < end && !((await snap(page)).live ?? '').startsWith('endone-')) {
+        const kind = await waitKind(page)
+        if (kind === 'next') {
+          await k.tap((await center(page, '.en-next'))!, '下一句')
+          await k.wait(800)
+          continue
+        }
+        if (kind === 'q' || kind === 'which' || kind === 'match') {
+          const sel = kind === 'match' ? '.en-match .demo-hand' : '.story-choose .demo-hand'
+          const t0 = Date.now()
+          let at = 0
+          while (Date.now() - t0 < 4000 && !at) {
+            if (await page.$(sel)) at = Date.now() - t0
+            else await page.waitForTimeout(100)
+          }
+          seen.push(`${kind} ${(at / 1000).toFixed(1)}s`)
+          const ok = at > 0 && at <= 2000
+          c.outcome(`${kind === 'match' ? '找一樣的英文字' : kind === 'q' ? '故事題' : '認角色'}：一進來 2 秒內手就來指`, ok, at ? `${(at / 1000).toFixed(1)} 秒` : '4 秒內沒有手')
+          if (!ok) await c.once(`en-hand-${kind}`, '困惑', `英文故事的${kind === 'match' ? '找一樣的英文字' : '選圖題'}一進來沒有手指示範`, at ? `${(at / 1000).toFixed(1)} 秒` : '4 秒內沒有手')
+          if (kind === 'match') await k.wait(3800)
+          const a = await center(page, kind === 'match' ? '.en-word.is-option[data-answer]' : '.story-choice[data-answer]')
+          if (a) await k.tap(a, '點對的')
+          await k.wait(2200)
+          continue
+        }
+        await k.wait(400)
+      }
+      c.outcome('三題都有、講完', seen.length >= 3 && ((await snap(page)).live ?? '').startsWith('endone-'), seen.join('、'))
+      await c.flush()
+    } finally {
+      finish(k, c, '英文版一進來就有手')
+    }
+  })
+
   test('T-129 英文版念完三題：故事題、認角色、找一樣的英文字（示範、點錯、發呆、手掌壓）', async ({ page }, info) => {
     test.skip(!want('story-en'))
     test.setTimeout(6 * 60_000)
@@ -809,7 +854,7 @@ test.describe('故事', () => {
       if (q) {
         await shot(page, 'T129-英文版-故事題', info)
         const w = await idle(page, k, 'q', '.story-choose .demo-hand', 20_000)
-        c.outcome('故事題發呆：8 秒左右手來指', w.handAt > 6000 && w.handAt < 11_000, `${(w.handAt / 1000).toFixed(1)} 秒`)
+        c.outcome('故事題一進來手就來指（T-139）', w.handAt > 0 && w.handAt <= 2000, `${(w.handAt / 1000).toFixed(1)} 秒`)
         c.outcome('故事題發呆 20 秒不自己往下', w.still, w.still ? '還停著' : '自己往下了')
         if (!w.still) await c.once('en-q-auto', '困惑', '英文版故事題發呆時自己往下了', '')
         const wrong = await center(page, '.story-choice:not([data-answer])')
@@ -848,8 +893,8 @@ test.describe('故事', () => {
       if (match) {
         await k.wait(2400)
         const demo = await page.evaluate(() => !!document.querySelector('.en-match.is-demo') && !!document.querySelector('.en-match .demo-hand'))
-        c.outcome('第一次：手先示範', demo, demo ? '有示範' : '沒有示範')
-        if (!demo) await c.once('en-match-demo', '困惑', '找一樣的英文字第一次做，手沒有先示範', '')
+        c.outcome('一進來手先示範', demo, demo ? '有示範' : '沒有示範')
+        if (!demo) await c.once('en-match-demo', '困惑', '找一樣的英文字一進來，手沒有先示範', '')
         await shot(page, 'T129-英文版-找一樣的字', info)
         const wrong = await center(page, '.en-word.is-option:not([data-answer])')
         if (wrong) await k.spam(wrong, 2, '搶著點錯的字')

@@ -18,8 +18,11 @@ import { ZH_GAME, type HostTap } from './Lesson'
 
 type Mark = 'wrong' | 'correct' | 'hint'
 
-/** 答對的慶祝多久（FB-4：每題 ≤ 1.5 秒），之後換下一題 */
-const CHEER_MS = 1500
+/**
+ * 答對之後多久出「下一步」的大箭頭（T-139，盲測 ccf7ac7 中文 2：以前等慶祝 1.5 秒才出箭頭、4 秒手才來，
+ * 孩子打勾之後「一直點小豬都沒有變」就離開）。打勾跳出來就出箭頭；慶祝（放大、星星）照樣在箭頭後面播完，換題要等他點箭頭（T-118）
+ */
+const NEXT_AFTER_MS = 600
 /** 最後一題答對：看一下打勾、星星就進下課的慶祝（T-113） */
 const LAST_CHEER_MS = 800
 
@@ -210,8 +213,8 @@ export function Quiz({
         responseMs: taps.current[0].ms,
         hintUsed: hintUsed.current,
       })
-      // 答對了：圖放大跳一下、打勾、星星撒完、其他兩張淡掉，看一下自己選對的圖，再換下一題（FB-4：每題的慶祝 ≤ 1.5 秒）
-      await wait(last ? LAST_CHEER_MS : CHEER_MS)
+      // 答對了：圖放大跳一下、打勾、星星撒開、其他兩張淡掉；打勾跳出來就出大箭頭（NEXT_AFTER_MS），最後一題看一下就下課
+      await wait(last ? LAST_CHEER_MS : NEXT_AFTER_MS)
       if (live.current) onNext()
       return
     }

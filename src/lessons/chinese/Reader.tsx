@@ -36,6 +36,9 @@ const MOMO_HAPPY_MS = 1300
  * 第一下照舊撒星星；之後依序跳、轉一圈、搖一搖、壓扁彈回、躲起來又冒出來，每一種配不同的短音效。中文課 App 不說話，只有音效。
  */
 const ACTS = ['hop', 'spin', 'wiggle', 'squish', 'peek'] as const
+/** 點過的圖下面最多幾顆小星星（T-139） */
+const STAR_MAX = 3
+const STAR_D = 'M12 2.5l2.9 6 6.6.8-4.9 4.6 1.3 6.5L12 17.2l-5.9 3.2 1.3-6.5L2.5 9.3l6.6-.8z'
 type Act = (typeof ACTS)[number]
 const ACT_SFX: Record<Act, (n: number) => void> = {
   hop: () => sfx.boing(),
@@ -147,6 +150,11 @@ export function Reader({
   const sparkled = useRef(new Set<string>())
   /** 每張圖點了幾下（換動作用） */
   const tapsOf = useRef(new Map<string, number>())
+  /**
+   * 每張圖被點了幾下（第幾行:哪個詞）：點完留下看得到的改變（T-139，AI 小男生盲測 ccf7ac7、61ee1cf：
+   * 動作 0.6 秒就停，回頭看「兔子都不動」「一直點都一樣」）。每點一下圖轉個方向（停在那裡），下面多一顆小星星（最多 3 顆）
+   */
+  const [taps, setTaps] = useState<ReadonlyMap<string, number>>(() => new Map())
   /** 現在在動的那張圖：哪一張、第幾下（換 key 重播）、什麼動作（ACTS） */
   const [act, setAct] = useState<{ key: string; n: number; kind: Act } | null>(null)
   /** 亮的那一行的圖沒被點：第幾次自己跳一下（換行從 0 開始） */
@@ -220,6 +228,7 @@ export function Reader({
       setBurst({ key, n: performance.now() })
     } else playAct(key)
     if (!touched.has(key)) setTouched((s) => new Set(s).add(key))
+    setTaps((m) => new Map(m).set(key, (m.get(key) ?? 0) + 1))
     setPop({ w, k: performance.now() })
   }
 
@@ -403,8 +412,20 @@ export function Reader({
                           data-act={act?.key === key ? act.kind : undefined}
                           data-cue-again={again ? cueTick : undefined}
                         >
-                          <Pic name={t.emoji[word]!} />
+                          {/* 點一下轉個方向、停在那裡（再點轉回來）：動作播完還看得出「我點過了、它變了」 */}
+                          <span className="zh-pic-face" data-flip={(taps.get(key) ?? 0) % 2 ? '' : undefined}>
+                            <Pic name={t.emoji[word]!} />
+                          </span>
                         </span>
+                        {!!taps.get(key) && (
+                          <span className="zh-pic-stars" aria-hidden="true">
+                            {Array.from({ length: Math.min(STAR_MAX, taps.get(key)!) }, (_, i) => (
+                              <svg key={i} className="zh-pic-star" viewBox="0 0 24 24">
+                                <path d={STAR_D} />
+                              </svg>
+                            ))}
+                          </span>
+                        )}
                         {burst?.key === key && <Sparkles key={burst.n} count={10} />}
                         {act?.key === key && <Bits key={`bits-${act.n}`} n={act.n} />}
                       </motion.button>

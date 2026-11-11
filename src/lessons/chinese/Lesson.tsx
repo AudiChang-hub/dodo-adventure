@@ -154,7 +154,8 @@ export function ChineseLessonBody({ onDone }: LessonProps) {
     setMood('idle')
     const i = at + 1
     if (i >= steps.length && steps[at].k === 'quiz') return enter(i)
-    if (!(await nextStep()) || !live.current) return
+    // cue：大箭頭一出來就跳一下、手點一下給他看（T-139，以前 2.5 秒手才來）
+    if (!(await nextStep({ cue: true })) || !live.current) return
     enter(i)
   }
   const live = useRef(true)
