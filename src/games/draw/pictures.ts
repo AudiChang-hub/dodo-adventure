@@ -1,28 +1,25 @@
-// 著色本的圖（ColoringGame）：每個 region 是一塊區域，一筆只塗在下筆的那一塊裡（T-36 家長的決定）
-// （後面的 region 蓋在前面的上面，例如肚子在身體上）；deco 是線稿上的其他線條（眼睛、嘴巴），永遠在最上層。
-// T-138 從 T-75 拿掉前的版本救回來：挑 3 歲認得、區塊大的 8 張（雨傘換成蝴蝶），順序就是著色本上的順序。
-export interface Region {
-  id: string
-  d: string
-}
+// 著色本的圖（ColoringGame）：每個 region 是一塊區域（後面的 region 蓋在前面的上面，例如肚子在身體上），
+// deco 是線稿上的其他線條（眼睛、嘴巴），永遠在最上層。孩子塗到哪裡都可以，不限制在一塊裡（家長 2026-11-11）。
+// T-138 從 T-75 拿掉前的版本救回來 8 張（雨傘換成蝴蝶），再加恐龍（pictures-dino.ts）和其他分類（pictures-more.ts）。
+// 每一張都是自己用簡單的形狀畫的線稿，沒有用外面的圖。
+import { ell, rect, type Picture } from './shapes'
+import { DINOS } from './pictures-dino'
+import { MORE } from './pictures-more'
 
-export interface Picture {
+export type { Picture, Region } from './shapes'
+
+/** 著色本的分類（著色本左邊的大圖示，icon 是那一類拿來當圖示的那一張圖、塗好的顏色） */
+export interface Cat {
   id: string
   title: string
-  transform?: string
-  regions: Region[]
-  deco: string[]
-  /** 塗成墨色的 deco（眼睛）；其餘 deco 只有線條 */
-  ink?: number[]
+  icon: string
+  colors: Record<string, string>
 }
 
-const ell = (cx: number, cy: number, rx: number, ry: number) => `M${cx - rx} ${cy} a${rx} ${ry} 0 1 0 ${rx * 2} 0 a${rx} ${ry} 0 1 0 ${-rx * 2} 0 Z`
-const rect = (x: number, y: number, w: number, h: number, r = 0) =>
-  `M${x + r} ${y} H${x + w - r} Q${x + w} ${y} ${x + w} ${y + r} V${y + h - r} Q${x + w} ${y + h} ${x + w - r} ${y + h} H${x + r} Q${x} ${y + h} ${x} ${y + h - r} V${y + r} Q${x} ${y} ${x + r} ${y} Z`
-
-export const PICTURES: Picture[] = [
+const BASE: Picture[] = [
   {
     id: 'fish',
+    cat: 'sea',
     title: '小魚',
     transform: 'translate(150 30) scale(2.15)',
     regions: [
@@ -40,6 +37,7 @@ export const PICTURES: Picture[] = [
   },
   {
     id: 'butterfly',
+    cat: 'animal',
     title: '蝴蝶',
     transform: 'translate(134 24) scale(2.15)',
     regions: [
@@ -57,6 +55,7 @@ export const PICTURES: Picture[] = [
   },
   {
     id: 'dodo',
+    cat: 'dino',
     title: '豆豆',
     transform: 'translate(240 30) scale(2.3)',
     regions: [
@@ -74,6 +73,7 @@ export const PICTURES: Picture[] = [
   },
   {
     id: 'car',
+    cat: 'vehicle',
     title: '小汽車',
     transform: 'translate(120 60) scale(2.2)',
     regions: [
@@ -90,6 +90,7 @@ export const PICTURES: Picture[] = [
   },
   {
     id: 'bus',
+    cat: 'vehicle',
     title: '公車',
     transform: 'translate(120 70) scale(2.2)',
     regions: [
@@ -108,6 +109,7 @@ export const PICTURES: Picture[] = [
   },
   {
     id: 'firetruck',
+    cat: 'vehicle',
     title: '消防車',
     transform: 'translate(120 64) scale(2.2)',
     regions: [
@@ -124,6 +126,7 @@ export const PICTURES: Picture[] = [
   },
   {
     id: 'house',
+    cat: 'home',
     title: '房子',
     transform: 'translate(190 20) scale(2.35)',
     regions: [
@@ -140,6 +143,7 @@ export const PICTURES: Picture[] = [
   },
   {
     id: 'balloons',
+    cat: 'home',
     title: '氣球',
     transform: 'translate(230 10) scale(2.3)',
     regions: [
@@ -152,3 +156,16 @@ export const PICTURES: Picture[] = [
     deco: ['M70 140 Q80 180 130 210', 'M150 122 Q140 170 145 210', 'M220 198 Q200 210 170 212', 'M145 210 L145 254', 'M110 232 L180 232'],
   },
 ]
+
+/** 全部的圖：分類的順序就是著色本左邊圖示的順序 */
+export const PICTURES: Picture[] = [...DINOS, ...BASE, ...MORE]
+
+export const CATS: Cat[] = [
+  { id: 'dino', title: '恐龍', icon: 'dino-trex-sun', colors: { body: '#8FCBAA', belly: '#F1D27C', head: '#8FCBAA', neck: '#8FCBAA', tail: '#8FCBAA', legA: '#6FB08E', legB: '#8FCBAA', arm: '#8FCBAA', sun: '#F1D27C' } },
+  { id: 'animal', title: '動物', icon: 'butterfly', colors: { wingL: '#E99A84', wingR: '#E99A84', lowL: '#F1D27C', lowR: '#F1D27C', spotL: '#A3C4E4', spotR: '#A3C4E4', body: '#BFB2DF', head: '#BFB2DF' } },
+  { id: 'sea', title: '海洋', icon: 'fish', colors: { body: '#F0B088', tail: '#F1D27C', top: '#F1D27C', low: '#F1D27C', stripe: '#E98A7A', bubble1: '#A3C4E4', bubble2: '#A3C4E4', weed: '#8FCBAA' } },
+  { id: 'vehicle', title: '交通工具', icon: 'car', colors: { body: '#E98A7A', roof: '#E98A7A', win1: '#A3C4E4', win2: '#A3C4E4', wheel1: '#6B6460', wheel2: '#6B6460', sun: '#F1D27C', light: '#F1D27C' } },
+  { id: 'fruit', title: '水果', icon: 'fruit-apple', colors: { apple: '#E98A7A', leaf: '#8FCBAA', stem: '#B08968' } },
+  { id: 'home', title: '房子和氣球', icon: 'house', colors: { roof: '#E98A7A', wall: '#F1D27C', door: '#A3C4E4', win1: '#A3C4E4', win2: '#A3C4E4', chimney: '#B08968', grass: '#8FCBAA', sun: '#F1D27C' } },
+]
+

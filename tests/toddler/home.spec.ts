@@ -211,9 +211,10 @@ test.describe('學校首頁', () => {
         await settle(page)
         await k.wait(600)
         await k.tap((await doorAt(page, 'draw'))!, '畫畫')
-        // T-138：畫畫的門先到「白紙自由畫／著色本」，點白紙那一個（一樣在轉場中）
+        // T-138：畫畫的門先到「白紙自由畫／著色本」；點白紙那一下才進自由畫畫，從那一下開始算「馬上就畫」
+        // （選的畫面剛換上來 0.3 秒內的點會被防連點擋掉，那是對的，所以先等它穩定）
         await waitLive(page, (l) => l === 'draw', 4000)
-        await k.wait(ms)
+        await settle(page, 4000)
         const free = await centerOf(page, '[data-pick="free"]')
         if (free) await k.tap(free, '白紙自由畫')
         await k.wait(ms)
@@ -312,9 +313,44 @@ test.describe('學校首頁', () => {
         await holdHome(k, c, '連點進到一張圖，返回著色本')
         l = await live()
       }
+      const cats = await page.evaluate(() => [...document.querySelectorAll('.coloring-cat')].map((e) => e.getAttribute('data-cat')!))
       const pages = await page.evaluate(() => document.querySelectorAll('[data-pic]').length)
-      c.outcome('著色本有 6～8 張圖', pages >= 6 && pages <= 8, `${pages} 張`)
+      c.outcome('著色本有分類、恐龍很多張', cats.length >= 5 && cats[0] === 'dino' && pages >= 30, `分類 ${cats.join('、')}；恐龍 ${pages} 張`)
       await c.screenOk('著色本')
+
+      // 2b. 往下滑：看得到更多，滑的時候不會打開一張圖
+      k.behavior = '往下滑'
+      const sc = (await rect('.coloring-scroll'))!
+      await k.drag([{ x: sc.x, y: sc.top + sc.h * 0.85 }, { x: sc.x + 10, y: sc.top + sc.h * 0.5 }, { x: sc.x + 20, y: sc.top + sc.h * 0.15 }], { label: '往上推（往下看）', stepMs: 12 })
+      await k.wait(900)
+      const top1 = await page.evaluate(() => document.querySelector('.coloring-scroll')?.scrollTop ?? 0)
+      c.outcome('往下滑看更多、不會打開圖', top1 > 40 && (await live()) === 'coloring', `捲了 ${Math.round(top1)} px；在 ${await live()}`)
+
+      // 2c. 換分類：連點、每一類都點一次，縮圖跟著換；再回到恐龍
+      k.behavior = '換分類'
+      const seen: string[] = []
+      for (const id of [...cats.slice(1), cats[0]]) {
+        const t = (await rect(`.coloring-cat[data-cat="${id}"]`))!
+        if (id === cats[2]) await k.spam(t, 4, `連點分類 ${id}`)
+        else await k.tap(t, `分類 ${id}`)
+        await k.wait(700)
+        const now = await attr('.coloring-book', 'data-cat')
+        const n = await page.evaluate(() => document.querySelectorAll('[data-pic]').length)
+        seen.push(`${id}→${now}（${n} 張）`)
+        if (now !== id || !n) break
+      }
+      c.outcome('換分類', seen.length === cats.length && seen.every((x) => !x.includes('（0 張）') && x.split('→')[0] === x.split('→')[1].split('（')[0]), seen.join('、'))
+      c.outcome('換分類不會離開著色本', (await live()) === 'coloring', `在 ${await live()}`)
+      await c.screenOk('換分類')
+
+      // 2d. 亂點縮圖（連點同一張）：只進一張，返回回著色本
+      k.behavior = '連點縮圖'
+      await settle(page, 4000)
+      await k.spam((await rect('.coloring-page', 1))!, 5 + k.r.int(3), '連點縮圖')
+      l = await waitLive(page, (x) => !!x?.startsWith('play-d-color'), 5000)
+      c.outcome('連點縮圖進一張圖', !!l?.startsWith('play-d-color'), `到 ${l}`)
+      if (l?.startsWith('play-d-color')) await holdHome(k, c, '連點縮圖後返回')
+      c.outcome('連點縮圖後返回著色本', (await live()) === 'coloring', `到 ${await live()}`)
 
       // 3. 返回一下回上一層，再進來
       k.behavior = '著色本返回'
@@ -327,8 +363,8 @@ test.describe('學校首頁', () => {
 
       // 4. 兩根手指同時點兩張圖：只進一張
       k.behavior = '兩根手指點兩張圖'
-      const fish = (await centerOf(page, '[data-pic="fish"]'))!
-      const bf = (await centerOf(page, '[data-pic="butterfly"]'))!
+      const fish = (await rect('.coloring-page', 0))!
+      const bf = (await rect('.coloring-page', 1))!
       await k.twoFinger([fish], bf, 120)
       l = await waitLive(page, (x) => !!x?.startsWith('play-d-color'), 5000)
       c.outcome('兩根手指點兩張圖', !!l?.startsWith('play-d-color'), `到 ${l}`)
@@ -366,6 +402,21 @@ test.describe('學校首頁', () => {
       const inkP = await inkAt(page, [P])
       const ready = await page.locator('.tool-done').count()
       c.outcome('塗了一些完成鍵才出現', ready === 1 && inkP > 0, `完成鍵 ${ready} 個；塗過的地方墨 ${inkP}`)
+
+      // 7b. 塗出界：從圖的中間一路塗到紙的角落，線外也有顏色（家長 2026-11-11：不要管邊界），黑線還在最上面
+      k.behavior = '塗出界'
+      const out = await onPaper(0.06, 0.92)
+      await k.drag([await onPaper(0.47, 0.5), await onPaper(0.25, 0.75), out], { label: '從裡面塗到紙的角落', stepMs: 10 })
+      const inkOut = await inkAt(page, [out])
+      const lineOnTop = await page.evaluate(() => {
+        const p = document.querySelector('[data-paper]')
+        const kids = p ? [...p.children] : []
+        const svgAt = kids.findIndex((e) => e.querySelector('svg') || e.tagName.toLowerCase() === 'svg')
+        const lastCanvas = kids.map((e) => e.tagName.toLowerCase()).lastIndexOf('canvas')
+        return svgAt > lastCanvas
+      })
+      c.outcome('塗出界有顏色、線稿在最上面', inkOut > 0 && lineOnTop, `紙角落墨 ${inkOut}；線稿在畫布上面 ${lineOnTop}`)
+      await c.screenOk('塗出界')
 
       // 8. 橡皮擦：擦掉，點蠟筆再塗回來
       k.behavior = '橡皮擦'
@@ -407,8 +458,18 @@ test.describe('學校首頁', () => {
       // 10. 再塗一張，塗到一半按返回（另一根手指還在塗）：一步回著色本
       k.behavior = '塗到一半返回'
       await settle(page, 4000)
-      await k.tap((await centerOf(page, '[data-pic="car"]'))!, '小汽車')
-      await waitLive(page, (x) => x === 'play-d-color-car', 5000)
+      // 跟孩子一樣：點了沒進去就再點一次（著色本剛換上來的那一下會被防連點擋掉）
+      const other = await page.evaluate(() => document.querySelectorAll('.coloring-page')[2]?.getAttribute('data-pic') ?? null)
+      for (let i = 0; i < 3 && other && (await live()) === 'coloring'; i++) {
+        const p2 = await rect(`.coloring-page[data-pic="${other}"]`)
+        if (!p2) break
+        await k.tap(p2, i ? '再點一次' : '另一張圖')
+        await waitLive(page, (x) => x === `play-d-color-${other}`, 3000)
+      }
+      if ((await live()) !== `play-d-color-${other}`) {
+        c.outcome('再進一張圖', false, `停在 ${await live()}`)
+        return
+      }
       const ok10 = await accepting(10_000)
       c.outcome('第二次進來不再示範', ok10, ok10 ? '馬上可以塗' : '等不到可以塗')
       const q = await onPaper(0.5, 0.5)

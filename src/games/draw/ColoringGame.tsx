@@ -65,7 +65,8 @@ const ALIVE: Record<string, TargetAndTransition> = {
   house: { scale: [1, 1.03, 1], transition: { duration: 1.2, ease: EASE.inOut } },
 }
 const ORIGIN: Record<string, string> = { house: '50% 90%' }
-const VEHICLES = new Set(['car', 'bus', 'firetruck'])
+/** 完成時說「Beep beep!」的：地上跑的車（船、飛機、火箭、熱氣球不說） */
+const BEEP = new Set(['car', 'bus', 'firetruck', 'vehicle-train'])
 
 interface StrokeLog {
   c: string
@@ -78,8 +79,8 @@ interface StrokeLog {
 /**
  * 著色本（T-138，家長 2026-11-11：「畫圖的部分我希望有著色本，這樣比較好玩」；從 T-75 拿掉前的蠟筆著色救回來）：
  * 從畫畫的「著色本」選一張圖（DrawPick.tsx），孩子用手指或筆在線稿上真的塗（不是點一下就填滿）。
- * - 一筆只塗在下筆的那一塊（T-36 家長的決定）：從那一塊塗出去，線外不會有顏色；從畫紙外面滑進來的那一筆照樣塗得出來。
- *   橡皮擦不限制在哪一塊（三歲擦的時候不會先想好從哪一塊開始）。
+ * - 完全自由（家長 2026-11-11：塗出界就出界，不要管邊界）：手畫到哪裡顏色就到哪裡，從畫紙外面滑進來的那一筆也有顏色。
+ *   線稿的黑線永遠在最上層，塗色蓋不掉線。設定裡舊的 coloringHelp（只塗在下筆那一塊）不再讀，家長區也沒有開關。
  * - 線稿的黑線永遠在最上層；右邊是 6 支大蠟筆和橡皮擦（≥ 2 cm，準則 TOUCH-1）。
  * - 沒有對錯。塗了一些（READY）完成鍵才出現（剛進來不會誤按）；點一下就完成（T-134 盲測：三歲只會點，不會按住），但手還在畫、或剛放開時不算（手掌誤碰）。
  * - 第一次玩先示範：手拿起一支蠟筆，在一塊區域裡來回塗（真的蠟筆筆觸），示範塗的那一塊留在畫上（「我幫你塗了一點」），
@@ -170,7 +171,7 @@ export function ColoringGame({ gameId, pic: picId, onDone, onExit }: GameProps) 
     setShowing(true)
     await say('teach.watch.dodo')
     if (!live_.current) return
-    const pickHex = CRAYONS.find((c) => c.id === (VEHICLES.has(pic.id) ? 'blue' : 'green'))!.hex
+    const pickHex = CRAYONS.find((c) => c.id === (pic.cat === 'vehicle' ? 'blue' : 'green'))!.hex
     const el = box.current?.querySelector<HTMLElement>(`[data-crayon="${pickHex}"]`)
     const er = el?.getBoundingClientRect()
     const at = er ? screenToLayer(er.left + er.width * 0.22, er.top + er.height * 0.55) : toLayer(W * 0.9, H * 0.5)
@@ -345,12 +346,11 @@ export function ColoringGame({ gameId, pic: picId, onDone, onExit }: GameProps) 
     const eraser = toolRef.current === ERASER
     // 下筆的那一塊：「幫忙不塗出線」開著才拿來 clip；關著也記下來（作答紀錄看孩子塗了哪幾塊）
     const region = regions.at(p.x, p.y)
-    // 一筆只塗在下筆的那一塊（T-36 家長的決定）；橡皮擦不限制
-    const clip = !eraser
+    // 不限制在哪一塊：塗出界就出界（家長 2026-11-11）
     active.current = { id: e.pointerId, type: e.pointerType, region }
     // 蠟筆先畫在 live 層，放開才併進 base；橡皮擦直接擦 base
     const ctx = (eraser ? base.current! : live.current!).getContext('2d')!
-    cur.current = new CrayonStroke(ctx, { color: eraser ? '#000' : toolRef.current, eraser, pen: e.pointerType === 'pen', clip: clip ? (c) => regions.clip(c, region) : null }, p)
+    cur.current = new CrayonStroke(ctx, { color: eraser ? '#000' : toolRef.current, eraser, pen: e.pointerType === 'pen', clip: null }, p)
     setHandOn(false)
     handOn_.current = false
     idle.poke()
@@ -385,7 +385,8 @@ export function ColoringGame({ gameId, pic: picId, onDone, onExit }: GameProps) 
     idle.poke()
     const cov = regions.coverage(base.current!)
     const ok = cov.any - demoCov.current >= READY
-    if (ok !== ready) setReady(ok)
+    // 完成鍵出現了就一直留著：擦掉一些不會又不見（三歲測試：擦完完成鍵消失，看起來像壞掉）
+    if (ok && !ready) setReady(true)
     if (ok && !readySaid.current) {
       readySaid.current = true
       void say('d.color.ready')
@@ -432,7 +433,7 @@ export function ColoringGame({ gameId, pic: picId, onDone, onExit }: GameProps) 
     const cov = regions.coverage(base.current!)
     const thumb = svg.current ? await within(svgThumb(svg.current, 480, PAPER, base.current!), STEP_MS, '') : ''
     const strokes = log.current
-    const help = true
+    const help = false
     await within(saveDrawing(def.id, `著色：${pic.title}`, thumb, { picture: pic.id, help, strokes }), STEP_MS, undefined)
     const colors = new Set(strokes.filter((s) => s.c !== ERASER).map((s) => s.c))
     void logAttempt({
@@ -482,7 +483,7 @@ export function ColoringGame({ gameId, pic: picId, onDone, onExit }: GameProps) 
     for (const a of regions.areas) fx.fill(a.path)
     fx.restore()
     setAlive(true)
-    await Promise.all([within(say(...(VEHICLES.has(pic.id) ? ['d.color.beep'] : []), 'd.color.done'), SAY_MAX_MS, undefined), wait(1800)])
+    await Promise.all([within(say(...(BEEP.has(pic.id) ? ['d.color.beep'] : []), 'd.color.done'), SAY_MAX_MS, undefined), wait(1800)])
     await wait(ms(DUR.arm))
   }
 

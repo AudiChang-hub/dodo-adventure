@@ -1,14 +1,14 @@
-import { useEffect, useId, useRef } from 'react'
+import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react'
 import { motion } from 'motion/react'
 import { Shell } from '../Shell'
-import { PICTURES, type Picture } from './pictures'
+import { CATS, PICTURES, type Picture } from './pictures'
 import { go } from '../../lib/nav'
 import { say, sfx, stopSpeech } from '../../lib/audio'
 import { useTaps } from '../../ui/tap'
 import './coloring.css'
 
 // 畫畫的入口（T-138，家長 2026-11-11：「畫圖的部分我希望有著色本，這樣比較好玩」）：
-// 首頁的「畫畫」→ 選白紙自由畫還是著色本（兩個大圖示，沒有字）→ 著色本是 8 張圖的縮圖，點一張就開始塗。
+// 首頁的「畫畫」→ 選白紙自由畫還是著色本（兩個大圖示，沒有字）→ 著色本：左邊分類、右邊往下滑的縮圖，點一張就開始塗。
 // 每一層返回鍵點一下回上一層（塗一張圖 → 著色本 → 選白紙還是著色本 → 首頁，lib/nav.ts 的 parentOf）。
 
 const INK = '#2E2A25'
@@ -122,30 +122,77 @@ export function DrawPick() {
   )
 }
 
-/** 著色本：8 張圖的縮圖，點一張就開始塗 */
+/** 著色本上次看的分類、捲到哪裡：塗完一張回來還在同一頁、同一個位置 */
+let lastCat = 'dino'
+const lastScroll = new Map<string, number>()
+
+/**
+ * 著色本：左邊一排分類的大圖示（恐龍、動物、海洋、交通工具、水果、房子和氣球；圖示是那一類塗好顏色的一張圖，沒有字），
+ * 右邊是那一類的縮圖，往下滑看更多，點一張就開始塗。
+ */
 export function ColoringBook() {
   useHello('d.book.intro')
   const tap = useTaps()
   const once = useGoOnce()
   const uid = useId()
+  const [cat, setCat] = useState(() => (CATS.some((c) => c.id === lastCat) ? lastCat : CATS[0].id))
+  const scroller = useRef<HTMLDivElement>(null)
+  const list = PICTURES.filter((p) => p.cat === cat)
+  // 回到上次捲到的位置
+  useLayoutEffect(() => {
+    const el = scroller.current
+    if (el) el.scrollTop = lastScroll.get(cat) ?? 0
+  }, [cat])
   return (
     <Shell station="draw" mood="idle" onExit={() => go({ name: 'draw' }, { back: true })} hideHost hint={false}>
-      <div className="coloring-book" data-coloring-book="">
-        {PICTURES.map((p, i) => (
-          <motion.button
-            key={`${uid}-${p.id}`}
-            className="coloring-page"
-            data-pic={p.id}
-            aria-label={p.title}
-            initial={{ y: 18, opacity: 0 }}
-            animate={{ y: 0, opacity: 1 }}
-            transition={{ type: 'spring', stiffness: 240, damping: 24, delay: 0.05 + i * 0.05 }}
-            whileTap={{ scale: 0.94 }}
-            {...tap(p.id, () => once(() => go({ name: 'play', game: 'd-color', station: 'draw', pic: p.id })))}
-          >
-            <PictureArt pic={p} />
-          </motion.button>
-        ))}
+      <div className="coloring-book" data-coloring-book="" data-cat={cat}>
+        <div className="coloring-cats" role="tablist">
+          {CATS.map((c) => {
+            const pic = PICTURES.find((p) => p.id === c.icon) ?? PICTURES.find((p) => p.cat === c.id)!
+            const on = c.id === cat
+            return (
+              <button
+                key={c.id}
+                className={`coloring-cat${on ? ' on' : ''}`}
+                role="tab"
+                data-cat={c.id}
+                aria-label={c.title}
+                aria-selected={on}
+                {...tap(`cat-${c.id}`, () => {
+                  if (on) return
+                  sfx.pop()
+                  lastCat = c.id
+                  setCat(c.id)
+                })}
+              >
+                <PictureArt pic={pic} colors={c.colors} />
+              </button>
+            )
+          })}
+        </div>
+        <div
+          ref={scroller}
+          className="coloring-scroll"
+          onScroll={(e) => void lastScroll.set(cat, (e.target as HTMLElement).scrollTop)}
+        >
+          <div className="coloring-grid">
+            {list.map((p, i) => (
+              <motion.button
+                key={`${uid}-${cat}-${p.id}`}
+                className="coloring-page"
+                data-pic={p.id}
+                aria-label={p.title}
+                initial={{ y: 14, opacity: 0 }}
+                animate={{ y: 0, opacity: 1 }}
+                transition={{ type: 'spring', stiffness: 240, damping: 24, delay: Math.min(i, 8) * 0.04 }}
+                whileTap={{ scale: 0.94 }}
+                {...tap(p.id, () => once(() => go({ name: 'play', game: 'd-color', station: 'draw', pic: p.id })))}
+              >
+                <PictureArt pic={p} />
+              </motion.button>
+            ))}
+          </div>
+        </div>
       </div>
     </Shell>
   )
