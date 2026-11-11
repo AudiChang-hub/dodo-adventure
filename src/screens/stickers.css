@@ -171,10 +171,81 @@
 .sb-ghost:nth-child(2) {
   translate: 0 -18px;
 }
+/* 整頁都收點（點在剪影上或空白處都有回應），手指按下去不要出現瀏覽器的反白 */
+.sb-empty {
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+}
+.sb-ghost-art {
+  display: block;
+}
+
+/* ── 空的貼紙本：帶他回去玩（T-135）──
+   小房子（返回鍵）外面一圈暖光；豆豆的腳印從他腳下走到小房子；豆豆本人也可以點 */
+.sticker-book.is-empty .sb-host {
+  pointer-events: auto;
+  -webkit-tap-highlight-color: transparent;
+}
+.sb-halo,
+.sb-pulse {
+  position: absolute;
+  left: -14px;
+  top: -14px;
+  width: calc(100% + 28px);
+  height: calc(100% + 28px);
+  border-radius: 50%;
+  pointer-events: none;
+}
+/* 一直留著的暖光：淡淡一圈；豆豆說完第一句時呼吸三下 */
+.sb-halo {
+  background: radial-gradient(circle, rgba(246, 220, 143, 0.5) 60%, rgba(246, 220, 143, 0) 71%);
+  box-shadow: 0 0 0 4px rgba(241, 210, 124, 0.55);
+  animation: sb-breathe 1.4s ease-in-out 2.2s 3;
+}
+@keyframes sb-breathe {
+  50% {
+    scale: 1.14;
+    box-shadow: 0 0 0 6px rgba(241, 210, 124, 0.9);
+  }
+}
+.sb-pulse {
+  border: 5px solid rgba(241, 210, 124, 0.9);
+}
+@media (prefers-reduced-motion: reduce) {
+  .sb-halo {
+    animation: none;
+  }
+}
+.sb-trail {
+  position: absolute;
+  left: 26px;
+  width: 92px;
+  top: 128px;
+  /* 豆豆的頭頂：bottom 22px＋身高（寬 × 210/230） */
+  bottom: calc(22px + clamp(104px, 11vw, 150px) * 0.913 + 6px);
+  display: flex;
+  flex-direction: column-reverse;
+  justify-content: space-evenly;
+  align-items: center;
+  color: #d9b85a;
+  pointer-events: none;
+  z-index: 1;
+}
+.sb-step {
+  display: block;
+  width: 24px;
+  translate: 12px 0;
+  rotate: 8deg;
+}
+.sb-step:nth-child(even) {
+  translate: -12px 0;
+  rotate: -8deg;
+}
 
 /* 手機直式（家長遠端看）：本子在返回鍵下面占滿寬度，不跑版就好 */
 @media (orientation: portrait) {
-  .sb-host {
+  .sb-host,
+  .sb-trail {
     display: none;
   }
   .sb-album {

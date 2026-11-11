@@ -304,6 +304,49 @@ test.describe('畫面', () => {
         const ok = empty.empty && empty.ghosts > 0 && !empty.items && !empty.text
         c.outcome('沒有貼紙：虛線剪影、沒有字', ok, `剪影 ${empty.ghosts} 張、貼紙 ${empty.items} 張、字「${empty.text}」`)
         if (!ok) await c.once('empty', '困惑', '沒有貼紙時貼紙本不是空的剪影（或出現了字）', JSON.stringify(empty))
+
+        // T-135（AI 小男生盲測 becf39a）：空的貼紙本點灰貼紙、點空白處、點豆豆都沒反應，32 秒就走了。
+        // 要有引導（返回鍵那裡亮起來：去玩）、點哪裡都有回應（動一下＋豆豆說話）。
+        k.behavior = '沒有貼紙：點灰貼紙、點空白、點豆豆'
+        const hint = await page.evaluate(() => {
+          const root = [...document.querySelectorAll<HTMLElement>('.scene')].filter((e) => !e.inert).pop()!
+          return !!root.querySelector('.sb-back[data-hint] [data-back]')
+        })
+        c.outcome('沒有貼紙：返回首頁的鍵亮起來，帶他去玩', hint, hint ? '' : '沒有引導')
+        if (!hint) await c.once('empty-hint', '困惑', '空的貼紙本沒有引導孩子去哪裡拿貼紙', '')
+        await k.wait(5000)
+        const where = await page.evaluate(() => {
+          const root = [...document.querySelectorAll<HTMLElement>('.scene')].filter((e) => !e.inert).pop()!
+          const mid = (e: Element | null) => {
+            const r = e?.getBoundingClientRect()
+            return r?.width ? { x: r.left + r.width / 2, y: r.top + r.height / 2 } : null
+          }
+          const a = root.querySelector('.sb-album')!.getBoundingClientRect()
+          return { ghost: mid(root.querySelector('.sb-ghost')), blank: { x: a.right - 36, y: a.bottom - 36 }, dodo: mid(root.querySelector('.sb-host')) }
+        })
+        const nudges = () =>
+          page.evaluate(() => {
+            const root = [...document.querySelectorAll<HTMLElement>('.scene')].filter((e) => !e.inert).pop()!
+            return Number(root.querySelector<HTMLElement>('[data-nudge]')?.dataset.nudge ?? 0)
+          })
+        const pokes: [string, { x: number; y: number } | null][] = [
+          ['灰貼紙', where.ghost],
+          ['本子的空白處', where.blank],
+          ['豆豆', where.dodo],
+        ]
+        for (const [what, p] of pokes) {
+          if (!p || (await live()) !== 'stickers') continue
+          const n0 = await nudges()
+          const t1 = await page.evaluate(() => performance.now())
+          await k.tap(p, what)
+          await k.wait(300)
+          const moved = (await nudges()) > n0
+          await k.wait(3500)
+          const said = (await linesSince(page, t1)).map((l) => l.text ?? '')
+          c.outcome(`沒有貼紙：點${what}有回應`, moved && said.length > 0, `動了 ${moved}；說了「${said.join('／')}」`)
+          if (!moved || !said.length) await c.once(`poke:${what}`, '困惑', `空的貼紙本點${what}沒有回應`, `動了 ${moved}；語音 ${said.length} 句`)
+        }
+
         k.behavior = '沒有貼紙：亂點、多指'
         for (let i = 0; i < 8; i++) {
           if ((await live()) !== 'stickers') break

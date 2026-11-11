@@ -33,6 +33,11 @@ def('stk.pick.later', 'dodo', 'Okay! Your sticker will wait for you!')
 // 還沒有貼紙時不說「上完課就有」：貼紙是不定時出現的，事先不說（T-87）
 def('stk.book.hi', 'dodo', 'Look! || Your stickers! Tap one!')
 def('stk.book.empty', 'dodo', 'Your stickers will go here!')
+// 空的貼紙本：帶他回去玩（T-135，AI 小男生盲測：點灰貼紙沒回應就走了）。只說「去玩」，不說哪一堂、什麼時候會有
+def('stk.book.go', 'dodo', "Let's go play! Stickers come when you play!")
+// 點灰貼紙、點空白處、點豆豆：輪流說，配合返回鍵（小房子）亮起來
+def('stk.book.poke.0', 'dodo', "Hmm... || Not yet! Let's go play!")
+def('stk.book.poke.1', 'dodo', "Look! || Tap the house! Let's go play!")
 
 // ── 點貼紙念它的英文名字（順便學詞彙）──────────────────────────────
 // 「這是 ___」全站只用一種說法（2026-10-28 單字盤點第 4 章）：This is a | dog! ／ These are | grapes!
