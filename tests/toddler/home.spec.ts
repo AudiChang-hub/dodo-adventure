@@ -1,7 +1,7 @@
 import { test, expect, type Page } from '@playwright/test'
-import { boot, homeButton, settle, snap, storyToldToday, targets } from './lib/app'
+import { boot, homeButton, inkAt, settle, snap, storyToldToday, targets } from './lib/app'
 import { Toddler, hashSeed } from './lib/toddler'
-import { Checker, doorAt, drawAndMeasure, pressBack, tapDoor, toHome, toddlerStep, waitLive } from './lib/flows'
+import { Checker, centerOf, doorAt, drawAndMeasure, holdHome, pressBack, tapDoor, toHome, toddlerStep, waitLive } from './lib/flows'
 
 /**
  * 學校的首頁（2026-10-31，src/screens/Home.tsx 的 SchoolHome）：三個大門（英文字母、中文課文、數學數字）＋故事、畫畫，牆上的貼紙板（T-132）。
@@ -18,7 +18,8 @@ const DOORS = [
   { door: 'chinese', name: '中文課文', live: 'lesson-chinese' },
   { door: 'math', name: '數學數字', live: 'lesson-math' },
   { door: 'story', name: '故事', live: 'shelf' },
-  { door: 'draw', name: '畫畫', live: 'play-d-free' },
+  // 畫畫（T-138）：先到「白紙自由畫／著色本」
+  { door: 'draw', name: '畫畫', live: 'draw' },
   // 牆上的貼紙板（T-132）：點進去是貼紙本
   { door: 'stickers', name: '貼紙本', live: 'stickers' },
 ] as const
@@ -210,6 +211,11 @@ test.describe('學校首頁', () => {
         await settle(page)
         await k.wait(600)
         await k.tap((await doorAt(page, 'draw'))!, '畫畫')
+        // T-138：畫畫的門先到「白紙自由畫／著色本」，點白紙那一個（一樣在轉場中）
+        await waitLive(page, (l) => l === 'draw', 4000)
+        await k.wait(ms)
+        const free = await centerOf(page, '[data-pick="free"]')
+        if (free) await k.tap(free, '白紙自由畫')
         await k.wait(ms)
         k.act(`現在 ${(await snap(page)).live}，從畫紙外畫進來`)
         await k.drag([{ x: 5, y: vp.height * 0.73 }, { x: 345, y: 478 }, { x: 101, y: 312 }, { x: 645, y: 328 }, { x: 415, y: 345 }], { stepMs: 14, label: '畫' })
@@ -231,6 +237,202 @@ test.describe('學校首頁', () => {
       }
     } finally {
       finish(k, c, '點門馬上畫')
+    }
+  })
+
+  test('畫畫：白紙還是著色本、著色本（T-138）', async ({ page }, info) => {
+    test.skip(!want('home-coloring'))
+    test.setTimeout(8 * 60_000)
+    const { k, c } = await setup(page, info, '著色本')
+    const live = async () => (await snap(page)).live
+    const rect = (sel: string, i = 0) =>
+      page.evaluate(
+        ({ sel, i }) => {
+          const root = [...document.querySelectorAll<HTMLElement>('.scene')].filter((e) => !e.inert).pop() ?? document
+          const r = root.querySelectorAll(sel)[i]?.getBoundingClientRect()
+          return r ? { x: r.left + r.width / 2, y: r.top + r.height / 2, w: r.width, h: r.height, left: r.left, top: r.top } : null
+        },
+        { sel, i },
+      )
+    const attr = (sel: string, name: string) => page.evaluate(({ sel, name }) => document.querySelector(sel)?.getAttribute(name) ?? null, { sel, name })
+    const drawings = () =>
+      page.evaluate(
+        () =>
+          new Promise<number>((res) => {
+            const rq = indexedDB.open('dodo-adventure')
+            rq.onerror = () => res(-1)
+            rq.onsuccess = () => {
+              try {
+                const q = rq.result.transaction('drawings', 'readonly').objectStore('drawings').count()
+                q.onsuccess = () => (rq.result.close(), res(q.result))
+                q.onerror = () => res(-1)
+              } catch {
+                res(-1)
+              }
+            }
+          }),
+      )
+    /** 畫紙上的點（0～1 的比例） */
+    const onPaper = async (fx: number, fy: number) => {
+      const r = (await rect('[data-paper]'))!
+      return { x: r.left + r.w * fx, y: r.top + r.h * fy }
+    }
+    /** 在畫紙上來回塗一塊（cx、cy 中心，w、h 範圍，都是比例） */
+    const scribble = async (cx: number, cy: number, w: number, h: number, label: string, cancel = false) => {
+      const pts = []
+      for (let i = 0; i <= 6; i++) pts.push(await onPaper(cx + (i % 2 ? w / 2 : -w / 2), cy - h / 2 + (h * i) / 6))
+      await k.drag(pts, { label, cancel, stepMs: 10 })
+    }
+    const accepting = async (ms: number) => {
+      const end = Date.now() + ms
+      while (Date.now() < end) {
+        if ((await attr('[data-paper]', 'data-accepting')) === 'true') return true
+        await k.wait(300)
+      }
+      return false
+    }
+    const crayon = async (i: number) => (await rect('.crayon-box [data-crayon]', i))!
+    try {
+      // 1. 首頁點畫畫：先到「白紙自由畫／著色本」，兩個大圖示
+      k.behavior = '進畫畫'
+      const l0 = await tapDoor(k, c, 'draw', '畫畫', (l) => l === 'draw', 5000)
+      const picks = await page.evaluate(() => [...document.querySelectorAll('[data-pick]')].map((e) => e.getAttribute('data-pick')).join(','))
+      c.outcome('畫畫的門進去：選白紙還是著色本', l0 === 'draw' && picks === 'free,book', `到 ${l0}；圖示 ${picks}`)
+      await c.screenOk('選白紙還是著色本')
+
+      // 2. 連點著色本：進到著色本（縮圖）
+      k.behavior = '連點著色本'
+      await settle(page, 4000)
+      await k.spam((await centerOf(page, '[data-pick="book"]'))!, 5 + k.r.int(3), '著色本')
+      await waitLive(page, (l) => !!l && l !== 'draw', 4000)
+      await k.wait(1500)
+      let l = await live()
+      c.outcome('連點著色本', l === 'coloring' || !!l?.startsWith('play-d-color'), `到 ${l}`)
+      if (l !== 'coloring' && l?.startsWith('play-d-color')) {
+        await holdHome(k, c, '連點進到一張圖，返回著色本')
+        l = await live()
+      }
+      const pages = await page.evaluate(() => document.querySelectorAll('[data-pic]').length)
+      c.outcome('著色本有 6～8 張圖', pages >= 6 && pages <= 8, `${pages} 張`)
+      await c.screenOk('著色本')
+
+      // 3. 返回一下回上一層，再進來
+      k.behavior = '著色本返回'
+      await holdHome(k, c, '著色本返回')
+      c.outcome('著色本返回到選白紙還是著色本', (await live()) === 'draw', `到 ${await live()}`)
+      await settle(page, 4000)
+      await k.tap((await centerOf(page, '[data-pick="book"]'))!, '著色本')
+      await waitLive(page, (l) => l === 'coloring', 4000)
+      await settle(page, 4000)
+
+      // 4. 兩根手指同時點兩張圖：只進一張
+      k.behavior = '兩根手指點兩張圖'
+      const fish = (await centerOf(page, '[data-pic="fish"]'))!
+      const bf = (await centerOf(page, '[data-pic="butterfly"]'))!
+      await k.twoFinger([fish], bf, 120)
+      l = await waitLive(page, (x) => !!x?.startsWith('play-d-color'), 5000)
+      c.outcome('兩根手指點兩張圖', !!l?.startsWith('play-d-color'), `到 ${l}`)
+      if (!l?.startsWith('play-d-color')) return
+      await k.wait(800)
+
+      // 5. 第一次進來：手示範怎麼塗；示範時搶著塗，塗不出顏色
+      k.behavior = '示範時搶著塗'
+      const demo = (await attr('.stage', 'data-demo')) === '1' || (await attr('[data-paper]', 'data-accepting')) === 'false'
+      const grab = [await onPaper(0.08, 0.1), await onPaper(0.5, 0.06), await onPaper(0.92, 0.1)]
+      await k.drag(grab, { label: '示範時搶著塗', stepMs: 10 })
+      await k.spam(await crayon(0), 3, '示範時點蠟筆')
+      const inkGrab = await inkAt(page, grab)
+      const ok5 = await accepting(30_000)
+      c.outcome('第一次進來有示範', demo, demo ? '示範中畫紙不收' : '沒有示範')
+      c.outcome('示範時搶著塗', ok5 && inkGrab === 0, `搶著塗的地方墨 ${inkGrab}；${ok5 ? '示範完可以塗' : '示範一直沒結束'}`)
+      if (!ok5) return
+      const doneEarly = await page.locator('.tool-done').count()
+      c.outcome('剛進來沒有完成鍵', doneEarly === 0, `完成鍵 ${doneEarly} 個`)
+
+      // 6. 亂玩：連點蠟筆、手掌壓畫紙、塗到一半被搶走（touchcancel）、亂點畫紙
+      k.behavior = '亂玩'
+      await k.spam(await crayon(k.r.int(6)), 4 + k.r.int(4), '連點蠟筆')
+      await k.palm([await onPaper(0.3, 0.7), await onPaper(0.36, 0.76), await onPaper(0.42, 0.72)])
+      await scribble(0.5, 0.5, 0.2, 0.2, '塗到一半放手（被搶走）', true)
+      for (let i = 0; i < 6; i++) await k.tap(await onPaper(k.r.range(0.1, 0.9), k.r.range(0.15, 0.9)), '亂點畫紙')
+      await c.screenOk('亂玩之後')
+
+      // 7. 塗：選一支蠟筆，在中間來回塗；塗了一些完成鍵才出現
+      k.behavior = '塗'
+      await k.tap(await crayon(3), '綠色蠟筆')
+      const P = await onPaper(0.47, 0.5)
+      for (let i = 0; i < 5 && !(await page.locator('.tool-done').count()); i++) await scribble(0.47, 0.5, 0.24 - i * 0.02, 0.26, `塗第 ${i + 1} 下`)
+      await k.wait(600)
+      const inkP = await inkAt(page, [P])
+      const ready = await page.locator('.tool-done').count()
+      c.outcome('塗了一些完成鍵才出現', ready === 1 && inkP > 0, `完成鍵 ${ready} 個；塗過的地方墨 ${inkP}`)
+
+      // 8. 橡皮擦：擦掉，點蠟筆再塗回來
+      k.behavior = '橡皮擦'
+      await k.tap((await rect('.crayon-box .tool-eraser'))!, '橡皮擦')
+      const eOn = await attr('.crayon-box .tool-eraser', 'aria-pressed')
+      await k.drag([{ x: P.x - 90, y: P.y }, { x: P.x + 90, y: P.y }, { x: P.x - 90, y: P.y + 4 }], { label: '擦', stepMs: 10 })
+      const inkE = await inkAt(page, [P])
+      await k.tap(await crayon(1), '橘色蠟筆')
+      const eOff = await attr('.crayon-box .tool-eraser', 'aria-pressed')
+      await k.drag([{ x: P.x - 60, y: P.y - 20 }, { x: P.x + 60, y: P.y }, { x: P.x - 60, y: P.y + 20 }], { label: '再塗', stepMs: 10 })
+      const inkR = await inkAt(page, [P])
+      c.outcome('橡皮擦擦得掉、點蠟筆再塗', eOn === 'true' && inkE === 0 && eOff === 'false' && inkR > 0, `選到 ${eOn}；擦完墨 ${inkE}；點蠟筆後 ${eOff}；再塗墨 ${inkR}`)
+
+      // 9. 完成鍵點一下就完成：慶祝、存進作品，停在作品上點大鈕回著色本
+      k.behavior = '點一下完成'
+      const before = await drawings()
+      await k.wait(900)
+      const done = await rect('.tool-done')
+      if (done) await k.tap(done, '完成（點一下）')
+      let rest = false
+      const end = Date.now() + 40_000
+      while (Date.now() < end) {
+        const s = await snap(page)
+        if (s.rest || (await page.locator('[data-resting]').count())) {
+          rest = true
+          break
+        }
+        if (s.cheer) await k.tap({ x: 600, y: 400 }, '看慶祝')
+        await k.wait(1500)
+      }
+      const after = await drawings()
+      c.outcome('點一下完成：慶祝、存進作品', !!done && rest && after === before + 1, `完成鍵 ${done ? '有' : '沒有'}；停在作品上 ${rest}；作品 ${before} → ${after}`)
+      await c.screenOk('完成之後')
+      const big = await rect('[data-resting] .draw-home')
+      if (big) await k.tap(big, '大鈕')
+      l = await waitLive(page, (x) => x === 'coloring', 5000)
+      c.outcome('作品上的大鈕回著色本', l === 'coloring', `到 ${l}`)
+
+      // 10. 再塗一張，塗到一半按返回（另一根手指還在塗）：一步回著色本
+      k.behavior = '塗到一半返回'
+      await settle(page, 4000)
+      await k.tap((await centerOf(page, '[data-pic="car"]'))!, '小汽車')
+      await waitLive(page, (x) => x === 'play-d-color-car', 5000)
+      const ok10 = await accepting(10_000)
+      c.outcome('第二次進來不再示範', ok10, ok10 ? '馬上可以塗' : '等不到可以塗')
+      const q = await onPaper(0.5, 0.5)
+      await holdHome(k, c, '塗到一半返回', { second: [q, { x: q.x + 60, y: q.y - 20 }, { x: q.x + 120, y: q.y }] })
+      c.outcome('塗到一半返回回著色本', (await live()) === 'coloring', `到 ${await live()}`)
+
+      // 11. 一層一層回首頁：著色本 → 選白紙還是著色本 → 首頁
+      k.behavior = '回首頁'
+      await holdHome(k, c, '著色本回上一層')
+      const l11a = await live()
+      await holdHome(k, c, '選白紙還是著色本回首頁')
+      const l11b = await live()
+      c.outcome('每一層一步回上一層', l11a === 'draw' && l11b === 'home', `著色本 → ${l11a} → ${l11b}`)
+
+      // 12. 白紙自由畫照舊
+      k.behavior = '白紙自由畫'
+      await tapDoor(k, c, 'draw', '畫畫', (x) => x === 'draw', 5000)
+      await settle(page, 4000)
+      await k.tap((await centerOf(page, '[data-pick="free"]'))!, '白紙自由畫')
+      l = await waitLive(page, (x) => x === 'play-d-free', 5000)
+      c.outcome('白紙自由畫進得去', l === 'play-d-free', `到 ${l}`)
+      await c.flush()
+    } finally {
+      finish(k, c, '著色本')
     }
   })
 })

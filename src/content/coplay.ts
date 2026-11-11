@@ -31,7 +31,7 @@ const GAME_HINTS: Record<string, string> = {
   // 畫畫小屋
   'd-trace': '請他從車子開始畫，沿著路把車子開到終點',
   'd-dots': '從小房子出發，一起念 one, two, three…，最後連回小房子',
-  'd-color': '問他：What color? 塗到線外面也沒關係',
+  'd-color': '問他：What color? 他指哪一塊就說那個顏色的英文',
   'd-free': '請他說說畫了什麼，你用英文說一次',
   'd-glyph': '描之前，先用手指在他手心畫一次這個字',
   // 公園

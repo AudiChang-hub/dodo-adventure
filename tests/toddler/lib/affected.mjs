@@ -58,6 +58,8 @@ export const SCREEN_TESTS = [
   // 英文字母課自己的測試（tests/toddler/lesson-english.spec.ts）：英文課資料夾裡的檔都從 index.tsx 走得到
   { token: 'lesson-english', spec: 'lesson-english', files: ['src/lessons/english/index.tsx'], games: [] },
   { token: 'home-draw', spec: 'home', files: [], games: ['d-free'] },
+  // 著色本（T-138）：畫畫的門進去先選白紙還是著色本
+  { token: 'home-coloring', spec: 'home', files: ['src/games/draw/DrawPick.tsx', 'src/games/draw/ColoringGame.tsx', 'src/games/draw/CrayonBox.tsx', 'src/games/draw/crayon.ts', 'src/games/draw/pictures.ts', 'src/games/draw/coloring.css', 'src/content/lines-crayon.ts'], games: ['d-free'] },
   // 貼紙本（T-132，screens.spec 的「貼紙本」）：有貼紙、沒有貼紙、亂點連點多指、返回；首頁的三大門也會點貼紙板進去
   { token: 'stickers', spec: 'screens', files: ['src/screens/StickerBook.tsx', 'src/screens/sticker-book.ts', 'src/screens/stickers.css'], games: [] },
   { token: 'home-doors', spec: 'home', files: ['src/screens/StickerBook.tsx', 'src/screens/sticker-book.ts', 'src/screens/stickers.css'], games: [] },
@@ -77,7 +79,7 @@ const SPEC_TOKENS = {
   // T-127：英文課選擇題的新玩法各一個 spec（泡泡、餵豆豆），都用 lesson-english 這個名稱
   'lesson-english-bubbles.spec.ts': ['lesson-english'],
   'lesson-english-feed.spec.ts': ['lesson-english'],
-  'home.spec.ts': ['home-doors', 'home-draw'],
+  'home.spec.ts': ['home-doors', 'home-draw', 'home-coloring'],
   'lesson-math.spec.ts': ['lesson-math'],
   'lesson-chinese.spec.ts': ['lesson-chinese'],
 }

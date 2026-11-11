@@ -7,6 +7,7 @@ import { StickerBook } from './screens/StickerBook'
 import { Bedtime } from './screens/Bedtime'
 import { Parent } from './screens/parent/Parent'
 import { PlayGame } from './games/PlayGame'
+import { ColoringBook, DrawPick } from './games/draw/DrawPick'
 import { LessonScreen } from './lessons/LessonScreen'
 import { ParentCorner, ParentGate } from './ui/ParentGate'
 import { stopSpeech } from './lib/audio'
@@ -24,9 +25,11 @@ const isNight = () => {
 }
 
 /** 畫面的層級：往深的地方走是「往前」（新畫面蓋上來淡入），往淺的地方是「往回」（上面的畫面淡出） */
-const DEPTH: Record<Route['name'], number> = { home: 0, parent: 1, bedtime: 1, lesson: 1, storybook: 1, stickers: 1, play: 1 }
+const DEPTH: Record<Route['name'], number> = { home: 0, parent: 1, bedtime: 1, lesson: 1, storybook: 1, stickers: 1, draw: 1, coloring: 2, play: 2 }
+/** 畫畫裡一層一層往下（T-138）：選白紙還是著色本 → 著色本 → 塗一張圖 */
+const depthOf = (r: Route) => (r.name === 'play' && r.game === 'd-color' ? 3 : DEPTH[r.name])
 
-const keyOf = (r: Route) => (r.name === 'play' ? `play-${r.game}` : r.name === 'lesson' ? `lesson-${r.subject}` : r.name)
+const keyOf = (r: Route) => (r.name === 'play' ? `play-${r.game}${r.pic ? `-${r.pic}` : ''}` : r.name === 'lesson' ? `lesson-${r.subject}` : r.name)
 
 /** 每一層畫面拿到的是它自己的路由：轉場時舊畫面還留在下面，不會讀到新路由變成新畫面 */
 function Screen({ r }: { r: Route }) {
@@ -34,10 +37,14 @@ function Screen({ r }: { r: Route }) {
     case 'home':
       return <Home />
     case 'play': {
-      // 玩完、離開都回上一層（首頁的畫畫：回首頁）
+      // 玩完、離開都回上一層（自由畫畫：回選白紙還是著色本；塗一張圖：回著色本）
       const up = parentOf(r)!
-      return <PlayGame gameId={r.game} onDone={() => go(up)} onExit={() => go(up, { back: true })} />
+      return <PlayGame gameId={r.game} pic={r.pic} onDone={() => go(up)} onExit={() => go(up, { back: true })} />
     }
+    case 'draw':
+      return <DrawPick />
+    case 'coloring':
+      return <ColoringBook />
     case 'lesson':
       return <LessonScreen subject={r.subject} />
     case 'storybook':
@@ -82,7 +89,7 @@ export function App() {
         id={key}
         move={() => {
           const how = lastHow()
-          return { back: how.back ?? DEPTH[r.name] < DEPTH[prev.current.name] }
+          return { back: how.back ?? depthOf(r) < depthOf(prev.current) }
         }}
       >
         <Screen r={r} />

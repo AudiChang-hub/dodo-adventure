@@ -5,8 +5,12 @@ import type { Subject } from '../lessons/types'
 
 export type Route =
   | { name: 'home' }
-  /** 首頁「畫畫」那一扇門進去的遊戲（自由畫畫）；station 是作答紀錄用的站點 */
-  | { name: 'play'; game: string; station: StationId }
+  /** 畫畫裡的遊戲（自由畫畫 d-free、著色本 d-color）；station 是作答紀錄用的站點；pic 是著色本選的那一張（T-138） */
+  | { name: 'play'; game: string; station: StationId; pic?: string }
+  /** 首頁「畫畫」那一扇門進去：選白紙自由畫還是著色本（T-138，games/draw/DrawPick.tsx） */
+  | { name: 'draw' }
+  /** 著色本：幾張圖的縮圖，點一張開始塗（T-138） */
+  | { name: 'coloring' }
   /** 學校的一堂課（src/lessons/）：首頁的三個大門 */
   | { name: 'lesson'; subject: Subject }
   | { name: 'storybook' }
@@ -23,7 +27,7 @@ function initialRoute(): Route {
   try {
     const r = sessionStorage.getItem(RESUME_KEY)
     sessionStorage.removeItem(RESUME_KEY)
-    if (r === 'home' || r === 'storybook' || r === 'stickers' || r === 'parent') return { name: r }
+    if (r === 'home' || r === 'storybook' || r === 'stickers' || r === 'parent' || r === 'draw' || r === 'coloring') return { name: r }
   } catch {
     /* 讀不到就照網址 */
   }
@@ -93,10 +97,17 @@ export function useRoute(): Route {
 // ── 返回：點一下回上一層 ─────────────────────────────────────
 // 不跳出 App 交給 Android 的螢幕固定；App 裡的返回只回上一層，最上層（首頁）就停住。
 
-/** 上一層：一堂課、畫畫、故事書、貼紙本、家長區 → 首頁。首頁和睡覺畫面沒有上一層。 */
+/**
+ * 上一層：一堂課、畫畫（選白紙還是著色本）、故事書、貼紙本、家長區 → 首頁。首頁和睡覺畫面沒有上一層。
+ * 畫畫裡（T-138）：自由畫畫、著色本 → 選白紙還是著色本；塗一張圖 → 著色本。
+ */
 export function parentOf(r: Route): Route | null {
   switch (r.name) {
     case 'play':
+      return r.game === 'd-color' ? { name: 'coloring' } : { name: 'draw' }
+    case 'coloring':
+      return { name: 'draw' }
+    case 'draw':
     case 'storybook':
     case 'stickers':
     case 'lesson':

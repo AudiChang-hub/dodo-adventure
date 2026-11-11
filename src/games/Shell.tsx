@@ -50,6 +50,8 @@ export interface GameResult {
 
 export interface GameProps {
   gameId: string
+  /** 著色本選的那一張圖（T-138）；其他遊戲沒有 */
+  pic?: string
   onDone: (r: GameResult) => void
   onExit: () => void
 }
