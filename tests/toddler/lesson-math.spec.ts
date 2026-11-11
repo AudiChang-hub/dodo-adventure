@@ -1067,6 +1067,90 @@ test.describe('數學課', () => {
     }
   })
 
+  // T-139（盲測 9792b5d 2:31、becf39a 1:24、61ee1cf 1:09，數學 2 都在這裡離開）：小火車按勾勾交出去、火車開走以後，
+  // 左邊剩下的東西、灰色的勾勾還留在畫面上，看起來像還有一題要做；他一直點、只有圈圈，「我一直點都不對，不知道要幹嘛」按返回。
+  // 交出去以後：剩下的東西收起來、勾勾不留著讓他點，要幾個的數字念完也收起來；點畫面看得出等一下；很快就出現下一步的大箭頭
+  test('小火車開走（T-139）：交出去以後沒有看起來還要做的東西，點了看得出等一下，很快就能往下', async ({ page }, info) => {
+    test.skip(!want())
+    test.setTimeout(3 * 60_000)
+    const { k, c } = await setup(page, info, '火車開走', false, true, 'train')
+    try {
+      const day = await page.evaluate(() => {
+        const d = new Date()
+        return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+      })
+      // 跟盲測一樣：今天的數字 1、從「拿給波波」那一段接著上，抽到小火車
+      await setMath(page, { next: 2, firm: false, day, n: 1, mode: 'new', part: 1, asked: 0, missed: 0 })
+      if (!(await enter(k, c))) return
+      const ready = await page
+        .waitForFunction(() => !!document.querySelector('.ma-load .ma-give-thing:not(.is-on)') && !document.querySelector('.ma-load [data-accepting="false"]') && !document.querySelector('[data-demo="1"]'), null, { timeout: 60_000 })
+        .then(() => true)
+        .catch(() => false)
+      if (!ready) return void (await c.once('no-train', '卡死', '沒有走到小火車（或一直不能放）', `停在 ${await partNow(page)}`))
+      await k.wait(500)
+      const at = (sel: string) =>
+        page.evaluate((sel) => {
+          const r = document.querySelector(sel)?.getBoundingClientRect()
+          return r ? { x: r.left + r.width / 2, y: r.top + r.height / 2 } : null
+        }, sel)
+      k.behavior = '放一個上火車、按勾勾（手多點一下）'
+      const left = (await at('.ma-load .ma-give-thing:not(.is-on)'))!
+      await k.tap(left, '放一個上火車')
+      await k.wait(800)
+      const ok = (await at('.ma-give-done'))!
+      const t0 = await page.evaluate(() => performance.now())
+      await k.tap(ok, '按勾勾')
+      await k.wait(60)
+      await k.tap(ok, '手多點一下')
+      await k.wait(1000)
+      /** 畫面上還看得到（不透明度 0.3 以上）的：剩下的東西、勾勾、要幾個的數字 */
+      const look = () =>
+        page.evaluate(() => {
+          const vis = (e: Element | null) => !!e && Number(getComputedStyle(e).opacity) > 0.3 && (e as HTMLElement).getBoundingClientRect().width > 2
+          const root = [...document.querySelectorAll('.ma-load')].pop()
+          return {
+            left: [...(root?.querySelectorAll('.ma-give-thing:not(.is-on)') ?? [])].filter(vis).length,
+            check: vis(root?.querySelector('.ma-give-done') ?? null),
+            want: vis(root?.querySelector('.ma-give-want') ?? null),
+          }
+        })
+      const l1 = await look()
+      if (process.env.TODDLER_SHOTS && info.project.name === 'tab1280') await page.screenshot({ path: `${process.env.TODDLER_SHOTS}/小火車開走-1秒.png` })
+      c.outcome('火車開走 1 秒：剩下的東西收起來、勾勾不留著讓他點', l1.left === 0 && !l1.check, `剩下的東西還看得到 ${l1.left} 個，勾勾${l1.check ? '還在' : '收起來了'}`)
+      if (l1.left > 0 || l1.check) await c.once('train-leftover', '困惑', '小火車開走以後，剩下的東西、勾勾還在畫面上，看起來像還有一題要做', `剩下 ${l1.left} 個，勾勾${l1.check ? '還在' : '不在'}`)
+      // 點剛剛剩下的東西那裡：要有「看這裡、等一下」的圈圈
+      k.behavior = '火車開走的時候點剩下的東西'
+      const before = await page.evaluate(() => performance.now())
+      await k.tap(left, '點剛剛剩下的東西那裡')
+      const ring = await page
+        .waitForFunction((t) => [...document.querySelectorAll('.not-yet')].length > 0 && performance.now() - t < 900, before, { timeout: 600 })
+        .then(() => true)
+        .catch(() => false)
+      c.outcome('火車開走的時候點畫面：有「等一下」的圈圈', ring, '')
+      if (!ring) await c.once('train-silent', '困惑', '小火車開走的時候點畫面沒有反應', '')
+      // 下一步的大箭頭：多久出來；那時候要幾個的數字也收起來了
+      const arrow = await page
+        .waitForFunction(() => {
+          const b = document.querySelector('.next-step')
+          return b && b.getBoundingClientRect().width > 4 ? performance.now() : false
+        }, null, { timeout: 15_000, polling: 50 })
+        .then((h) => h.jsonValue() as Promise<number>)
+        .catch(() => null)
+      const secs = arrow ? (arrow - t0) / 1000 : -1
+      // 箭頭出來 0.6 秒內（收起來的淡出做完）。自動點箭頭是出來 1.5 秒以後
+      await k.wait(600)
+      const l2 = await look()
+      const heard = await page.evaluate((t) => window.__toddler.voices.filter((v) => v.t >= t && v.text).map((v) => `${((v.t - t) / 1000).toFixed(1)}s ${v.text}`), t0)
+      c.outcome('按勾勾後 4 秒內出現下一步的大箭頭', secs > 0 && secs <= 4, `${secs < 0 ? '15 秒內都沒有' : `${secs.toFixed(1)} 秒`}；聽到：${heard.join('、')}`)
+      if (!(secs > 0 && secs <= 4)) await c.once('train-wait', '困惑', '小火車開走以後要等很久才能往下', `${secs.toFixed(1)} 秒`)
+      c.outcome('大箭頭出來時：畫面上只剩火車開走的樣子（要幾個的數字、剩下的東西、勾勾都收起來）', !l2.want && l2.left === 0 && !l2.check, JSON.stringify(l2))
+      if (l2.want || l2.left > 0 || l2.check) await c.once('train-end', '困惑', '小火車做完、出現大箭頭時，畫面上還有看起來要做的東西', JSON.stringify(l2))
+    } finally {
+      await c.flush().catch(() => {})
+      finish(k, c, '火車開走')
+    }
+  })
+
   // ── T-127：拿給波波的另外兩種玩法（小火車 Train.tsx、種花 Plant.tsx，流程在 Load.tsx）────────────────
   // 三歲的操作全部做一次：示範時搶點、連點同一個、多指（手掌）、拖到一半放手、多拿（小火車）、空的就按勾勾、發呆、
   // 返回再進來（同一天同一種玩法、接著上）、做完記成 give:N（選項照拿給波波）、往下一段走得到。

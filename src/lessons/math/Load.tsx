@@ -56,7 +56,8 @@ export const AWAY_S = 2.2
  *   第二次 → 手把剩下的放好、一起數，再指勾勾。空的就按勾勾：再說一次要幾個，不算錯。
  * - 小火車都坐滿了還點左邊的東西：那一個搖一搖、留在原位（多拿了），波波再數一次（Three!），勾勾跳一下；不算一次就對。
  * - 記錄：skill give:N、選項照拿給波波（plays.ts 的 giveOptions），game 是 m-train／m-plant；手帶著做的記成 guided。
- * - 交出去以後：勾勾變綠、跳一下、變灰；道謝的時候點畫面，勾勾左右晃一下（T-124）；說完勾勾淡掉（T-110）。
+ * - 交出去以後：勾勾變綠、跳一下就收起來，沒坐上火車的東西淡掉，數完（There is three!）要幾個的數字也收起來；
+ *   接著說 Choo choo! Bye-bye!（Grow, grow!），同時出下一步的大箭頭，不等它念完（T-139）。等的時候點畫面只有「等一下」的圈圈。
  */
 export function LoadPart({ ctx, skin }: { ctx: PartCtx; skin: LoadSkin }) {
   const [round] = useState<GiveRound>(() => giveRounds(ctx.lesson)[0])
@@ -75,7 +76,8 @@ export function LoadPart({ ctx, skin }: { ctx: PartCtx; skin: LoadSkin }) {
   const [hand, setHand] = useState<{ x: number; y: number; tap: number } | null>(null)
   const [glad, setGlad] = useState<false | 'full' | 'plain'>(false)
   const [gone, setGone] = useState(false)
-  const [used, setUsed] = useState(false)
+  /** 要幾個的數字念完了（交出去以後）：收起來 */
+  const [said, setSaid] = useState(false)
   /** 火車開走了（小火車）、花長大了（種花） */
   const [away, setAway] = useState(false)
   const [bloom, setBloom] = useState(false)
@@ -90,11 +92,6 @@ export function LoadPart({ ctx, skin }: { ctx: PartCtx; skin: LoadSkin }) {
   const since = useRef(performance.now())
   const heard = useRef(false)
   const live = useLive()
-  const nope = () => {
-    const el = doneRef.current
-    if (!el || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
-    el.animate([{ rotate: '0deg' }, { rotate: '-9deg' }, { rotate: '8deg' }, { rotate: '-5deg' }, { rotate: '0deg' }], { duration: 420, easing: 'ease-out' })
-  }
   const phase = useRef<'demo' | 'intro' | 'fb' | 'help' | 'turn' | 'done'>('intro')
   const armed = useRef(false)
   const flow = useFlow()
@@ -364,15 +361,21 @@ export function LoadPart({ ctx, skin }: { ctx: PartCtx; skin: LoadSkin }) {
       sfx.correct()
     }
     setGlad(full ? 'full' : 'plain')
-    window.setTimeout(() => live.current && setUsed(true), 600)
+    // 交出去以後畫面上不留看起來還要做的東西（T-139，盲測 9792b5d、becf39a、61ee1cf 數學 2 都在這裡離開：
+    // 火車開走以後左邊剩下的東西、灰色的勾勾、要幾個的數字都還在，看起來像還有一題，他一直點都只有圈圈，「不知道要幹嘛」）：
+    // 勾勾跳一下就收起來（不再變灰留著讓他點）、剩下的東西淡掉；點畫面只有「等一下」的圈圈
+    window.setTimeout(() => live.current && setGone(true), 520)
     // 火車開走、花長大：答案「做出來了」，不靠語言也看得懂
     if (skin.play === 'train') {
       setAway(true)
       sfx.whoosh()
     } else setBloom(true)
-    await say(`m.total.${n}`, skin.doneLine(n))
-    setGone(true)
-    if (live.current) ctx.done(heard.current ? 1 : 0, heard.current && !firstTry ? 1 : 0)
+    await say(`m.total.${n}`)
+    if (!live.current) return
+    // 數完（There is three!）：要幾個的數字也收起來；Choo choo! Bye-bye! 跟下一步的大箭頭一起出來，不再等它念完（以前按勾勾後 4.3 秒才能往下）
+    setSaid(true)
+    void say(skin.doneLine(n))
+    ctx.done(heard.current ? 1 : 0, heard.current && !firstTry ? 1 : 0)
   }
 
   const check = async () => {
@@ -425,7 +428,13 @@ export function LoadPart({ ctx, skin }: { ctx: PartCtx; skin: LoadSkin }) {
   return (
     <div className={`ma-give ma-load ${skin.className}`} ref={box} onPointerDown={blank} data-play={skin.play}>
       {/* 要幾個：大大的數字和點點（只說英文也看得懂要幾個） */}
-      <motion.div key={want} className="ma-give-want" aria-label={`波波要 ${n} 個`} animate={want ? { scale: [1, 1.08, 1] } : {}} transition={{ duration: 0.45 }}>
+      <motion.div
+        key={want}
+        className="ma-give-want"
+        aria-label={`波波要 ${n} 個`}
+        animate={said ? { opacity: 0 } : want ? { scale: [1, 1.08, 1] } : {}}
+        transition={said ? FADE : { duration: 0.45 }}
+      >
         <span className="ma-give-num">{n}</span>
         <span className="ma-give-dots" aria-hidden="true">
           {Array.from({ length: n }, (_, i) => (
@@ -465,6 +474,8 @@ export function LoadPart({ ctx, skin }: { ctx: PartCtx; skin: LoadSkin }) {
         range(0, supply - 1).map((k) => {
           const at = fill.indexOf(k)
           const p = at >= 0 ? skin.slotPos(at, n, away) : skin.sourcePos(k)
+          // 交出去以後：沒坐上火車的淡掉（T-139）
+          const show = things && !(glad && at < 0)
           return (
             <motion.button
               key={k}
@@ -472,8 +483,8 @@ export function LoadPart({ ctx, skin }: { ctx: PartCtx; skin: LoadSkin }) {
               className={`ma-thing ma-give-thing${at >= 0 ? ' is-on' : ''}${extra.includes(k) ? ' is-extra' : ''}`}
               aria-label={skin.sourceLabel(k, at >= 0)}
               initial={{ opacity: 0, left: `${p.x}%`, top: `${p.y}%` }}
-              animate={{ opacity: things ? 1 : 0, left: `${p.x}%`, top: `${p.y}%` }}
-              style={things ? undefined : { pointerEvents: 'none' }}
+              animate={{ opacity: show ? 1 : 0, left: `${p.x}%`, top: `${p.y}%` }}
+              style={show ? undefined : { pointerEvents: 'none' }}
               transition={slide}
               onPointerDown={(e) => firstFinger(e.nativeEvent) && tapSource(k)}
             >
@@ -486,7 +497,7 @@ export function LoadPart({ ctx, skin }: { ctx: PartCtx; skin: LoadSkin }) {
         ref={doneRef}
         type="button"
         data-poke={poke || undefined}
-        className={`ma-give-done${glad ? ` is-done${glad === 'plain' ? ' is-plain' : ''}${used ? ' is-used' : ''}${gone ? ' is-gone' : ''}` : !hold && c > 0 ? ` on${poke ? ' poke' : ''}` : ''}`}
+        className={`ma-give-done${glad ? ` is-done${glad === 'plain' ? ' is-plain' : ''}${gone ? ' is-gone' : ''}` : !hold && c > 0 ? ` on${poke ? ' poke' : ''}` : ''}`}
         style={{ left: `${skin.done.x}%`, top: `${skin.done.y}%` }}
         aria-label={skin.play === 'train' ? '好了，火車開走' : '好了，種好了'}
         onPointerDown={(e) => firstFinger(e.nativeEvent) && check()}
@@ -497,7 +508,7 @@ export function LoadPart({ ctx, skin }: { ctx: PartCtx; skin: LoadSkin }) {
       </button>
       <AnimatePresence>{hand && <Hand key="hand" x={hand.x} y={hand.y} tap={hand.tap} size="11cqmin" cuff="#F0B088" />}</AnimatePresence>
       {notYet.view}
-      <WaitShield on={hold} onTap={glad ? nope : undefined} />
+      <WaitShield on={hold} />
     </div>
   )
 }
