@@ -16,8 +16,8 @@ import type { Lesson } from './plan'
 /** 每一段（數數、比多少、寫數字、小複習）從課拿到的東西 */
 export interface PartCtx {
   lesson: Lesson
-  /** 這一段做完：自己答了幾題、幾題不是一次就對 */
-  done: (asked: number, missed: number) => void
+  /** 這一段做完：自己答了幾題、幾題不是一次就對。cue：下一步的大箭頭一出來就跳、手馬上指著它（ui/NextStep） */
+  done: (asked: number, missed: number, opts?: { cue?: boolean }) => void
   mood: (m: Mood) => void
   /** 示範中（手、筆在動）：Shell 的 data-demo，給三歲模擬測試看 */
   demo: (on: boolean) => void

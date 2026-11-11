@@ -196,7 +196,7 @@ export function MathLesson({ onDone }: LessonProps) {
 
   const ctx: PartCtx = {
     lesson,
-    done: (asked, missed) => {
+    done: (asked, missed, opts) => {
       const p = partRef.current
       if (p < 0 || p >= PARTS.length) return
       void partDone(p, asked, missed)
@@ -204,7 +204,7 @@ export function MathLesson({ onDone }: LessonProps) {
       if (p + 1 >= PARTS.length || skip(p + 1, lesson)) void finish()
       // 這一段做完：停在做完的樣子，等孩子點「下一步」才換下一段（T-118，家長：每一段都要自己點下一步）。進度已經記下了
       else
-        void nextStep().then((ok) => {
+        void nextStep({ cue: opts?.cue }).then((ok) => {
           if (ok && live.current && partRef.current === p) go(p + 1)
         })
     },

@@ -1151,6 +1151,85 @@ test.describe('數學課', () => {
     }
   })
 
+  // T-140（盲測 73d57c7 數學 2，第 4 次在這裡離開）：T-139 把剩下的東西、勾勾收掉以後，火車開走、還在念 There is one!，
+  // 畫面上只剩恐龍、空鐵軌和要幾個的數字，大箭頭還沒出來（截圖 007：「東西都不見了，我不知道要幹嘛，好無聊」按返回）。
+  // 照盲測的順序：示範的手指著第一個時搶著點、按勾勾（手多點一下）；之後每 0.1 秒看一次畫面：
+  // 不能有「火車已經開出畫面、大箭頭還沒出來」的時候；火車一開走，大箭頭和指著它的手 1 秒內就出來
+  test('小火車開走（T-140）：照盲測的順序，畫面不會空著沒有下一步，火車開走時手指著大箭頭', async ({ page }, info) => {
+    test.skip(!want())
+    test.setTimeout(3 * 60_000)
+    const { k, c } = await setup(page, info, '火車開走空畫面', false, true, 'train')
+    try {
+      const day = await page.evaluate(() => {
+        const d = new Date()
+        return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+      })
+      // 盲測：今天的數字 1、從「拿給波波」那一段接著上、第一次玩小火車（有手的示範）
+      await setMath(page, { next: 2, firm: false, day, n: 1, mode: 'new', part: 1, asked: 0, missed: 0 })
+      if (!(await enter(k, c))) return
+      const hand = await page
+        .waitForFunction(() => !!document.querySelector('.ma-load .demo-hand') && !!document.querySelector('[data-demo="1"]'), null, { timeout: 60_000 })
+        .then(() => true)
+        .catch(() => false)
+      if (!hand) return void (await c.once('no-train-demo', '卡死', '沒有走到小火車的示範', `停在 ${await partNow(page)}`))
+      const at = (sel: string) =>
+        page.evaluate((sel) => {
+          const r = document.querySelector(sel)?.getBoundingClientRect()
+          return r ? { x: r.left + r.width / 2, y: r.top + r.height / 2 } : null
+        }, sel)
+      // 第 5 步：手在指第一個的時候搶著點它
+      k.behavior = '示範的手指著第一個時搶著點'
+      await k.tap((await at('.ma-load .ma-give-thing:not(.is-on)'))!, '搶著點第一個')
+      const on = await page
+        .waitForFunction(() => !!document.querySelector('.ma-load .ma-give-thing.is-on') && !document.querySelector('[data-demo="1"]'), null, { timeout: 10_000 })
+        .then(() => true)
+        .catch(() => false)
+      if (!on) return void (await c.once('train-grab', '卡死', '小火車示範中搶著點，東西沒有坐上火車', ''))
+      await k.wait(1500)
+      // 第 6 步：點綠色的勾勾（手多點一下）
+      k.behavior = '按勾勾（手多點一下）'
+      const ok = (await at('.ma-give-done'))!
+      const t0 = await page.evaluate(() => performance.now())
+      await k.tap(ok, '按勾勾')
+      await k.wait(60)
+      await k.tap(ok, '手多點一下')
+      // 之後 5 秒，每 0.1 秒看一次：火車在不在畫面上、大箭頭和指著它的手出來了沒
+      const frames = await page.evaluate(async (t0) => {
+        const out: { t: number; give: boolean; train: boolean; arrow: boolean; hand: boolean }[] = []
+        const vis = (e: Element | null) => {
+          if (!e) return false
+          const r = e.getBoundingClientRect()
+          return r.width > 4 && r.left < innerWidth - 8 && r.right > 8 && Number(getComputedStyle(e).opacity) > 0.3
+        }
+        for (let i = 0; i < 50; i++) {
+          const root = [...document.querySelectorAll('.ma-load')].pop()
+          const arrow = document.querySelector('.next-step')
+          // 大箭頭旁邊的手（NextStep 的手：箭頭裡的 .demo-hand）
+          const part = [...document.querySelectorAll('[data-lesson-part]')].pop()?.getAttribute('data-lesson-part')
+          out.push({ t: performance.now() - t0, give: part === 'give', train: vis(root?.querySelector('.ma-engine') ?? null), arrow: vis(arrow), hand: !!document.querySelector('.next-step-hand .demo-hand, .next-step .demo-hand, [data-next-hand]') })
+          await new Promise((r) => setTimeout(r, 100))
+        }
+        return out
+      }, t0)
+      // 只看還在這一段的時候（自動點大箭頭以後換到比多少，不算）
+      const empty = frames.filter((f) => f.give && !f.train && !f.arrow)
+      const leftAt = frames.find((f) => !f.train)?.t ?? null
+      const arrowAt = frames.find((f) => f.arrow)?.t ?? null
+      const handAt = frames.find((f) => f.hand)?.t ?? null
+      const fmt = (ms: number | null) => (ms == null ? '沒有' : `${(ms / 1000).toFixed(1)} 秒`)
+      const heard = await page.evaluate((t) => window.__toddler.voices.filter((v) => v.t >= t && v.text).map((v) => `${((v.t - t) / 1000).toFixed(1)}s ${v.text}`), t0)
+      const detail = `火車開出畫面 ${fmt(leftAt)}、大箭頭 ${fmt(arrowAt)}、指著箭頭的手 ${fmt(handAt)}；聽到：${heard.join('、')}`
+      c.outcome('畫面不會空著：火車開出畫面以前，大箭頭就出來了', empty.length === 0, empty.length ? `空著 ${(empty.length / 10).toFixed(1)} 秒（從 ${fmt(empty[0].t)} 開始）；${detail}` : detail)
+      if (empty.length) await c.once('train-empty', '困惑', '小火車開走以後畫面空空的、還沒有下一步的大箭頭（盲測 73d57c7「東西都不見了，我不知道要幹嘛」）', detail)
+      const pointed = handAt != null && arrowAt != null && handAt - arrowAt <= 1000
+      c.outcome('大箭頭一出來，手 1 秒內就指著它', pointed, detail)
+      if (!pointed) await c.once('train-arrow-hand', '困惑', '小火車開走、大箭頭出來時沒有手指著它', detail)
+    } finally {
+      await c.flush().catch(() => {})
+      finish(k, c, '火車開走空畫面')
+    }
+  })
+
   // ── T-127：拿給波波的另外兩種玩法（小火車 Train.tsx、種花 Plant.tsx，流程在 Load.tsx）────────────────
   // 三歲的操作全部做一次：示範時搶點、連點同一個、多指（手掌）、拖到一半放手、多拿（小火車）、空的就按勾勾、發呆、
   // 返回再進來（同一天同一種玩法、接著上）、做完記成 give:N（選項照拿給波波）、往下一段走得到。
