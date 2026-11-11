@@ -85,15 +85,25 @@ export const quizNow = (page: Page) =>
     }
   })
 
+type Quiz = NonNullable<Awaited<ReturnType<typeof quizNow>>>
+/** 兩次量到的選項位置一樣（泡泡飄完、卡片進場完）：選項還在動的時候量到的座標，點下去時選項已經不在那裡 */
+const still = (a: Quiz | null, b: Quiz) =>
+  !!a && a.opts.length === b.opts.length && a.opts.every((o, i) => o.label === b.opts[i].label && Math.hypot(o.x - b.opts[i].x, o.y - b.opts[i].y) < 1.5)
+
 /**
- * 等到可以作答（選項出來、收作答）；回傳那一刻的樣子。
+ * 等到可以作答（選項出來、收作答、停好不動）；回傳那一刻的樣子。
+ * 停好不動（T-127 泡泡修正）：泡泡從下面飄上來要 1 秒多，那時候已經收作答了；以前在飄的途中量座標，
+ * 點錯、連點都點在泡泡下面（差了飄上來的 260 px），對的那一顆一直沒點到 → 誤報「記了不只一筆」「做不完」。
  * noDemo：還要等示範的手收起來（第一題的示範）；點錯以後手會留在答案上等他點（T-116），那時候不用等
  */
 export async function untilTurn(page: Page, ms = 20_000, noDemo = false) {
   const end = Date.now() + ms
+  let last: Quiz | null = null
   while (Date.now() < end) {
     const q = await quizNow(page)
-    if (q && q.accepting && (!noDemo || !q.demo) && !q.solved && q.opts.length && q.opts.every((o) => !o.wait)) return q
+    const ready = q && q.accepting && (!noDemo || !q.demo) && !q.solved && q.opts.length && q.opts.every((o) => !o.wait)
+    if (ready && still(last, q)) return q
+    last = ready ? q : null
     await page.waitForTimeout(200)
   }
   return null
@@ -109,9 +119,13 @@ export function pickOf(q: NonNullable<Awaited<ReturnType<typeof quizNow>>>) {
 /** 等示範的手出來、而且選項也出來了（示範時搶著點用）；回傳那一刻的樣子 */
 export async function untilDemo(page: Page, ms = 15_000) {
   const end = Date.now() + ms
+  let last: Quiz | null = null
   while (Date.now() < end) {
     const q = await quizNow(page)
-    if (q && q.demo && !q.solved && q.opts.length && q.opts.every((o) => !o.wait)) return q
+    const ready = q && q.demo && !q.solved && q.opts.length && q.opts.every((o) => !o.wait)
+    // 一樣要等選項停好（泡泡飄完）才量座標
+    if (ready && still(last, q)) return q
+    last = ready ? q : null
     await page.waitForTimeout(100)
   }
   return null
