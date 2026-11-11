@@ -1,4 +1,6 @@
 import { useEffect, useId, useRef, useState } from 'react'
+import { Hand } from '../Demo'
+import { plays } from '../../lib/adaptive'
 import { motion } from 'motion/react'
 import { Shell } from '../Shell'
 import { CATS, PICTURES, type Picture } from './pictures'
@@ -90,11 +92,37 @@ export function BookArt() {
   )
 }
 
-/** 首頁「畫畫」進來：白紙自由畫、著色本，兩個大圖示 */
+/**
+ * 首頁「畫畫」進來：白紙自由畫、著色本，兩個大圖示。
+ * 還沒玩過著色本的時候（T-140，盲測 73d57c7：6 次都選白紙，沒有人點著色本）：豆豆說完「Draw, or color?」接著說
+ * 「Try the coloring book!」，著色本那張卡亮一圈、跳一下，手在上面點一下給他看。白紙照樣點得到，孩子自己選。
+ */
 export function DrawPick() {
-  useHello('d.pick.intro')
   const tap = useTaps()
   const once = useGoOnce()
+  /** 著色本那張卡要不要指給他看（亮一圈、跳一下、手點一下）：還沒玩過著色本才指 */
+  const [point, setPoint] = useState(0)
+  useEffect(() => {
+    let alive = true
+    const t = window.setTimeout(async () => {
+      await say('d.pick.intro')
+      if (!alive || plays('d-color') > 0) return
+      setPoint(1)
+      await say('d.pick.book')
+      if (alive) setPoint(2)
+    }, 0)
+    return () => {
+      alive = false
+      clearTimeout(t)
+      stopSpeech()
+    }
+  }, [])
+  // 手點一下就收起來
+  useEffect(() => {
+    if (point !== 2) return
+    const t = window.setTimeout(() => setPoint(3), 1100)
+    return () => clearTimeout(t)
+  }, [point])
   const cards = [
     { id: 'free', label: '白紙自由畫', art: <FreeArt />, to: () => go({ name: 'play', game: 'd-free', station: 'draw' }) },
     { id: 'book', label: '著色本', art: <BookArt />, to: () => go({ name: 'coloring' }) },
@@ -105,7 +133,7 @@ export function DrawPick() {
         {cards.map((c, i) => (
           <motion.button
             key={c.id}
-            className="draw-pick-card"
+            className={`draw-pick-card${c.id === 'book' && point > 0 && point < 3 ? ' is-said' : ''}`}
             data-pick={c.id}
             aria-label={c.label}
             initial={{ y: 24, opacity: 0 }}
@@ -115,6 +143,11 @@ export function DrawPick() {
             {...tap(c.id, () => once(c.to))}
           >
             {c.art}
+            {c.id === 'book' && (point === 1 || point === 2) && (
+              <span className="draw-home-hand" aria-hidden="true">
+                <Hand x={56} y={62} tap={point === 2 ? 1 : 0} size="22%" cuff="#F2C9A8" />
+              </span>
+            )}
           </motion.button>
         ))}
       </div>
