@@ -42,7 +42,7 @@ test.describe('英文課：泡泡', () => {
       // 3. 第二題：先點錯一次（那一顆淡掉、手指著答案），再連點對的那一顆（只記一筆）
       const q = await untilTurn(page, 30_000)
       if (q) {
-        const { right, wrong } = pickOf(q)
+        const { right: first, wrong } = pickOf(q)
         await shot(page, info, '泡泡-第2題')
         if (wrong) {
           k.behavior = '點錯的泡泡'
@@ -51,6 +51,9 @@ test.describe('英文課：泡泡', () => {
           const dim = (await quizNow(page))?.opts.find((o) => o.label === wrong.label)?.cls.includes('is-no')
           c.outcome('點錯：那一顆淡掉、不打叉', !!dim)
         }
+        // 點錯以後重新看一次對的那一顆在哪裡（不沿用點錯之前量的座標）
+        const now = await untilTurn(page, 8000)
+        const right = (now && pickOf(now).right) ?? first
         if (right) {
           k.behavior = '連點對的泡泡'
           const n0 = (await recordsOf(page, 'lesson-en-bubbles')).length
