@@ -288,4 +288,14 @@ ok('分不出大小寫、一直點大的：找大 S 不算學會（只有 S／s 
 }
 ok('手帶著做的（一起練、手示範過、第一次點的時候手正指著答案）：不計入熟練、準備度、聽完才答、確認卡；自己答的照算')
 
+// ── T-127：英文課選擇題的三種玩法（找卡片、泡泡、餵豆豆）game 不一樣、skill 一樣，家長區的「聽完才答」都算英文 ─────
+{
+  const now = Date.parse('2026-11-08T12:00:00')
+  const xs = ['lesson-en', 'lesson-en-bubbles', 'lesson-en-feed'].map((g) => ({ ...att('letter:S', 'lesson-en', true, true), game: g }))
+  const st = listenStats(xs, 'english', 14, now)
+  assert.equal(st.total, 3, '三種玩法都算')
+  assert.equal(st.rows.find((r) => r.label === '找大 S')?.heard, 3)
+}
+ok('英文課三種玩法（lesson-en、lesson-en-bubbles、lesson-en-feed）的作答都算進家長區的「聽完才答」')
+
 console.log('ALL PASS')

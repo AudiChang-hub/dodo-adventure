@@ -71,6 +71,9 @@ const SPEC_TOKENS = {
   'screens.spec.ts': SCREEN_TESTS.filter((t) => t.spec === 'screens').map((t) => t.token),
   'story.spec.ts': ['story'],
   'lesson-english.spec.ts': ['lesson-english'],
+  // T-127：英文課選擇題的新玩法各一個 spec（泡泡、餵豆豆），都用 lesson-english 這個名稱
+  'lesson-english-bubbles.spec.ts': ['lesson-english'],
+  'lesson-english-feed.spec.ts': ['lesson-english'],
   'home.spec.ts': ['home-doors', 'home-draw'],
   'lesson-math.spec.ts': ['lesson-math'],
   'lesson-chinese.spec.ts': ['lesson-chinese'],

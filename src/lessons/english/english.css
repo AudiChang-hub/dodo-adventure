@@ -655,3 +655,166 @@
     display: none;
   }
 }
+
+/* ── 今天的世界（T-127）──────────────────────────────────────
+   故事插畫的場景淡淡地鋪在後面（紙感螢幕：不搶字母、低彩度）；選擇題的時候看得清楚一點，選項站在世界裡 */
+.en-world {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 0;
+  opacity: 0.3;
+  filter: saturate(0.8);
+  pointer-events: none;
+  transition: opacity 0.6s ease;
+}
+.en-lesson.has-world::after {
+  opacity: 0.45;
+}
+.en-lesson.has-world[data-phase='quiz'] .en-world {
+  opacity: 0.62;
+}
+/* 選項站在世界的地上：卡片下面一道淡淡的影子 */
+.en-lesson.has-world .en-quiz.is-cards .en-opt,
+.en-lesson.has-world .en-feed .en-opt {
+  box-shadow: 0 8px 0 var(--paper-edge), 0 22px 16px -14px rgba(70, 58, 40, 0.35);
+}
+
+/* ── 選擇題玩法二：泡泡（T-127，Bubbles.tsx）──────────────────
+   透明的泡泡、高高低低地停在空中；大寫在大泡泡、小寫在小泡泡。等他點的時候不動（MOTION-2） */
+.en-options.en-bubbles {
+  display: block;
+}
+.en-bubbles .en-bubble {
+  --bub: min(220px, 25vmin);
+  position: absolute;
+  width: var(--bub);
+  margin: calc(var(--bub) / -2) 0 0 calc(var(--bub) / -2);
+  border-radius: 50%;
+  background: radial-gradient(circle at 36% 30%, #ffffff 0%, rgba(255, 255, 255, 0.94) 38%, rgba(210, 234, 245, 0.92) 100%);
+  box-shadow:
+    0 0 0 5px rgba(146, 194, 222, 0.8),
+    0 12px 0 -3px rgba(146, 194, 222, 0.35);
+}
+.en-bubble.is-upper {
+  --bub: min(250px, 28vmin);
+  width: var(--bub);
+  border-radius: 50%;
+}
+.en-bubble.is-lower {
+  --bub: min(150px, 17vmin);
+  width: var(--bub);
+  border-radius: 50%;
+}
+.en-bubble.is-cue::after,
+.en-bubble.is-lower.is-cue::after {
+  border-radius: 50%;
+}
+.en-bubble-shine {
+  position: absolute;
+  left: 17%;
+  top: 14%;
+  width: 24%;
+  height: 13%;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.95);
+  rotate: -32deg;
+  pointer-events: none;
+}
+.en-bubble.is-yes {
+  background: radial-gradient(circle at 36% 30%, #ffffff 0%, #eaf6ef 60%, #d7eee0 100%);
+  box-shadow:
+    0 0 0 6px color-mix(in srgb, var(--en-deep) 80%, var(--paper-edge)),
+    0 0 0 16px color-mix(in srgb, var(--en-deep) 35%, transparent);
+}
+.en-bubble.is-hint {
+  box-shadow:
+    0 0 0 5px rgba(146, 194, 222, 0.8),
+    0 0 0 13px color-mix(in srgb, var(--en-deep) 55%, transparent);
+}
+.en-bubble.is-beckon {
+  background: radial-gradient(circle at 36% 30%, #ffffff 0%, #fffaf0 70%);
+  box-shadow:
+    0 0 0 5px rgba(146, 194, 222, 0.8),
+    0 0 0 14px rgba(241, 210, 124, 0.9);
+}
+/* 答對（聽完才答、一次就對）：泡泡的外圈散開一次，字留著、打勾 */
+.en-bubble.is-pop::before {
+  content: '';
+  position: absolute;
+  inset: -8px;
+  border-radius: 50%;
+  border: 6px solid rgba(146, 194, 222, 0.9);
+  animation: en-pop 0.7s var(--ease-out) both;
+  pointer-events: none;
+}
+@keyframes en-pop {
+  from {
+    transform: scale(1);
+    opacity: 1;
+  }
+  to {
+    transform: scale(1.5);
+    opacity: 0;
+  }
+}
+
+/* ── 選擇題玩法三：餵豆豆（T-127，Feed.tsx）──────────────────
+   卡片排在左邊，右邊一隻大豆豆張著嘴；拖給牠吃（點一下也算）。原本左下角的豆豆這時候收起來，只有一隻 */
+.en-quiz.is-feed .en-options.en-feed {
+  inset: 0 36% 0 min(14vw, 180px);
+}
+.en-lesson[data-phase='quiz'][data-look='feed'] .en-host {
+  opacity: 0;
+}
+.en-food {
+  touch-action: none;
+}
+.en-food.is-drag {
+  z-index: 6;
+}
+.en-food.is-eaten {
+  z-index: 6;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.25s ease 0.35s;
+}
+.en-feed-dodo {
+  position: absolute;
+  right: 1%;
+  bottom: 0;
+  width: min(30vw, 44vh);
+  z-index: 1;
+}
+/* 張開的嘴巴（豆豆朝左站）：吃的時候闔起來再張開 */
+.en-feed-mouth {
+  position: absolute;
+  left: 9%;
+  top: 44%;
+  width: 18%;
+  height: 12%;
+  border-radius: 50%;
+  background: #8f4d48;
+  border: 3px solid #4e9a72;
+  pointer-events: none;
+}
+.en-feed-mouth.is-eat {
+  animation: en-chomp 0.5s ease 0.45s 1 both;
+}
+@keyframes en-chomp {
+  0%,
+  100% {
+    transform: scaleY(1);
+  }
+  45% {
+    transform: scaleY(0.15);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .en-bubble.is-pop::before,
+  .en-feed-mouth.is-eat {
+    animation: none;
+  }
+}
+

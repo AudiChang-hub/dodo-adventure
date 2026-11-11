@@ -23,7 +23,8 @@ const sizes = [
 
 export default defineConfig({
   testDir: '.',
-  testMatch: /(games|screens|story|home|lesson-english|lesson-math|lesson-chinese)\.spec\.ts/,
+  // lesson-english-*：英文課選擇題的新玩法各一個 spec（T-127：泡泡、餵豆豆）
+  testMatch: /(games|screens|story|home|lesson-english(-bubbles|-feed)?|lesson-math|lesson-chinese)\.spec\.ts/,
   outputDir: '../../test-results/toddler/pw',
   timeout: 15 * 60_000,
   fullyParallel: true,

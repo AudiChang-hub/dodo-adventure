@@ -22,6 +22,8 @@ async function setup(page: Page, info: Parameters<Parameters<typeof test>[2]>[1]
   const k = new Toddler(page, info, seed, info.project.name)
   const c = new Checker(k, page)
   k.where = `英文課／${name}`
+  // T-127：選擇題每天輪流三種玩法。這個檔測的是找卡片，固定下來（泡泡、餵豆豆各有自己的 spec）
+  await page.addInitScript(() => localStorage.setItem('dodo:en-quiz', 'cards'))
   await boot(page, seed, { to: 'home', lessonSticker, autoNext })
   await k.init()
   return { k, c, seed }

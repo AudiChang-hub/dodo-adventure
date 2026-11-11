@@ -18,6 +18,11 @@ import { Quiz } from './Quiz'
 import { makeQuiz, type Question } from './quiz-plan'
 import { loadFormats } from '../formats'
 import { resumeEnd } from '../resume-end'
+import { getTodayWorld } from '../../lib/today-world'
+import { pickVariety } from '../../lib/variety'
+import { Scene } from '../../art/storybook/scenes'
+import { PAGE_H, PAGE_W } from '../../art/storybook/layout'
+import { QUIZ_LOOKS, forcedLook, type QuizLook } from './QuizParts'
 import '../../games/coplay.css'
 import './english.css'
 
@@ -26,7 +31,7 @@ type Stage = 'meet' | 'trace' | 'words' | 'write' | 'quiz' | 'end'
 const STEPS: Stage[] = ['meet', 'trace', 'words', 'write', 'quiz']
 
 /** 給大人看的一行陪玩小字（A10，角落、不收點擊；跟數學課的 HINT、中文課的 parentTip 一樣） */
-function hintOf(stage: Stage, x: LessonLetter, q?: Question) {
+function hintOf(stage: Stage, x: LessonLetter, q?: Question, look: QuizLook = 'cards') {
   const zh = lexWord(wordKey(x.words[0].w))?.zh?.replace(/\s+/g, '')
   switch (stage) {
     case 'meet':
@@ -40,6 +45,17 @@ function hintOf(stage: Stage, x: LessonLetter, q?: Question) {
       return `換他自己寫：從綠點開始描一次大的 ${x.L}；描歪沒關係，不用重來`
     case 'quiz':
       // 每一題直接寫「現在請他點哪一個」（T-107 真人試玩：大人聽完英文也不知道這一段要做什麼）
+      // 今天的玩法（T-127）：點卡片、點泡泡、把卡片拖給豆豆吃（點一下也算餵）
+      if (look === 'feed') {
+        if (q?.kind === 'big') return `餵豆豆：請他把大的 ${q.L} 拖給豆豆吃（點一下也可以）`
+        if (q?.kind === 'little') return `餵豆豆：請他把小的 ${q.L.toLowerCase()} 拖給豆豆吃（點一下也可以）`
+        if (q?.kind === 'word') return `餵豆豆：請他把 ${q.L} 開頭的那張圖拖給豆豆吃`
+      }
+      if (look === 'bubbles') {
+        if (q?.kind === 'big') return `點泡泡：請他點大的 ${q.L}（大泡泡）`
+        if (q?.kind === 'little') return `點泡泡：請他點小的 ${q.L.toLowerCase()}（小泡泡）`
+        if (q?.kind === 'word') return `點泡泡：請他點 ${q.L} 開頭的那張圖`
+      }
       if (q?.kind === 'big') return `找字母：請他點大的 ${q.L}（大卡片）`
       if (q?.kind === 'little') return `找字母：請他點小的 ${q.L.toLowerCase()}（小卡片）`
       if (q?.kind === 'word') return `找圖：請他點 ${q.L} 開頭的那張圖`
@@ -77,6 +93,10 @@ export function EnglishLesson({ onDone }: LessonProps) {
   const [earned, setEarned] = useState<boolean[]>([])
   /** 答對一題：豆豆歡呼一下 */
   const [cheer, setCheer] = useState(0)
+  /** 選擇題今天的玩法（T-127：找卡片、泡泡、餵豆豆每天輪流，連續兩天不一樣；同一天沿用） */
+  const [look, setLook] = useState<QuizLook>('cards')
+  /** 今天的世界（T-127）：背景換成這個世界的場景；選擇題的時候看得更清楚，選項站在世界裡 */
+  const [world] = useState(() => getTodayWorld())
   const qs = useRef<Question[]>([])
   const live = useRef(true)
   /** 描字、寫寫看共用的重描次數（T-122 整堂最多一次；T-125 起 0 次：沒描好就由筆帶著描完） */
@@ -84,8 +104,9 @@ export function EnglishLesson({ onDone }: LessonProps) {
 
   useEffect(() => {
     live.current = true
-    void Promise.all([loadProgress(), loadFormats()]).then(async ([p]) => {
+    void Promise.all([loadProgress(), loadFormats(), forcedLook() ?? pickVariety('english', QUIZ_LOOKS).catch(() => 'cards' as const)]).then(async ([p, , lk]) => {
       const pl = planFor(p)
+      setLook(lk)
       // 中途離開、回來接著做選擇題：題目照舊，大寫、小寫都留著（T-124：以前小寫題改問大寫，同一個大 S 問兩次，「一直點都一樣」）
       qs.current = makeQuiz(lessonLetter(pl.idx, pl.seq), pl.idx, pl.seq)
       await markStarted(pl)
@@ -165,7 +186,13 @@ export function EnglishLesson({ onDone }: LessonProps) {
   const at = STEPS.indexOf(stage)
 
   return (
-    <div className="screen en-lesson" data-phase={stage}>
+    <div className={`screen en-lesson${world ? ' has-world' : ''}`} data-phase={stage} data-look={look} data-world={world?.id}>
+      {world && (
+        // 今天的世界（T-127）：故事插畫的場景，淡淡的鋪在後面（紙感螢幕，不搶字母）
+        <svg className="en-world" viewBox={`0 0 ${PAGE_W} ${PAGE_H}`} preserveAspectRatio="xMidYMax slice" aria-hidden="true">
+          <Scene id={world.scene} />
+        </svg>
+      )}
       <div className="en-back">
         <BackButton label="回首頁">
           <HomeIcon />
@@ -191,7 +218,7 @@ export function EnglishLesson({ onDone }: LessonProps) {
       {letter && (
         <p className="coplay-hint en-coplay" aria-hidden="true">
           <span className="coplay-tag">陪玩</span>
-          {pending ? NEXT_HINT : hintOf(stage, letter, qs.current[Math.min(quizDone, qs.current.length - 1)])}
+          {pending ? NEXT_HINT : hintOf(stage, letter, qs.current[Math.min(quizDone, qs.current.length - 1)], look)}
         </p>
       )}
       <div className="en-host" aria-hidden="true">
@@ -208,12 +235,12 @@ export function EnglishLesson({ onDone }: LessonProps) {
               animate={{ opacity: 1, transition: { duration: 0.45, ease: [0.22, 1, 0.36, 1] } }}
               exit={{ opacity: 0, transition: { duration: 0.3 } }}
             >
-              {stage === 'meet' && <Meet letter={letter} review={plan!.review} onDone={() => void next('trace')} />}
+              {stage === 'meet' && <Meet letter={letter} review={plan!.review} repeat={plan!.repeat} onDone={() => void next('trace')} />}
               {stage === 'trace' && <Trace letter={letter} from={traceFrom} retry={retry.current} onRound={(i) => i > 0 && void markStage(plan!, 'trace', i)} onDone={() => void next('words')} />}
               {stage === 'words' && <Words letter={letter} onDone={() => void next('write')} />}
               {stage === 'write' && <Trace letter={letter} rounds={WRITE_ROUNDS} retry={retry.current} onDone={() => void next('quiz')} />}
               {stage === 'quiz' && (
-                <Quiz qs={qs.current} from={quizAt.from} answers={quizAt.answers} replay={quizAt.replay} onProgress={progress} onDone={(rs) => void finish(rs)} />
+                <Quiz qs={qs.current} look={look} from={quizAt.from} answers={quizAt.answers} replay={quizAt.replay} onProgress={progress} onDone={(rs) => void finish(rs)} />
               )}
               {stage === 'end' && (
                 <div className="en-end">

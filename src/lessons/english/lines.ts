@@ -38,6 +38,8 @@ for (const x of LESSON_LETTERS) {
   if (!hasLine(`ph.${l}.sound`)) def(`ph.${l}.sound`, 'dodo', cueText({ unit: x.unit, names: 1, sound: true }))
   def(`ph.${l}.today`, 'dodo', `Today's letter is | ${L}!`)
   def(`ph.${l}.again`, 'dodo', `Let's practice | ${L} again!`)
+  // 隔天重上同一個字母（T-127）：開場換一句，不要跟第一天一字不差
+  def(`ph.${l}.back`, 'dodo', `Look! | ${L} is back!`)
   def(`ph.${l}.big`, 'dodo', `Big | ${L}!`)
   def(`ph.${l}.little`, 'dodo', `Little | ${l}!`)
   def(`ph.${l}.words`, 'dodo', x.starts.length === 3 ? `These words start with | ${L}!` : `Find ${L} in these words!`)

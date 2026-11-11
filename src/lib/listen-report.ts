@@ -31,7 +31,8 @@ export interface ListenStats {
 /** 這一題算哪一堂課、叫什麼；不是要聽懂才答的題目回傳 null */
 export function listenItem(a: Pick<Attempt, 'game' | 'skill'>): { lesson: ListenLesson; label: string; order: number } | null {
   const [kind, v = ''] = a.skill.split(':')
-  if (a.game === 'lesson-en') {
+  // 英文課選擇題的三種玩法（T-127：找卡片 lesson-en、泡泡 lesson-en-bubbles、餵豆豆 lesson-en-feed）都算英文的找字母、找圖
+  if (a.game === 'lesson-en' || a.game.startsWith('lesson-en-')) {
     if (kind === 'letter') return v === v.toUpperCase() ? { lesson: 'english', label: `找大 ${v}`, order: 0 } : { lesson: 'english', label: `找小 ${v}`, order: 1 }
     if (kind === 'phonics') return { lesson: 'english', label: `找 ${v.toUpperCase()} 開頭的圖`, order: 2 }
     return null
