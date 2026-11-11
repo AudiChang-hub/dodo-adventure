@@ -6,5 +6,5 @@ import { def } from '../../content/registry'
 def('en.write.pick', 'dodo', 'Trace it, or color it?')
 /** 選了塗字母：手示範塗一下、蓋一個印章 */
 def('en.color.go', 'dodo', 'Color it in!')
-/** 塗完（塗到大約六成，或按住完成鈕）：接著念 Big S! */
+/** 塗完（塗到大約六成，或點一下勾勾）：接著念 Big S! */
 def('en.color.done', 'dodo', 'So colorful!')

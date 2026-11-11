@@ -27,8 +27,6 @@ const CRAYON_W = 11
 const STAMP_SIZE = 22
 /** 塗到這個比例就算完成（家長：大約 60%） */
 const FILL_DONE = 0.6
-/** 完成鈕要按住多久 */
-const HOLD_MS = 1200
 /** 選擇畫面：沒選的話，幾秒後手指向「描字」 */
 const POINT_MS = 8000
 /** 塗了多少的格子大小（描字板單位） */
@@ -129,7 +127,9 @@ function ShapeMask({ id, strokes }: { id: string; strokes: string[] }) {
  * 寫寫看（英文課第 4 段，T-127 B 案「他想畫畫」）：先出兩張大卡片，二選一。
  * - 描字：跟以前一樣（Trace + WRITE_ROUNDS，大寫一輪、不示範），作答紀錄照舊。
  * - 塗字母：在今天字母（大寫）的泡泡字裡用蠟筆塗色，或用今天世界的印章蓋（lib/today-world.ts 的 stamps）。
- *   筆跡、印章都只畫在字母形狀裡（SVG 遮罩）。塗到大約六成（FILL_DONE），或按住完成鈕（HOLD_MS），就算完成、出「下一步」。
+ *   筆跡、印章都只畫在字母形狀裡（SVG 遮罩）。塗到大約六成（FILL_DONE），或點一下勾勾（塗過一下才出來），就算完成、出「下一步」。
+ *   T-135（盲測 becf39a：勾勾以前要按住 1.2 秒，他只會點，12 輪點了 19 次沒有一次完成）：點一下就完成；
+ *   塗過以後 10 秒沒動，手指向勾勾（還沒動手的話照舊再示範塗色）。
  * 兩張卡片上手各示範一次（描、塗＋蓋印章），關掉聲音也看得懂；沒選的話 8 秒後手指向「描字」。
  * 塗字母開始時手再示範一次（可以搶：一碰畫板示範就收掉）；10 秒沒動手再安靜示範一次。
  * 作答紀錄：塗字母記 game 'en-color'、skill 沿用 write:<大寫>，phase 'guided'（不更新熟練度，家長區的「寫過的字母」也不算），
@@ -194,6 +194,10 @@ function Pick({ letter, onPick }: { letter: LessonLetter; onPick: (m: 'trace' | 
     }
   }, [])
 
+  /**
+   * 一碰卡片就選（pointerdown，T-135）：卡片上的手在「描」，他會照著在卡片上拖一下；觸控拖一下不會有 click，
+   * 盲測 becf39a 英文 1 第 45、46 步拖了兩次都沒選到、也沒有回應。chosen 擋連點，onClick 留給鍵盤。
+   */
   const choose = (m: 'trace' | 'color') => {
     if (chosen.current) return
     chosen.current = true
@@ -213,7 +217,7 @@ function Pick({ letter, onPick }: { letter: LessonLetter; onPick: (m: 'trace' | 
 
   return (
     <div className="en-write-pick" ref={box} data-demo={showing ? '1' : undefined}>
-      <button type="button" className="wc-card is-trace" data-write-pick="trace" ref={traceCard} onClick={() => choose('trace')} aria-label="描字">
+      <button type="button" className="wc-card is-trace" data-write-pick="trace" ref={traceCard} onPointerDown={() => choose('trace')} onClick={() => choose('trace')} aria-label="描字">
         <svg viewBox={`0 0 ${VIEW_W} ${VIEW_H}`} aria-hidden="true">
           {strokes.map((d, i) => (
             <g key={i}>
@@ -228,7 +232,7 @@ function Pick({ letter, onPick }: { letter: LessonLetter; onPick: (m: 'trace' | 
         </svg>
         <span className="wc-label">描字</span>
       </button>
-      <button type="button" className="wc-card is-color" data-write-pick="color" onClick={() => choose('color')} aria-label="塗字母">
+      <button type="button" className="wc-card is-color" data-write-pick="color" onPointerDown={() => choose('color')} onClick={() => choose('color')} aria-label="塗字母">
         <svg viewBox={`0 0 ${VIEW_W} ${VIEW_H}`} aria-hidden="true">
           <defs>
             <ShapeMask id={maskId} strokes={strokes} />
@@ -273,7 +277,8 @@ function ColorLetter({ letter, onDone }: { letter: LessonLetter; onDone: () => v
   const [demoTap, setDemoTap] = useState(0)
   const [done, setDone] = useState(false)
   const [doneTap, setDoneTap] = useState(0)
-  const [holding, setHolding] = useState(false)
+  /** 手指向勾勾（父層的百分比座標）：塗過以後發呆 */
+  const [pointAt, setPointAt] = useState<{ x: number; y: number } | null>(null)
   const [started, setStarted] = useState(false)
   const painted = useRef(new Uint8Array(shape.cols * shape.rows))
   const count = useRef(0)
@@ -284,7 +289,10 @@ function ColorLetter({ letter, onDone }: { letter: LessonLetter; onDone: () => v
   const idle = useIdle()
   const busy = useRef(false)
   const t0 = useRef(performance.now())
-  const holdTimer = useRef(0)
+  const root = useRef<HTMLDivElement>(null)
+  const checkBtn = useRef<HTMLButtonElement>(null)
+  /** 塗過了（閒置的時候讀，不能讀 state） */
+  const touched = useRef(false)
   const spoke = useRef(false)
   const demoStamp = stamps[0]
   /** 蓋了幾個印章（finish 在蓋章的同一下就可能被叫，不能讀 state） */
@@ -347,12 +355,21 @@ function ColorLetter({ letter, onDone }: { letter: LessonLetter; onDone: () => v
     if (ok()) openTurn()
   }
 
+  /** 塗過以後發呆：手指向勾勾（不說話）；量畫面上的位置 */
+  const pointCheck = () => {
+    const o = root.current?.getBoundingClientRect()
+    const r = checkBtn.current?.getBoundingClientRect()
+    if (!o || !r || busy.current) return
+    setPointAt({ x: ((r.left + r.width * 0.5 - o.left) / o.width) * 100, y: ((r.top + r.height * 0.55 - o.top) / o.height) * 100 })
+  }
+
   const openTurn = () => {
     if (busy.current) return
     idle.start(
       {
-        repeat: () => void showMe(true),
+        repeat: () => (touched.current ? pointCheck() : void showMe(true)),
         hint: () => {
+          if (touched.current) return pointCheck()
           if (!spoke.current) void say('en.color.go')
           spoke.current = true
           void showMe(true)
@@ -367,7 +384,6 @@ function ColorLetter({ letter, onDone }: { letter: LessonLetter; onDone: () => v
     void showMe(false)
     return () => {
       live.current = false
-      clearTimeout(holdTimer.current)
       idle.stop()
     }
   }, [])
@@ -379,12 +395,11 @@ function ColorLetter({ letter, onDone }: { letter: LessonLetter; onDone: () => v
     openTurn()
   }
 
-  const finish = async (how: 'fill' | 'hold') => {
+  const finish = async (how: 'fill' | 'tap') => {
     if (busy.current) return
     busy.current = true
     drawing.current = null
-    setHolding(false)
-    clearTimeout(holdTimer.current)
+    setPointAt(null)
     idle.stop()
     flow.cut()
     setDemo(null)
@@ -406,7 +421,7 @@ function ColorLetter({ letter, onDone }: { letter: LessonLetter; onDone: () => v
       attempts: 1,
       responseMs: Math.round(performance.now() - t0.current),
       hintUsed: false,
-      metrics: { cover: Math.round(cover * 100) / 100, stamps: stampN.current, ...(how === 'hold' ? { held: 1 } : {}) },
+      metrics: { cover: Math.round(cover * 100) / 100, stamps: stampN.current, ...(how === 'tap' ? { tapped: 1 } : {}) },
     })
     await say('en.color.done', `ph.${letter.l}.big`)
     if (live.current) onDone()
@@ -425,6 +440,8 @@ function ColorLetter({ letter, onDone }: { letter: LessonLetter; onDone: () => v
     if (demo) takeOver()
     else idle.poke()
     setStarted(true)
+    touched.current = true
+    setPointAt(null)
     if (tool.kind === 'stamp') {
       if (!shape.near(p)) return void sfx.tap()
       sfx.pop()
@@ -460,25 +477,20 @@ function ColorLetter({ letter, onDone }: { letter: LessonLetter; onDone: () => v
     checkFull()
   }
 
-  /** 完成鈕：按住 HOLD_MS（只點一下不算，免得三歲亂點就跳過） */
-  const holdStart = (e: ReactPointerEvent) => {
+  /**
+   * 勾勾：點一下就完成（T-135；以前要按住 1.2 秒，他只會點）。塗過一下才出來，所以不會一進來亂點就跳過；
+   * 塗字母是一起玩（phase guided），不影響描字的熟練，塗多少都可以
+   */
+  const tapCheck = (e: ReactPointerEvent) => {
     e.preventDefault()
-    if (busy.current) return
-    idle.poke()
-    setHolding(true)
-    clearTimeout(holdTimer.current)
-    holdTimer.current = window.setTimeout(() => void finish('hold'), HOLD_MS)
-  }
-  const holdEnd = () => {
-    clearTimeout(holdTimer.current)
-    setHolding(false)
+    void finish('tap')
   }
 
   const wig = shape.wiggle
   const demoTip = demo ? (demo.stamp ? shape.stampAt : wig[Math.min(wig.length - 1, demo.n)]) : null
 
   return (
-    <div className="en-color" data-demo={demo ? '1' : undefined} data-accepting={done ? 'false' : undefined} data-color-done={done ? '' : undefined}>
+    <div className="en-color" ref={root} data-demo={demo ? '1' : undefined} data-accepting={done ? 'false' : undefined} data-color-done={done ? '' : undefined}>
       <div className="en-trace-paper wc-paper">
         <div className="en-trace-board">
           <svg
@@ -527,7 +539,7 @@ function ColorLetter({ letter, onDone }: { letter: LessonLetter; onDone: () => v
           )}
         </div>
       </div>
-      {/* 工具：四支蠟筆、今天世界的印章；按住完成鈕（塗過一下才出來） */}
+      {/* 工具：四支蠟筆、今天世界的印章；勾勾（塗過一下才出來，點一下就完成） */}
       <div className="wc-toolbar" aria-hidden="true">
         {CRAYONS.map((c) => {
           const on = tool.kind === 'crayon' && tool.color === c.hex
@@ -549,29 +561,26 @@ function ColorLetter({ letter, onDone }: { letter: LessonLetter; onDone: () => v
       <AnimatePresence>
         {started && !done && (
           <motion.button
-            key="hold"
+            key="check"
+            ref={checkBtn}
             type="button"
-            className={`wc-hold${holding ? ' is-holding' : ''}`}
-            data-color-hold=""
-            aria-label="按住完成"
+            className="wc-check"
+            data-color-check=""
+            aria-label="完成"
             initial={{ opacity: 0, scale: 0.6 }}
             animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0, scale: 0.6 }}
-            style={{ '--hold-ms': `${HOLD_MS}ms` } as CSSProperties}
-            onPointerDown={holdStart}
-            onPointerUp={holdEnd}
-            onPointerLeave={holdEnd}
-            onPointerCancel={holdEnd}
+            onPointerDown={tapCheck}
             onContextMenu={(e) => e.preventDefault()}
           >
             <svg viewBox="0 0 64 64" aria-hidden="true">
-              <circle cx={32} cy={32} r={28} className="wc-hold-track" />
-              <circle cx={32} cy={32} r={28} className="wc-hold-ring" pathLength={1} />
-              <path d="M19 33 L28 42 L46 23" className="wc-hold-check" />
+              <circle cx={32} cy={32} r={28} className="wc-check-ring" />
+              <path d="M19 33 L28 42 L46 23" className="wc-check-mark" />
             </svg>
           </motion.button>
         )}
       </AnimatePresence>
+      <AnimatePresence>{pointAt && !done && <Hand key="point-check" x={pointAt.x} y={pointAt.y} beckon size="min(10vmin, 96px)" />}</AnimatePresence>
     </div>
   )
 }
