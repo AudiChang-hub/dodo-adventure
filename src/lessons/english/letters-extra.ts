@@ -5,6 +5,8 @@
 // - z：zuh 跟 buh、nuh 一樣是 edge-tts 念得出來的停頓音寫法，念三次。
 // - q（/kw/）、x（/ks/，只出現在字尾）：TTS 單獨念會拼成字母，學校也是先教名稱，先不念字母音。
 import { ALL_PHONICS as BASE, type PhonicsWord, type SoundUnit } from '../../content/letters'
+// 寫寫看二選一的台詞（T-127）：英文課 lines.ts 另一個工作階段在改，從這裡接上 import 鏈（content/lines.ts → 英文課 lines.ts → 這裡）
+import './lines-write'
 
 export type { PhonicsWord, SoundUnit }
 

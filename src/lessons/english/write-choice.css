@@ -1,0 +1,244 @@
+/* 寫寫看二選一（T-127，WriteChoice.tsx）：描字、塗字母 */
+
+/* ── 選擇畫面：兩張大卡片 ─────────────────────────────────── */
+.en-write-pick {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: clamp(28px, 5vw, 72px);
+  /* 左邊讓豆豆、右邊讓陪玩小字（右上角） */
+  padding: 0 min(14vw, 180px);
+}
+.wc-card {
+  position: relative;
+  height: min(72vh, 470px);
+  aspect-ratio: 100 / 150;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 5% 6% 4%;
+  border: 0;
+  border-radius: 34px;
+  background: var(--card);
+  box-shadow:
+    0 8px 0 var(--paper-edge),
+    0 0 0 5px var(--wc-ring);
+  cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  transition:
+    transform 0.18s ease,
+    box-shadow 0.18s ease;
+}
+.wc-card:active {
+  transform: translateY(5px) scale(0.98);
+  box-shadow:
+    0 3px 0 var(--paper-edge),
+    0 0 0 5px var(--wc-ring);
+}
+.wc-card.is-trace {
+  --wc-ring: #c7b6e8;
+}
+.wc-card.is-color {
+  --wc-ring: #f2c84b;
+}
+.wc-card svg {
+  flex: 1;
+  min-height: 0;
+  width: 100%;
+  overflow: visible;
+}
+/* 給大人看的小字（孩子看圖就懂） */
+.wc-label {
+  font-family: 'Huninn', sans-serif;
+  font-size: 18px;
+  letter-spacing: 0.12em;
+  color: var(--ink-faint);
+}
+/* 塗字母卡右上角：蠟筆、印章的小圖示 */
+.wc-tools {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.wc-tools i {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  box-shadow: inset 0 -3px 0 rgba(46, 42, 37, 0.18);
+}
+
+/* ── 塗字母 ─────────────────────────────────────────────── */
+.en-color {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.wc-board {
+  touch-action: none;
+  cursor: crosshair;
+}
+.wc-spark {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  pointer-events: none;
+}
+/* 右邊的工具：兩欄（蠟筆、印章） */
+.wc-toolbar {
+  position: absolute;
+  right: 4vw;
+  top: 50%;
+  transform: translateY(-50%);
+  display: grid;
+  grid-template-columns: repeat(2, 66px);
+  grid-auto-flow: column;
+  grid-template-rows: repeat(4, 66px);
+  gap: 12px;
+}
+.wc-tool {
+  width: 66px;
+  height: 66px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: 20px;
+  background: var(--card);
+  box-shadow: 0 4px 0 var(--paper-edge);
+  cursor: pointer;
+  touch-action: none;
+  -webkit-tap-highlight-color: transparent;
+  transition:
+    transform 0.16s ease,
+    box-shadow 0.16s ease;
+}
+.wc-tool.is-on {
+  transform: translateY(-3px) scale(1.06);
+  box-shadow:
+    0 6px 0 var(--paper-edge),
+    0 0 0 4px #4e9a72;
+}
+/* 蠟筆：圓圓胖胖的一支，尖頭朝上 */
+.wc-crayon i {
+  width: 26px;
+  height: 46px;
+  border-radius: 13px 13px 7px 7px;
+  background: var(--c);
+  box-shadow:
+    inset 0 -8px 0 rgba(255, 255, 255, 0.35),
+    inset 0 0 0 2.5px rgba(46, 42, 37, 0.55);
+  clip-path: polygon(50% 0, 100% 26%, 100% 100%, 0 100%, 0 26%);
+}
+.wc-stamp {
+  background: #fff8e8;
+}
+
+/* 完成鈕：按住，外圈慢慢填滿（只點一下不算） */
+.wc-hold {
+  position: absolute;
+  right: calc(4vw + 33px);
+  bottom: 0;
+  width: 92px;
+  height: 92px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: var(--card);
+  box-shadow: 0 5px 0 var(--paper-edge);
+  cursor: pointer;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+  -webkit-tap-highlight-color: transparent;
+}
+.wc-hold svg {
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+.wc-hold-track,
+.wc-hold-ring {
+  fill: none;
+  stroke-width: 6;
+}
+.wc-hold-track {
+  stroke: #d9eadf;
+}
+.wc-hold-ring {
+  stroke: #4e9a72;
+  stroke-linecap: round;
+  stroke-dasharray: 1 1;
+  stroke-dashoffset: 1;
+  transform: rotate(-90deg);
+  transform-origin: 32px 32px;
+  transition: stroke-dashoffset 0.2s ease;
+}
+.wc-hold.is-holding .wc-hold-ring {
+  stroke-dashoffset: 0;
+  transition: stroke-dashoffset var(--hold-ms, 1200ms) linear;
+}
+.wc-hold-check {
+  fill: none;
+  stroke: #4e9a72;
+  stroke-width: 6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.wc-hold.is-holding {
+  transform: scale(0.95);
+}
+
+/* 手機直式（家長遠端看）：只要求不跑版 */
+@media (orientation: portrait) {
+  .en-write-pick {
+    padding: 0;
+    flex-direction: column;
+    gap: 3vh;
+  }
+  .wc-card {
+    height: min(30vh, 340px);
+  }
+  .wc-paper.en-trace-paper {
+    height: auto;
+    width: min(64vw, 100%);
+  }
+  .wc-toolbar {
+    right: auto;
+    left: 50%;
+    top: auto;
+    bottom: 0;
+    transform: translateX(-50%);
+    grid-template-columns: none;
+    grid-template-rows: 46px;
+    grid-auto-flow: column;
+    grid-auto-columns: 46px;
+    gap: 6px;
+  }
+  .wc-tool {
+    width: 46px;
+    height: 46px;
+    border-radius: 14px;
+  }
+  .wc-crayon i {
+    width: 18px;
+    height: 32px;
+  }
+  .wc-hold {
+    right: 0;
+    bottom: 56px;
+    width: 64px;
+    height: 64px;
+  }
+}

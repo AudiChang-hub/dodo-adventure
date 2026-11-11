@@ -85,6 +85,9 @@ async function waitStage(page: Page, want: string, ms = 60_000) {
 /** 單字念完會到「寫寫看」（T-112，自己再描一次大寫）：描完才到選擇題；回傳有沒有走過去 */
 async function passWrite(k: Toddler) {
   if (!(await waitStage(k.page, 'write', 60_000))) return (await stageOf(k.page)) === 'quiz'
+  // T-127：寫寫看先二選一（描字、塗字母），這裡選描字
+  const pick = k.page.locator('[data-write-pick="trace"]')
+  if (await pick.waitFor({ timeout: 10_000 }).then(() => true, () => false)) await pick.click()
   return traceRound(k)
 }
 
