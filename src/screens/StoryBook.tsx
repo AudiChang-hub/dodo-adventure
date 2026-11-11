@@ -101,6 +101,7 @@ interface Motion {
 /**
  * 我的故事書（T-77：像學校的故事時間）：
  * - 故事時間先講今天中文課那一篇的英文版（T-129，家長選 A；./story/EnBook.tsx）：一篇 4 句、一句一頁，每句講完等他點一下才講下一句。
+ *   一天兩篇、一舊一新（T-136，跟中文課同一份排課）：先講 3 次前那篇的英文版、講完直接接新篇（大人可以跳過舊篇），兩篇聽完都收進書架。
  *   今天還沒聽完就自動開始；聽完了進來是書架。以前的故事（會動的繪本、每週新故事）照樣在書架上，點了才講。
  * - 以前的故事：今天有還沒講完的新章節，書架上那一本亮著（lib/story.ts 的 todaysStory）；講完有「讀完了」，可以再聽一次或回書架，這一本收進書架。
  * - 中途按返回：回書架，新章節的書在最前面亮著；下次進來（或點那本書）從離開的那一句接著講，講到最後才算講完。
@@ -166,6 +167,8 @@ export function StoryBook() {
     setOpen(null)
     setEnOpen(null)
     setEnDone(null)
+    // 書架上今天那本書的進度（講到第幾句、舊篇還是新篇）重新讀：講到一半回書架再點，從離開的那一句接著講
+    void loadEnShelf().then((e) => setEn(e))
   }
 
   const startEn = (o: EnOpen) => {
@@ -180,12 +183,27 @@ export function StoryBook() {
     setEnOpen(o)
   }
 
-  /** 英文版講完：書架上的那一本更新（聽了幾天），換成讀完了 */
-  const enFinished = (row: EnBookRow) => {
-    sfx.done()
-    void loadEnShelf().then((e) => setEn(e))
-    setEnOpen(null)
-    setEnDone(row)
+  /** 英文版講完：書架上的那一本更新（聽了幾天），換成讀完了。今天的舊篇講完（或大人跳過）：直接接著講新篇（T-136，先舊後新） */
+  const enFinished = (row: EnBookRow, skipped = false) => {
+    const old = row.isNew && row.part === 'old'
+    if (!skipped) sfx.done()
+    if (!old) {
+      void loadEnShelf().then((e) => setEn(e))
+      setEnOpen(null)
+      setEnDone(row)
+      return
+    }
+    const me = run.current
+    void (async () => {
+      if (skipped) await import('./story/en-book').then((m) => m.skipOldEn(row.day))
+      const e = await loadEnShelf()
+      // 等的時候按了返回（回書架了）：不再自己開始講
+      if (run.current !== me) return
+      setEn(e)
+      if (e.today?.isNew && e.today.day !== row.day) return startEn({ row: e.today, from: e.from })
+      setEnOpen(null)
+      setEnDone(row)
+    })()
   }
 
   /** 停下來等他做一件事（點角色、選圖），做完（或 30 秒內手幫他做完）才往下；離開了就不再往下 */
@@ -307,7 +325,12 @@ export function StoryBook() {
   ]
   const pickEn = (row: EnBookRow) => {
     sfx.pop()
-    startEn({ row, from: row.isNew && row.day === en?.today?.day ? en.from : 0 })
+    if (!row.isNew) return startEn({ row, from: 0 })
+    // 今天的書：用最新的進度（從離開的那一篇、那一句接著講）
+    void loadEnShelf().then((e) => {
+      setEn(e)
+      startEn(e.today?.isNew && e.today.day === row.day ? { row: e.today, from: e.from } : { row, from: 0 })
+    })
   }
   const pages = Math.max(1, Math.ceil(books.length / PER_PAGE))
   const shown = books.slice(page * PER_PAGE, page * PER_PAGE + PER_PAGE)
@@ -330,7 +353,14 @@ export function StoryBook() {
       <Scenes id={id} move={move} className="scene is-clear">
         {enOpen ? (
           <Suspense fallback={<BookBack onClose={toShelf} />}>
-            <EnBook row={enOpen.row} from={enOpen.from} back={<BookBack onClose={toShelf} />} onDone={() => enFinished(enOpen.row)} />
+            <EnBook
+              key={`${enOpen.row.day}${enOpen.row.isNew ? enOpen.row.part : ''}`}
+              row={enOpen.row}
+              from={enOpen.from}
+              back={<BookBack onClose={toShelf} />}
+              onDone={() => enFinished(enOpen.row)}
+              onSkip={enOpen.row.isNew && enOpen.row.part === 'old' ? () => enFinished(enOpen.row, true) : undefined}
+            />
           </Suspense>
         ) : enDone ? (
           <DoneView pic={enDone.pic as Pic} host="momo" plain={!!world} onAgain={() => pickEn({ ...enDone, isNew: false })} onShelf={toShelf} />

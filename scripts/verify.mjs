@@ -44,7 +44,7 @@ const CHECKS = [
   { id: 'test-today-world', name: '單元：今天的世界（相鄰兩天不重複、素材都在）、玩法輪替', cmd: ['npx', 'tsx', 'scripts/test-today-world.ts'], check: unit },
   { id: 'test-draw-brushes', name: '單元：畫畫的魔法筆（連續兩次不一樣）、印章、發呆時今天的一句', cmd: ['npx', 'tsx', 'scripts/test-draw-brushes.ts'], check: unit },
   { id: 'test-math-plan', name: '單元：數學課出題與熟練', cmd: ['npx', 'tsx', 'scripts/test-math-plan.ts'], check: unit },
-  { id: 'test-zh-course', name: '單元：中文課文每篇 3 次、聊一聊、中文課不出聲', cmd: ['npx', 'tsx', 'scripts/test-zh-course.ts'], check: unit },
+  { id: 'test-zh-course', name: '單元：中文課文一天兩篇（一舊一新）、聊一聊、中文課不出聲', cmd: ['npx', 'tsx', 'scripts/test-zh-course.ts'], check: unit },
   {
     id: 'zh-layout',
     name: '中文課文排版（180 篇 × 每行亮起來 × 3 種尺寸，字不被圖蓋住、不超出課本）',

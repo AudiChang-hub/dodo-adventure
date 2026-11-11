@@ -741,8 +741,37 @@
   filter: opacity(0.5) saturate(0.55);
 }
 
+/*
+ * 跳過舊篇（T-136：一天兩篇，一舊一新；他累了大人可以跳過舊篇）：大人用的，放在右上角陪玩小字下面那一欄
+ * （課本、圖、右下角的「下一行」和大箭頭以外），跟「上一行」同一個樣子：淡淡的底線字、沒有底色，不像給孩子按的大按鈕。
+ */
+.zh-skip-old {
+  position: fixed;
+  top: 168px;
+  right: max(24px, env(safe-area-inset-right));
+  z-index: 5;
+  min-height: 56px;
+  padding: 0 16px;
+  border: 0;
+  background: none;
+  color: var(--ink-soft);
+  font: 400 17px / 1 'Huninn', sans-serif;
+  letter-spacing: 0.06em;
+  text-decoration: underline;
+  text-underline-offset: 0.3em;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+
 /* 手機直式（家長遠端看）：不壞版就好——課本佔滿寬度，按鈕排到下面 */
 @media (orientation: portrait) {
+  .zh-skip-old {
+    /* 手機直式：右上角是陪玩小字、下面是課本，排到最下面中間（左下角是恐龍、右下角是大箭頭） */
+    top: auto;
+    right: 50%;
+    bottom: max(20px, env(safe-area-inset-bottom));
+    translate: 50% 0;
+  }
   .zh-read {
     inset: 0 3cqw 30cqh 3cqw;
     grid-template-columns: minmax(0, 1fr);

@@ -3,7 +3,7 @@
 import { linePics, type ZhText } from '../../lessons/chinese/data'
 import { EN_PAGES, enWordOf, type EnText } from '../../content/story/english'
 
-/** 書架上的書一圈三格：聽了幾天（最多 3，跟中文課一篇上 3 次一樣） */
+/** 書架上的書一圈三格：聽了幾天（最多 3） */
 export const EN_RING = 3
 
 /** 每一篇聽完的日期（{ [篇]: 日期[] }，一天最多一筆） */
@@ -85,4 +85,31 @@ export function matchOf(t: ZhText, e: EnText): WordMatch | null {
   if (!word || !other) return null
   const answer = (Math.floor(t.day / 2) % 2) as 0 | 1
   return { zh: e.which, word, options: answer === 0 ? [word, other] : [other, word], answer }
+}
+
+/** 大人今天跳過了哪一篇舊篇 */
+export interface EnSkip {
+  date: string
+  day: number
+}
+
+/** 今天故事先講哪一篇：part 是舊篇或新篇；isNew 是今天還沒聽完；review 是新篇講完之後結尾小題的篇 */
+export interface EnToday {
+  day: number
+  part: 'old' | 'new'
+  isNew: boolean
+  review: number[]
+}
+
+/**
+ * 今天故事要講的（T-136，家長 2026-11-11：中文課和英文故事並行，一樣一天兩篇、一舊一新）。
+ * p 是中文課的排課（lessons/chinese/course.ts 的 planOf：新篇、舊篇、結尾小題的篇，中英文共用這一份，不另外算）：
+ * - 舊篇今天還沒聽完、也沒被大人跳過（新篇也還沒聽完）→ 先講舊篇；
+ * - 不然講新篇，新篇講完接結尾小題（前 1 次、前 7 次的各一題）。
+ */
+export function enTodayOf(p: { day: number; old: number | null; review: number[] }, heard: Heard, skip: EnSkip | undefined, date: string): EnToday {
+  const on = (d: number) => (heard[d] ?? []).includes(date)
+  const fresh = !on(p.day)
+  if (p.old != null && fresh && !on(p.old) && !(skip?.date === date && skip.day === p.old)) return { day: p.old, part: 'old', isNew: true, review: [] }
+  return { day: p.day, part: 'new', isNew: fresh, review: p.review }
 }
