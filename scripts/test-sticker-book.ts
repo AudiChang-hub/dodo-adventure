@@ -1,8 +1,15 @@
 // 貼紙本（T-132，src/screens/sticker-book.ts）的單元測試：最新的在最前面、同時間的照原本先後倒過來、不改原本的清單、
 // 沒有貼紙是空的；每張貼紙歪的角度固定、在 -5° ～ 5° 之間。
+// T-139：點貼紙的反應有變化（不同種類動作不同、同一張再點換一個），名字的單字三明治只用已經有中文音檔的詞。
 // 執行：npx tsx scripts/test-sticker-book.ts（失敗就 exit 1）
 import assert from 'node:assert/strict'
-import { BOARD_PEEK, newestFirst, tiltOf } from '../src/screens/sticker-book'
+import { existsSync, readFileSync } from 'node:fs'
+import { BOARD_PEEK, CAT_MOVE, newestFirst, reactionOf, tiltOf, type Cat } from '../src/screens/sticker-book'
+
+const { hasLine, line } = await import('../src/content/lines')
+const { STICKER_ART } = await import('../src/content/sticker-art')
+const { ACT_LINE, stickerBridge, stickerZh } = await import('../src/content/lines-stickers')
+const { ZH_WORDS } = await import('../src/content/zh-words')
 
 let n = 0
 const ok = (name: string) => console.log(`ok ${++n} ${name}`)
@@ -59,5 +66,60 @@ ok('每張歪的角度固定、在 -5° ～ 5°、不會全部一樣')
 
 assert.ok(BOARD_PEEK >= 1 && BOARD_PEEK <= 3)
 ok('首頁貼紙板露出 1～3 張')
+
+// ── T-139：點貼紙的反應 ──
+const CATS = Object.keys(CAT_MOVE) as Cat[]
+for (const cat of [...CATS, undefined]) {
+  for (let n = 0; n < 9; n++) {
+    const a = reactionOf(cat, n)
+    const b = reactionOf(cat, n + 1)
+    assert.ok(a.move !== b.move, `${cat} 第 ${n + 1}、${n + 2} 下動作一樣（${a.move}）`)
+  }
+  assert.equal(reactionOf(cat, 0).voice, 'name')
+  assert.deepEqual(reactionOf(cat, 3), reactionOf(cat, 0))
+}
+ok('同一張連點：每一下都換一個動作，三下一輪，第一下念名字')
+
+// 不是每一下都說話（孩子：「好多都在講話，我聽不懂」）
+for (const cat of [...CATS, undefined]) assert.ok([0, 1, 2].some((n) => reactionOf(cat, n).voice === 'none'), `${cat} 每一下都在說話`)
+ok('三下裡至少一下不說話')
+
+assert.ok(new Set(Object.values(CAT_MOVE)).size >= 7, '各類的動作太少種')
+assert.notEqual(reactionOf('dino', 0).move, reactionOf('car', 0).move)
+assert.notEqual(reactionOf('sky', 0).move, reactionOf('fruit', 0).move)
+ok('不同種類的貼紙第一下的動作不一樣')
+
+const arts = new Set(STICKER_ART.map((a) => a.cat))
+for (const cat of arts) {
+  assert.ok(CAT_MOVE[cat as Cat], `${cat} 沒有動作`)
+  assert.ok(hasLine(`stk.act.${cat}`), `${cat} 沒有狀聲詞台詞`)
+  assert.ok(!/[一-鿿]/.test(ACT_LINE[cat as Cat]), `${cat} 的狀聲詞有中文`)
+}
+ok('每一類都有自己的動作和英文狀聲詞')
+
+// 名字的單字三明治：每張圖庫貼紙都有三明治台詞（中文 → 英文），英文跟名字同一個字
+for (const a of STICKER_ART) {
+  const b = line(stickerBridge(a.id))
+  assert.equal(b.zh, stickerZh(a.id))
+  assert.equal(b.text.replace(/\.$/, '').toLowerCase(), a.en.replace(/!$/, '').toLowerCase(), a.id)
+}
+assert.equal(stickerZh(undefined), undefined)
+ok('每張圖庫貼紙都有名字的三明治台詞，v1 舊貼紙沒有')
+
+// 不做新的中文語音：貼紙不進 gen_zh_words.py 的清單（ZH_WORDS）；中文跟課程同一個英文字的一樣，共用音檔
+const zhKeys = new Set(ZH_WORDS.map((w) => w.key))
+assert.ok(![...zhKeys].some((k) => k.includes('sticker')), 'ZH_WORDS 裡有貼紙')
+const lex = new Map(ZH_WORDS.map((w) => [w.en.replace(/[.!]+$/, '').toLowerCase(), w.zh]))
+const lion = STICKER_ART.find((a) => a.id === 'lion')!
+assert.equal(stickerZh('lion'), lex.get('lion') ?? lion.zh)
+ok('不產生新的中文語音：貼紙不在中文清單裡，中文跟課程的字共用')
+
+// 有中文音檔（public/audio/zh/index.json）的詞才會念中文（播的時候 lib/words.ts 的 zhClipReady 擋）；這裡算一下現在有幾張
+if (existsSync('public/audio/zh/index.json')) {
+  const have = new Set(Object.values(JSON.parse(readFileSync('public/audio/zh/index.json', 'utf8'))) as string[])
+  const yes = STICKER_ART.filter((a) => have.has(stickerZh(a.id)!))
+  assert.ok(yes.length >= STICKER_ART.length / 2, `只有 ${yes.length} 張有中文音檔`)
+  ok(`有中文音檔的貼紙 ${yes.length}/${STICKER_ART.length} 張念三明治，其他只念英文`)
+}
 
 console.log('ALL PASS')

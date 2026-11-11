@@ -153,6 +153,19 @@
   pointer-events: none;
 }
 
+/* 第三下：亮晶晶（不說話）——六顆暖黃的小星星從貼紙中間往外飄（T-139） */
+.sb-spark {
+  position: absolute;
+  left: calc(50% - 13px);
+  top: calc(50% - 13px);
+  width: 26px;
+  height: 26px;
+  background: #f0b941;
+  clip-path: polygon(50% 0, 62% 38%, 100% 50%, 62% 62%, 50% 100%, 38% 62%, 0 50%, 38% 38%);
+  pointer-events: none;
+  z-index: 2;
+}
+
 /* 還沒有貼紙：三張虛線的剪影，等著被貼上去 */
 .sb-empty {
   position: absolute;
