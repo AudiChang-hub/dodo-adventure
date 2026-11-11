@@ -1,7 +1,7 @@
 import { test, expect, type Page } from '@playwright/test'
 import { boot, homeButton, settle, snap, storyToldToday } from './lib/app'
 import { Toddler, hashSeed } from './lib/toddler'
-import { Checker, alive, doorAt, enterGame, holdHome, pressBack, toHome, toddlerStep, waitLive } from './lib/flows'
+import { Checker, alive, doorAt, enterGame, holdHome, linesSince, pressBack, toHome, toddlerStep, waitLive } from './lib/flows'
 import fs from 'node:fs'
 import path from 'node:path'
 import { GAMES } from './catalog'
@@ -198,6 +198,217 @@ test.describe('畫面', () => {
       c.outcome('減少動態效果', true, `整頁縮放 ${c.stats.zoomMin}～${c.stats.zoomMax}`)
     } finally {
       finish(k, c, '減少動態效果')
+    }
+  })
+
+  // 貼紙本（T-132，src/screens/StickerBook.tsx）：首頁牆上的貼紙板點進去，只看不改。
+  // 有貼紙：每一張都在、最新的在最前面、點了會跳一下念名字；亂點、連點、多指、拖到一半放手都不出錯、不改資料；返回鍵點一下回首頁。
+  // 沒有貼紙：本子上是虛線剪影、沒有字；返回鍵點一下回首頁。
+  test('貼紙本', async ({ page }, info) => {
+    test.skip(!want('stickers'))
+    test.setTimeout(8 * 60_000)
+    const { k, c } = await setup(page, info, '貼紙本', { to: 'home' })
+    /** 寫進 n 張挑過的貼紙（舊 → 新，跟 lib/achievements 存的一樣），重新載入回首頁 */
+    const seed = async (n: number) => {
+      await page.evaluate(async (n) => {
+        const ARTS = ['t-rex', 'rocket', 'lion', 'strawberry', 'rainbow', 'dolphin', 'fire-engine', 'teddy-bear', 'butterfly']
+        await new Promise<void>((res, rej) => {
+          const rq = indexedDB.open('dodo-adventure')
+          rq.onerror = () => rej(rq.error)
+          rq.onsuccess = () => {
+            const db = rq.result
+            const tx = db.transaction('kv', 'readwrite')
+            const st = tx.objectStore('kv')
+            const g = st.get('achieve')
+            g.onsuccess = () => {
+              const v = g.result?.value ?? { v: 2, best: {}, fixes: 0, picks: [], since: 0 }
+              const t0 = Date.now() - n * 3_600_000
+              const log = Array.from({ length: n }, (_, i) => ({ id: `stk-test-${i}`, ts: t0 + i * 3_600_000, date: '2026-11-01', kind: 'sticker', art: ARTS[i % ARTS.length], seed: 500 + i * 13, why: { round: 1, learn: 0, fix: 0, level: 0 } }))
+              st.put({ key: 'achieve', value: { ...v, v: 2, log, seen: log.map((m) => m.id), since: 0 } })
+            }
+            tx.oncomplete = () => {
+              db.close()
+              res()
+            }
+            tx.onerror = () => rej(tx.error)
+          }
+        })
+        sessionStorage.setItem('dodo.resume', 'home')
+      }, n)
+      await page.reload()
+      await page.waitForSelector('.screen.home', { timeout: 20_000 })
+      await settle(page)
+    }
+    /** 貼紙本裡的資料（achieve）有沒有被改：只看不改 */
+    const achieve = () =>
+      page.evaluate(
+        () =>
+          new Promise<string>((res) => {
+            const rq = indexedDB.open('dodo-adventure')
+            rq.onsuccess = () => {
+              const db = rq.result
+              const g = db.transaction('kv').objectStore('kv').get('achieve')
+              g.onsuccess = () => {
+                db.close()
+                res(JSON.stringify(g.result?.value ?? null))
+              }
+            }
+          }),
+      )
+    /** 現在這一層畫面 */
+    const live = async () => (await snap(page)).live
+    /** 點首頁的貼紙板進貼紙本 */
+    const enter = async (ctx: string) => {
+      if (!(await toHome(k, c))) return false
+      const p = await doorAt(page, 'stickers')
+      if (!p) {
+        await c.once('no-board', '困惑', '首頁找不到貼紙板', '')
+        return false
+      }
+      await k.tap(p, '貼紙板')
+      const l = await waitLive(page, (x) => x === 'stickers', 5000)
+      c.outcome(`${ctx}：點貼紙板進貼紙本`, l === 'stickers', `到 ${l}`)
+      if (l !== 'stickers') await c.once(`enter:${ctx}`, '卡死', `點首頁的貼紙板沒有進貼紙本（${ctx}）`, `停在 ${l}`)
+      await settle(page)
+      return l === 'stickers'
+    }
+    /** 返回鍵點一下就回首頁 */
+    const backOnce = async (ctx: string) => {
+      await k.wait(1200)
+      const h = await homeButton(page)
+      if (!h) {
+        await c.once(`noback:${ctx}`, '無法返回', `貼紙本沒有返回鍵（${ctx}）`, '')
+        return
+      }
+      await pressBack(k, h, `${ctx}：${h.label}`)
+      const l = await waitLive(page, (x) => x === 'home', 4000)
+      c.outcome(`${ctx}：返回鍵點一下 → 首頁`, l === 'home', `到 ${l}`)
+      if (l !== 'home') await c.once(`back:${ctx}`, '無法返回', `貼紙本點一下返回鍵沒有回首頁（${ctx}）`, `停在 ${l}`)
+    }
+    /** 貼紙本裡的貼紙（畫面上的順序） */
+    const items = () =>
+      page.evaluate(() => {
+        const root = [...document.querySelectorAll<HTMLElement>('.scene')].filter((e) => !e.inert).pop()
+        return [...(root?.querySelectorAll<HTMLElement>('.sb-item') ?? [])].map((e) => ({ key: e.dataset.sticker ?? '', ts: Number(e.dataset.ts) }))
+      })
+    try {
+      // ── 沒有貼紙 ──
+      k.behavior = '沒有貼紙'
+      await seed(0)
+      if (await enter('沒有貼紙')) {
+        const empty = await page.evaluate(() => {
+          const root = [...document.querySelectorAll<HTMLElement>('.scene')].filter((e) => !e.inert).pop()!
+          const album = root.querySelector<HTMLElement>('.sb-album')
+          return { empty: !!root.querySelector('[data-empty]'), ghosts: root.querySelectorAll('.sb-ghost').length, items: root.querySelectorAll('.sb-item').length, text: (album?.innerText ?? '').trim() }
+        })
+        const ok = empty.empty && empty.ghosts > 0 && !empty.items && !empty.text
+        c.outcome('沒有貼紙：虛線剪影、沒有字', ok, `剪影 ${empty.ghosts} 張、貼紙 ${empty.items} 張、字「${empty.text}」`)
+        if (!ok) await c.once('empty', '困惑', '沒有貼紙時貼紙本不是空的剪影（或出現了字）', JSON.stringify(empty))
+        k.behavior = '沒有貼紙：亂點、多指'
+        for (let i = 0; i < 8; i++) {
+          if ((await live()) !== 'stickers') break
+          await toddlerStep(k, c)
+        }
+        await c.flush()
+        if ((await live()) === 'stickers') await backOnce('沒有貼紙')
+        await c.screenOk('沒有貼紙返回後')
+      }
+
+      // ── 有貼紙 ──
+      const N = 14
+      k.behavior = `有 ${N} 張貼紙`
+      await seed(N)
+      const board = await page.evaluate(() => document.querySelectorAll('.sticker-board .sbd-stk:not(.is-ghost)').length)
+      c.outcome('首頁貼紙板露出最新的 3 張', board === 3, `${board} 張`)
+      const before = await achieve()
+      if (await enter('有貼紙')) {
+        const list = await items()
+        const newest = list.every((x, i) => !i || list[i - 1].ts >= x.ts)
+        const ok = list.length === N && newest && list[0]?.key === `stk-test-${N - 1}`
+        c.outcome(`有 ${N} 張：每一張都在、最新的在最前面`, ok, `${list.length} 張；第一張 ${list[0]?.key}；由新到舊 ${newest}`)
+        if (!ok) await c.once('list', '困惑', '貼紙本沒有列出全部的貼紙，或最新的不在最前面', JSON.stringify(list.slice(0, 5)))
+
+        // 點一張：跳一下（波紋）、念名字
+        k.behavior = '點一張貼紙'
+        await k.wait(1500)
+        const first = await page.evaluate(() => {
+          const root = [...document.querySelectorAll<HTMLElement>('.scene')].filter((e) => !e.inert).pop()!
+          const r = root.querySelector('.sb-item')!.getBoundingClientRect()
+          return { x: r.left + r.width / 2, y: r.top + r.height / 2 }
+        })
+        const t0 = await page.evaluate(() => performance.now())
+        await k.tap(first, '第一張貼紙')
+        await k.wait(250)
+        const ring = await page.evaluate(() => !!document.querySelector('.sb-ring'))
+        await k.wait(1800)
+        const said = (await linesSince(page, t0)).map((l) => l.text ?? '')
+        c.outcome('點一張：跳一下、念名字', ring && said.length > 0, `波紋 ${ring}；說了「${said.join('／')}」`)
+        if (!ring || !said.length) await c.once('tap', '困惑', '點貼紙本裡的貼紙沒有反應', `波紋 ${ring}；語音 ${said.length} 句`)
+
+        // 連點同一張、點別張、手掌壓、拖到一半放手、捲動：不出錯、不離開
+        k.behavior = '連點、多指、亂點'
+        await k.spam(first, 8, '連點第一張')
+        for (let i = 0; i < 14; i++) {
+          if ((await live()) !== 'stickers') break
+          await toddlerStep(k, c)
+        }
+        await c.flush()
+        // 亂點可能點到返回鍵：回首頁也是對的，再進來
+        if ((await live()) === 'home') await enter('亂點回首頁後再進來')
+        const still = await live()
+        c.outcome('亂點、連點、多指之後還在貼紙本', still === 'stickers', `在 ${still}`)
+        await c.screenOk('貼紙本亂玩後')
+        await alive(k, c, '貼紙本亂玩', 20_000)
+
+        // 捲到最舊的那一張
+        k.behavior = '捲到最下面'
+        await page.evaluate(() => {
+          const root = [...document.querySelectorAll<HTMLElement>('.scene')].filter((e) => !e.inert).pop()!
+          const all = root.querySelectorAll('.sb-item')
+          all[all.length - 1]?.scrollIntoView({ block: 'center' })
+        })
+        await k.wait(600)
+        const lastVisible = await page.evaluate(() => {
+          const root = [...document.querySelectorAll<HTMLElement>('.scene')].filter((e) => !e.inert).pop()!
+          const all = root.querySelectorAll('.sb-item')
+          const r = all[all.length - 1]?.getBoundingClientRect()
+          return !!r && r.top >= 0 && r.bottom <= innerHeight
+        })
+        c.outcome('捲得到最舊的那一張', lastVisible, lastVisible ? '' : '最後一張捲不進畫面')
+        if (!lastVisible) await c.once('scroll', '困惑', '貼紙本捲不到最舊的那一張', '')
+
+        // Android 返回
+        k.behavior = 'Android 返回'
+        await k.wait(1200)
+        k.act('history.back()')
+        await page.evaluate(() => history.back())
+        let l = await waitLive(page, (x) => x === 'home', 4000)
+        c.outcome('貼紙本 Android 返回 → 首頁', l === 'home', `到 ${l}`)
+        if (l !== 'home') await c.once('android', '無法返回', '貼紙本按 Android 返回沒有回首頁', `停在 ${l}`)
+
+        // 再進來，一進來就連點返回鍵 6 下：只回首頁
+        k.behavior = '連點返回鍵'
+        if (await enter('再進來')) {
+          await k.wait(900)
+          const h = await homeButton(page)
+          if (h) {
+            await k.spam(h, 6, h.label)
+            await k.wait(2000)
+            await settle(page)
+            l = await live()
+            c.outcome('貼紙本連點返回鍵 6 下 → 首頁', l === 'home', `到 ${l}`)
+            if (l !== 'home') await c.once('spam-back', '無法返回', `貼紙本連點返回鍵到了 ${l}`, '應該回到首頁就停住')
+          }
+        }
+        if ((await live()) === 'stickers') await backOnce('有貼紙')
+        await c.screenOk('有貼紙返回後')
+      }
+      const after = await achieve()
+      c.outcome('只看不改：貼紙的資料沒有變', before === after, before === after ? '' : '貼紙本改到了 achieve')
+      if (before !== after) await c.once('write', '誤記作答', '貼紙本改到了貼紙的資料（應該只看不改）', '')
+      await c.flush()
+    } finally {
+      finish(k, c, '貼紙本')
     }
   })
 

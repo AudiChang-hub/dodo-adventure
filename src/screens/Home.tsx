@@ -10,6 +10,7 @@ import { useInstall } from '../lib/install'
 import { useIntro } from '../ui/Scenes'
 import { LESSONS, SUBJECTS, type Subject } from '../lessons'
 import type { Speaker } from '../content/lines'
+import { BoardStickers } from './StickerBook'
 import './school.css'
 
 let greeted = false
@@ -53,7 +54,8 @@ const SIDE: { id: 'story' | 'draw'; label: string; icon: string; to: Route }[] =
 
 /**
  * 學校的首頁（2026-10-31 家長決定照學校分科）：三個大門＝英文字母（豆豆）、中文課文（莫莫）、數學數字（波波），
- * 旁邊兩個小一點的故事、畫畫。除了家長角落沒有別的按鈕；點門任何地方一下就進去。
+ * 旁邊兩個小一點的故事、畫畫；牆上掛一塊貼紙板（最新的幾張貼紙），點了進貼紙本（T-132）。
+ * 除了家長角落沒有別的按鈕；點門任何地方一下就進去。
  * 畫面靜止（MOTION-2）：只有剛打開 App 時大家走進來一次，之後不閃、不晃。
  */
 export function Home() {
@@ -100,6 +102,23 @@ export function Home() {
           </span>
         </p>
       )}
+
+      {/* 牆上的貼紙板（T-132）：掛在門上方的空牆，不動門的排法；看得到自己最新的貼紙，點了進貼紙本 */}
+      <motion.button
+        className="sticker-board"
+        data-door="stickers"
+        aria-label="貼紙本"
+        initial={intro ? { y: -24, opacity: 0 } : false}
+        animate={{ y: 0, opacity: 1 }}
+        transition={{ type: 'spring', stiffness: 150, damping: 15, delay: 0.75 }}
+        {...tap('stickers', () => open({ name: 'stickers' }))}
+      >
+        <span className="sbd-tape" aria-hidden="true" />
+        <span className="sbd-paper">
+          <BoardStickers />
+        </span>
+        <span className="door-label">貼紙本</span>
+      </motion.button>
 
       <div className="school-yard">
         <div className="doors">

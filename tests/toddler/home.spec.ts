@@ -4,7 +4,7 @@ import { Toddler, hashSeed } from './lib/toddler'
 import { Checker, doorAt, drawAndMeasure, pressBack, tapDoor, toHome, toddlerStep, waitLive } from './lib/flows'
 
 /**
- * 學校的首頁（2026-10-31，src/screens/Home.tsx 的 SchoolHome）：三個大門（英文字母、中文課文、數學數字）＋故事、畫畫。
+ * 學校的首頁（2026-10-31，src/screens/Home.tsx 的 SchoolHome）：三個大門（英文字母、中文課文、數學數字）＋故事、畫畫，牆上的貼紙板（T-132）。
  * 三歲孩子會做的事：亂點、連點門、一進去就想回來（返回鍵、Android 返回、連點返回鍵）、點了門馬上又按返回、
  * 點了畫畫馬上就畫（轉場還沒走完，T-72 找到的「之後每一筆都沒有墨」）。
  */
@@ -19,6 +19,8 @@ const DOORS = [
   { door: 'math', name: '數學數字', live: 'lesson-math' },
   { door: 'story', name: '故事', live: 'shelf' },
   { door: 'draw', name: '畫畫', live: 'play-d-free' },
+  // 牆上的貼紙板（T-132）：點進去是貼紙本
+  { door: 'stickers', name: '貼紙本', live: 'stickers' },
 ] as const
 const LABELS = new Set<string>(DOORS.map((d) => d.name))
 /** 進到這扇門了（故事書剛換上來時外層是 storybook，裡面的書架接著淡入） */
@@ -64,13 +66,13 @@ test.describe('學校首頁', () => {
     // 故事門照舊直接進書架（新章節的流程在 story.spec.ts）
     await storyToldToday(page)
     try {
-      // 首頁只有五扇門（家長角落另外量）
+      // 首頁只有五扇門和牆上的貼紙板（家長角落另外量）
       k.behavior = '首頁有什麼'
       await settle(page)
       // 按鈕（門裡面的恐龍、圖是門的一部分，不算）
       const ts = (await targets(page)).filter((t) => t.kind === 'btn').map((t) => t.label)
       const extra = ts.filter((l) => !LABELS.has(l))
-      c.outcome('首頁只有三大門＋故事、畫畫', !extra.length && ts.length === LABELS.size, `點得到：${ts.join('、')}`)
+      c.outcome('首頁只有三大門＋故事、畫畫、貼紙板', !extra.length && ts.length === LABELS.size, `點得到：${ts.join('、')}`)
       if (extra.length) await c.once('home-extra', '困惑', `首頁多了別的按鈕：${extra.join('、')}`, '')
       const corner = await page.evaluate(() => !!document.querySelector('.parent-corner'))
       c.outcome('家長角落還在', corner, corner ? '右上角' : '不見了')

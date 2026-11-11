@@ -1,0 +1,298 @@
+/* ── 貼紙本（T-132，screens/StickerBook.tsx）──────────────────────
+   一本攤開的活頁貼紙本：左邊一排活頁圈，紙上是很淡的點點格（像貼紙底紙），貼紙一張張大大地貼上去、各自歪一點點。
+   跟首頁同一套紙感配色：低對比、不閃、只有點到的那一張會動。 */
+.sticker-book {
+  --sb-gap: clamp(14px, 2.2vw, 28px);
+  background: linear-gradient(#e6efee 0%, #f1ede4 46%, var(--paper) 100%);
+}
+.sb-back {
+  position: absolute;
+  left: 26px;
+  top: 18px;
+  z-index: 6;
+}
+/* 豆豆坐在返回鍵下面，陪他看 */
+.sb-host {
+  position: absolute;
+  left: 18px;
+  bottom: 22px;
+  width: clamp(104px, 11vw, 150px);
+  z-index: 3;
+  pointer-events: none;
+}
+
+.sb-album {
+  position: absolute;
+  left: clamp(150px, 14vw, 180px);
+  right: clamp(24px, 4vw, 52px);
+  top: 26px;
+  bottom: 30px;
+  border-radius: 30px;
+  background:
+    radial-gradient(circle at 1px 1px, rgba(46, 42, 37, 0.07) 1.2px, transparent 1.6px) 0 0 / 26px 26px,
+    var(--card);
+  box-shadow:
+    0 10px 0 var(--paper-edge),
+    0 28px 56px -18px rgba(46, 42, 37, 0.16),
+    inset 0 0 0 1px rgba(46, 42, 37, 0.04);
+  z-index: 2;
+}
+/* 活頁圈：左邊一排，一半在本子外面 */
+.sb-rings {
+  position: absolute;
+  left: -16px;
+  top: 9%;
+  bottom: 9%;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  pointer-events: none;
+  z-index: 2;
+}
+.sb-rings i {
+  position: relative;
+  display: block;
+  width: 46px;
+  height: 18px;
+  border-radius: 999px;
+  background: linear-gradient(#e2d8c6, #cfc3ae);
+  box-shadow: 0 2px 0 rgba(46, 42, 37, 0.08);
+}
+.sb-rings i::after {
+  content: '';
+  position: absolute;
+  right: 6px;
+  top: 4px;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--paper-deep);
+  box-shadow: inset 0 2px 2px rgba(46, 42, 37, 0.14);
+}
+
+/* 給大人看的小字：右上角，淡淡的 */
+.sb-count {
+  position: absolute;
+  right: 26px;
+  top: 16px;
+  margin: 0;
+  font-family: 'Huninn', sans-serif;
+  font-size: 15px;
+  letter-spacing: 0.06em;
+  color: var(--ink-faint);
+  z-index: 2;
+  pointer-events: none;
+}
+.sb-count b {
+  margin: 0 0.35em;
+  font-weight: 400;
+  color: var(--ink-soft);
+}
+
+/* 捲動的範圍：上下邊緣淡出，看得出還有下一排 */
+.sb-scroll {
+  position: absolute;
+  inset: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  touch-action: pan-y;
+  scrollbar-width: none;
+  border-radius: inherit;
+  -webkit-mask: linear-gradient(transparent 0, #000 34px, #000 calc(100% - 44px), transparent 100%);
+  mask: linear-gradient(transparent 0, #000 34px, #000 calc(100% - 44px), transparent 100%);
+}
+.sb-scroll::-webkit-scrollbar {
+  display: none;
+}
+.sb-grid {
+  list-style: none;
+  margin: 0;
+  padding: 44px clamp(28px, 3.4vw, 48px) 56px clamp(52px, 5vw, 68px);
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(clamp(132px, 15vw, 178px), 1fr));
+  gap: var(--sb-gap);
+}
+.sb-slot {
+  display: grid;
+  place-items: center;
+  aspect-ratio: 1;
+}
+.sb-item {
+  position: relative;
+  display: block;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: none;
+  rotate: var(--tilt, 0deg);
+  -webkit-tap-highlight-color: transparent;
+  transition: transform 0.16s var(--ease-out);
+}
+/* 按下去那一下就有反應（放開才念名字） */
+.sb-item:active {
+  transform: scale(0.94);
+}
+.sb-sticker {
+  position: relative;
+  display: block;
+  width: 100%;
+  filter: drop-shadow(0 6px 6px rgba(46, 42, 37, 0.1));
+}
+/* v1 的圓形舊貼紙：圖畫滿整格，縮成跟隨機貼紙（外框只佔 viewBox 約 8 成）看起來一樣大 */
+.sb-sticker > .sticker {
+  width: 78%;
+  margin: 11%;
+}
+/* 點了：一圈淡淡的暖光波紋 */
+.sb-ring {
+  position: absolute;
+  inset: 2%;
+  border-radius: 50%;
+  border: 5px solid rgba(241, 210, 124, 0.9);
+  pointer-events: none;
+}
+
+/* 還沒有貼紙：三張虛線的剪影，等著被貼上去 */
+.sb-empty {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: clamp(20px, 4vw, 56px);
+  padding: 0 6%;
+}
+.sb-ghost {
+  position: relative;
+  display: block;
+  width: clamp(120px, 19vw, 230px);
+}
+.sb-ghost:nth-child(2) {
+  translate: 0 -18px;
+}
+
+/* 手機直式（家長遠端看）：本子在返回鍵下面占滿寬度，不跑版就好 */
+@media (orientation: portrait) {
+  .sb-host {
+    display: none;
+  }
+  .sb-album {
+    left: 14px;
+    right: 14px;
+    top: 128px;
+    bottom: 18px;
+    border-radius: 24px;
+  }
+  .sb-rings {
+    display: none;
+  }
+  .sb-count {
+    top: -36px;
+    right: 6px;
+  }
+  .sb-grid {
+    padding: 28px 18px 44px;
+    grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+  }
+  .sb-empty {
+    flex-direction: column;
+    gap: 18px;
+  }
+  .sb-ghost {
+    width: min(42vw, 22vh);
+  }
+  .sb-ghost:nth-child(2) {
+    translate: 0;
+  }
+}
+
+/* ── 首頁牆上的貼紙板（screens/Home.tsx）──────────────────────
+   掛在數學門上方的空牆：一張奶油色的紙，上緣貼一段紙膠帶，露出最新的幾張貼紙。
+   跟首頁一樣靜止，只在剛打開 App 時落下來一次。 */
+.sticker-board {
+  position: absolute;
+  left: 61%;
+  /* 底邊跟著門頂走（門的大小隨畫面變）：門頂上面留出門外那圈白邊和板子下面的字 */
+  bottom: calc(var(--ground) + var(--door-w) / 0.74 + 12px + 58px);
+  width: clamp(180px, min(17vw, 26vh), 224px);
+  padding: 0;
+  border: 0;
+  background: none;
+  z-index: 2;
+  -webkit-tap-highlight-color: transparent;
+}
+.sbd-paper {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  aspect-ratio: 1.55;
+  padding: 0 8%;
+  border-radius: 18px;
+  background:
+    radial-gradient(circle at 1px 1px, rgba(46, 42, 37, 0.07) 1px, transparent 1.4px) 0 0 / 18px 18px,
+    var(--card);
+  box-shadow:
+    0 6px 0 var(--paper-edge),
+    0 0 0 9px rgba(251, 248, 242, 0.7);
+  rotate: -1.5deg;
+  transition: transform 0.16s var(--ease-out), box-shadow 0.16s var(--ease-out);
+}
+.sticker-board:active .sbd-paper {
+  transform: translateY(4px);
+  box-shadow:
+    0 2px 0 var(--paper-edge),
+    0 0 0 9px rgba(251, 248, 242, 0.7);
+}
+/* 紙膠帶：半透明的暖黃，斜斜地貼住上緣 */
+.sbd-tape {
+  position: absolute;
+  left: 50%;
+  top: -12px;
+  width: 34%;
+  height: 26px;
+  translate: -50% 0;
+  rotate: -4deg;
+  border-radius: 3px;
+  background: repeating-linear-gradient(90deg, rgba(241, 210, 124, 0.78) 0 9px, rgba(246, 222, 149, 0.78) 9px 18px);
+  box-shadow: 0 1px 2px rgba(46, 42, 37, 0.08);
+  z-index: 2;
+}
+.sbd-stk {
+  position: relative;
+  display: block;
+  flex: none;
+  width: 40%;
+  margin: 0 -4%;
+  rotate: var(--tilt, 0deg);
+  filter: drop-shadow(0 3px 3px rgba(46, 42, 37, 0.12));
+}
+/* 中間（最新的那一張）大一點 */
+.sbd-stk:first-child {
+  width: 46%;
+}
+.sbd-stk > .sticker {
+  width: 78%;
+  margin: 11%;
+}
+.sbd-stk.is-ghost {
+  width: 50%;
+  opacity: 0.75;
+}
+.sticker-board .door-label {
+  top: calc(100% + 16px);
+  padding: 4px 16px;
+  font-size: clamp(15px, 2.1vh, 19px);
+}
+
+/* 手機直式：屋簷和時鐘下面、門的上面，置中 */
+@media (orientation: portrait) {
+  .sticker-board {
+    left: calc(50% - 80px);
+    top: max(236px, 28vh);
+    bottom: auto;
+    width: 160px;
+  }
+}

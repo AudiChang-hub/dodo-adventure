@@ -58,6 +58,9 @@ export const SCREEN_TESTS = [
   // 英文字母課自己的測試（tests/toddler/lesson-english.spec.ts）：英文課資料夾裡的檔都從 index.tsx 走得到
   { token: 'lesson-english', spec: 'lesson-english', files: ['src/lessons/english/index.tsx'], games: [] },
   { token: 'home-draw', spec: 'home', files: [], games: ['d-free'] },
+  // 貼紙本（T-132，screens.spec 的「貼紙本」）：有貼紙、沒有貼紙、亂點連點多指、返回；首頁的三大門也會點貼紙板進去
+  { token: 'stickers', spec: 'screens', files: ['src/screens/StickerBook.tsx', 'src/screens/sticker-book.ts', 'src/screens/stickers.css'], games: [] },
+  { token: 'home-doors', spec: 'home', files: ['src/screens/StickerBook.tsx', 'src/screens/sticker-book.ts', 'src/screens/stickers.css'], games: [] },
   // 學校的數學課（lesson-math.spec）：數學課資料夾裡的檔改了就跑
   { token: 'lesson-math', spec: 'lesson-math', files: ['src/lessons/math/'], games: [] },
   // 中文課（lesson-chinese.spec）：課本、選圖、中途返回；家長區挑課的分頁跟著跑家長區
