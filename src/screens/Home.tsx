@@ -2,8 +2,8 @@ import { useEffect, useState, type CSSProperties, type ReactNode } from 'react'
 import { motion } from 'motion/react'
 import { DINO_EN, Dino } from '../art/Dino'
 import { Emoji } from '../art/Emoji'
-import { go, type Route } from '../lib/nav'
-import { audioClock, onSpeech, say, sfx, stopSpeech } from '../lib/audio'
+import { currentRoute, go, type Route } from '../lib/nav'
+import { audioClock, isSpeaking, onSpeech, say, sfx, stopSpeech } from '../lib/audio'
 import { audioReady, onUnlock } from '../lib/boot'
 import { getKV, setKV } from '../lib/db'
 import { segments } from '../content/lines'
@@ -42,12 +42,27 @@ async function greet() {
   if (n >= INTRO_TIMES) return void say('home.hello')
   void setKV(INTRO_KEY, n + 1).catch(() => {})
   introducing = true
+  // 最後一句真的念完了（不是被打斷）
+  const last = INTRO[INTRO.length - 1].key
+  let finished = false
+  const off = onSpeech((e) => {
+    if (e.type === 'end' && e.key === last) finished = true
+  })
   try {
     await say(...INTRO.map((x) => x.key))
   } finally {
+    off()
     if (my === greetRun) introducing = false
   }
+  // 介紹說完：字幕留一下讓大人看完，再收起來（T-140⑤，盲測 73d57c7：And this is Momo! 一直留在首頁）。
+  // 字幕常駐（ui/Subtitle.tsx：唸完留著等下一句，stopSpeech 才收）是給上課用的，首頁不是上課；只收首頁介紹這一段，
+  // 還在首頁、這段招呼沒被點門作廢、而且沒有別的話在說，才收（不會切掉別的聲音）
+  if (!finished) return
+  await new Promise((r) => setTimeout(r, INTRO_CAPTION_HOLD_MS))
+  if (my === greetRun && currentRoute().name === 'home' && !isSpeaking()) stopSpeech()
 }
+/** 介紹說完，字幕再留多久才收（毫秒） */
+const INTRO_CAPTION_HOLD_MS = 2000
 
 /** 門上的圖：孩子不識字，看圖和守門的恐龍就知道是哪一課（門下的字是給大人看的） */
 const SIGN: Record<Subject, ReactNode> = {
