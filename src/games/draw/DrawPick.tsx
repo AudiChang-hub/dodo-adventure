@@ -137,6 +137,12 @@ export function ColoringBook() {
   const uid = useId()
   const [cat, setCat] = useState(() => (CATS.some((c) => c.id === lastCat) ? lastCat : CATS[0].id))
   const scroller = useRef<HTMLDivElement>(null)
+  /**
+   * 手指往上推、往下拉就捲動（自己做，不靠瀏覽器的觸控捲動：在這個 App 裡觸控捲動不一定接得到）。
+   * 只跟第一根手指；拖超過 8 px 才算在捲，縮圖的點一下（useTaps 超過 40 px 就不算點）不會變成捲動，捲動也不會打開圖。
+   * 紙感螢幕：手放開就停，不滑行。
+   */
+  const pan = useRef<{ id: number; y: number; top: number; moving: boolean } | null>(null)
   const list = PICTURES.filter((p) => p.cat === cat)
   // 回到上次捲到的位置
   useLayoutEffect(() => {
@@ -174,6 +180,24 @@ export function ColoringBook() {
           ref={scroller}
           className="coloring-scroll"
           onScroll={(e) => void lastScroll.set(cat, (e.target as HTMLElement).scrollTop)}
+          onPointerDown={(e) => {
+            if (pan.current || e.pointerType === 'mouse') return
+            pan.current = { id: e.pointerId, y: e.clientY, top: e.currentTarget.scrollTop, moving: false }
+          }}
+          onPointerMove={(e) => {
+            const p = pan.current
+            if (!p || p.id !== e.pointerId) return
+            const dy = e.clientY - p.y
+            if (!p.moving && Math.abs(dy) < 8) return
+            p.moving = true
+            e.currentTarget.scrollTop = p.top - dy
+          }}
+          onPointerUp={(e) => {
+            if (pan.current?.id === e.pointerId) pan.current = null
+          }}
+          onPointerCancel={(e) => {
+            if (pan.current?.id === e.pointerId) pan.current = null
+          }}
         >
           <div className="coloring-grid">
             {list.map((p, i) => (

@@ -85,7 +85,8 @@
   min-width: 0;
   overflow-y: auto;
   overscroll-behavior: contain;
-  touch-action: pan-y;
+  /* 觸控捲動由 DrawPick.tsx 自己跟著手指做（瀏覽器的不一定接得到）；滑鼠滾輪照樣 */
+  touch-action: none;
   border-radius: 24px;
   scrollbar-width: none;
   /* 上下邊緣淡出：看得出底下還有，往下滑 */
@@ -101,6 +102,7 @@
   padding: 18px 8px 56px;
 }
 .coloring-page {
+  touch-action: none;
   aspect-ratio: 5 / 3;
   border-radius: 24px;
   overflow: hidden;

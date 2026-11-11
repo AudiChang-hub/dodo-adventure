@@ -321,10 +321,18 @@ test.describe('學校首頁', () => {
       // 2b. 往下滑：看得到更多，滑的時候不會打開一張圖
       k.behavior = '往下滑'
       const sc = (await rect('.coloring-scroll'))!
-      await k.drag([{ x: sc.x, y: sc.top + sc.h * 0.85 }, { x: sc.x + 10, y: sc.top + sc.h * 0.5 }, { x: sc.x + 20, y: sc.top + sc.h * 0.15 }], { label: '往上推（往下看）', stepMs: 12 })
+      const vh = page.viewportSize()!.height
+      const y0 = Math.min(sc.top + sc.h * 0.7, vh * 0.75)
+      await k.drag([{ x: sc.x, y: y0 }, { x: sc.x + 10, y: y0 - 150 }, { x: sc.x + 20, y: y0 - 300 }], { label: '往上推（往下看）', stepMs: 12 })
       await k.wait(900)
       const top1 = await page.evaluate(() => document.querySelector('.coloring-scroll')?.scrollTop ?? 0)
       c.outcome('往下滑看更多、不會打開圖', top1 > 40 && (await live()) === 'coloring', `捲了 ${Math.round(top1)} px；在 ${await live()}`)
+      // 再往下拉回最上面
+      await k.drag([{ x: sc.x, y: y0 - 300 }, { x: sc.x - 10, y: y0 - 100 }, { x: sc.x - 20, y: y0 + 60 }], { label: '往下拉（回上面）', stepMs: 12 })
+      await k.drag([{ x: sc.x, y: y0 - 300 }, { x: sc.x - 10, y: y0 - 100 }, { x: sc.x - 20, y: y0 + 60 }], { label: '再往下拉', stepMs: 12 })
+      await k.wait(600)
+      const top2 = await page.evaluate(() => document.querySelector('.coloring-scroll')?.scrollTop ?? 0)
+      c.outcome('往下拉回最上面', top2 === 0 && (await live()) === 'coloring', `捲到 ${Math.round(top2)} px；在 ${await live()}`)
 
       // 2c. 換分類：連點、每一類都點一次，縮圖跟著換；再回到恐龍
       k.behavior = '換分類'
@@ -343,17 +351,10 @@ test.describe('學校首頁', () => {
       c.outcome('換分類不會離開著色本', (await live()) === 'coloring', `在 ${await live()}`)
       await c.screenOk('換分類')
 
-      // 2d. 亂點縮圖（連點同一張）：只進一張，返回回著色本
-      k.behavior = '連點縮圖'
-      await settle(page, 4000)
-      await k.spam((await rect('.coloring-page', 1))!, 5 + k.r.int(3), '連點縮圖')
-      l = await waitLive(page, (x) => !!x?.startsWith('play-d-color'), 5000)
-      c.outcome('連點縮圖進一張圖', !!l?.startsWith('play-d-color'), `到 ${l}`)
-      if (l?.startsWith('play-d-color')) await holdHome(k, c, '連點縮圖後返回')
-      c.outcome('連點縮圖後返回著色本', (await live()) === 'coloring', `到 ${await live()}`)
-
-      // 3. 返回一下回上一層，再進來
+      // 3. 返回一下回上一層，再進來（剛返回過 1 秒內在同一處再按會被防連點擋掉，那是對的：先停一下）
       k.behavior = '著色本返回'
+      await k.wait(1500)
+      await settle(page, 4000)
       await holdHome(k, c, '著色本返回')
       c.outcome('著色本返回到選白紙還是著色本', (await live()) === 'draw', `到 ${await live()}`)
       await settle(page, 4000)
@@ -455,6 +456,16 @@ test.describe('學校首頁', () => {
       l = await waitLive(page, (x) => x === 'coloring', 5000)
       c.outcome('作品上的大鈕回著色本', l === 'coloring', `到 ${l}`)
 
+      // 9b. 亂點縮圖（連點同一張）：只進一張，返回回著色本（放在第一次塗完之後：第一次進來要看示範）
+      k.behavior = '連點縮圖'
+      await settle(page, 4000)
+      await k.spam((await rect('.coloring-page', 1))!, 5 + k.r.int(3), '連點縮圖')
+      l = await waitLive(page, (x) => !!x?.startsWith('play-d-color'), 5000)
+      c.outcome('連點縮圖進一張圖', !!l?.startsWith('play-d-color'), `到 ${l}`)
+      if (l?.startsWith('play-d-color')) await holdHome(k, c, '連點縮圖後返回')
+      c.outcome('連點縮圖後返回著色本', (await live()) === 'coloring', `到 ${await live()}`)
+
+      await k.wait(1500)
       // 10. 再塗一張，塗到一半按返回（另一根手指還在塗）：一步回著色本
       k.behavior = '塗到一半返回'
       await settle(page, 4000)
@@ -478,8 +489,11 @@ test.describe('學校首頁', () => {
 
       // 11. 一層一層回首頁：著色本 → 選白紙還是著色本 → 首頁
       k.behavior = '回首頁'
+      // 每一次返回之間停一下（連按在 1 秒內會被防連點擋掉，那是對的）
+      await k.wait(1500)
       await holdHome(k, c, '著色本回上一層')
       const l11a = await live()
+      await k.wait(1500)
       await holdHome(k, c, '選白紙還是著色本回首頁')
       const l11b = await live()
       c.outcome('每一層一步回上一層', l11a === 'draw' && l11b === 'home', `著色本 → ${l11a} → ${l11b}`)
