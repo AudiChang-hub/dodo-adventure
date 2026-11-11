@@ -416,6 +416,129 @@ test.describe('英文字母課', () => {
     }
   })
 
+  // T-135（AI 小男生盲測 becf39a 英文 0/2：寫寫看二選一卡關）。今天直接從寫寫看接著上
+  async function toWrite(k: Toddler, c: Checker) {
+    const page = k.page
+    const day = await page.evaluate(() => {
+      const d = new Date()
+      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+    })
+    await page.evaluate(
+      (day) =>
+        new Promise((res) => {
+          const rq = indexedDB.open('dodo-adventure')
+          rq.onsuccess = () => {
+            const tx = rq.result.transaction('kv', 'readwrite')
+            tx.objectStore('kv').put({ key: 'lesson.english', value: { idx: 0, seq: 'SABCDEFGHIJKLMNOPQRTUVWXYZ', date: day, done: false, good: false, stage: 'write', round: 0 } })
+            tx.oncomplete = () => res(0)
+          }
+        }),
+      day,
+    )
+    if (!(await enter(k, c))) return false
+    const ok = await page.waitForSelector('.en-write-pick', { timeout: 20_000 }).then(() => true, () => false)
+    if (!ok) await c.once('no-pick', '卡死', '沒有從寫寫看接著上（沒看到二選一）', `停在 ${await stageOf(page)}`)
+    return ok
+  }
+  const rectOf = (page: Page, sel: string) =>
+    page.evaluate((sel) => {
+      const r = document.querySelector(sel)!.getBoundingClientRect()
+      return { x: r.left, y: r.top, w: r.width, h: r.height }
+    }, sel)
+
+  // 盲測 becf39a 英文 1 第 45、46 步：他照著描字卡上示範的手，在卡片上「描」了兩次（拖一下），卡片沒有被選到、也沒有任何回應。
+  // 拖一下（不是點一下）也要選到描字；選到之後描到一半放手，照 T-125 由筆帶著描完
+  test('寫寫看二選一：照著卡片上的手在描字卡上拖一下就選到描字；描到一半放手由筆帶著描完（T-135）', async ({ page }, info) => {
+    test.skip(!want('lesson-english-write'))
+    test.setTimeout(3 * 60_000)
+    const { k, c } = await setup(page, info, '描字卡上拖一下')
+    try {
+      if (!(await toWrite(k, c))) return
+      await page.waitForTimeout(1500)
+      const card = await rectOf(page, '[data-write-pick="trace"]')
+      const at = (fx: number, fy: number) => ({ x: card.x + card.w * fx, y: card.y + card.h * fy })
+      k.behavior = '照著卡片上的手描一下'
+      await k.drag([at(0.65, 0.3), at(0.5, 0.25), at(0.35, 0.35), at(0.45, 0.48), at(0.6, 0.58)], { stepMs: 24, label: '在描字卡上描' })
+      const picked = await page.waitForSelector('.en-trace', { timeout: 4000 }).then(() => true, () => false)
+      c.outcome('在描字卡上拖一下：選到描字', picked)
+      if (!picked) return void (await c.once('drag-card', '卡死', '在描字卡上照著手拖一下，卡片沒有被選到、沒有回應（盲測 becf39a 英文 1 第 45、46 步）', ''))
+
+      // 描到一半放手（盲測：拖 2～3 次都半途放手）→ You drew it!、筆帶著描完（T-125）
+      k.behavior = '描到一半放手'
+      await page.waitForFunction(() => document.querySelector('.en-trace')?.getAttribute('data-accepting') !== 'false', null, { timeout: 20_000 })
+      const half = await page.evaluate(() => {
+        const boards = [...document.querySelectorAll('.en-trace-board')]
+        const p = boards[boards.length - 1].querySelector<SVGPathElement>('path[stroke-dasharray="3 3"]')!
+        const m = p.getScreenCTM()!
+        const len = p.getTotalLength()
+        return Array.from({ length: 9 }, (_, i) => {
+          const q = p.getPointAtLength((len * 0.45 * i) / 8)
+          const s = new DOMPoint(q.x, q.y).matrixTransform(m)
+          return { x: s.x, y: s.y }
+        })
+      })
+      await k.drag(half, { stepMs: 24, label: '描到一半放手' })
+      const helped = await page.waitForSelector('.en-trace [data-trace-finished]', { state: 'attached', timeout: 15_000 }).then(() => true, () => false)
+      c.outcome('描到一半放手：筆帶著描完（T-125）', helped)
+      if (!helped) await c.once('half-lift', '卡死', '寫寫看描到一半放手，沒有回應、筆沒有帶著描完', '')
+    } finally {
+      await c.flush().catch(() => {})
+      finish(k, c, '描字卡上拖一下')
+    }
+  })
+
+  // 盲測 becf39a：塗字母塗幾筆，點右下的勾勾（以前要按住 1.2 秒），12 輪點了 19 次沒有一次完成。點一下就要完成、慶祝、出「下一步」
+  test('塗字母：塗一筆、點一下勾勾就完成、出下一步（T-135）', async ({ page }, info) => {
+    test.skip(!want('lesson-english-write'))
+    test.setTimeout(3 * 60_000)
+    const { k, c } = await setup(page, info, '塗字母點勾勾', false, false)
+    try {
+      if (!(await toWrite(k, c))) return
+      await page.waitForTimeout(800)
+      await k.tap(await page.locator('[data-write-pick="color"]').boundingBox().then((b) => ({ x: b!.x + b!.width / 2, y: b!.y + b!.height / 2 })), '塗字母卡')
+      if (!(await page.waitForSelector('.en-color', { timeout: 4000 }).then(() => true, () => false))) return void (await c.once('no-color', '卡死', '點塗字母卡沒有進到塗字母', ''))
+      // 在字母裡面塗一小筆（第一筆的前 30%，不到完成的六成）
+      const pts = await page.evaluate(() => {
+        const p = document.querySelector<SVGPathElement>('.wc-board mask path')!
+        const m = p.getScreenCTM()!
+        const len = p.getTotalLength()
+        return Array.from({ length: 8 }, (_, i) => {
+          const q = p.getPointAtLength((len * 0.3 * i) / 7)
+          const s = new DOMPoint(q.x, q.y).matrixTransform(m)
+          return { x: s.x, y: s.y }
+        })
+      })
+      k.behavior = '塗一筆'
+      await k.drag(pts, { stepMs: 24, label: '塗一筆' })
+      const btn = await page.waitForSelector('[data-color-check]', { timeout: 4000 }).catch(() => null)
+      if (!btn) return void (await c.once('no-check', '卡死', '塗了一筆，勾勾沒有出來', ''))
+      await page.waitForTimeout(500)
+      const done0 = await page.locator('.en-color[data-color-done]').count()
+      c.outcome('塗一筆還沒到六成：不會自己完成', done0 === 0)
+      // 塗過以後發呆：手指向勾勾（不說話）
+      k.behavior = '塗了一筆就發呆'
+      const pointed = await page.waitForSelector('.en-color .demo-hand', { timeout: 16_000 }).then(() => true, () => false)
+      c.outcome('塗過以後發呆：手指向勾勾', pointed)
+      if (!pointed) await c.once('no-point-check', '困惑', '塗了一筆就發呆，沒有手指向勾勾', '')
+      const b = (await btn.boundingBox())!
+      k.behavior = '點一下勾勾'
+      await k.tap({ x: b.x + b.width / 2, y: b.y + b.height / 2 }, '勾勾')
+      const done = await page.waitForSelector('.en-color[data-color-done]', { state: 'attached', timeout: 3000 }).then(() => true, () => false)
+      c.outcome('點一下勾勾：完成、慶祝', done)
+      if (!done) return void (await c.once('tap-check', '卡死', '塗字母點一下勾勾沒有完成（盲測 becf39a：19 次都沒完成）', ''))
+      const next = await page.waitForSelector('.next-step', { timeout: 10_000 }).then(() => true, () => false)
+      c.outcome('完成後出「下一步」', next)
+      if (!next) await c.once('no-next', '卡死', '塗字母完成後沒有出「下一步」', '')
+      const rec = (await attempts(page)).filter((a) => a.game === 'en-color')
+      const recOk = rec.length === 1 && rec[0].phase === 'guided' && rec[0].itemId === 'write:S'
+      c.outcome('記一筆 en-color（phase guided，不算描字熟練）', recOk, JSON.stringify(rec.map((a) => ({ phase: a.phase, itemId: a.itemId }))))
+      if (!recOk) await c.once('color-rec', '誤記作答', '塗字母的作答紀錄不對（要一筆 en-color、phase guided）', JSON.stringify(rec))
+    } finally {
+      await c.flush().catch(() => {})
+      finish(k, c, '塗字母點勾勾')
+    }
+  })
+
   // T-132（家長：「英文描字的部分大小寫都要有格線，這樣才知道大小寫的差異」）：大 S、小 s 都在四線格上，
   // 大 S 從頂線到底線、小 s 從中線到底線；格線是畫面上的圖，點不到、不算要描的線，描字照舊描得完、往下一輪
   test('描字的四線格：大 S、小 s 都有格線，大 S 頂線到底線、小 s 中線到底線', async ({ page }, info) => {
