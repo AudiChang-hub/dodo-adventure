@@ -682,8 +682,8 @@ test.describe('故事', () => {
       c.outcome('先講舊篇（跟中文課一樣，3 次前的第 1 篇）', live === 'en-1', `到 ${live}`)
       if (live !== 'en-1') return void (await c.once('en2-old', '困惑', '英文故事今天沒有先講舊篇', `到 ${live}`))
       const oldAt = Date.now()
-      c.outcome('舊篇時大人看得到「跳過舊篇」', !!(await page.$('.en-skip-old')), '')
       await settle(page, 1500)
+      c.outcome('舊篇時大人看得到「跳過舊篇」', !!(await page.$('.en-skip-old')), '')
       await shot(page, '英文故事-舊篇', info)
 
       // 念的時候亂點、手掌壓：不跳句、不會跳過舊篇
@@ -713,12 +713,34 @@ test.describe('故事', () => {
 
       // 舊篇一句一句點完、三題答對 → 直接接新篇（不用回書架）
       k.behavior = '舊篇點完、三題答對'
-      const o = await driveEn(page, k, (l) => l === 'en-4', 150_000)
+      const o = await driveEn(page, k, (l) => l === 'ennext-4' || l === 'en-4', 150_000)
       const oldSec = Math.round((Date.now() - oldAt) / 1000)
       c.outcome('舊篇跟新篇一樣：4 句＋故事題、認角色、找一樣的英文字', ['q', 'which', 'match'].every((x) => o.kinds.has(x)), [...o.kinds].join('、'))
+      // 舊篇講完（T-140，盲測 73d57c7：中間沒有停頓）：慶祝、「新的故事」畫面（舊的書打勾、新的書 New!），點新的書才講；不會自己往下
+      k.behavior = '舊篇講完的「新的故事」畫面'
       live = (await snap(page)).live
-      c.outcome('舊篇講完直接接新篇（第 4 篇）', live === 'en-4', `到 ${live}`)
-      if (live !== 'en-4') return void (await c.once('en2-new', '卡死', '英文故事舊篇講完沒有接新篇', `到 ${live}`))
+      c.outcome('舊篇講完 → 選擇畫面（不是直接講新篇）', live === 'ennext-4', `到 ${live}`)
+      if (live !== 'ennext-4') return void (await c.once('en2-next', '困惑', '英文故事舊篇講完沒有慶祝、選擇畫面', `到 ${live}`))
+      await settle(page, 600)
+      const nx = await page.evaluate(() => ({
+        done: !!document.querySelector('.en-between .en-cover.is-done[data-en-book="1"] .en-cover-check'),
+        fresh: !!document.querySelector('.en-between .en-choice-more[data-en-book="4"] .en-cover-new'),
+        home: !!document.querySelector('.en-between .en-choice-home'),
+      }))
+      c.outcome('舊的書打勾；「再一篇」（新的書 New!）、「回家」', nx.done && nx.fresh && nx.home, JSON.stringify(nx))
+      await shot(page, '英文故事-舊篇講完的選擇', info)
+      let handAt = 0
+      for (const t0 = Date.now(); Date.now() - t0 < 5000 && !handAt; await page.waitForTimeout(150)) if (await page.$('.en-cover.is-new .demo-hand')) handAt = Date.now() - t0
+      c.outcome('手來指新的書', handAt > 0 && handAt < 4000, `${(handAt / 1000).toFixed(1)} 秒`)
+      // 亂點空白、莫莫：不往下、不跳過新篇（舊的書旁邊就是「再一篇」，點偏了選到再一篇是對的，所以不點它）
+      await k.spam({ x: 640, y: 90 }, 3, '空白')
+      await k.tap((await center(page, '.story-home-dino'))!, '莫莫')
+      await k.wait(1200)
+      c.outcome('亂點空白、莫莫不會自己往下', (await snap(page)).live === 'ennext-4', `${(await snap(page)).live}`)
+      await k.tap((await center(page, '.en-cover.is-new'))!, '新的書')
+      live = await waitLive(page, (l) => l === 'en-4', 8000)
+      c.outcome('選再一篇 → 講新篇（第 4 篇）', live === 'en-4', `到 ${live}`)
+      if (live !== 'en-4') return void (await c.once('en2-new', '卡死', '英文故事點了新的書沒有講新篇', `到 ${live}`))
       c.outcome('新篇沒有「跳過舊篇」', !(await page.$('.en-skip-old')), '')
 
       // 新篇點完、三題、結尾小題（前 1 次的第 3 篇）→ 讀完了
@@ -750,6 +772,37 @@ test.describe('故事', () => {
       await c.flush()
     } finally {
       finish(k, c, '英文版一舊一新')
+    }
+  })
+
+  test('T-140 英文故事舊篇講完選「回家」：回首頁、新篇這次不聽；再進故事從新篇開始（不再講舊篇）', async ({ page }, info) => {
+    test.skip(!want('story-en-home'))
+    test.setTimeout(5 * 60_000)
+    const { k, c } = await setup(page, info, '英文版選回家')
+    try {
+      await seedStory(page, { kv: zhTwoKV() })
+      await k.tap((await center(page, DOOR))!, '故事')
+      let live = await waitLive(page, (l) => (l ?? '').startsWith('en-'), 10_000)
+      if (live !== 'en-1') return void (await c.once('en2h-old', '困惑', '英文故事今天沒有先講舊篇', `到 ${live}`))
+      await driveEn(page, k, (l) => l === 'ennext-4', 150_000)
+      live = (await snap(page)).live
+      if (live !== 'ennext-4') return void (await c.once('en2h-choice', '困惑', '英文故事舊篇講完沒有選擇畫面', `到 ${live}`))
+      await k.wait(1500)
+      await k.spam((await center(page, '.en-choice-home'))!, 2, '回家')
+      live = await waitLive(page, (l) => l === 'home', 6000)
+      c.outcome('選回家 → 首頁', live === 'home', `到 ${live}`)
+      if (live !== 'home') return void (await c.once('en2h-home', '無法返回', '英文故事選擇畫面點回家沒有回首頁', `到 ${live}`))
+      const st = await enKV(page)
+      const today = todayId()
+      c.outcome('舊篇記成今天聽完、新篇沒有', !!st?.heard?.[1]?.includes(today) && !st?.heard?.[4]?.includes(today), JSON.stringify(st?.heard))
+      await k.wait(1200)
+      await k.tap((await center(page, DOOR))!, '故事')
+      live = await waitLive(page, (l) => (l ?? '').startsWith('en-'), 10_000)
+      c.outcome('再進故事：講新篇（第 4 篇），不再講舊篇', live === 'en-4', `到 ${live}`)
+      if (live !== 'en-4') await c.once('en2h-again', '困惑', '英文故事選回家之後再進來，沒有從新篇開始', `到 ${live}`)
+      await c.flush()
+    } finally {
+      finish(k, c, '英文版選回家')
     }
   })
 

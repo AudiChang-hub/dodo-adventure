@@ -14,6 +14,7 @@ import { stepsOf, weight, type Part, type Step } from './steps'
 import { doneDays, glyphState, lessonPlan, markDone, markOld, saveGlyph } from './progress'
 import { NEXT_HINT, nextStep, useNextPending } from '../../ui/NextStep'
 import { Reader } from './Reader'
+import { Between } from './Between'
 import { Quiz } from './Quiz'
 import { Glyph } from './Glyph'
 import { firstFinger } from '../../games/NotYet'
@@ -31,6 +32,9 @@ export type HostTap = { current: (() => void) | null }
 /** 角落的陪玩小字：大人每一步要做什麼（PARENT-1） */
 /** 選圖的張數寫成國字（畫面上有幾張就寫幾張：教過的字詞不夠時只有兩張） */
 const COUNT = ['零', '一', '兩', '三', '四']
+
+/** 舊篇上完、新篇開始之前（Between）的陪玩小字 */
+const BETWEEN_HINT = '舊篇上完了！問他「要不要再聽一個新的故事？」讓他自己選：點書是再一篇，點房子是回家（新篇留到下次）。'
 
 /** 每一段開頭的小字：大人看得出現在是舊篇、新篇還是小複習 */
 const PART_TAG: Record<Part, string> = { old: '複習舊篇・', new: '', review: '最後小複習・' }
@@ -79,6 +83,8 @@ export function ChineseLessonBody({ onDone }: LessonProps) {
   const host: HostTap = useRef(null)
   const taught = useRef(false)
   const skipLock = useRef(0)
+  /** 舊篇上完、讓他選「再一篇」還是「回家」的畫面（T-140）；選再一篇要去的那一步 */
+  const [between, setBetween] = useState<number | null>(null)
 
   useEffect(() => {
     let off = false
@@ -154,8 +160,27 @@ export function ChineseLessonBody({ onDone }: LessonProps) {
     setMood('idle')
     const i = at + 1
     if (i >= steps.length && steps[at].k === 'quiz') return enter(i)
+    if (old && steps[at].part === 'old' && steps[i]?.part !== 'old') return toNew(i)
     // cue：大箭頭一出來就跳一下、手點一下給他看（T-139，以前 2.5 秒手才來）
     if (!(await nextStep({ cue: true })) || !live.current) return
+    enter(i)
+  }
+  /**
+   * 舊篇上完（T-140，盲測 73d57c7：兩篇中間沒有停頓，孩子第 2 篇一半就走了；家長：「一天兩篇的用意是在複習，如果可以取得平衡也可以」）：
+   * 莫莫歡呼、完成的音效，換到選擇畫面（./Between.tsx）：「再一篇」（新篇的書，手指著，預設）或「回家」（小房子）。
+   * 再一篇：上新篇。回家（返回鍵也一樣）：這次只算上完舊篇，新篇不消耗、不記上完（markDone 不叫），下次進來還是這一篇（course.ts）。
+   */
+  const toNew = (i: number) => {
+    if (old) void markOld(old.day, false)
+    setMood('cheer')
+    sfx.done()
+    setBetween(i)
+  }
+  const more = () => {
+    if (between == null) return
+    setMood('idle')
+    const i = between
+    setBetween(null)
     enter(i)
   }
   const live = useRef(true)
@@ -179,14 +204,16 @@ export function ChineseLessonBody({ onDone }: LessonProps) {
       mood={mood}
       // 上面的進度（T-111，盲測 a35cd5e：念課文的時候看不出有進展）：課文一行一格、選圖一題一格，
       // 大人按「下一行」亮一格，選對一題亮一格；看得出「念到哪裡、還剩多少」（舊篇一排；新篇和小複習一排）
-      progress={s ? { total, done: before + (s.k === 'read' ? read : 0) } : undefined}
+      progress={s ? { total, done: between != null ? total : before + (s.k === 'read' ? read : 0) } : undefined}
       onExit={leaveLesson}
       onHost={() => host.current?.()}
-      hintText={at == null ? undefined : pending ? NEXT_HINT : hintOf(s ?? 'intro', talk, gDemoing, !!old)}
+      hintText={at == null ? undefined : between != null ? BETWEEN_HINT : pending ? NEXT_HINT : hintOf(s ?? 'intro', talk, gDemoing, !!old)}
     >
       {t && at != null && (
-        <Swap id={typeof at === 'number' ? `s${at}` : at}>
-          {at === 'intro' || !s ? (
+        <Swap id={between != null ? 'between' : typeof at === 'number' ? `s${at}` : at}>
+          {between != null && old ? (
+            <Between old={old} t={t} onMore={more} onHome={leaveLesson} />
+          ) : at === 'intro' || !s ? (
             <Intro onStart={start} />
           ) : s.k === 'read' ? (
             <Reader t={s.t} host={host} goLabel={s.go} onTalk={setTalk} onNext={afterRead} onLine={onLine} setMood={setMood} />
@@ -198,7 +225,7 @@ export function ChineseLessonBody({ onDone }: LessonProps) {
         </Swap>
       )}
       {/* 跳過舊篇（T-136）：大人用的，放在右上角陪玩小字下面（孩子點的課本、圖、右下角的大箭頭以外），淡淡的底線字、不像要按的大按鈕 */}
-      {s?.part === 'old' && !pending && (
+      {s?.part === 'old' && !pending && between == null && (
         <button type="button" className="zh-skip-old" onPointerDown={skipOld}>
           跳過舊篇
         </button>

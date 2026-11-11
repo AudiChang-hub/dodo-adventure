@@ -36,7 +36,7 @@ import { Brain, type Answer, type BrainKind } from './lib/brain'
 import { Finger, type Touch } from './lib/finger'
 import { ALIASES, LESSONS, doneNow, seedStickers, seedStory } from './lib/lessons'
 import { writeReport, type AppIssue, type Step, type Run } from './lib/report'
-import { zhRunKV } from './lib/zh-run'
+import { zhRunKV, zhRunToday } from './lib/zh-run'
 
 const here = path.dirname(fileURLToPath(import.meta.url))
 const root = path.resolve(here, '../..')
@@ -243,6 +243,8 @@ try {
   if (lesson.id === 'stickers' && !flag('fresh')) await seedStickers(page)
   // 中文課、英文故事：今天是第 N 次課，前面 N-1 次課上過第 1～N-1 篇（./lib/zh-run.ts；App 自己排今天的舊篇、新篇）
   const zhRun = zhRunKV(Number(opt('zh-run', '1')))
+  // 報告上寫今天排到哪兩篇（舊篇是哪一篇）：測試員才分得出孩子走在舊篇還是新篇
+  if (lesson.id === 'zh' || lesson.id === 'story') R.today = zhRunToday(Number(opt('zh-run', '1')), new Date().toLocaleDateString('sv'))
   if ((lesson.id === 'zh' || lesson.id === 'story') && Object.keys(zhRun).length)
     await page.evaluate(
       (kv) =>
