@@ -388,6 +388,18 @@ test.describe('學校首頁', () => {
       const doneEarly = await page.locator('.tool-done').count()
       c.outcome('剛進來沒有完成鍵', doneEarly === 0, `完成鍵 ${doneEarly} 個`)
 
+      // 5b. 塗幾筆短短的（三歲就是這樣塗）：完成鍵就要出現
+      // （AI 小男生盲測 ccf7ac7：示範完換 4 種顏色拖了幾筆短的、等 20 秒都沒有完成鍵，因為要塗滿線稿的 10%）
+      k.behavior = '塗幾筆短的'
+      for (const [i, [fx, fy]] of [[0.18, 0.3], [0.72, 0.22], [0.3, 0.82]].entries()) {
+        await k.tap(await crayon(i + 1), '換一支蠟筆')
+        await k.drag([await onPaper(fx, fy), await onPaper(fx + 0.035, fy + 0.02), await onPaper(fx + 0.07, fy)], { label: `短短一筆 ${i + 1}`, stepMs: 12 })
+      }
+      await k.wait(800)
+      const doneShort = await page.locator('.tool-done').count()
+      c.outcome('塗幾筆短的就有完成鍵', doneShort === 1, `三筆短的（每筆約畫紙寬的 7%）之後完成鍵 ${doneShort} 個`)
+      if (!doneShort) await c.once('done-short', '困惑', '塗了幾筆，完成鍵還是沒出來', `三筆短的之後完成鍵 ${doneShort} 個`)
+
       // 6. 亂玩：連點蠟筆、手掌壓畫紙、塗到一半被搶走（touchcancel）、亂點畫紙
       k.behavior = '亂玩'
       await k.spam(await crayon(k.r.int(6)), 4 + k.r.int(4), '連點蠟筆')

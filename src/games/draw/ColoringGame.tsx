@@ -23,8 +23,14 @@ const W = 1000
 const H = 600
 const PAPER = '#FBF8F2'
 const INK = '#2E2A25'
-/** 孩子自己塗了線稿面積的這個比例以上（示範留下的不算），完成鍵才出現 */
-const READY = 0.1
+/**
+ * 完成鍵什麼時候出現：孩子自己塗了 READY_STROKES 筆（每筆至少 READY_LEN 長，點一下不算），或塗的面積到線稿的 READY（示範留下的不算）。
+ * 以前只看面積、要 10%：AI 小男生盲測 ccf7ac7 示範完塗了幾筆短的、等 20 秒都沒有完成鍵（三歲就是塗幾筆）。
+ */
+const READY = 0.04
+const READY_STROKES = 3
+/** 一筆至少拖這麼長（邏輯座標，畫紙寬 1000）才算「塗了一筆」 */
+const READY_LEN = 40
 /** 筆離開螢幕後這段時間內的手指觸碰當成手掌，忽略 */
 const PALM_MS = 800
 /** 手指、筆剛離開畫紙這麼久以內點到完成鍵：當成畫畫的手順便碰到，不算（準則 DRAW-6） */
@@ -82,7 +88,7 @@ interface StrokeLog {
  * - 完全自由（家長 2026-11-11：塗出界就出界，不要管邊界）：手畫到哪裡顏色就到哪裡，從畫紙外面滑進來的那一筆也有顏色。
  *   線稿的黑線永遠在最上層，塗色蓋不掉線。設定裡舊的 coloringHelp（只塗在下筆那一塊）不再讀，家長區也沒有開關。
  * - 線稿的黑線永遠在最上層；右邊是 6 支大蠟筆和橡皮擦（≥ 2 cm，準則 TOUCH-1）。
- * - 沒有對錯。塗了一些（READY）完成鍵才出現（剛進來不會誤按）；點一下就完成（T-134 盲測：三歲只會點，不會按住），但手還在畫、或剛放開時不算（手掌誤碰）。
+ * - 沒有對錯。塗了幾筆（3 筆，或面積到 READY）完成鍵才出現（剛進來不會誤按）；點一下就完成（T-134 盲測：三歲只會點，不會按住），但手還在畫、或剛放開時不算（手掌誤碰）。
  * - 第一次玩先示範：手拿起一支蠟筆，在一塊區域裡來回塗（真的蠟筆筆觸），示範塗的那一塊留在畫上（「我幫你塗了一點」），
  *   示範完才說「Pick a crayon, and color it in! Your turn!」。示範中孩子塗不出顏色，碰到的地方出現「看這裡」的圈圈。
  * - 完成後圖活起來一下，存進作品集（縮圖是孩子塗的筆觸＋線稿），接著是每局的慶祝；慶祝完停在作品上，
@@ -129,6 +135,8 @@ export function ColoringGame({ gameId, pic: picId, onDone, onExit }: GameProps) 
   const live_ = useRef(true)
   const finishing = useRef(false)
   const readySaid = useRef(false)
+  /** 孩子自己塗了幾筆（夠長的；點一下、橡皮擦不算）：完成鍵出現的條件之一 */
+  const strokesDone = useRef(0)
   const t0 = useRef(performance.now())
   const firstPlay = useRef(plays(def.id) === 0)
   const idle = useIdle()
@@ -383,8 +391,13 @@ export function ColoringGame({ gameId, pic: picId, onDone, onExit }: GameProps) 
     cur.current = null
     active.current = null
     idle.poke()
+    if (!s.opts.eraser) {
+      let len = 0
+      for (let i = 1; i < s.pts.length; i++) len += Math.hypot(s.pts[i].x - s.pts[i - 1].x, s.pts[i].y - s.pts[i - 1].y)
+      if (len >= READY_LEN) strokesDone.current++
+    }
     const cov = regions.coverage(base.current!)
-    const ok = cov.any - demoCov.current >= READY
+    const ok = strokesDone.current >= READY_STROKES || cov.any - demoCov.current >= READY
     // 完成鍵出現了就一直留著：擦掉一些不會又不見（三歲測試：擦完完成鍵消失，看起來像壞掉）
     if (ok && !ready) setReady(true)
     if (ok && !readySaid.current) {
