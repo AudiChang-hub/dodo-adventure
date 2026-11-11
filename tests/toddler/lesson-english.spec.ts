@@ -352,6 +352,70 @@ test.describe('英文字母課', () => {
     }
   })
 
+  // T-134（2026-11-11 PM 三歲測試「走完一課」偶發：示範時亂畫就算描完了）：示範時手掌壓上去、滑了一下（三根手指），
+  // 第一根手指搶掉示範、畫了 9 mm 以上，被當成一次「沒描好」→ 筆帶著描完、這一輪算描完，他根本沒描到。
+  // 要做到：示範時搶畫、多指（手掌）的那一下不算沒描好（還是輪到他、綠點等他）；輪到他時單指真的亂畫，照 T-125 筆帶著描完
+  test('描字：示範時手掌壓著滑一下不算沒描好；輪到他單指亂畫才由筆帶著描完（T-134）', async ({ page }, info) => {
+    test.skip(!want('lesson-english'))
+    test.setTimeout(3 * 60_000)
+    const { k, c } = await setup(page, info, '示範時手掌')
+    try {
+      const day = await page.evaluate(() => {
+        const d = new Date()
+        return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+      })
+      await page.evaluate(
+        (day) =>
+          new Promise((res) => {
+            const rq = indexedDB.open('dodo-adventure')
+            rq.onsuccess = () => {
+              const tx = rq.result.transaction('kv', 'readwrite')
+              tx.objectStore('kv').put({ key: 'lesson.english', value: { idx: 0, seq: 'SABCDEFGHIJKLMNOPQRTUVWXYZ', date: day, done: false, good: false, stage: 'trace', round: 0 } })
+              tx.oncomplete = () => res(0)
+            }
+          }),
+        day,
+      )
+      if (!(await enter(k, c))) return
+      if (!(await waitStage(page, 'trace', 20_000))) return void (await c.once('no-trace', '卡死', '沒有從描字接著上', `停在 ${await stageOf(page)}`))
+      // 筆正在示範、而且已經收觸碰（剛出來的 0.5 秒過了）
+      const demo = await page
+        .waitForFunction(() => !!document.querySelector('.en-trace[data-demo]') && document.querySelector('.en-trace')?.getAttribute('data-accepting') !== 'false', null, { timeout: 30_000 })
+        .then(() => true)
+        .catch(() => false)
+      if (!demo) return void (await c.once('no-demo', '困惑', '描字沒有示範', ''))
+      const board = await page.evaluate(() => {
+        const r = document.querySelector('.en-trace-paper')!.getBoundingClientRect()
+        return { x: r.left, y: r.top, w: r.width, h: r.height }
+      })
+      // 手掌：三根手指壓在描字板下半部（不在起點附近），一邊抖一邊滑 0.9 秒（墨水遠超過 9 mm）
+      const at = (fx: number, fy: number) => ({ x: board.x + board.w * fx, y: board.y + board.h * fy })
+      k.behavior = '示範時手掌壓著滑'
+      await k.palm([at(0.4, 0.72), at(0.55, 0.78), at(0.45, 0.62)], 900)
+      await page.waitForTimeout(2500)
+      const after = await page.evaluate(() => ({
+        done: document.querySelectorAll('.en-trace-rounds .is-done').length,
+        finished: !!document.querySelector('.en-trace [data-trace-finished]'),
+        demo: !!document.querySelector('.en-trace[data-demo]'),
+        accepting: document.querySelector('.en-trace')?.getAttribute('data-accepting') !== 'false',
+      }))
+      const kept = !after.done && !after.finished && !after.demo && after.accepting
+      c.outcome('示範時手掌壓著滑：示範收掉、輪到他，不算沒描好（沒有被筆帶著描完）', kept, JSON.stringify(after))
+      if (!kept) await c.once('palm-miss', '誤記作答', '示範時手掌壓著滑一下，就被當成沒描好、筆帶著描完（他沒描到）', JSON.stringify(after))
+
+      // 對照：輪到他時一根手指在描字板空白的地方亂畫一大段 → 照 T-125：You drew it!、筆帶著描完、往下
+      k.behavior = '輪到他單指亂畫'
+      const zig = Array.from({ length: 10 }, (_, i) => at(0.15 + (i % 2) * 0.12, 0.3 + i * 0.05))
+      await k.drag(zig, { stepMs: 30, label: '單指亂畫' })
+      const helped = await page.waitForSelector('.en-trace [data-trace-finished]', { state: 'attached', timeout: 15_000 }).catch(() => null)
+      c.outcome('輪到他單指亂畫：照舊由筆帶著描完（T-125 不變）', !!helped)
+      if (!helped) await c.once('real-miss', '卡死', '輪到他單指亂畫一大段，筆沒有帶著描完', '')
+    } finally {
+      await c.flush().catch(() => {})
+      finish(k, c, '示範時手掌')
+    }
+  })
+
   // T-132（家長：「英文描字的部分大小寫都要有格線，這樣才知道大小寫的差異」）：大 S、小 s 都在四線格上，
   // 大 S 從頂線到底線、小 s 從中線到底線；格線是畫面上的圖，點不到、不算要描的線，描字照舊描得完、往下一輪
   test('描字的四線格：大 S、小 s 都有格線，大 S 頂線到底線、小 s 中線到底線', async ({ page }, info) => {
