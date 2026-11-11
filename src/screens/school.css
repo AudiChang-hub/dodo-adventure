@@ -65,6 +65,19 @@
     0 3px 0 var(--door-deep),
     0 0 0 12px rgba(251, 248, 242, 0.7);
 }
+/* 首頁介紹念到這一隻（T-139⑤，Home.tsx 的 data-named）：門框外一圈暖黃光，亮到這一句說完。
+   只換陰影顏色、淡入淡出（不縮放、不閃，MOTION-1/2）；另外兩扇門照舊 */
+.door[data-named='1'] .door-arch {
+  box-shadow:
+    inset 0 0 0 calc(var(--door-w) * 0.035) var(--door-deep),
+    0 10px 0 var(--door-deep),
+    0 0 0 12px #ffe39a,
+    0 0 34px 18px rgba(255, 214, 102, 0.6);
+  transition: box-shadow 0.3s var(--ease-out);
+}
+.door[data-named='1'] .door-label {
+  background: #ffe9ad;
+}
 .door-glass {
   position: absolute;
   left: 50%;

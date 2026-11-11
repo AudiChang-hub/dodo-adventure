@@ -794,3 +794,124 @@ test.describe('T-137 恐龍的名字', () => {
     }
   })
 })
+
+// ── T-139⑤ 首頁介紹：念到哪一隻，那一隻明顯跳一下、亮起來，其他兩隻不動 ─────────────
+// 盲測 ccf7ac7：豆豆說 This is Bobo! / And this is Momo! 時看不出是哪一隻（只看到綠色的豆豆張嘴）。
+// 每一幀量三隻恐龍離門底多高、哪一扇門亮著（data-named），跟每一句語音的開始、長度對起來。
+// 只跑這一組：npm run test:toddler -- home-names
+type DinoSample = { t: number; rise: Record<string, number>; h: Record<string, number>; named: string | null }
+const DINO_DOORS = ['english', 'math', 'chinese'] as const
+const NAME_OF: Record<string, RegExp> = { english: /Dodo/, math: /Bobo/, chinese: /Momo/ }
+
+const sampleDinos = (page: Page) =>
+  page.evaluate((doors) => {
+    const w = window as unknown as { __dino: DinoSample[] }
+    w.__dino = []
+    const tick = () => {
+      const rise: Record<string, number> = {}
+      const h: Record<string, number> = {}
+      let named: string | null = null
+      for (const d of doors) {
+        const door = document.querySelector(`.door[data-door="${d}"]`)
+        const svg = door?.querySelector('.door-host svg')
+        const arch = door?.querySelector('.door-arch')
+        if (!svg || !arch) continue
+        const r = svg.getBoundingClientRect()
+        rise[d] = arch.getBoundingClientRect().bottom - r.bottom
+        h[d] = r.height
+        if (door!.getAttribute('data-named') === '1') named = d
+      }
+      w.__dino.push({ t: performance.now(), rise, h, named })
+      requestAnimationFrame(tick)
+    }
+    requestAnimationFrame(tick)
+  }, DINO_DOORS as unknown as string[])
+
+test.describe('T-139 首頁介紹看得出是哪一隻', () => {
+  const on = () => want('home-names') || want('home-doors')
+
+  test('念到哪一隻，那一隻明顯跳一下、亮著，其他兩隻不動', async ({ page }, info) => {
+    test.skip(!on())
+    test.setTimeout(3 * 60_000)
+    const { k, c } = await setup(page, info, '介紹看得出是誰')
+    try {
+      k.behavior = '第 1 次打開：聽介紹、看恐龍'
+      await sampleDinos(page)
+      const t0 = await now(page)
+      await k.tap(await blankAt(page), '空白處（解鎖聲音）')
+      const momo = await waitVoice(page, t0, /Momo/, 9000)
+      if (momo) {
+        await k.wait(350)
+        await shot(page, info, 'T139-念到莫莫')
+      }
+      await k.wait(3000)
+      const vs = await voiceRecs(page, t0)
+      const samples = await page.evaluate(() => (window as unknown as { __dino: DinoSample[] }).__dino)
+      // 每一句「說話」：字幕有名字的那一段（開始、結束：被停掉的算到停的時候）
+      for (const d of DINO_DOORS) {
+        const v = vs.find((x) => NAME_OF[d].test(x.text))
+        if (!v) {
+          await c.once(`no-line:${d}`, '困惑', `介紹沒有念到 ${d} 門的恐龍`, textsOf(vs))
+          continue
+        }
+        const end = v.stopped ?? v.end
+        const during = samples.filter((s) => s.t >= v.t - 50 && s.t <= end + 300)
+        const height = Math.max(...during.map((s) => s.h[d] ?? 0), 1)
+        const peak = Math.max(0, ...during.map((s) => (s.rise[d] ?? 0) - (during[0]?.rise[d] ?? 0)))
+        const upAt = during.find((s) => (s.rise[d] ?? 0) - (during[0]?.rise[d] ?? 0) > 3)?.t
+        const inLine = samples.filter((s) => s.t >= v.t && s.t <= end)
+        const lit = inLine.length ? inLine.filter((s) => s.named === d).length / inLine.length : 0
+        const others = DINO_DOORS.filter((o) => o !== d)
+        // 另外兩隻：上一隻念到名字時那一跳（0.9 秒）可能延到這一句的開頭，從這一句開始 0.95 秒後算
+        const base = (o: string) => Math.min(...samples.filter((s) => s.rise[o] != null).map((s) => s.rise[o]))
+        const quiet = samples.filter((s) => s.t >= v.t + 950 && s.t <= end + 300)
+        const otherMove = Math.max(0, ...others.flatMap((o) => quiet.map((s) => Math.abs((s.rise[o] ?? 0) - base(o)))))
+        const otherLit = inLine.filter((s) => s.named && s.named !== d).length
+        const note = `「${v.text}」${Math.round(end - v.t)}ms：跳 ${Math.round(peak)}px（身高 ${Math.round(height)}px 的 ${Math.round((peak / height) * 100)}%），開始跳在這句開始後 ${upAt == null ? '沒有跳' : Math.round(upAt - v.t) + 'ms'}；亮著 ${Math.round(lit * 100)}% 的時間；另外兩隻最多動 ${Math.round(otherMove)}px、亮了 ${otherLit} 幀`
+        const ok = peak >= height * 0.15 && upAt != null && upAt <= end && lit >= 0.7 && otherMove < 2 && !otherLit
+        c.outcome(`念到 ${d} 門的恐龍：牠明顯跳一下、亮著，其他兩隻不動`, ok, note)
+        if (!ok) await c.once(`named:${d}`, '困惑', `念到 ${d} 門的恐龍時看不出是哪一隻`, note)
+      }
+      // 介紹說完：大家都不亮（靜止，MOTION-2）
+      const last = samples[samples.length - 1]
+      c.outcome('介紹說完就不亮了', !last?.named, `最後一幀亮著：${last?.named ?? '沒有'}`)
+      if (last?.named) await c.once('named-stuck', '小問題', '介紹說完了恐龍還一直亮著', String(last.named))
+      await c.flush()
+    } finally {
+      finish(k, c, '介紹看得出是誰')
+    }
+  })
+
+  // 盲測問：開 App 第一下就點門，介紹會不會被跳過？（確認現況，不改行為）
+  test('開 App 第一下就點門：這一次不介紹、次數不扣，下次打開先點空白處還會介紹', async ({ page }, info) => {
+    test.skip(!on())
+    test.setTimeout(3 * 60_000)
+    const { k, c } = await setup(page, info, '第一下就點門')
+    try {
+      k.behavior = '第一下就點英文門'
+      const t0 = await now(page)
+      await k.tap((await doorAt(page, 'english'))!, '英文門')
+      await waitLive(page, (l) => l === 'lesson-english', 5000)
+      await k.wait(1500)
+      await toHome(k, c)
+      await k.wait(5000)
+      const vs = await voiceRecs(page, t0)
+      const intro = vs.filter((v) => /This is Bobo|this is Momo/.test(v.text))
+      const n = await kvGet(page, INTRO_KEY)
+      // 現況：第一下的按下（pointerdown）就解鎖聲音、介紹開始，放開（pointerup）點門時馬上停掉——聽不到介紹，
+      // 但看時間差，5 次裡可能已經算掉 1 次（只記下來，不判對錯；PM：確認就好，不改）
+      c.outcome('第一下就點門：這一次聽不到介紹（回首頁也不補）', !intro.length, `${textsOf(vs)}；介紹次數記成 ${n ?? 0}`)
+      if (intro.length) await c.once('intro-first-door', '小問題', '第一下就點門，介紹還是帶到課裡', textsOf(intro))
+      k.behavior = '下一次打開，先點空白處'
+      await reopen(page)
+      const t1 = await now(page)
+      await k.tap(await blankAt(page), '空白處')
+      const m = await waitVoice(page, t1, /Momo/, 9000)
+      c.outcome('下一次打開先點空白處：照常介紹', !!m, textsOf(await voiceRecs(page, t1)))
+      if (!m) await c.once('intro-next', '困惑', '第一次點門跳過介紹後，下一次打開也沒有介紹', textsOf(await voiceRecs(page, t1)))
+      await c.flush()
+    } finally {
+      finish(k, c, '第一下就點門')
+    }
+  })
+})
