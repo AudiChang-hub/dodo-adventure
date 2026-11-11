@@ -1,9 +1,9 @@
 import { useEffect, useState, type CSSProperties, type ReactNode } from 'react'
 import { motion } from 'motion/react'
-import { Dino } from '../art/Dino'
+import { DINO_EN, Dino } from '../art/Dino'
 import { Emoji } from '../art/Emoji'
 import { go, type Route } from '../lib/nav'
-import { onSpeech, say, sfx, stopSpeech } from '../lib/audio'
+import { audioClock, onSpeech, say, sfx, stopSpeech } from '../lib/audio'
 import { audioReady, onUnlock } from '../lib/boot'
 import { getKV, setKV } from '../lib/db'
 import { segments } from '../content/lines'
@@ -107,18 +107,52 @@ export function Home() {
     })
   }, [])
 
-  // 介紹說到誰，門口那隻跳一下（那一句的最後一段開始時；跳一次就停，MOTION-1/2）
+  // 介紹說到誰，看得出是哪一隻（T-139⑤，盲測 ccf7ac7：以前只在一句開頭跳 0.8 秒、跳完什麼都不留，
+  // 三句都是豆豆的聲音、只有豆豆的嘴在動，孩子看不出 Bobo、Momo 是哪一隻）：
+  // - 那一句一開始，那一扇門就亮起來（門框外一圈暖黃光），亮到這一句說完、換下一句；最後一句說完 0.8 秒熄掉。
+  //   紙感螢幕（DISPLAY-1）更新慢，要留著的狀態比一閃而過的動作看得清楚。
+  // - 念到名字那個字（字幕的逐字時間）那一刻，那一隻跳一下（跳到身高的 4 成），只跳一次（MOTION-1/2）。沒有逐字時間就在一開頭跳。
+  // - 其他兩隻不亮、不動。被打斷（點門、stopSpeech）就熄掉。
   const [hop, setHop] = useState<{ who: Speaker; n: number } | null>(null)
-  useEffect(
-    () =>
-      onSpeech((e) => {
-        if (e.type !== 'seg' && e.type !== 'whole') return
-        const x = INTRO.find((i) => i.key === e.key)
-        if (!x || (e.type === 'seg' && e.seg !== segments(e.line).length - 1)) return
-        setHop((h) => ({ who: x.who, n: (h?.n ?? 0) + 1 }))
-      }),
-    [],
-  )
+  const [named, setNamed] = useState<Speaker | null>(null)
+  useEffect(() => {
+    let timers: number[] = []
+    const clear = () => {
+      timers.forEach(clearTimeout)
+      timers = []
+    }
+    const jump = (who: Speaker) => setHop((h) => ({ who, n: (h?.n ?? 0) + 1 }))
+    const off = onSpeech((e) => {
+      if (e.type === 'stop' || e.type === 'cut') {
+        clear()
+        return setNamed(null)
+      }
+      const x = INTRO.find((i) => i.key === (e as { key?: string }).key)
+      if (!x) return
+      if (e.type === 'whole') {
+        clear()
+        setNamed(x.who)
+        return jump(x.who)
+      }
+      if (e.type === 'end') {
+        if (x.key === INTRO[INTRO.length - 1].key) timers.push(window.setTimeout(() => setNamed(null), 800))
+        return
+      }
+      // seg：這一句開始就亮；念到名字的那一刻跳
+      if (e.seg === 0) {
+        clear()
+        setNamed(x.who)
+      }
+      const name = DINO_EN[x.who].toLowerCase()
+      const w = e.words?.find((t) => t[2].toLowerCase().includes(name))
+      if (w) timers.push(window.setTimeout(() => jump(x.who), Math.max(0, (e.at - audioClock()) * 1000 + w[0])))
+      else if (e.seg === segments(e.line).length - 1 && !e.words?.length) jump(x.who)
+    })
+    return () => {
+      off()
+      clear()
+    }
+  }, [])
 
   // 點門：按下、放開就進去，不等瀏覽器的 click（ui/tap.ts：有時候 click 沒來，孩子會覺得按了沒反應）
   const tap = useTaps()
@@ -183,6 +217,7 @@ export function Home() {
                 key={s}
                 className={`door door-${s}`}
                 data-door={s}
+                data-named={named === d.host ? '1' : undefined}
                 aria-label={d.title}
                 style={{ '--door': t.door, '--door-deep': t.deep, '--glass': t.glass } as CSSProperties}
                 initial={intro ? { y: 60, opacity: 0 } : false}
@@ -199,8 +234,8 @@ export function Home() {
                   <motion.span
                     key={hop?.who === d.host ? hop.n : 0}
                     style={{ display: 'block' }}
-                    animate={hop?.who === d.host ? { y: [0, -36, 0, -12, 0] } : { y: 0 }}
-                    transition={{ duration: 0.8, ease: 'easeOut' }}
+                    animate={hop?.who === d.host ? { y: ['0%', '-40%', '0%', '-14%', '0%'] } : { y: '0%' }}
+                    transition={{ duration: 0.9, ease: 'easeOut' }}
                   >
                     <Dino who={d.host} mood="idle" size="100%" flip={i === 2} />
                   </motion.span>
