@@ -1,12 +1,15 @@
 import { useContext, useEffect, useId, useMemo, useRef, useState, type CSSProperties } from 'react'
-import { AnimatePresence, motion, type TargetAndTransition } from 'motion/react'
-import { HomeIcon, Resting, Shell, type GameProps } from '../Shell'
+import { motion, type TargetAndTransition } from 'motion/react'
+import { Resting, Shell, type GameProps } from '../Shell'
 import { CheckButton } from './Palette'
 import { CrayonBox, CRAYONS, ERASER } from './CrayonBox'
 import { BG, CrayonStroke, RegionMap, clearCanvas, setupCanvas, type CrayonPt } from './crayon'
 import { PICTURES } from './pictures'
 import { svgThumb, saveDrawing } from './save'
-import { Hand, HandArt, easeInOut, tween } from '../Demo'
+import { HandArt, easeInOut, tween } from '../Demo'
+import { DoneChoices } from './DoneChoices'
+import { BookArt } from './DrawPick'
+import { go } from '../../lib/nav'
 import { localPoint, useNotYet } from '../NotYet'
 import { useAdopt } from './adopt'
 import { game as gameDef } from '../../content/games'
@@ -16,7 +19,6 @@ import { say, sfx, stopSpeech } from '../../lib/audio'
 import { wait, within } from '../lines'
 import { useIdle } from '../idle'
 import { DUR, EASE, ms } from '../../ui/motion'
-import { useTaps } from '../../ui/tap'
 import './coloring.css'
 
 const W = 1000
@@ -38,8 +40,6 @@ const LIFT_MS = 500
 /** 完成時存縮圖、存作品各最多等 3 秒，「完成囉」最多等 6 秒，等不到就照樣收尾 */
 const STEP_MS = 3000
 const SAY_MAX_MS = 6000
-/** 停在作品上：多久沒點大鈕，示範的手在大鈕上點一下（跟自由畫畫一樣） */
-const HOME_HAND_MS = 3000
 
 // 筆在附近嗎（接觸、懸停或剛離開）：用筆塗的時候，手掌碰到畫紙不會畫出一筆
 let penAt = -Infinity
@@ -92,7 +92,7 @@ interface StrokeLog {
  * - 第一次玩先示範：手拿起一支蠟筆，在一塊區域裡來回塗（真的蠟筆筆觸），示範塗的那一塊留在畫上（「我幫你塗了一點」），
  *   示範完才說「Pick a crayon, and color it in! Your turn!」。示範中孩子塗不出顏色，碰到的地方出現「看這裡」的圈圈。
  * - 完成後圖活起來一下，存進作品集（縮圖是孩子塗的筆觸＋線稿），接著是每局的慶祝；慶祝完停在作品上，
- *   蠟筆收起來換成一顆大鈕，點了回著色本（跟自由畫畫一樣，T-110）。返回鍵隨時一下回著色本。
+ *   蠟筆收起來換成兩個大圖示：再塗一張（回著色本）、回首頁（T-139⑧，DoneChoices.tsx）。按了完成蠟筆盒就收起來。返回鍵隨時一下回著色本。
  */
 export function ColoringGame({ gameId, pic: picId, onDone, onExit }: GameProps) {
   const def = gameDef(gameId)
@@ -123,8 +123,10 @@ export function ColoringGame({ gameId, pic: picId, onDone, onExit }: GameProps) 
   const handEl = useRef<HTMLDivElement>(null)
   /** 慶祝完、停在作品上：點大鈕回著色本（PlayGame 給），其他時候是 null */
   const home = useContext(Resting)
-  const [homeHand, setHomeHand] = useState(0)
-  const tap = useTaps()
+  /** 停在作品上點畫紙幾次：每點一次，「再塗一張」上的手再點一次給他看 */
+  const [pokes, setPokes] = useState(0)
+  /** 按了完成：蠟筆盒整個收起來（T-139⑧：綠勾勾、蠟筆還在，孩子以為還要再按） */
+  const [over, setOver] = useState(false)
 
   const cur = useRef<CrayonStroke | null>(null)
   const active = useRef<{ id: number; type: string; region: string } | null>(null)
@@ -414,6 +416,7 @@ export function ColoringGame({ gameId, pic: picId, onDone, onExit }: GameProps) 
     if (finishing.current || busy.current) return
     finishing.current = true
     busy.current = true
+    setOver(true)
     idle.stop()
     setHandOn(false)
     sfx.done()
@@ -425,22 +428,6 @@ export function ColoringGame({ gameId, pic: picId, onDone, onExit }: GameProps) 
     }
     if (live_.current) onDone({ items: 1, firstTry: 1 })
   }
-
-  // 停在作品上：3 秒沒點大鈕，手在大鈕上點一下給他看
-  useEffect(() => {
-    if (!home) return
-    const h = window.setTimeout(() => setHomeHand((v) => v || 1), HOME_HAND_MS)
-    return () => clearTimeout(h)
-  }, [home])
-  useEffect(() => {
-    if (homeHand !== 1) return
-    const t = window.setTimeout(() => setHomeHand(2), 700)
-    const tt = window.setTimeout(() => setHomeHand(0), 1700)
-    return () => {
-      clearTimeout(t)
-      clearTimeout(tt)
-    }
-  }, [homeHand])
 
   const celebrate = async () => {
     const cov = regions.coverage(base.current!)
@@ -514,7 +501,7 @@ export function ColoringGame({ gameId, pic: picId, onDone, onExit }: GameProps) 
             data-accepting={hold ? 'false' : 'true'}
             onPointerDown={(e) => {
               // 停在作品上：點畫紙不會再塗（圖已經活起來、存好了），手在大鈕上點一下給他看
-              if (home) return void setHomeHand((v) => v || 1)
+              if (home) return void setPokes((n) => n + 1)
               down(e.nativeEvent, true)
             }}
             onPointerMove={(e) => move(e.nativeEvent)}
@@ -585,34 +572,9 @@ export function ColoringGame({ gameId, pic: picId, onDone, onExit }: GameProps) 
             </motion.div>
           </div>
         </div>
-        {/* 停在作品上：蠟筆收起來，同一個地方換成一顆大鈕，點了回著色本（T-110）。左上角的返回鍵照樣也能回去 */}
-        {home && (
-          <div className="draw-home-col" data-resting="">
-            <motion.button
-              className="draw-home turn-hop"
-              aria-label="回著色本"
-              style={{ animationDelay: '0.9s' }}
-              initial={{ scale: 0.6, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              transition={{ type: 'spring', stiffness: 260, damping: 20, delay: 0.2 }}
-              whileTap={{ scale: 0.92 }}
-              {...tap('home', () => {
-                sfx.tap()
-                home()
-              })}
-            >
-              <HomeIcon />
-              <AnimatePresence>
-                {homeHand > 0 && (
-                  <span className="draw-home-hand" aria-hidden="true">
-                    <Hand x={58} y={56} tap={homeHand - 1} size="52%" cuff="#F2C9A8" />
-                  </span>
-                )}
-              </AnimatePresence>
-            </motion.button>
-          </div>
-        )}
-        <div style={{ display: home ? 'none' : 'contents' }}>
+        {/* 停在作品上：蠟筆收起來，同一個地方換成兩個大圖示：再塗一張（回著色本挑下一張）、回首頁（T-139⑧）。左上角的返回鍵照樣回著色本 */}
+        {home && <DoneChoices again={home} againArt={<BookArt />} againLabel="再塗一張" line="d.next.color" home={() => go({ name: 'home' }, { back: true })} poke={pokes} />}
+        <div style={{ display: home || over ? 'none' : 'contents' }}>
         <CrayonBox
           ref={box}
           value={tool}
