@@ -352,6 +352,96 @@ test.describe('英文字母課', () => {
     }
   })
 
+  // T-132（家長：「英文描字的部分大小寫都要有格線，這樣才知道大小寫的差異」）：大 S、小 s 都在四線格上，
+  // 大 S 從頂線到底線、小 s 從中線到底線；格線是畫面上的圖，點不到、不算要描的線，描字照舊描得完、往下一輪
+  test('描字的四線格：大 S、小 s 都有格線，大 S 頂線到底線、小 s 中線到底線', async ({ page }, info) => {
+    test.skip(!want('lesson-english'))
+    test.setTimeout(3 * 60_000)
+    const { k, c } = await setup(page, info, '四線格')
+    try {
+      const day = await page.evaluate(() => {
+        const d = new Date()
+        return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+      })
+      await page.evaluate(
+        (day) =>
+          new Promise((res) => {
+            const rq = indexedDB.open('dodo-adventure')
+            rq.onsuccess = () => {
+              const tx = rq.result.transaction('kv', 'readwrite')
+              tx.objectStore('kv').put({ key: 'lesson.english', value: { idx: 0, seq: 'SABCDEFGHIJKLMNOPQRTUVWXYZ', date: day, done: false, good: false, stage: 'trace', round: 0 } })
+              tx.oncomplete = () => res(0)
+            }
+          }),
+        day,
+      )
+      if (!(await enter(k, c))) return
+      if (!(await waitStage(page, 'trace', 20_000))) return void (await c.once('no-trace', '卡死', '沒有從描字接著上', `停在 ${await stageOf(page)}`))
+      const canDraw = () => page.waitForFunction(() => document.querySelector('.en-trace')?.getAttribute('data-accepting') !== 'false' && !document.querySelector('.en-trace[data-demo]'), null, { timeout: 60_000 })
+      /** 這一輪的格線（四條線的 y，描字板單位）、這一筆跑道實際的上下（getBBox）、在螢幕上多高 */
+      const measure = () =>
+        page.evaluate(() => {
+          const boards = [...document.querySelectorAll('.en-trace-board')]
+          const b = boards[boards.length - 1]
+          const lines = Object.fromEntries([...b.querySelectorAll<SVGLineElement>('[data-grid] line')].map((l) => [l.getAttribute('data-line'), Number(l.getAttribute('y1'))]))
+          const grid = b.querySelector('[data-grid]')
+          const lane = b.querySelector<SVGPathElement>('path[stroke-dasharray="3 3"]')!
+          const bb = lane.getBBox()
+          const px = lane.getBoundingClientRect().height
+          return { n: Object.keys(lines).length, lines, top: bb.y, bottom: bb.y + bb.height, px, events: grid ? getComputedStyle(grid).pointerEvents : null, now: document.querySelector('.en-trace-rounds .is-now')?.textContent?.trim() ?? null }
+        })
+      const near = (a: number, b: number) => Math.abs(a - b) <= 2.5
+      const shotTo = async (name: string) => {
+        if (!SHOTS || info.project.name !== 'tab1200') return
+        fs.mkdirSync(SHOTS, { recursive: true })
+        await page.screenshot({ path: path.join(SHOTS, `${name}.png`) })
+      }
+
+      // 大 S：示範完、輪到他
+      await canDraw()
+      const big = await measure()
+      c.outcome('大 S 有四線格（4 條、點不到）', big.n === 4 && big.events === 'none', `${big.n} 條、pointer-events ${big.events}`)
+      c.outcome('大 S 從頂線到底線', near(big.top, big.lines.top) && near(big.bottom, big.lines.base), `${big.top.toFixed(1)}～${big.bottom.toFixed(1)}（頂線 ${big.lines.top}、底線 ${big.lines.base}）`)
+      if (big.n !== 4) await c.once('grid-big', '困惑', '描大寫時沒有四線格', `${big.n} 條`)
+      await shotTo('大S-四線格')
+
+      // 照常描：一筆描到八成放手（格線不影響描字），完成、往下一輪
+      const pts = await page.evaluate(() => {
+        const boards = [...document.querySelectorAll('.en-trace-board')]
+        const p = boards[boards.length - 1].querySelector<SVGPathElement>('path[stroke-dasharray="3 3"]')!
+        const m = p.getScreenCTM()!
+        const len = p.getTotalLength()
+        return Array.from({ length: 9 }, (_, i) => {
+          const q = p.getPointAtLength(len * 0.8 * (i / 8))
+          const s = new DOMPoint(q.x, q.y).matrixTransform(m)
+          return { x: s.x, y: s.y }
+        })
+      })
+      k.behavior = '在四線格上描大 S'
+      await k.drag(pts, { stepMs: 10, label: '描 S（到八成）' })
+      const fx = await page.waitForSelector('[data-trace-finished]', { state: 'attached', timeout: 4000 }).catch(() => null)
+      c.outcome('有格線照樣描得完（完成效果）', !!fx)
+      if (!fx) await c.once('grid-trace', '卡死', '加了四線格以後，大 S 描到八成放手沒有完成', '')
+
+      // 小 s：同一個四線格，從中線到底線
+      const little = await page
+        .waitForFunction(() => document.querySelector('.en-trace-rounds .is-now')?.textContent?.trim() === 's', null, { timeout: 30_000 })
+        .then(() => true)
+        .catch(() => false)
+      if (!little) return void (await c.once('no-little', '卡死', '大 S 描完沒有到小 s', ''))
+      await canDraw()
+      const small = await measure()
+      c.outcome('小 s 有四線格（同一個位置）', small.n === 4 && JSON.stringify(small.lines) === JSON.stringify(big.lines), JSON.stringify(small.lines))
+      c.outcome('小 s 從中線到底線', near(small.top, small.lines.mid) && near(small.bottom, small.lines.base), `${small.top.toFixed(1)}～${small.bottom.toFixed(1)}（中線 ${small.lines.mid}、底線 ${small.lines.base}）`)
+      c.outcome('大 S 和小 s 一眼看得出高度不一樣（小 s 不到大 S 的六成）', small.px / big.px < 0.6, `大 S ${Math.round(big.px)} px、小 s ${Math.round(small.px)} px`)
+      if (small.px / big.px >= 0.6) await c.once('grid-height', '困惑', '大 S 和小 s 看起來一樣高，看不出大小寫的差異', `${Math.round(big.px)} / ${Math.round(small.px)} px`)
+      await shotTo('小s-四線格')
+    } finally {
+      await c.flush().catch(() => {})
+      finish(k, c, '四線格')
+    }
+  })
+
   // 第六次盲測（2026-11-06）描小 s：他從綠點描過上面的彎、斜下來，停在右下的彎（只剩尾巴往左彎回去那一段），放手。
   // 描好的部分變藍、綠點停在斷掉的地方，剩下的尾巴只有淡淡的虛線；他說「還是不知道對不對，我不要畫了」，按房子離開。
   // 要做到：(1) 大寫 S 描到四成放手：不用重描，筆從斷掉的地方帶著描完（T-122；以前是看得到剩下的那一段、讓他接著描）；
