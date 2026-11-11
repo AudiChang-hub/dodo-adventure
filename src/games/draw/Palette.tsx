@@ -16,7 +16,7 @@ export const PALETTE = [...FREE.map((id) => COLORS.find((c) => c.id === id)!.hex
 export function Palette({ value, onChange, children }: { value: string; onChange: (hex: string) => void; children?: ReactNode }) {
   const n = Children.toArray(children).length + PALETTE.length
   return (
-    <div className="tool-col" style={{ '--rows': Math.ceil(n / 2), '--rows3': Math.ceil(n / 3) } as CSSProperties}>
+    <div className="tool-col" style={{ '--rows': Math.ceil(n / 2), '--rows3': Math.ceil(n / 3), '--rows4': Math.ceil(n / 4) } as CSSProperties}>
       {children}
       {PALETTE.map((hex) => (
         <button

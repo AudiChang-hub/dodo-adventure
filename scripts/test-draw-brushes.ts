@@ -1,4 +1,5 @@
 // 自由畫畫的魔法筆、印章（src/games/draw/brushes.ts）、發呆時今天的一句（draw/lines.ts）：T-127 B 案第 1 輪。
+// 橡皮擦（brushes.ts 的 eraser）：T-132。
 // 執行：npx tsx scripts/test-draw-brushes.ts
 import assert from 'node:assert/strict'
 import '../src/games/draw/lines'
@@ -6,7 +7,7 @@ import { hasLine, line } from '../src/content/registry'
 import { EMOJI } from '../src/art/emoji.generated'
 import { WORLDS } from '../src/lib/today-world'
 import { chooseVariety, type VarietyState } from '../src/lib/variety'
-import { BRUSHES, BRUSH_VARIETY, along, brushOfDay, brushPool, isStampTap, makePaint, rainbowAt } from '../src/games/draw/brushes'
+import { BRUSHES, BRUSH_VARIETY, ERASER, ERASE_SIZE, STAMP_GAP, STAMP_SIZE, along, brushOfDay, brushPool, isEraser, isStampTap, makePaint, rainbowAt } from '../src/games/draw/brushes'
 import { DRAW_IDEA, ideaKey } from '../src/games/draw/lines'
 import type { Stroke } from '../src/games/draw/Ink'
 
@@ -98,9 +99,23 @@ const ok = (s: string) => console.log(`ok ${++n} ${s}`)
   // 沒有載入圖（node 裡沒有 Image）：蓋印筆、印章先畫淡淡的圓，不會整個沒反應
   assert.equal(run('trail:cow,pig'), true)
   assert.ok(calls.filter((c) => c === 'arc').length >= 3, '蓋印筆沿著筆跡蓋好幾個')
-  // 拿著印章拖遠了（30 個點、290 長）：是在畫線，照一般的筆
-  assert.equal(run('stamp:cow'), false, '拿著印章拖遠了照一般的筆畫線')
+  // 拿著印章滑動（30 個點、290 長）：沿著手指一路蓋（T-132，家長：滑動也要印得出來）
+  assert.equal(run('stamp:cow'), true, '拿著印章滑動照樣是印章')
+  assert.equal(plain.length, 0, '滑動不會變成一般的線')
+  assert.equal(calls.filter((c) => c === 'arc').length, Math.floor(290 / STAMP_GAP) + 1, `290 長、每 ${STAMP_GAP} 一個`)
+  assert.ok(STAMP_GAP < STAMP_SIZE && STAMP_GAP > STAMP_SIZE / 2, '一個接一個稍微疊著，不會疊成一團、也不會空一段')
   assert.equal(isStampTap(stroke('stamp:cow')), false)
+  // 魔法筆滑動也是一路畫（點點筆、蓋印筆：照距離一個一個，不會只有一個）
+  run('dots')
+  const dots = calls.filter((c) => c === 'arc').length
+  run('trail:cow')
+  const trail = calls.filter((c) => c === 'arc').length
+  assert.ok(dots >= 5 && trail >= 3, `魔法筆滑動畫出好幾個（點點 ${dots}、蓋印 ${trail}）`)
+  for (const b of ['dots', 'trail:cow']) {
+    calls.length = 0
+    assert.equal(paint(ctx, { color: '#E58A7B', size: 16, pts: [pts[0]], brush: b }, true, () => {}), true)
+    assert.equal(calls.filter((c) => c === 'arc').length, 1, `${b} 點一下只有一個`)
+  }
   const tap: Stroke = { color: '#E58A7B', size: 16, pts: [pts[0], { ...pts[0], x: pts[0].x + 30 }], brush: 'stamp:cow' }
   calls.length = 0
   assert.equal(paint(ctx, tap, true, () => {}), true)
@@ -114,7 +129,41 @@ const ok = (s: string) => console.log(`ok ${++n} ${s}`)
   assert.match(rainbowAt(0), /^rgb\(\d+,\d+,\d+\)$/)
   assert.notEqual(rainbowAt(0.1), rainbowAt(0.5), '彩虹筆畫越長顏色會變')
   assert.equal(rainbowAt(0.25), rainbowAt(1.25), '一輪之後重來')
-  ok('四種魔法筆、印章都畫得出來；對稱筆以正中間為軸；拿著印章拖遠了是畫線；不認得的照一般的筆')
+  ok('四種魔法筆、印章都畫得出來；對稱筆以正中間為軸；印章、魔法筆滑動一路畫、點一下一個；不認得的照一般的筆')
+}
+
+// ── 橡皮擦 ───────────────────────────────────
+{
+  // 記下畫了什麼、畫的時候 globalCompositeOperation 是什麼
+  const calls: string[] = []
+  const state: Record<string, unknown> = { globalCompositeOperation: 'source-over' }
+  const saved: Record<string, unknown>[] = []
+  const ctx = new Proxy(state, {
+    get: (t, k) => {
+      if (k === 'save') return () => saved.push({ ...t })
+      if (k === 'restore') return () => Object.assign(t, saved.pop())
+      if (typeof k === 'string' && ['beginPath', 'arc', 'fill', 'moveTo', 'lineTo', 'stroke'].includes(k)) return () => calls.push(`${k}:${t.globalCompositeOperation}`)
+      return t[k as string]
+    },
+    set: (t, k, v) => ((t[k as string] = v), true),
+  }) as unknown as CanvasRenderingContext2D
+  const paint = makePaint(1000)
+  const pts = Array.from({ length: 12 }, (_, i) => ({ x: 100 + i * 20, y: 300, p: 0.5 }))
+  const er = { color: '#E58A7B', size: ERASE_SIZE, pts, brush: ERASER }
+  assert.equal(paint(ctx, er, false, () => assert.fail('橡皮擦不能照一般的筆畫（會畫出一條顏色）')), true)
+  assert.ok(calls.includes('stroke:destination-out'), `橡皮擦要用 destination-out 擦成透明（${calls.join(' ')}）`)
+  assert.ok(!calls.some((c) => !c.endsWith(':destination-out')), '橡皮擦畫的每一下都是擦，不是畫')
+  assert.equal(state.globalCompositeOperation, 'source-over', '擦完要還原，之後畫的線照常出墨')
+  assert.equal(state.lineWidth, ERASE_SIZE, '擦的寬度就是筆畫的粗細')
+  calls.length = 0
+  assert.equal(paint(ctx, { ...er, pts: [pts[0]] }, true, () => {}), true)
+  assert.deepEqual(calls.filter((c) => c.startsWith('fill') || c.startsWith('arc')), ['arc:destination-out', 'fill:destination-out'], '點一下擦掉一個圓')
+  assert.ok(ERASE_SIZE >= 80, `三歲的手不準，擦的比手指寬很多（現在 ${ERASE_SIZE}）`)
+  assert.equal(isEraser(er), true)
+  assert.equal(isEraser({ brush: 'rainbow' }), false)
+  assert.equal(isEraser({}), false, '一般的筆不是橡皮擦')
+  assert.equal(isStampTap({ ...er, pts: [pts[0]] }), false, '橡皮擦點一下不算蓋章')
+  ok('橡皮擦：用 destination-out 擦成透明、擦完還原、點一下擦一個圓、比手指寬很多')
 }
 
 // ── 每個世界的印章和今天的一句 ───────────────

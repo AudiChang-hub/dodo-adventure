@@ -3,8 +3,10 @@
    會「結束、清掉」的鍵放在最上面一排，離畫面下緣很遠（TOUCH-5）。 */
 .tool-col {
   /* 高度不夠時整欄一起縮（T-107 真人試玩：平板瀏覽器有網址列時，最下排粉紅、黑色被切掉一半）。
-     --rows 由 Palette 依按鈕數量給；最大仍是 92px、間距 34px，最小 72px（約 2 cm）。 */
-  --tool-gap: clamp(14px, 3.4cqh, 34px);
+     --rows 由 Palette 依按鈕數量給；最大仍是 92px、間距 34px，最小 76px（約 2 cm）。
+     T-132 多了橡皮擦（自由畫畫 13 格、兩欄 7 排）：放不下時先縮格子之間的距離（最少 14px），格子盡量維持 ≥ 84px，
+     1200×786 上 7 排剛好放得下、不會超出畫面。 */
+  --tool-gap: clamp(14px, min(3.4cqh, calc((94cqh - var(--rows, 5) * 84px) / (var(--rows, 5) - 1))), 34px);
   --tool: clamp(76px, calc((94cqh - (var(--rows, 5) - 1) * var(--tool-gap)) / var(--rows, 5)), 92px);
   position: absolute;
   right: 14px;
@@ -33,8 +35,18 @@
     --tool-gap: 14px;
   }
   .tool-room {
-    /* 只有自由畫畫用這個工具欄：最多 12 個鍵（T-127 多了魔法筆、印章）、三欄就是 4 排 */
-    right: calc(3 * clamp(76px, calc((94cqh - 42px) / 4), 92px) + 2 * 14px + 28px) !important;
+    /* 只有自由畫畫用這個工具欄：最多 13 個鍵（T-127 多了魔法筆、印章，T-132 多了橡皮擦）、三欄就是 5 排 */
+    right: calc(3 * clamp(76px, calc((94cqh - 56px) / 5), 92px) + 2 * 14px + 28px) !important;
+  }
+}
+/* 再矮一點（三欄 5 排放不下：5 × 76 + 4 × 14 = 436px 要 ≤ 工具欄 96%）：改四欄 4 排，每格照樣 ≥ 76px（T-132） */
+@container (max-height: 450px) {
+  .tool-col {
+    grid-template-columns: repeat(4, var(--tool));
+    --rows: var(--rows4, 4);
+  }
+  .tool-room {
+    right: calc(4 * clamp(76px, calc((94cqh - 42px) / 4), 92px) + 3 * 14px + 28px) !important;
   }
 }
 
@@ -189,4 +201,21 @@
   .draw-paper-btn {
     --tool: 76px;
   }
+}
+
+/* T-132 橡皮擦：選到時底色換成淡粉紅（跟擦頭同色），一眼看得出現在拿的是橡皮擦，不是蠟筆 */
+.tool-eraser.on {
+  background: #fbe6e1;
+}
+/* 擦的時候跟著手指的圈圈：擦得到的範圍（大小、位置由 FreeDraw 直接設，不經過 React） */
+.draw-eraser-ring {
+  position: absolute;
+  left: 0;
+  top: 0;
+  z-index: 2;
+  display: none;
+  border-radius: 50%;
+  border: 3px dashed rgba(46, 42, 37, 0.38);
+  background: rgba(251, 248, 242, 0.25);
+  pointer-events: none;
 }

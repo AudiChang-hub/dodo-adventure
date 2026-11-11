@@ -1,11 +1,12 @@
 import { useContext, useEffect, useMemo, useRef, useState } from 'react'
 import { Resting, Shell, HomeIcon, type GameProps } from '../Shell'
-import { Ink, type InkHandle } from './Ink'
+import { Ink, type InkHandle, type Pt } from './Ink'
 import { Palette, CheckButton, ClearButton, PALETTE } from './Palette'
-import { imageOf, saveDrawing, svgThumb } from './save'
+import { imageOf, onPaper, saveDrawing, svgThumb } from './save'
 import { Backdrop, MirrorGuide, PaperButton, PAPER_H, PAPER_W } from './Backdrop'
 import { MagicButton, StampButton } from './Stamps'
-import { BRUSH_VARIETY, brushOfDay, brushPool, isStampTap, makePaint, preloadEmoji, type BrushId } from './brushes'
+import { EraserButton, EraserRing } from './Eraser'
+import { BRUSH_VARIETY, ERASER, ERASE_SIZE, brushOfDay, brushPool, isEraser, isStampTap, makePaint, preloadEmoji, type BrushId } from './brushes'
 import { ideaKey } from './lines'
 import { dayNumber, getTodayWorld } from '../../lib/today-world'
 import { pickVariety } from '../../lib/variety'
@@ -44,14 +45,15 @@ const SHOW_STARS = [
 const STAR_PATH = 'M10 0 L12.6 7.4 L20 10 L12.6 12.6 L10 20 L7.4 12.6 L0 10 L7.4 7.4 Z'
 const STAR_COLORS = ['#F1D27C', '#E99A84', '#8FCBAA', '#A3C4E4', '#BFB2DF']
 
-/** 畫筆、魔法筆、印章：工具欄上選到哪一種 */
-type Mode = 'pen' | 'magic' | 'stamp'
+/** 畫筆、魔法筆、印章、橡皮擦：工具欄上選到哪一種 */
+type Mode = 'pen' | 'magic' | 'stamp' | 'eraser'
 
 /**
  * 自由畫畫：一張畫紙，畫完存進作品集。
  * 今天的世界（lib/today-world.ts，T-127）：畫紙底下鋪今天的淡色線稿（右上角「白紙」鍵可以拿掉、再拿回來），
- * 工具欄多「印章」（點畫紙蓋一個今天的角色，2～3 種輪流）和「今天的魔法筆」（brushes.ts，4 種輪流、連續兩次不一樣）。
+ * 工具欄多「印章」（點畫紙蓋一個今天的角色、滑動一路蓋，2～3 種輪流）和「今天的魔法筆」（brushes.ts，4 種輪流、連續兩次不一樣）。
  * 沒有今天的世界（回傳 null）時：空白畫紙、沒有印章，魔法筆照樣有（不含要用小圖的蓋印筆）。
+ * 橡皮擦（T-132）：點一下就選到，手指走過的地方擦掉一大條（線、魔法筆、印章都擦得掉，今天的背景和畫紙擦不掉）；點任何一個顏色就回到畫筆。
  * 完成、清空都是點一下（不用按住）；清空要再點一次確認（垃圾桶先晃一下）。
  * 發呆時：15 秒說今天的一句（例如「Draw a home for the cow!」，沒有世界時是「Draw anything you like!」），再 15 秒手在畫紙中間比劃一下，之後每 40 秒手再安靜地比劃一次（三歲模擬測試 B10）。
  * 按勾勾：作品留在畫紙上、星星撒下來，停 4 秒才交出去（之後是每局的慶祝）；慶祝完回到作品上，工具收起來，
@@ -76,6 +78,8 @@ export function FreeDraw({ gameId, onDone, onExit }: GameProps) {
   const backdrop = useRef<SVGSVGElement>(null)
   const paint = useMemo(() => makePaint(PAPER_W), [])
   const ink = useRef<InkHandle>(null)
+  /** 擦的時候跟著手指的圈圈 */
+  const ring = useRef<HTMLDivElement>(null)
   const t0 = useRef(performance.now())
   const live = useRef(true)
   const busy = useRef(false)
@@ -129,10 +133,26 @@ export function FreeDraw({ gameId, onDone, onExit }: GameProps) {
     setHand(null)
   }
 
+  /** 橡皮擦的圈圈移到手指的地方（畫紙的邏輯座標換成畫面上的位置；Ink 是等比例置中） */
+  const moveRing = (p: Pt) => {
+    const el = ring.current
+    const r = room.current
+    if (!el || !r) return
+    const k = Math.min(r.clientWidth / PAPER_W, r.clientHeight / PAPER_H)
+    const d = ERASE_SIZE * k
+    el.style.display = 'block'
+    el.style.width = el.style.height = `${d}px`
+    el.style.transform = `translate(${(r.clientWidth - PAPER_W * k) / 2 + p.x * k - d / 2}px, ${(r.clientHeight - PAPER_H * k) / 2 + p.y * k - d / 2}px)`
+  }
+  const hideRing = () => {
+    if (ring.current) ring.current.style.display = 'none'
+  }
+
   const finish = async () => {
     const strokes = ink.current?.strokes() ?? []
     if (busy.current) return
-    if (!strokes.length) return void say(def.intro)
+    // 只有擦過（沒有畫）也是空白的畫紙
+    if (!strokes.some((s) => !isEraser(s))) return void say(def.intro)
     busy.current = true
     idle.stop()
     hideHand()
@@ -141,7 +161,8 @@ export function FreeDraw({ gameId, onDone, onExit }: GameProps) {
     // 作品的縮圖：有今天的背景就把背景放在最底下、筆跡和印章蓋在上面（T-127）；背景轉不出來就只存筆跡
     const thumb = async () => {
       const bd = backdrop.current
-      if (!bd) return ink.current!.snapshot()
+      // 用過橡皮擦：擦掉的地方是透明的，鋪回紙色再存（T-132）
+      if (!bd) return strokes.some(isEraser) ? onPaper(ink.current!.snapshot('transparent')).catch(() => ink.current!.snapshot()) : ink.current!.snapshot()
       try {
         return await svgThumb(bd, 480, '#FBF8F2', undefined, await imageOf(ink.current!.snapshot('transparent')))
       } catch {
@@ -168,7 +189,9 @@ export function FreeDraw({ gameId, onDone, onExit }: GameProps) {
         strokes: strokes.length,
         colors: new Set(strokes.map((s) => s.color)).size,
         stamps: strokes.filter(isStampTap).length,
-        magic: strokes.filter((s) => s.brush && !s.brush.startsWith('stamp:')).length,
+        stampTrails: strokes.filter((s) => s.brush?.startsWith('stamp:') && !isStampTap(s)).length,
+        magic: strokes.filter((s) => s.brush && !s.brush.startsWith('stamp:') && !isEraser(s)).length,
+        erased: strokes.filter(isEraser).length,
         backdrop: backdrop.current ? 1 : 0,
       },
     })
@@ -218,28 +241,45 @@ export function FreeDraw({ gameId, onDone, onExit }: GameProps) {
           w={PAPER_W}
           h={PAPER_H}
           color={color}
-          size={thick ? 34 : 16}
-          brush={mode === 'stamp' && stamps.length ? `stamp:${stamps[stampIx % stamps.length]}` : mode === 'magic' ? (brush === 'trail' ? `trail:${stamps.join(',')}` : brush) : undefined}
+          size={mode === 'eraser' ? ERASE_SIZE : thick ? 34 : 16}
+          brush={
+            mode === 'eraser'
+              ? ERASER
+              : mode === 'stamp' && stamps.length
+                ? `stamp:${stamps[stampIx % stamps.length]}`
+                : mode === 'magic'
+                  ? brush === 'trail'
+                    ? `trail:${stamps.join(',')}`
+                    : brush
+                  : undefined
+          }
           paint={paint}
-          onDown={() => {
+          onBase={isEraser}
+          onDown={(p) => {
             drawing.current = true
+            if (mode === 'eraser') moveRing(p)
             hideHand()
             idle.poke()
             // 開場「Draw anything you like!」講到一半就下筆：停掉語音（T-108 搶點，孩子已經在做了）
             if (!busy.current && isSpeaking()) hushSpeech()
           }}
+          onMove={(p) => {
+            if (mode === 'eraser') moveRing(p)
+          }}
           onUp={() => {
             drawing.current = false
+            hideRing()
             liftedAt.current = performance.now()
             idle.poke()
-            // 蓋好一個印章：下一個換下一種角色（格子上的圖跟著換）。拿著印章拖遠了是在畫線，不換
+            // 蓋好印章（點一下蓋一個、滑動蓋一串）：下一次換下一種角色（格子上的圖跟著換）
             const last = ink.current?.strokes().at(-1)
-            if (mode === 'stamp' && stamps.length && last && isStampTap(last)) {
+            if (mode === 'stamp' && stamps.length && last?.brush?.startsWith('stamp:')) {
               sfx.pop()
               setStampIx((i) => i + 1)
             }
           }}
         />
+        <EraserRing ref={ring} />
         {world && !show && !home && (
           <PaperButton
             blank={blank}
@@ -364,6 +404,13 @@ export function FreeDraw({ gameId, onDone, onExit }: GameProps) {
               }}
             />
           )}
+          <EraserButton
+            on={mode === 'eraser'}
+            onPress={() => {
+              setMode('eraser')
+              idle.poke()
+            }}
+          />
         </Palette>
       </div>
     </Shell>
