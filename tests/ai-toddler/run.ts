@@ -607,12 +607,10 @@ while (!fatal) {
   // ── 完成了嗎 ──
   const d = await doneNow(page)
   if (!R.completed) {
-    if (d.lessonEnd) R.completed = { step: n, t: el, what: d.picker ? '出現挑貼紙（上完一堂）' : '出現下課畫面（上完一堂，這堂沒有貼紙）' }
+    if (lesson.id === 'draw' && d.drawDone) R.completed = { step: n, t: el, what: d.coloring ? '著色本按了完成' : '白紙按了完成' }
+    else if (d.lessonEnd) R.completed = { step: n, t: el, what: d.picker ? '出現挑貼紙（上完一堂）' : '出現下課畫面（上完一堂，這堂沒有貼紙）' }
     else if (d.lastPage) R.completed = { step: n, t: el, what: '故事聽到最後一頁' }
-    else if (lesson.id === 'draw') {
-      const strokes = steps.filter((x) => x.touch?.kind === 'drag' && x.touch.hit === '畫布').length
-      if (strokes >= 3) R.completed = { step: n, t: el, what: `畫了 ${strokes} 筆` }
-    } else if (lesson.id === 'stickers' && s2.live === 'home') {
+    else if (lesson.id === 'stickers' && s2.live === 'home') {
       // 貼紙本：點過 3 張以上的貼紙（不同張），自己回到首頁
       const seen = new Set(steps.filter((x) => x.live === 'stickers' && x.touch?.kind === 'tap' && /^按鈕/.test(x.touch.hit)).map((x) => x.touch!.hit))
       if (seen.size >= 3) R.completed = { step: n, t: el, what: `點了 ${seen.size} 張貼紙、回到首頁` }
@@ -624,7 +622,7 @@ while (!fatal) {
   }
   // 上完一堂之後再看 3 步（挑貼紙或下課畫面、回首頁），就收
   // 貼紙本：回到首頁就是完成，不用再看
-  if (doneAt && lesson.id !== 'draw' && n - doneAt >= (lesson.id === 'stickers' ? 0 : 3)) {
+  if (doneAt && n - doneAt >= (lesson.id === 'stickers' ? 0 : 3)) {
     R.endReason = `完成了（${R.completed!.what}），再玩 3 步後結束`
     break
   }
