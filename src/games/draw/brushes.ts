@@ -6,7 +6,7 @@
 //   mirror             對稱筆：左邊畫、右邊同時畫出鏡像（以畫紙正中間為軸）
 //   trail:ewe,cow      蓋印筆：沿著筆跡蓋出一串今天的小圖（冒號後面是 Fluent Emoji 的名字）
 //   dots               點點筆：畫出一顆一顆的點
-//   stamp:ewe          印章：手指放開的地方蓋一個今天的角色（稍微挪一下印章會跟著手指；拖遠了就變成用現在的顏色畫線）
+//   stamp:ewe          印章：點一下在手指放開的地方蓋一個今天的角色（稍微挪一下印章會跟著手指）；滑動就沿著手指一路蓋（T-132）
 //   eraser             橡皮擦（T-132）：手指走過的地方擦成透明，擦得掉畫的線和印章；今天的背景是畫布底下的另一層，擦不掉
 import { EMOJI } from '../../art/emoji.generated'
 import type { Pt, Stroke } from './Ink'
@@ -103,13 +103,19 @@ const TRAIL_SIZE = 64
 /** 印章的大小（邏輯座標，畫紙 1000 寬）：1200×786 上大約 140 px */
 export const STAMP_SIZE = 150
 /**
- * 拿著印章在畫紙上拖超過這麼遠（邏輯座標，1200×786 上大約 70 px）就當成在畫線，不是蓋章：
- * 三歲不小心點到印章再亂畫，以前只在放手的地方蓋一個，畫的線都沒出來（三歲測試 1280×800「畫了卻只有 6% 有墨」）。
- * 點一下、手指抖一下、稍微挪一下位置，都還是蓋章。
+ * 拿著印章在畫紙上拖超過這麼遠（邏輯座標，1200×786 上大約 70 px）就是在滑動：沿著手指一路蓋（STAMP_GAP 一個）。
+ * 點一下、手指抖一下、稍微挪一下位置，都只蓋一個（在放手的地方）。
+ * 歷史：最早只在放手的地方蓋一個，亂畫的線都沒出來（三歲測試 1280×800「畫了卻只有 6% 有墨」）；
+ * fbf8dc8 改成拖遠了畫一般的線；家長 2026-11-11 說滑動也要印得出來，不然只能一直點（T-132），改成一路蓋。
  */
 export const STAMP_DRAG = 76
+/**
+ * 滑動時印章的間距（邏輯座標）：比印章（150）小一點，一個接一個稍微疊著，不會疊成一團、也不會中間空一大段。
+ * 照手指走的距離算，手指慢慢移、快快劃都一樣密。
+ */
+export const STAMP_GAP = 105
 
-/** 這一筆是蓋章（點一下或只挪一點點），不是拿著印章畫線 */
+/** 這一筆是點一下蓋章（點一下或只挪一點點），不是拿著印章滑動 */
 export function isStampTap(s: Stroke): boolean {
   if (!s.brush?.startsWith('stamp:') || !s.pts.length) return false
   const o = s.pts[0]
@@ -182,8 +188,11 @@ export function makePaint(w: number) {
       case 'stamp': {
         const p = s.pts[s.pts.length - 1]
         if (!arg || !p) return false
-        // 拖得很遠：是在畫線，照一般的筆畫（用現在的顏色）
-        if (!isStampTap(s)) return false
+        // 滑動：沿著手指一路蓋，照走過的距離每 STAMP_GAP 一個（T-132）
+        if (!isStampTap(s)) {
+          for (const q of along(s.pts, STAMP_GAP)) drawEmoji(ctx, arg, q.x, q.y, STAMP_SIZE)
+          return true
+        }
         drawEmoji(ctx, arg, p.x, p.y, STAMP_SIZE)
         return true
       }

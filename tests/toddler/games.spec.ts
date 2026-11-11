@@ -276,7 +276,7 @@ for (const g of selected().filter((x) => x.kind === 'free')) {
       }
 
       // 4. 拖到一半放手（手指被系統手勢搶走）：挪一點點的印章留在放手的地方；
-      //    拿著印章拖遠了是在畫線（不小心點到印章再亂畫，線要出來），不算蓋章；之後點一下照樣蓋得出來
+      //    拿著印章滑動（拖遠了）沿著手指一路蓋（T-132，家長：滑動也要印得出來），算蓋了一次；之後點一下照樣蓋得出來
       k.behavior = '蓋章拖到一半放手'
       {
         const n0 = await count()
@@ -293,9 +293,9 @@ for (const g of selected().filter((x) => x.kind === 'free')) {
         await k.tap(await spot(), '再點一下')
         await k.wait(400)
         const after = (await count()) - n0 - nudge - drew
-        c.outcome('蓋章拖到一半放手', nudge === 1 && drew === 0 && ink > 0 && after === 1, `挪一點點被搶走：蓋了 ${nudge} 個；拖遠了：蓋了 ${drew} 個、線上的墨 ${ink}；再點一下：蓋了 ${after} 個`)
+        c.outcome('蓋章拖到一半放手', nudge === 1 && drew === 1 && ink > 0 && after === 1, `挪一點點被搶走：蓋了 ${nudge} 個；滑動：蓋了 ${drew} 次、沿路的墨 ${ink}；再點一下：蓋了 ${after} 個`)
         if (nudge !== 1 || after !== 1) await c.once('t127-cancel', '卡死', '蓋章拖到一半放手之後蓋不出來', `挪一點點 ${nudge} 個、之後點一下 ${after} 個`)
-        if (!ink) await c.once('t127-stamp-line', '困惑', '拿著印章拖遠了，畫的線沒出來', `蓋了 ${drew} 個、墨 ${ink}`)
+        if (!ink) await c.once('t127-stamp-line', '困惑', '拿著印章滑動，沿路沒有印出來', `蓋了 ${drew} 次、墨 ${ink}`)
       }
 
       // 5. 魔法筆亂畫：亂畫、手掌、連點，筆跡都在
@@ -475,7 +475,7 @@ for (const g of selected().filter((x) => x.kind === 'free')) {
 
 /**
  * T-132 自由畫畫的橡皮擦（家長 2026-11-11：「畫圖的地方要多橡皮擦的功能」）。一個三歲小孩依序：
- * 畫一條線、蓋一個印章 → 連點橡皮擦 → 沿著線擦、擦印章（墨要真的不見，今天的背景還在）→ 擦到一半放手（被系統搶走）
+ * 魔法筆、印章滑動（一路印出來）和點一下（只有一個），擦掉 → 畫一條線、蓋一個印章 → 連點橡皮擦 → 沿著線擦、擦印章（墨要真的不見，今天的背景還在）→ 擦到一半放手（被系統搶走）
  * → 手掌壓著擦 → 點顏色又能畫（畫在擦過的地方）→ 亂點工具和畫紙 → 擦的時候按返回 → 世界關掉時擦過再存檔（縮圖沒有透明的洞）。
  */
 for (const g of selected().filter((x) => x.kind === 'free')) {
@@ -523,6 +523,81 @@ for (const g of selected().filter((x) => x.kind === 'free')) {
       if (!(await at('.tool-eraser'))) {
         await c.once('t132-tool', '困惑', '工具欄上找不到橡皮擦', '')
         return
+      }
+
+      // 0. 魔法筆、印章：滑動一路印出來，點一下只有一個；橡皮擦擦得掉（家長 2026-11-11：滑動也要印得出來，不然只能一直點）
+      k.behavior = '魔法筆、印章滑動'
+      slide: {
+        /** 沿著 pts 每 10 px 取一個點，回傳有墨的比例、頭尾四分之一各有沒有墨 */
+        const cover = async (pts: { x: number; y: number }[]) => {
+          const ss: { x: number; y: number }[] = []
+          for (let i = 1; i < pts.length; i++) {
+            const a = pts[i - 1]
+            const b = pts[i]
+            const n = Math.max(1, Math.round(Math.hypot(b.x - a.x, b.y - a.y) / 10))
+            for (let j = 0; j < n; j++) ss.push({ x: a.x + ((b.x - a.x) * j) / n, y: a.y + ((b.y - a.y) * j) / n })
+          }
+          const got: boolean[] = []
+          for (const p of ss) got.push((await inkAt(page, [p])) > 0)
+          const q = Math.max(1, Math.floor(got.length / 4))
+          return { ratio: got.filter(Boolean).length / got.length, head: got.slice(0, q).some(Boolean), tail: got.slice(-q).some(Boolean) }
+        }
+        /** 點一下：點的地方有墨，四周 120 px 外沒有（只有一個） */
+        const single = async (p: { x: number; y: number }) => {
+          const here = await inkAt(page, [p])
+          const around = await inkAt(page, [
+            { x: p.x - 120, y: p.y },
+            { x: p.x + 120, y: p.y },
+            { x: p.x, y: p.y - 120 },
+            { x: p.x, y: p.y + 120 },
+          ])
+          return { here, around }
+        }
+        const brushNow = await page.evaluate(() => document.querySelector('.tool-magic')?.getAttribute('data-brush') ?? '')
+        const tools = [{ sel: '.tool-magic', name: `魔法筆（${brushNow}）` }, ...((await at('.tool-stamp')) ? [{ sel: '.tool-stamp', name: '印章' }] : [])]
+        /** 垃圾桶點兩下：畫紙清乾淨，下一支筆從空白開始 */
+        const wipe = async () => {
+          await k.tap((await at('.tool-clear'))!, '垃圾桶')
+          await k.wait(800)
+          await k.tap((await at('.tool-clear'))!, '再點一下垃圾桶')
+          await k.wait(400)
+        }
+        for (const t of tools) {
+          const btn = await at(t.sel)
+          if (!btn) break slide
+          await k.tap(btn, t.name)
+          await k.wait(200)
+          // 滑動在畫紙左邊上半；點一下在右邊中間（離滑動的那條、對稱筆的鏡像都遠）
+          const path = await lineAt(0.3)
+          await k.drag(path, { label: `${t.name}滑動` })
+          await k.wait(300)
+          const cv = await cover(path)
+          const r = await room()
+          const tapAt = { x: r.left + r.w * 0.85, y: r.top + r.h * 0.62 }
+          await k.tap(tapAt, `${t.name}點一下`)
+          await k.wait(300)
+          const one = await single(tapAt)
+          const ok = cv.ratio >= 0.5 && cv.head && cv.tail && one.here > 0 && one.around === 0
+          c.outcome(`${t.name}滑動、點一下`, ok, `滑動：沿路 ${Math.round(cv.ratio * 100)}% 有墨（頭${cv.head ? '有' : '沒有'}、尾${cv.tail ? '有' : '沒有'}）；點一下：那裡的墨 ${one.here}、四周 ${one.around}`)
+          if (!(cv.ratio >= 0.5 && cv.head && cv.tail)) await c.once(`t132-slide-${t.sel}`, '困惑', `${t.name}滑動的時候沒有一路印出來`, `沿路 ${Math.round(cv.ratio * 100)}%、頭 ${cv.head}、尾 ${cv.tail}`)
+          if (!(one.here > 0 && one.around === 0)) await c.once(`t132-tap-${t.sel}`, '困惑', `${t.name}點一下不是剛好一個`, `那裡 ${one.here}、四周 ${one.around}`)
+          // 橡皮擦擦得掉：滑動印的、點一下的
+          await k.tap(await eraser(), '橡皮擦')
+          await k.drag(path, { label: '擦掉滑動印的' })
+          await k.drag([{ x: tapAt.x - 30, y: tapAt.y }, { x: tapAt.x + 30, y: tapAt.y }], { label: '擦掉點一下的' })
+          await k.wait(300)
+          const left = (await inkAt(page, path)) + (await inkAt(page, [tapAt]))
+          c.outcome(`橡皮擦擦掉${t.name}`, left === 0, `擦過以後沿路和點的地方的墨 ${left}`)
+          if (left) await c.once(`t132-erase-${t.sel}`, '困惑', `橡皮擦擦不掉${t.name}印的`, `剩下的墨 ${left}`)
+          // 拿著這支筆亂滑、多指、手掌：不會出錯
+          await k.tap(btn, t.name)
+          for (let i = 0; i < (lite ? 3 : 6); i++) {
+            if (i % 3 === 2) await k.palm([await spot(), await spot(), await spot()], 250)
+            else await k.drag([await spot(), await spot(), await spot()], { stepMs: 8, cancel: i === 1 })
+          }
+          await c.screenOk(`${t.name}亂滑`)
+          await wipe()
+        }
       }
 
       // 1. 先畫一條線、蓋一個印章

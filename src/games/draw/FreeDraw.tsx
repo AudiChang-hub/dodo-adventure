@@ -51,7 +51,7 @@ type Mode = 'pen' | 'magic' | 'stamp' | 'eraser'
 /**
  * 自由畫畫：一張畫紙，畫完存進作品集。
  * 今天的世界（lib/today-world.ts，T-127）：畫紙底下鋪今天的淡色線稿（右上角「白紙」鍵可以拿掉、再拿回來），
- * 工具欄多「印章」（點畫紙蓋一個今天的角色，2～3 種輪流）和「今天的魔法筆」（brushes.ts，4 種輪流、連續兩次不一樣）。
+ * 工具欄多「印章」（點畫紙蓋一個今天的角色、滑動一路蓋，2～3 種輪流）和「今天的魔法筆」（brushes.ts，4 種輪流、連續兩次不一樣）。
  * 沒有今天的世界（回傳 null）時：空白畫紙、沒有印章，魔法筆照樣有（不含要用小圖的蓋印筆）。
  * 橡皮擦（T-132）：點一下就選到，手指走過的地方擦掉一大條（線、魔法筆、印章都擦得掉，今天的背景和畫紙擦不掉）；點任何一個顏色就回到畫筆。
  * 完成、清空都是點一下（不用按住）；清空要再點一次確認（垃圾桶先晃一下）。
@@ -189,6 +189,7 @@ export function FreeDraw({ gameId, onDone, onExit }: GameProps) {
         strokes: strokes.length,
         colors: new Set(strokes.map((s) => s.color)).size,
         stamps: strokes.filter(isStampTap).length,
+        stampTrails: strokes.filter((s) => s.brush?.startsWith('stamp:') && !isStampTap(s)).length,
         magic: strokes.filter((s) => s.brush && !s.brush.startsWith('stamp:') && !isEraser(s)).length,
         erased: strokes.filter(isEraser).length,
         backdrop: backdrop.current ? 1 : 0,
@@ -270,9 +271,9 @@ export function FreeDraw({ gameId, onDone, onExit }: GameProps) {
             hideRing()
             liftedAt.current = performance.now()
             idle.poke()
-            // 蓋好一個印章：下一個換下一種角色（格子上的圖跟著換）。拿著印章拖遠了是在畫線，不換
+            // 蓋好印章（點一下蓋一個、滑動蓋一串）：下一次換下一種角色（格子上的圖跟著換）
             const last = ink.current?.strokes().at(-1)
-            if (mode === 'stamp' && stamps.length && last && isStampTap(last)) {
+            if (mode === 'stamp' && stamps.length && last?.brush?.startsWith('stamp:')) {
               sfx.pop()
               setStampIx((i) => i + 1)
             }
