@@ -1,11 +1,13 @@
-// 中文課文的排課（src/lessons/chinese/course.ts）、聊一聊（data.ts 的 talkOf）、中文課不出聲：每篇剛好上 3 次才換、跳過的日子不往前、
-// 同一天再進來還是同一次、家長挑的那篇從第 1 次開始、舊版（照日期）的進度接得上。對照 docs/全球幼教指引-現況對照.md A3。
+// 中文課文的排課（src/lessons/chinese/course.ts、一堂的每一步 steps.ts）、聊一聊（data.ts 的 talkOf）、中文課不出聲。
+// 排課（T-136，家長 2026-11-11：一天兩篇，一舊一新）：每次換新的一篇、舊篇是 3 次前那篇、小複習是前 1 次和前 7 次的、跳過的日子不往前、
+// 同一天再進來還是同一次、家長挑的那篇當今天的新篇、跳過舊篇不卡住、已存的進度和舊版（照日期）的進度接得上。對照 docs/全球幼教指引-現況對照.md A3。
 // 執行：npx tsx scripts/test-zh-course.ts（npm run verify 的「單元：中文課文每篇 3 次」）
 import assert from 'node:assert/strict'
-import { LEGACY, RUNS_PER_TEXT, applyPick, current, finishRun, migrate, nextDay, undoPick, type Course } from '../src/lessons/chinese/course'
+import { LEGACY, OLD_BACK, REVIEW_BACK, RUNS_PER_TEXT, applyPick, current, finishRun, logSession, migrate, nextDay, planOf, seedLog, undoPick, type Course, type Session } from '../src/lessons/chinese/course'
+import { stepsOf } from '../src/lessons/chinese/steps'
 import { readFileSync, readdirSync, statSync } from 'node:fs'
 import { join } from 'node:path'
-import { ZH_TEXTS, linePics, plain, talkFor, talkOf, type ZhText } from '../src/lessons/chinese/data'
+import { ZH_TEXTS, linePics, plain, questionsOf, talkFor, talkOf, type ZhText } from '../src/lessons/chinese/data'
 import { FAR, GLYPH_START, NEAR_MAX, afterGlyph, charOf, glyphPool, glyphQuestion, glyphSim, needsDemo, type GlyphQuestion, type GlyphState } from '../src/lessons/chinese/match'
 
 /** 固定的亂數（同一個 seed 每次一樣） */
@@ -56,134 +58,204 @@ const D = (i: number) => {
   return d.toISOString().slice(0, 10)
 }
 
-/** 一天：進課（看今天上哪一篇第幾次）、上完（progress.ts 的 markDone 做的事）；回傳今天的課和上完之後的排課 */
-function day(c: Course, date: string, finish = true) {
-  const r = current(c, date)
-  return { r, c: finish ? finishRun(c, r.day, date) : c }
+/** 一次課：進課看今天的排課（新篇、舊篇、小複習）；上完的話記下（progress.ts 的 markDone 做的事：排課換篇、上課紀錄多一筆） */
+function session(c: Course, log: Session[], date: string, finish = true) {
+  const p = planOf(c, log, date)
+  return finish ? { p, c: finishRun(c, p.day, date), log: logSession(log, p.day, date) } : { p, c, log }
 }
+
+const textOf = (d: number) => ZH_TEXTS.find((t) => t.day === d)!
+
+/** 這一堂的每一步（Lesson.tsx 照著走） */
+const stepsFor = (p: { day: number; n: number; old: number | null; review: number[] }, log: Session[], seed = 1) =>
+  stepsOf({ t: textOf(p.day), n: p.n, old: p.old == null ? null : textOf(p.old), review: p.review.map(textOf) }, new Set(log.map((s) => s.day)), GLYPH_START, rng(seed))
 
 function main() {
   const first = ZH_TEXTS[0].day
-  // ── 10 天、中間跳過 2 天 ─────────────────────────────
+  assert.equal(RUNS_PER_TEXT, 1, '每上一次就換新的一篇')
+  // ── 連續 30 次課：中間有沒上的日子、家長挑篇、跳過舊篇 ─────────────
   {
     let c: Course = { day: first, runs: [] }
-    const skip = new Set([3, 6])
-    const log: string[] = []
-    const seen: { day: number; n: number }[] = []
-    for (let i = 0; i < 10; i++) {
-      if (skip.has(i)) {
-        log.push(`${D(i)} 沒上`)
+    let log: Session[] = []
+    const skip = new Set([4, 9, 10, 17, 25, 26, 27])
+    /** 家長在第幾天挑了哪一篇（挑的那篇當今天的新篇） */
+    const picks = new Map([[12, 40], [30, 120]])
+    /** 這幾次課大人跳過舊篇 */
+    const skipOld = new Set([6, 15])
+    const lines: string[] = []
+    const news: number[] = []
+    let i = 0
+    for (let d = 0; news.length < 30; d++) {
+      if (skip.has(d)) {
+        lines.push(`${D(d)} 沒上`)
         continue
       }
-      const x = day(c, D(i))
+      if (picks.has(d)) c = applyPick(c, picks.get(d)!, D(d))
+      // 進來一次沒上完就離開、再進來：同一次
+      const a = session(c, log, D(d), false).p
+      const x = session(c, log, D(d))
+      const again = session(x.c, x.log, D(d), false).p
+      assert.deepEqual([again.day, again.old, again.review], [a.day, a.old, a.review], `${D(d)} 上完再進來還是同一次`)
+      assert.deepEqual([x.p.day, x.p.old, x.p.review], [a.day, a.old, a.review], `${D(d)} 上之前、上之後一樣`)
+      const p = x.p
+      assert.equal(p.idx, i, `第 ${i + 1} 次課`)
+      if (picks.has(d)) assert.equal(p.day, picks.get(d), '家長挑的那篇就是今天的新篇')
+      // 每次都是新篇（沒上過的）
+      assert.ok(!news.includes(p.day), `第 ${i + 1} 次課的新篇（第 ${p.day} 篇）上過了`)
+      // 舊篇＝3 次前那次課的新篇；前 3 次沒有舊篇
+      assert.equal(p.old, i >= OLD_BACK ? news[i - OLD_BACK] : null, `第 ${i + 1} 次課的舊篇`)
+      // 小複習＝前 1 次、前 7 次那兩次課的新篇（那一次還沒有就略過）
+      const want = REVIEW_BACK.filter((k) => i - k >= 0).map((k) => news[i - k])
+      assert.deepEqual(p.review, want, `第 ${i + 1} 次課的小複習`)
+      // 這一堂的每一步：舊篇短版（念課文 → 一題 → 找一樣的字）→ 新篇完整 → 小複習每篇一題
+      const steps = stepsFor(p, log, i + 1)
+      const parts = steps.map((s) => `${s.part}:${s.k}`)
+      const old = steps.filter((s) => s.part === 'old')
+      if (p.old != null) {
+        assert.deepEqual(old.map((s) => s.k), ['read', 'quiz', 'glyph'], `舊篇短版：${parts.join(' ')}`)
+        assert.ok(old.every((s) => s.t.day === p.old))
+        const r = old[0]
+        assert.ok(r.k === 'read' && r.go === '去選圖', '舊篇念完直接去選圖（沒有聊一聊）')
+      } else assert.equal(old.length, 0)
+      const fresh = steps.filter((s) => s.part === 'new')
+      assert.deepEqual([fresh[0].k, fresh[fresh.length - 1].k], ['read', 'glyph'], `新篇完整：${parts.join(' ')}`)
+      assert.ok(fresh.every((s) => s.t.day === p.day))
+      const rev = steps.filter((s) => s.part === 'review')
+      assert.deepEqual(rev.map((s) => s.t.day), p.review, '小複習每篇一題')
+      assert.ok(rev.every((s) => s.k === 'quiz' || s.k === 'glyph'), '小複習用現有的題型')
+      // 順序：舊篇 → 新篇 → 小複習
+      assert.deepEqual([...new Set(steps.map((s) => s.part))], [...(old.length ? ['old'] : []), 'new', ...(rev.length ? ['review'] : [])])
+      // 跳過舊篇：直接到新篇的第一步（念課文），新篇照常上完
+      if (skipOld.has(i) && p.old != null) {
+        const to = steps.findIndex((s) => s.part !== 'old')
+        assert.ok(to > 0 && steps[to].part === 'new' && steps[to].k === 'read', '跳過舊篇到新篇的念課文')
+      }
       c = x.c
-      seen.push({ day: x.r.day, n: x.r.n })
-      log.push(`${D(i)} 第 ${x.r.day} 篇第 ${x.r.n} 次`)
+      log = x.log
+      news.push(p.day)
+      lines.push(`${D(d)} 第 ${i + 1} 次：新〈${textOf(p.day).title}〉第 ${p.day} 篇${p.old != null ? `・舊第 ${p.old} 篇${skipOld.has(i) ? '（跳過）' : ''}` : ''}${p.review.length ? `・小複習 ${p.review.join('、')}` : ''}`)
+      i++
     }
-    // 8 天有上課：第 1 篇 3 次、第 2 篇 3 次、第 3 篇 2 次
-    assert.deepEqual(
-      seen.map((s) => `${s.day}-${s.n}`),
-      [`${first}-1`, `${first}-2`, `${first}-3`, `${nextDay(first)}-1`, `${nextDay(first)}-2`, `${nextDay(first)}-3`, `${nextDay(nextDay(first))}-1`, `${nextDay(nextDay(first))}-2`],
-      log.join('\n'),
-    )
-    for (const d of new Set(seen.map((s) => s.day))) {
-      const ns = seen.filter((s) => s.day === d).map((s) => s.n)
-      assert.ok(ns.length <= RUNS_PER_TEXT && ns.every((n, i) => n === i + 1), `第 ${d} 篇：${ns.join(',')}`)
-    }
-    console.log('ok 1 10 天跳過 2 天：每篇剛好 3 次才換，跳過的日子不往前\n   ' + log.join('\n   '))
+    // 跳過舊篇不影響排課：下一次照樣換新篇、舊篇照紀錄
+    assert.equal(log.length, 30)
+    console.log('ok 1 連續 30 次課（跳過 7 天、家長挑 2 次、跳過舊篇 2 次）：每次新篇、舊篇是 3 次前那篇、小複習是前 1 次和前 7 次的，同一天再進來還是同一次\n   ' + lines.join('\n   '))
   }
   {
-    // 跳過的日子：前一天上完第 2 次，隔一週再來還是第 3 次
+    // 跳過的日子不往前；隔了好幾天沒上：下一次是下一篇
     let c: Course = { day: first, runs: [] }
-    c = day(c, D(0)).c
-    c = day(c, D(1)).c
-    assert.deepEqual(current(c, D(9)), { day: first, n: 3, course: c })
-    console.log('ok 2 隔了好幾天沒上：接著上同一篇的下一次')
+    let log: Session[] = []
+    ;({ c, log } = session(c, log, D(0)))
+    const p = session(c, log, D(9), false).p
+    assert.deepEqual([p.day, p.idx, p.old], [nextDay(first), 1, null])
+    console.log('ok 2 隔了好幾天沒上：照上過幾次換下一篇，不照日期跳')
   }
   {
-    // 同一天再進來：上完之前、上完之後都是同一次；上兩次只算一次
+    // 家長挑篇：上完挑的那篇，回到原本排到的那篇（它還沒上）；舊篇、小複習照實際上過的紀錄
     let c: Course = { day: first, runs: [] }
-    assert.equal(day(c, D(0), false).r.n, 1)
-    c = day(c, D(0)).c
-    assert.equal(current(c, D(0)).n, 1, '上完再進來還是第 1 次')
-    c = day(c, D(0)).c
-    assert.deepEqual(c.runs, [D(0)], '同一天上兩次只算一次')
-    c = day(c, D(1)).c
-    c = day(c, D(2)).c
-    // 第 3 次上完的那一天再進來：還是第 1 篇第 3 次，不會當天就換篇
-    assert.deepEqual([current(c, D(2)).day, current(c, D(2)).n], [first, 3])
-    assert.deepEqual([current(c, D(3)).day, current(c, D(3)).n], [nextDay(first), 1])
-    console.log('ok 3 同一天再進來還是同一次（上完之前、之後都是），上滿 3 次隔天才換')
-  }
-  // ── 家長挑「今天上這篇」 ─────────────────────────────
-  {
-    let c: Course = { day: 5, runs: [D(0)] } // 第 5 篇上過 1 次
-    c = applyPick(c, 40, D(1))
-    assert.deepEqual([current(c, D(1)).day, current(c, D(1)).n], [40, 1], '挑的那篇從第 1 次開始')
-    c = day(c, D(1)).c
-    c = day(c, D(2)).c
-    c = day(c, D(4)).c
-    // 挑的那篇上滿 3 次 → 回到第 5 篇的第 2 次
-    assert.deepEqual([current(c, D(5)).day, current(c, D(5)).n], [5, 2])
-    c = day(c, D(5)).c
-    c = day(c, D(6)).c
-    assert.deepEqual([current(c, D(7)).day, current(c, D(7)).n], [6, 1], '第 5 篇上滿 → 照順序第 6 篇')
-    console.log('ok 4 家長挑的那篇從第 1 次開始，上滿 3 次回到原本那篇接著上')
-  }
-  {
+    let log: Session[] = []
+    for (const d of [0, 1, 2, 3]) ({ c, log } = session(c, log, D(d)))
+    // 第 5 次課本來是第 5 篇；家長挑第 40 篇
+    c = applyPick(c, 40, D(4))
+    let x = session(c, log, D(4))
+    assert.deepEqual([x.p.day, x.p.old, x.p.review], [40, ZH_TEXTS[1].day, [ZH_TEXTS[3].day]])
+    ;({ c, log } = x)
+    x = session(c, log, D(5), false)
+    assert.deepEqual([x.p.day, x.p.old, x.p.review], [ZH_TEXTS[4].day, ZH_TEXTS[2].day, [40]], '挑的上完回到原本排到的那篇；前 1 次是挑的那篇')
     // 今天挑了又改挑、又改回來
-    const c0: Course = { day: 5, runs: [D(0), D(1)] }
-    let c = applyPick(c0, 40, D(2))
-    c = applyPick(c, 41, D(2))
-    assert.deepEqual([current(c, D(2)).day, current(c, D(2)).n], [41, 1])
-    assert.deepEqual(c.prev, { day: 5, runs: [D(0), D(1)] }, '改挑之後回去的地方還是原本那篇')
-    c = undoPick(c, D(2))
-    assert.deepEqual([current(c, D(2)).day, current(c, D(2)).n], [5, 3])
-    // 昨天挑的改不回來（已經在上了）
-    const y = applyPick(c0, 40, D(2))
-    assert.equal(undoPick(y, D(3)), y)
-    // 挑了正在上的那篇：從第 1 次重新開始，上滿 3 次往下一篇（不會回去再上一輪）
-    let s = applyPick({ day: 5, runs: [D(0)] }, 5, D(1))
-    for (const i of [1, 2, 3]) s = day(s, D(i)).c
-    assert.deepEqual([current(s, D(4)).day, current(s, D(4)).n], [6, 1])
-    console.log('ok 5 今天挑了可以改挑、改回原本那篇；昨天挑的不能改回；挑正在上的那篇從第 1 次重來')
+    let y = applyPick(c, 41, D(5))
+    y = applyPick(y, 42, D(5))
+    assert.equal(session(y, log, D(5), false).p.day, 42)
+    y = undoPick(y, D(5))
+    assert.equal(session(y, log, D(5), false).p.day, ZH_TEXTS[4].day)
+    // 昨天挑的改不回來
+    const z = applyPick(c, 41, D(5))
+    assert.equal(undoPick(z, D(6)), z)
+    // 今天上完了又挑一篇再上：今天的紀錄換成挑的那篇（一天一筆）
+    ;({ c, log } = session(c, log, D(5)))
+    c = applyPick(c, 50, D(5))
+    ;({ c, log } = session(c, log, D(5)))
+    assert.deepEqual(log[log.length - 1], { date: D(5), day: 50 })
+    assert.equal(log.length, 6)
+    console.log('ok 3 家長挑的那篇當今天的新篇，上完回到原本那篇；舊篇、小複習照實際上過的；同一天可改挑、改回')
+  }
+  // ── 已存的進度不轉換 ─────────────────────────────
+  {
+    // 舊規則上到第 1、2 次的那篇：下一次就換新篇
+    for (const runs of [[D(0)], [D(0), D(1)], [D(0), D(1), D(2)]]) {
+      const c: Course = { day: 5, runs }
+      assert.deepEqual([current(c, D(9)).day, current(c, D(9)).n], [6, 1], `上過 ${runs.length} 次 → 下一次換第 6 篇`)
+      // 今天上過的：今天再進來還是它
+      assert.equal(current(c, runs[runs.length - 1]).day, 5)
+    }
+    // 沒有上課紀錄：上過的篇照篇數排，一篇算一次課；今天上完的那篇記今天
+    const log = seedLog([3, 1, 2, 5, 4], { day: 5, runs: [D(0)] }, D(0))
+    assert.deepEqual(log, [...[1, 2, 3, 4].map((day) => ({ date: LEGACY, day })), { date: D(0), day: 5 }])
+    assert.deepEqual(seedLog([], null, D(0)), [])
+    // 推算出來的紀錄：今天（第 5 次上完的那天）再進來還是同一次；明天第 6 篇，舊篇是 3 次前的第 3 篇
+    const c: Course = { day: 5, runs: [D(0)] }
+    const today = planOf(c, log, D(0))
+    assert.deepEqual([today.day, today.idx, today.old], [5, 4, 2])
+    const p = planOf(c, log, D(1))
+    assert.deepEqual([p.day, p.idx, p.old, p.review], [6, 5, 3, [5]])
+    console.log('ok 4 已存的進度不轉換：舊規則上到第幾次都一樣，下一次換新篇；沒有上課紀錄時從上過的篇推算')
   }
   // ── 舊版（照日期）的進度 ─────────────────────────────
   {
     const t1 = ZH_TEXTS[0]
     const t2 = ZH_TEXTS[1]
-    // 一篇都沒上過 → 第 1 篇第 1 次（不照日期跳到今天的那篇）
+    // 一篇都沒上過 → 第 1 篇
     const a = migrate([], null, '2026-11-20')
-    assert.deepEqual([current(a, '2026-11-20').day, current(a, '2026-11-20').n], [t1.day, 1])
-    // 上過第 1、2 篇（昨天以前）→ 第 2 篇第 2 次：不倒退、不跳篇
+    assert.equal(current(a, '2026-11-20').day, t1.day)
+    // 上過第 1、2 篇（昨天以前）→ 換第 3 篇：不倒退
     const b = migrate([t1.day, t2.day], null, '2026-11-20')
     assert.deepEqual(b.runs, [LEGACY])
-    assert.deepEqual([current(b, '2026-11-20').day, current(b, '2026-11-20').n], [t2.day, 2])
-    // 第 2 篇是今天照日期上的 → 今天再進來還是第 1 次，明天第 2 次
+    assert.equal(current(b, '2026-11-20').day, ZH_TEXTS[2].day)
+    // 第 2 篇是今天照日期上的 → 今天再進來還是它，明天換下一篇
     const c = migrate([t1.day, t2.day], null, t2.date)
-    assert.deepEqual([current(c, t2.date).day, current(c, t2.date).n], [t2.day, 1])
+    assert.equal(current(c, t2.date).day, t2.day)
     const tomorrow = new Date(Date.parse(t2.date) + 86_400_000).toISOString().slice(0, 10)
-    assert.deepEqual([current(c, tomorrow).day, current(c, tomorrow).n], [t2.day, 2])
-    // 中間有沒上的（上過 1、2、5，跳了 3、4）→ 從最後的第 5 篇接著，不回頭補、不往前跳
-    const d = migrate([1, 2, 5], null, '2026-11-20')
-    assert.deepEqual([current(d, '2026-11-20').day, current(d, '2026-11-20').n], [5, 2])
-    // 家長今天用舊版挑了第 9 篇（還沒上）→ 今天上第 9 篇第 1 次，上滿回到第 5 篇
+    assert.equal(current(c, tomorrow).day, ZH_TEXTS[2].day)
+    // 家長今天用舊版挑了第 9 篇（還沒上）→ 今天上第 9 篇，上完回到第 5 篇的下一篇（第 5 篇上過了）
     let e = migrate([1, 2, 5], { date: '2026-11-20', day: 9 }, '2026-11-20')
-    assert.deepEqual([current(e, '2026-11-20').day, current(e, '2026-11-20').n], [9, 1])
-    for (const x of ['2026-11-20', '2026-11-21', '2026-11-22']) e = day(e, x).c
-    assert.deepEqual([current(e, '2026-11-23').day, current(e, '2026-11-23').n], [5, 2])
-    // 昨天的舊挑選不算
+    assert.equal(current(e, '2026-11-20').day, 9)
+    e = finishRun(e, 9, '2026-11-20')
+    assert.equal(current(e, '2026-11-21').day, 6)
     assert.equal(migrate([1, 2, 5], { date: '2026-11-19', day: 9 }, '2026-11-20').day, 5)
-    console.log('ok 6 舊版進度：從上過的最後一篇的第 2 次接著上（今天上過的今天還是第 1 次），不倒退、不跳篇')
+    console.log('ok 5 舊版（照日期）進度：從上過的最後一篇的下一篇接著上，今天上過的今天還是它')
   }
   {
     // 180 篇上完從頭
     const last = ZH_TEXTS[ZH_TEXTS.length - 1].day
-    let c: Course = { day: last, runs: [D(0), D(1), D(2)] }
-    assert.equal(current(c, D(3)).day, first)
-    c = finishRun(c, first, D(3))
-    assert.deepEqual(c, { day: first, runs: [D(3)] })
-    console.log('ok 7 180 篇上完從第 1 篇再來')
+    let c: Course = { day: last, runs: [D(0)] }
+    assert.equal(current(c, D(1)).day, first)
+    c = finishRun(c, first, D(1))
+    assert.deepEqual(c, { day: first, runs: [D(1)] })
+    console.log('ok 6 180 篇上完從第 1 篇再來')
+  }
+  {
+    // 舊篇短版的找一樣的字一定要有（家長要求）：180 篇當舊篇 × 3 級 × 6 種亂數都出得了；小複習每篇都出得了一題
+    let n = 0
+    for (const t of ZH_TEXTS)
+      for (const level of [1, 2, 3] as const)
+        for (let k = 0; k < 6; k++) {
+          const q = glyphQuestion(t, 2, level, rng(k + 1))
+          assert.ok(q, `第 ${t.day} 篇〈${t.title}〉當舊篇，第 ${level} 級出不了找一樣的字`)
+          assert.deepEqual(glyphBad(t, q), [], `第 ${t.day} 篇舊篇的找一樣的字`)
+          n++
+        }
+    const done = new Set(ZH_TEXTS.map((t) => t.day))
+    /** 沒有一題選圖出得了的篇（當新篇也沒有選圖）：舊篇就是念課文 → 找一樣的字、小複習改出找一樣的字 */
+    const noQuiz: number[] = []
+    for (const t of ZH_TEXTS) {
+      const steps = stepsOf({ t: ZH_TEXTS[0].day === t.day ? ZH_TEXTS[1] : ZH_TEXTS[0], n: 1, old: t, review: [t] }, done, GLYPH_START, rng(t.day))
+      const hasQuiz = questionsOf(t, done).length > 0
+      if (!hasQuiz) noQuiz.push(t.day)
+      assert.deepEqual(steps.filter((s) => s.part === 'old').map((s) => s.k), hasQuiz ? ['read', 'quiz', 'glyph'] : ['read', 'glyph'], `第 ${t.day} 篇舊篇短版`)
+      const rev = steps.filter((s) => s.part === 'review')
+      assert.deepEqual(rev.map((s) => s.k), [hasQuiz ? 'quiz' : 'glyph'], `第 ${t.day} 篇小複習`)
+    }
+    assert.ok(noQuiz.length <= 5, `出不了選圖的篇太多：${noQuiz.join('、')}`)
+    console.log(`ok 7 舊篇短版 180 篇都有「念課文 → 一題 → 找一樣的字」（找字 ${n} 題都合法；第 ${noQuiz.join('、')} 篇本來就出不了選圖，只有念課文 → 找一樣的字），小複習 180 篇都出得了一題`)
   }
   // ── 聊一聊（對話式共讀，T-102）：3 歲問得出來的一題，答不出來時大人示範 ─────────────
   {

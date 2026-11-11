@@ -23,7 +23,7 @@ const load = () => getKV<EnState>(KV, START)
 export const MATCH_DEMOS = 2
 
 /**
- * 今天講哪一篇（換篇規則只在這裡）：跟今天中文課同一篇（lessons/chinese/progress 的 lessonToday：一篇連上 3 天、照上過幾次走）。
+ * 今天講哪一篇（換篇規則只在這裡）：跟今天中文課的新篇同一篇（lessons/chinese/progress 的 lessonToday；T-136 起中文課一天兩篇、一舊一新，每上一次換新的一篇，英文版跟新篇走）。
  * 家長要改成別的換法（例如每天新的一篇）時只改這個函式。
  */
 async function todaysDay(): Promise<ZhText> {

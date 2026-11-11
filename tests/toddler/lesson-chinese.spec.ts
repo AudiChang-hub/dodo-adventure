@@ -7,7 +7,7 @@ import { Checker, alive, checkDoubleRecords, doorAt, ignoreNext, pressBack, toHo
 
 /**
  * 中文課（src/lessons/chinese/）：親子共讀（2026-11-03 起 App 不出聲，大人念）。第一次有給大人的說明卡 → 念課文（一次亮一行，大人按「下一行」）
- * → 聊一聊 → 選圖（三選一）→ 下課。每篇連上 3 次（course.ts），3 次都一樣（T-131：以前第 2 次的框起來、標「停」拿掉了）。
+ * → 聊一聊 → 選圖（三選一）→ 下課。一天兩篇，一舊一新（T-136，course.ts）：第 4 次起先上 3 次前的舊篇短版（念課文 → 一題 → 找一樣的字，大人可以跳過），最後小複習。
  * 選圖之後最後一題是「找一樣的字」（T-117，.zh-glyph）：上面一個字，下面兩、三個字，點長得一模一樣的那個；最初幾堂手先示範。
  * 三歲孩子會做的事：大人還沒按「下一行」時亂點、連點紅字和圖、連點「下一行」「去選圖」和選項、兩根手指一起按、一進來就想回去、
  * 上到一半回首頁再進來（同一天要是同一篇、從第一行開始）。整堂課不能要任何中文音檔、不能用平板內建語音。
@@ -62,6 +62,45 @@ const todayStr = () => {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 }
 
+/** 讀一筆 kv */
+const getKV = <T,>(page: Page, key: string) =>
+  page.evaluate(
+    (key) =>
+      new Promise<T | null>((res) => {
+        const rq = indexedDB.open('dodo-adventure')
+        rq.onsuccess = () => {
+          const g = rq.result.transaction('kv').objectStore('kv').get(key)
+          g.onsuccess = () => res((g.result?.value as T) ?? null)
+          g.onerror = () => res(null)
+        }
+        rq.onerror = () => res(null)
+      }),
+    key,
+  )
+
+/**
+ * 一天兩篇（T-136）：已經上過 3 次課（第 1、2、3 篇），今天第 4 次：先複習 3 次前的第 1 篇〈龜兔賽跑〉（舊篇短版），
+ * 再上新的第 4 篇〈牛頓與蘋果〉，最後小複習前 1 次的第 3 篇〈吃香蕉〉（前 7 次還沒有）。
+ */
+const OLD_TITLE = '龜兔賽跑'
+const NEW_TITLE = '牛頓與蘋果'
+async function seedTwo(page: Page) {
+  await putKV(page, 'zhLesson:introSeen', true)
+  await putKV(page, 'zhLesson:done', [1, 2, 3])
+  await putKV(page, 'zhLesson:course', { day: 3, runs: ['2026-01-03'] })
+  await putKV(page, 'zhLesson:log', [
+    { date: '2026-01-01', day: 1 },
+    { date: '2026-01-02', day: 2 },
+    { date: '2026-01-03', day: 3 },
+  ])
+}
+
+/** 交付用的截圖（TODDLER_SHOTS=資料夾 時才拍） */
+async function shot(page: Page, info: Parameters<Parameters<typeof test>[2]>[1], name: string) {
+  const dir = process.env.TODDLER_SHOTS
+  if (dir) await page.screenshot({ path: `${dir}/${info.project.name}-${name}.png` })
+}
+
 /** 家長區「今天上這篇」（src/lessons/chinese/progress.ts 的 zhLesson:pick）：那篇從第 1 次開始 */
 const pickDay = (page: Page, day: number) => putKV(page, 'zhLesson:pick', { date: todayStr(), day })
 
@@ -78,8 +117,6 @@ const state = (page: Page) =>
       at: read?.dataset.at ?? null,
       lines: root.querySelectorAll('.zh-line').length,
       talk: !!root.querySelector('.zh-talk'),
-      /** 跟第 1 次不一樣的東西（T-131 拿掉的：框起來的詞、「停」、第幾次的小圖示、點圖接話的泡泡） */
-      extra: root.querySelectorAll('.zh-red.gap, .zh-gap-tag, .zh-runs, .zh-say').length,
       quiz: top?.classList.contains('zh-quiz') ?? false,
       ask: top?.querySelector('.zh-ask-word')?.textContent ?? top?.querySelector('.zh-glyph-target')?.getAttribute('data-char') ?? null,
       /** 找一樣的字（T-117）；dim：示範中（下面的字變淡） */
@@ -520,47 +557,140 @@ test.describe('中文課', () => {
     }
   })
 
-  test('第 2、3 次上同一篇跟第 1 次一樣（T-131）：一行一行念 → 聊一聊 → 選圖 → 找一樣的字，沒有「停」、沒有多的題', async ({ page }, info) => {
-    test.skip(!want('lesson-chinese-same'))
-    test.setTimeout(8 * 60_000)
-    const { k, c } = await setup(page, info, '3次都一樣')
+  test('一天兩篇（T-136）：舊篇短版走得完、舊篇時亂點、返回再進來、舊篇上完離開再回來直接上新篇、最後小複習', async ({ page }, info) => {
+    test.skip(!want('lesson-chinese-two'))
+    test.setTimeout(10 * 60_000)
+    const { k, c } = await setup(page, info, '一天兩篇')
     try {
-      await putKV(page, 'zhLesson:introSeen', true)
-      let title: string | null = null
-      // 第 1 篇上過 1 次 → 今天第 2 次；上過 2 次 → 今天第 3 次（course.ts 的 Course）
-      for (const runs of [['2026-01-01'], ['2026-01-01', '2026-01-02']]) {
-        const n = runs.length + 1
-        await putKV(page, 'zhLesson:course', { day: 1, runs })
-        if (!(await enter(k, c))) return
-        let s = await state(page)
-        if (title == null) title = s.title
-        c.outcome(`第 ${n} 次是同一篇`, s.title === title, `〈${s.title}〉`)
-        let extra = 0
-        for (let i = 0; i < 20; i++) {
-          s = await state(page)
-          extra = Math.max(extra, s.extra)
-          if (s.talk || s.quiz || s.cheer) break
-          // 孩子連點亮的那一行的紅字：照樣看圖、不會跳行
-          const r = (await points(page, '.zh-line.on .zh-red'))[0]
-          if (r) await k.spam(r, 2, '亮的那一行的紅字')
-          if (!(await adult(k, '.zh-next', '下一行（大人）'))) await k.wait(500)
-        }
-        c.outcome(`第 ${n} 次念課文跟第 1 次一樣（沒有框起來的詞、「停」）`, extra === 0, `多了 ${extra} 個`)
-        if (extra) await c.once(`same-read-${n}`, '困惑', `第 ${n} 次念課文跟第 1 次不一樣`, `多了 ${extra} 個`)
-        if (!(await readAll(k, c))) return
-        const q = await waitFor(k, (s) => s.quiz || s.glyph || s.cheer, 8000)
-        c.outcome(`第 ${n} 次聊一聊之後是選圖`, !!q?.quiz && !q.glyph, q ? (q.glyph ? '直接找字' : q.cheer ? '直接下課' : '選圖') : '沒有出現')
-        if (!(await toGlyph(k, c))) return
-        const qs = await quizRows(page)
-        const odd = qs.filter((r) => /:(story|order):/.test(r.itemId)).length
-        c.outcome(`第 ${n} 次只有選圖題（沒有故事題、排順序）`, qs.length > 0 && odd === 0, `選圖 ${qs.length} 筆、多的題 ${odd} 筆`)
-        if (!(await toHome(k, c))) return
+      await seedTwo(page)
+      if (!(await enter(k, c))) return
+      let s = await state(page)
+      c.outcome('先上舊篇（3 次前上的〈龜兔賽跑〉）', s.title === OLD_TITLE, `〈${s.title}〉`)
+      if (s.title !== OLD_TITLE) return void (await c.once('two-old', '困惑', '第 4 次課沒有先上 3 次前上的舊篇', `〈${s.title}〉`))
+      c.outcome('舊篇時大人看得到「跳過舊篇」', !!(await page.$('.zh-skip-old')), '')
+      await c.screenOk('舊篇短版・念課文')
+      await shot(page, info, '舊篇短版-念課文')
+
+      // 舊篇時亂點：連點亮的圖、課本空白、手掌壓；不會跳過舊篇、不會自己往下
+      k.behavior = '舊篇時亂點'
+      const pic = (await points(page, '.zh-line.on .zh-pic'))[0]
+      if (pic) await k.spam(pic, 4, '亮的圖')
+      const book = (await points(page, '.zh-page'))[0]
+      if (book) {
+        await k.palm([{ x: book.x - 60, y: book.y }, { x: book.x, y: book.y + 40 }, { x: book.x + 60, y: book.y }], 250)
+        await k.spam({ x: book.x + k.r.range(-120, 120), y: book.y + k.r.range(-60, 60) }, 3, '課本')
       }
+      await k.wait(800)
+      s = await state(page)
+      c.outcome('舊篇時亂點不跳過、不往下', s.title === OLD_TITLE && s.at === '0', `〈${s.title}〉第 ${s.at} 行`)
+      if (s.title !== OLD_TITLE) await c.once('two-tap-skip', '困惑', '舊篇時孩子亂點就跳過了舊篇', `〈${s.title}〉`)
+
+      // 舊篇念到一半按返回 → 首頁；再進來還是舊篇、從第一行開始
+      k.behavior = '舊篇念到一半返回'
+      await adult(k, '.zh-next', '下一行（大人）')
+      if (!(await toHome(k, c))) return
+      if (!(await enter(k, c))) return
+      s = await state(page)
+      c.outcome('舊篇返回再進來：還是舊篇、從第一行', s.title === OLD_TITLE && s.at === '0', `〈${s.title}〉第 ${s.at} 行`)
+
+      // 大人一行一行念完：最後一行的按鈕直接「去選圖」（短版沒有聊一聊）→ 一題選圖 → 找一樣的字
+      k.behavior = '大人念完舊篇'
+      let talked = false
+      let lastLabel = ''
+      for (let i = 0; i < 12; i++) {
+        s = await state(page)
+        talked ||= s.talk
+        if (s.quiz || s.talk || s.cheer) break
+        lastLabel = (await page.evaluate(() => document.querySelector('.zh-next span')?.textContent ?? '')) || lastLabel
+        if (!(await adult(k, '.zh-next', '下一行（大人）'))) await k.wait(500)
+      }
+      const q = await waitFor(k, (s) => s.quiz || s.talk, 8000)
+      c.outcome('舊篇念完直接選圖（沒有聊一聊）', !!q?.quiz && !q.glyph && !talked && lastLabel === '去選圖', `${talked || q?.talk ? '出現聊一聊' : q?.quiz ? '選圖' : '沒有往下'}、最後一行的按鈕「${lastLabel}」`)
+      if (!q?.quiz) return void (await c.once('two-old-quiz', '卡死', '舊篇念完沒有到選圖', ''))
+      await c.screenOk('舊篇短版・選圖')
+      const a1 = (await points(page, '.zh-quiz .tile[data-answer]'))[0]
+      await k.tap(a1, '舊篇選圖的答案')
+      const g = await waitFor(k, (s) => s.glyph, 25_000)
+      c.outcome('舊篇選完一題 → 找一樣的字（家長要求一定要有）', !!g, g ? '找一樣的字' : '沒有出現')
+      if (!g) return void (await c.once('two-old-glyph', '困惑', '舊篇選完一題沒有找一樣的字', ''))
+      const ready = await waitFor(k, (s) => s.glyph && s.accepting && !s.dim, 25_000)
+      if (ready) {
+        const a2 = (await points(page, '.zh-glyph-options .tile[data-answer]'))[0]
+        await k.tap(a2, '舊篇找一樣的字的答案')
+      }
+      const fresh = await waitFor(k, (s) => s.title === NEW_TITLE, 25_000)
+      c.outcome('舊篇找完字 → 新篇〈牛頓與蘋果〉', !!fresh, fresh ? '新篇' : `停在〈${(await state(page)).title}〉`)
+      if (!fresh) return void (await c.once('two-new', '卡死', '舊篇上完沒有接新篇', ''))
+      const old = await getKV<{ day: number; skipped: boolean }>(page, 'zhLesson:old')
+      c.outcome('舊篇記成上完（沒跳過）', old?.day === 1 && old.skipped === false, JSON.stringify(old))
+      c.outcome('新篇沒有「跳過舊篇」', !(await page.$('.zh-skip-old')), '')
+
+      // 新篇念到一半離開、再回來：直接上新篇（舊篇今天上完了），從第一行
+      k.behavior = '新篇念到一半離開再回來'
+      await adult(k, '.zh-next', '下一行（大人）')
+      if (!(await toHome(k, c))) return
+      if (!(await enter(k, c))) return
+      s = await state(page)
+      c.outcome('離開再回來直接上新篇', s.title === NEW_TITLE && s.at === '0', `〈${s.title}〉第 ${s.at} 行`)
+      if (s.title !== NEW_TITLE) await c.once('two-resume', '困惑', '舊篇上完離開再回來，又從舊篇開始', `〈${s.title}〉`)
+
+      // 新篇完整：念課文 → 聊一聊 → 選圖 → 找一樣的字 → 最後小複習（前 1 次上的〈吃香蕉〉）→ 下課
+      if (!(await readAll(k, c))) return
+      const done = await answerAll(k, c, 2)
+      c.outcome('新篇、小複習答完下課', done, done ? '下課' : '沒有下課')
+      if (!done) return void (await c.once('two-done', '卡死', '一天兩篇上不完', ''))
+      const rows = await quizRows(page)
+      const days = [...new Set(rows.map((r) => r.itemId.split(':')[0]))]
+      const review = days.includes('3') || (await glyphRows(page)).length >= 3
+      c.outcome('作答有舊篇、新篇、小複習', days.includes('1') && days.includes('4') && review, `選圖的篇：${days.join('、')}`)
+      if (!review) await c.once('two-review', '困惑', '最後沒有小複習（前 1 次上的那篇）', `選圖的篇：${days.join('、')}`)
+      const log = await getKV<{ day: number }[]>(page, 'zhLesson:log')
+      c.outcome('上課紀錄多一筆新篇', log?.length === 4 && log[3].day === 4, JSON.stringify(log?.map((x) => x.day)))
       await c.flush()
     } finally {
-      finish(k, c, '3次都一樣')
+      finish(k, c, '一天兩篇')
     }
   })
+
+  test('跳過舊篇（T-136）：大人按右上「跳過舊篇」直接上新篇、連點只算一下；離開再回來不會又出舊篇', async ({ page }, info) => {
+    test.skip(!want('lesson-chinese-skip'))
+    test.setTimeout(5 * 60_000)
+    const { k, c } = await setup(page, info, '跳過舊篇')
+    try {
+      await seedTwo(page)
+      if (!(await enter(k, c))) return
+      let s = await state(page)
+      if (s.title !== OLD_TITLE) return void (await c.once('skip-old', '困惑', '第 4 次課沒有先上舊篇', `〈${s.title}〉`))
+      // 選圖時也看得到：念完舊篇、到選圖再跳
+      k.behavior = '舊篇選圖時大人跳過'
+      for (let i = 0; i < 12 && !(await state(page)).quiz; i++) if (!(await adult(k, '.zh-next', '下一行（大人）'))) await k.wait(500)
+      const q = await waitFor(k, (s) => s.quiz, 8000)
+      c.outcome('舊篇選圖時也有「跳過舊篇」', !!q && !!(await page.$('.zh-skip-old')), '')
+      const b = (await points(page, '.zh-skip-old'))[0]
+      if (!b) return void (await c.once('skip-none', '卡死', '舊篇時找不到「跳過舊篇」', ''))
+      await k.spam(b, 3, '跳過舊篇（大人連點）')
+      const fresh = await waitFor(k, (s) => s.title === NEW_TITLE, 8000)
+      c.outcome('跳過舊篇 → 新篇', !!fresh, fresh ? '新篇' : `停在〈${(await state(page)).title}〉`)
+      if (!fresh) return void (await c.once('skip-stuck', '卡死', '按了跳過舊篇沒有到新篇', ''))
+      await k.wait(800)
+      s = await state(page)
+      c.outcome('連點跳過只算一下（新篇從第一行）', s.title === NEW_TITLE && s.at === '0', `〈${s.title}〉第 ${s.at} 行`)
+      const old = await getKV<{ day: number; skipped: boolean }>(page, 'zhLesson:old')
+      c.outcome('舊篇記成跳過', old?.day === 1 && old.skipped === true, JSON.stringify(old))
+      const n = (await quizRows(page)).length
+      c.outcome('跳過不記作答', n === 0, `作答 ${n} 筆`)
+      if (n) await c.once('skip-record', '誤記作答', '按跳過舊篇記了作答', `${n} 筆`)
+      if (!(await toHome(k, c))) return
+      if (!(await enter(k, c))) return
+      s = await state(page)
+      c.outcome('跳過之後離開再回來：直接上新篇', s.title === NEW_TITLE, `〈${s.title}〉`)
+      if (s.title !== NEW_TITLE) await c.once('skip-again', '困惑', '跳過舊篇之後離開再回來，又出現舊篇', `〈${s.title}〉`)
+      await c.flush()
+    } finally {
+      finish(k, c, '跳過舊篇')
+    }
+  })
+
   test('找一樣的字（T-117）：示範時亂點、搶著點、兩指、發呆、連點答案；返回再進來', async ({ page }, info) => {
     test.skip(!want('lesson-chinese-glyph'))
     test.setTimeout(8 * 60_000)

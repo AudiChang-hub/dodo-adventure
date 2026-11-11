@@ -20,6 +20,13 @@
   font-size: 13px;
   color: var(--ink-faint);
 }
+/* 今天先複習的舊篇、最後小複習的篇（T-136） */
+.zh-now-more {
+  margin-top: 6px;
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--ink-soft);
+}
 .zh-btn {
   flex: none;
   padding: 9px 16px;

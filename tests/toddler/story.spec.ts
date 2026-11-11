@@ -672,6 +672,46 @@ test.describe('故事', () => {
 
   // 念完 4 句的三題：故事題發呆（手來指、不自己往下）、點錯淡下去；認角色手掌壓兩張只算第一下；
   // 找一樣的英文字：第一次手先示範（搶著點照常算）、點錯搖一搖淡下去、發呆手來指、點對一對字放大跳一下 → 讀完了
+  test('T-136 英文版跟中文課的新篇：今天先複習舊篇時，故事講的是新篇的英文版；講到一半返回書架、再進來接著講', async ({ page }, info) => {
+    test.skip(!want('story-en-new'))
+    test.setTimeout(4 * 60_000)
+    const { k, c } = await setup(page, info, '英文版跟新篇')
+    try {
+      // 中文課已經上過 3 次課（第 1、2、3 篇）：今天第 4 次，舊篇第 1 篇、新篇第 4 篇（lessons/chinese/course.ts）
+      await seedStory(page, {
+        kv: {
+          'zhLesson:done': [1, 2, 3],
+          'zhLesson:course': { day: 3, runs: ['2026-01-03'] },
+          'zhLesson:log': [
+            { date: '2026-01-01', day: 1 },
+            { date: '2026-01-02', day: 2 },
+            { date: '2026-01-03', day: 3 },
+          ],
+        },
+      })
+      await k.spam((await center(page, DOOR))!, 3, '故事')
+      let live = await waitLive(page, (l) => (l ?? '').startsWith('en-'), 10_000)
+      c.outcome('點故事 → 講中文課新篇（第 4 篇）的英文版，不是舊篇', live === 'en-4', `到 ${live}`)
+      if (live !== 'en-4') return void (await c.once('en-new', '困惑', '中文課今天有舊篇時，故事沒有講新篇的英文版', `到 ${live}`))
+      await settle(page, 1500)
+      // 念的時候亂點、按返回 → 書架；今天這本還是第 4 篇、再進來接著講
+      k.behavior = '念的時候亂點、返回'
+      await k.spam({ x: 640 + k.r.range(-200, 200), y: 380 + k.r.range(-120, 120) }, 3, '連點圖')
+      live = await tapBack(k, c, '英文版講到一半', (l) => l === 'shelf')
+      if (live !== 'shelf') return
+      await k.wait(1000)
+      const day = await page.evaluate(() => document.querySelector<HTMLElement>('.book-card[data-en-book].is-new')?.dataset.enBook ?? null)
+      c.outcome('書架上今天的英文版是第 4 篇', day === '4', `第 ${day} 篇`)
+      const b = await center(page, '.book-card[data-en-book].is-new')
+      if (b) await k.tap(b, '今天的英文版')
+      live = await waitLive(page, (l) => (l ?? '').startsWith('en-'), 8000)
+      c.outcome('再進來還是第 4 篇', live === 'en-4', `到 ${live}`)
+      await c.flush()
+    } finally {
+      finish(k, c, '英文版跟新篇')
+    }
+  })
+
   test('T-129 英文版念完三題：故事題、認角色、找一樣的英文字（示範、點錯、發呆、手掌壓）', async ({ page }, info) => {
     test.skip(!want('story-en'))
     test.setTimeout(6 * 60_000)
