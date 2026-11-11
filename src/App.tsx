@@ -3,6 +3,7 @@ import { AnimatePresence, MotionConfig, motion } from 'motion/react'
 import { useRoute, go, isChildPlay, lastHow, parentOf, type Route } from './lib/nav'
 import { Home } from './screens/Home'
 import { StoryBook } from './screens/StoryBook'
+import { StickerBook } from './screens/StickerBook'
 import { Bedtime } from './screens/Bedtime'
 import { Parent } from './screens/parent/Parent'
 import { PlayGame } from './games/PlayGame'
@@ -23,7 +24,7 @@ const isNight = () => {
 }
 
 /** 畫面的層級：往深的地方走是「往前」（新畫面蓋上來淡入），往淺的地方是「往回」（上面的畫面淡出） */
-const DEPTH: Record<Route['name'], number> = { home: 0, parent: 1, bedtime: 1, lesson: 1, storybook: 1, play: 1 }
+const DEPTH: Record<Route['name'], number> = { home: 0, parent: 1, bedtime: 1, lesson: 1, storybook: 1, stickers: 1, play: 1 }
 
 const keyOf = (r: Route) => (r.name === 'play' ? `play-${r.game}` : r.name === 'lesson' ? `lesson-${r.subject}` : r.name)
 
@@ -41,6 +42,8 @@ function Screen({ r }: { r: Route }) {
       return <LessonScreen subject={r.subject} />
     case 'storybook':
       return <StoryBook />
+    case 'stickers':
+      return <StickerBook />
     case 'bedtime':
       return <Bedtime />
     case 'parent':

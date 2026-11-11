@@ -161,8 +161,8 @@ export async function toHome(k: Toddler, c: Checker) {
   return ok
 }
 
-/** 首頁的一扇門（三堂課、故事、畫畫）：data-door */
-export const doorAt = (page: Page, door: string) => centerOf(page, `.door[data-door="${door}"], .side-door[data-door="${door}"]`)
+/** 首頁的一扇門（三堂課、故事、畫畫、牆上的貼紙板）：data-door */
+export const doorAt = (page: Page, door: string) => centerOf(page, `.door[data-door="${door}"], .side-door[data-door="${door}"], .sticker-board[data-door="${door}"]`)
 
 /**
  * 首頁已經穩定（只剩一層、轉場走完）之後點一扇門：沒進去就像孩子一樣再點一次，最多再點 2 次。
