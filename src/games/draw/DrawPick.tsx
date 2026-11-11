@@ -1,4 +1,4 @@
-import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
 import { motion } from 'motion/react'
 import { Shell } from '../Shell'
 import { CATS, PICTURES, type Picture } from './pictures'
@@ -8,7 +8,7 @@ import { useTaps } from '../../ui/tap'
 import './coloring.css'
 
 // 畫畫的入口（T-138，家長 2026-11-11：「畫圖的部分我希望有著色本，這樣比較好玩」）：
-// 首頁的「畫畫」→ 選白紙自由畫還是著色本（兩個大圖示，沒有字）→ 著色本：左邊分類、右邊往下滑的縮圖，點一張就開始塗。
+// 首頁的「畫畫」→ 選白紙自由畫還是著色本（兩個大圖示，沒有字）→ 著色本：左邊分類、右邊一頁 6 張、大箭頭翻頁，點一張就開始塗。
 // 每一層返回鍵點一下回上一層（塗一張圖 → 著色本 → 選白紙還是著色本 → 首頁，lib/nav.ts 的 parentOf）。
 
 const INK = '#2E2A25'
@@ -37,7 +37,7 @@ function useGoOnce() {
 }
 
 /** 白紙自由畫的圖示：一張白紙、上面一道彩色的塗鴉、旁邊一支蠟筆 */
-function FreeArt() {
+export function FreeArt() {
   return (
     <svg viewBox="0 0 240 200" width="100%" height="100%" aria-hidden="true">
       <g strokeLinejoin="round" strokeLinecap="round">
@@ -74,7 +74,7 @@ export function PictureArt({ pic, colors, box }: { pic: Picture; colors?: Record
 }
 
 /** 著色本的圖示：上面有線圈的本子，翻開的那頁是一條塗了一半的小魚 */
-function BookArt() {
+export function BookArt() {
   const fish = PICTURES.find((p) => p.id === 'fish')!
   return (
     <svg viewBox="0 0 240 200" width="100%" height="100%" aria-hidden="true">
@@ -122,13 +122,29 @@ export function DrawPick() {
   )
 }
 
-/** 著色本上次看的分類、捲到哪裡：塗完一張回來還在同一頁、同一個位置 */
+/** 著色本上次看的分類、翻到第幾頁：塗完一張回來還在同一類、同一頁 */
 let lastCat = 'dino'
-const lastScroll = new Map<string, number>()
+const lastPage = new Map<string, number>()
+
+/** 一頁幾張：3 欄 2 排，每張都比手掌大，整頁放得進畫面，不用捲 */
+export const PER_PAGE = 6
+/** 手指左右滑這麼遠就翻頁（另外有大箭頭，滑不會也翻得到） */
+const SWIPE_PX = 70
+
+/** 翻頁的大箭頭（≥ 2 cm，準則 TOUCH-1）：朝左上一頁、朝右下一頁 */
+function Arrow({ dir }: { dir: -1 | 1 }) {
+  return (
+    <svg viewBox="0 0 48 48" width="56%" aria-hidden="true" style={{ transform: dir < 0 ? 'scaleX(-1)' : undefined }}>
+      <path d="M17 10 L33 24 L17 38" fill="none" stroke={INK} strokeWidth={6.5} strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  )
+}
 
 /**
- * 著色本：左邊一排分類的大圖示（恐龍、動物、海洋、交通工具、水果、房子和氣球；圖示是那一類塗好顏色的一張圖，沒有字），
- * 右邊是那一類的縮圖，往下滑看更多，點一張就開始塗。
+ * 著色本（T-139：盲測 ccf7ac7「圖卡要往下捲才看得全，3 歲不一定會捲」）：
+ * 左邊一排分類的大圖示（恐龍、動物、海洋、交通工具、水果、房子和氣球；圖示是那一類塗好顏色的一張圖，沒有字），
+ * 右邊一頁 6 張縮圖，整頁都看得到、不用捲；兩邊的大箭頭點一下翻頁（左右滑也可以），下面的小圓點是第幾頁。
+ * 第一頁沒有往左的箭頭、最後一頁沒有往右的箭頭。點一張就開始塗。
  */
 export function ColoringBook() {
   useHello('d.book.intro')
@@ -136,22 +152,28 @@ export function ColoringBook() {
   const once = useGoOnce()
   const uid = useId()
   const [cat, setCat] = useState(() => (CATS.some((c) => c.id === lastCat) ? lastCat : CATS[0].id))
-  const scroller = useRef<HTMLDivElement>(null)
-  /**
-   * 手指往上推、往下拉就捲動（自己做，不靠瀏覽器的觸控捲動：在這個 App 裡觸控捲動不一定接得到）。
-   * 只跟第一根手指；拖超過 8 px 才算在捲，縮圖的點一下（useTaps 超過 40 px 就不算點）不會變成捲動，捲動也不會打開圖。
-   * 紙感螢幕：手放開就停，不滑行。
-   */
-  const pan = useRef<{ id: number; y: number; top: number; moving: boolean } | null>(null)
   const list = PICTURES.filter((p) => p.cat === cat)
-  // 回到上次捲到的位置
-  useLayoutEffect(() => {
-    const el = scroller.current
-    if (el) el.scrollTop = lastScroll.get(cat) ?? 0
-  }, [cat])
+  const pages = Math.max(1, Math.ceil(list.length / PER_PAGE))
+  const [page, setPage] = useState(() => Math.min(lastPage.get(cat) ?? 0, pages - 1))
+  /** 翻頁的方向：新的一頁從那一邊滑進來 */
+  const [dir, setDir] = useState(1)
+  const at = Math.min(page, pages - 1)
+  const shown = list.slice(at * PER_PAGE, at * PER_PAGE + PER_PAGE)
+  const flip = (d: -1 | 1) => {
+    const next = at + d
+    if (next < 0 || next >= pages) return
+    sfx.pop()
+    setDir(d)
+    setPage(next)
+    lastPage.set(cat, next)
+  }
+  const flipRef = useRef(flip)
+  flipRef.current = flip
+  /** 左右滑翻頁：只跟第一根手指，放手時看橫的走了多遠（直的走比較多就不算） */
+  const swipe = useRef<{ id: number; x: number; y: number } | null>(null)
   return (
     <Shell station="draw" mood="idle" onExit={() => go({ name: 'draw' }, { back: true })} hideHost hint={false}>
-      <div className="coloring-book" data-coloring-book="" data-cat={cat}>
+      <div className="coloring-book" data-coloring-book="" data-cat={cat} data-page={at} data-pages={pages}>
         <div className="coloring-cats" role="tablist">
           {CATS.map((c) => {
             const pic = PICTURES.find((p) => p.id === c.icon) ?? PICTURES.find((p) => p.cat === c.id)!
@@ -169,6 +191,8 @@ export function ColoringBook() {
                   sfx.pop()
                   lastCat = c.id
                   setCat(c.id)
+                  setDir(1)
+                  setPage(lastPage.get(c.id) ?? 0)
                 })}
               >
                 <PictureArt pic={pic} colors={c.colors} />
@@ -176,46 +200,57 @@ export function ColoringBook() {
             )
           })}
         </div>
-        <div
-          ref={scroller}
-          className="coloring-scroll"
-          onScroll={(e) => void lastScroll.set(cat, (e.target as HTMLElement).scrollTop)}
-          onPointerDown={(e) => {
-            if (pan.current || e.pointerType === 'mouse') return
-            pan.current = { id: e.pointerId, y: e.clientY, top: e.currentTarget.scrollTop, moving: false }
-          }}
-          onPointerMove={(e) => {
-            const p = pan.current
-            if (!p || p.id !== e.pointerId) return
-            const dy = e.clientY - p.y
-            if (!p.moving && Math.abs(dy) < 8) return
-            p.moving = true
-            e.currentTarget.scrollTop = p.top - dy
-          }}
-          onPointerUp={(e) => {
-            if (pan.current?.id === e.pointerId) pan.current = null
-          }}
-          onPointerCancel={(e) => {
-            if (pan.current?.id === e.pointerId) pan.current = null
-          }}
-        >
-          <div className="coloring-grid">
-            {list.map((p, i) => (
-              <motion.button
-                key={`${uid}-${cat}-${p.id}`}
-                className="coloring-page"
-                data-pic={p.id}
-                aria-label={p.title}
-                initial={{ y: 14, opacity: 0 }}
-                animate={{ y: 0, opacity: 1 }}
-                transition={{ type: 'spring', stiffness: 240, damping: 24, delay: Math.min(i, 8) * 0.04 }}
-                whileTap={{ scale: 0.94 }}
-                {...tap(p.id, () => once(() => go({ name: 'play', game: 'd-color', station: 'draw', pic: p.id })))}
-              >
-                <PictureArt pic={p} />
-              </motion.button>
-            ))}
+        <div className="coloring-pager">
+          <button className="coloring-arrow coloring-prev" aria-label="上一頁" data-hidden={at === 0 ? '' : undefined} {...tap('prev', () => flipRef.current(-1))}>
+            <Arrow dir={-1} />
+          </button>
+          <div
+            className="coloring-pagebox"
+            onPointerDown={(e) => {
+              if (!swipe.current) swipe.current = { id: e.pointerId, x: e.clientX, y: e.clientY }
+            }}
+            onPointerUp={(e) => {
+              const s = swipe.current
+              if (!s || s.id !== e.pointerId) return
+              swipe.current = null
+              const dx = e.clientX - s.x
+              if (Math.abs(dx) >= SWIPE_PX && Math.abs(dx) > Math.abs(e.clientY - s.y) * 1.5) flipRef.current(dx < 0 ? 1 : -1)
+            }}
+            onPointerCancel={(e) => {
+              if (swipe.current?.id === e.pointerId) swipe.current = null
+            }}
+          >
+            <motion.div
+              key={`${cat}-${at}`}
+              className="coloring-grid"
+              initial={{ x: dir * 40, opacity: 0 }}
+              animate={{ x: 0, opacity: 1 }}
+              transition={{ duration: 0.28, ease: 'easeOut' }}
+            >
+              {shown.map((p) => (
+                <motion.button
+                  key={`${uid}-${cat}-${p.id}`}
+                  className="coloring-page"
+                  data-pic={p.id}
+                  aria-label={p.title}
+                  whileTap={{ scale: 0.94 }}
+                  {...tap(p.id, () => once(() => go({ name: 'play', game: 'd-color', station: 'draw', pic: p.id })))}
+                >
+                  <PictureArt pic={p} />
+                </motion.button>
+              ))}
+            </motion.div>
+            {pages > 1 && (
+              <div className="coloring-dots" aria-hidden="true">
+                {Array.from({ length: pages }, (_, i) => (
+                  <i key={i} className={i === at ? 'on' : undefined} />
+                ))}
+              </div>
+            )}
           </div>
+          <button className="coloring-arrow coloring-next" aria-label="下一頁" data-hidden={at >= pages - 1 ? '' : undefined} {...tap('next', () => flipRef.current(1))}>
+            <Arrow dir={1} />
+          </button>
         </div>
       </div>
     </Shell>

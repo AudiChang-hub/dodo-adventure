@@ -320,21 +320,47 @@ test.describe('學校首頁', () => {
       c.outcome('著色本有分類、恐龍很多張', cats.length >= 5 && cats[0] === 'dino' && pages >= 30, `分類 ${cats.join('、')}；恐龍 ${pages} 張`)
       await c.screenOk('著色本')
 
-      // 2b. 往下滑：看得到更多，滑的時候不會打開一張圖
-      k.behavior = '往下滑'
-      const sc = (await rect('.coloring-scroll'))!
-      const vh = page.viewportSize()!.height
-      const y0 = Math.min(sc.top + sc.h * 0.7, vh * 0.75)
-      await k.drag([{ x: sc.x, y: y0 }, { x: sc.x + 10, y: y0 - 150 }, { x: sc.x + 20, y: y0 - 300 }], { label: '往上推（往下看）', stepMs: 12 })
+      // 2b. 翻頁（T-139：不用捲）：一頁 6 張，大箭頭點一下翻頁，左右滑也可以；第一頁沒有往左、最後一頁沒有往右
+      k.behavior = '翻頁'
+      const pg = async () => ({
+        page: Number(await attr('.coloring-book', 'data-page')),
+        pages: Number(await attr('.coloring-book', 'data-pages')),
+        pics: await page.evaluate(() => [...document.querySelectorAll('[data-pic]')].map((e) => e.getAttribute('data-pic')).join(',')),
+        prev: (await attr('.coloring-prev', 'data-hidden')) === null,
+        next: (await attr('.coloring-next', 'data-hidden')) === null,
+      })
+      const p0 = await pg()
+      c.outcome('一頁 6 張、不用捲', p0.pics.split(',').length === 6 && p0.pages >= 2 && !p0.prev && p0.next, `第 ${p0.page + 1}/${p0.pages} 頁 ${p0.pics.split(',').length} 張；往左 ${p0.prev}、往右 ${p0.next}`)
+      await k.tap((await rect('.coloring-next'))!, '下一頁')
+      await k.wait(700)
+      const p1 = await pg()
+      c.outcome('點大箭頭翻到下一頁', p1.page === 1 && p1.pics !== p0.pics && p1.prev, `第 ${p1.page + 1} 頁；圖換了 ${p1.pics !== p0.pics}；往左 ${p1.prev}`)
+      // 連點下一頁：一直翻，但不會離開著色本、不會打開圖
+      await k.spam((await rect('.coloring-next'))!, 6, '連點下一頁')
       await k.wait(900)
-      const top1 = await page.evaluate(() => document.querySelector('.coloring-scroll')?.scrollTop ?? 0)
-      c.outcome('往下滑看更多、不會打開圖', top1 > 40 && (await live()) === 'coloring', `捲了 ${Math.round(top1)} px；在 ${await live()}`)
-      // 再往下拉回最上面
-      await k.drag([{ x: sc.x, y: y0 - 300 }, { x: sc.x - 10, y: y0 - 100 }, { x: sc.x - 20, y: y0 + 60 }], { label: '往下拉（回上面）', stepMs: 12 })
-      await k.drag([{ x: sc.x, y: y0 - 300 }, { x: sc.x - 10, y: y0 - 100 }, { x: sc.x - 20, y: y0 + 60 }], { label: '再往下拉', stepMs: 12 })
-      await k.wait(600)
-      const top2 = await page.evaluate(() => document.querySelector('.coloring-scroll')?.scrollTop ?? 0)
-      c.outcome('往下拉回最上面', top2 === 0 && (await live()) === 'coloring', `捲到 ${Math.round(top2)} px；在 ${await live()}`)
+      const p2 = await pg()
+      c.outcome('連點下一頁', p2.page >= p1.page && (await live()) === 'coloring', `第 ${p2.page + 1} 頁；在 ${await live()}`)
+      // 左右滑：往右滑回上一頁，滑的時候不會打開圖
+      const box = (await rect('.coloring-pagebox'))!
+      await k.drag([{ x: box.x - 160, y: box.y }, { x: box.x, y: box.y + 10 }, { x: box.x + 160, y: box.y + 6 }], { label: '往右滑', stepMs: 12 })
+      await k.wait(800)
+      const p3 = await pg()
+      c.outcome('往右滑回上一頁、不會打開圖', p3.page === p2.page - 1 && (await live()) === 'coloring', `第 ${p2.page + 1} → ${p3.page + 1} 頁；在 ${await live()}`)
+      // 一直點下一頁到最後一頁：最後一頁沒有往右的箭頭
+      for (let i = 0; i < 20 && (await pg()).next; i++) {
+        await k.tap((await rect('.coloring-next'))!, '下一頁')
+        await k.wait(750)
+      }
+      const pz = await pg()
+      c.outcome('翻到最後一頁', pz.page === pz.pages - 1 && !pz.next && pz.prev && pz.pics.length > 0, `第 ${pz.page + 1}/${pz.pages} 頁；往右 ${pz.next}`)
+      // 翻回第一頁
+      for (let i = 0; i < 20 && (await pg()).prev; i++) {
+        await k.tap((await rect('.coloring-prev'))!, '上一頁')
+        await k.wait(750)
+      }
+      const pa = await pg()
+      c.outcome('翻回第一頁', pa.page === 0 && !pa.prev && pa.pics === p0.pics, `第 ${pa.page + 1} 頁；往左 ${pa.prev}`)
+      await c.screenOk('翻頁')
 
       // 2c. 換分類：連點、每一類都點一次，縮圖跟著換；再回到恐龍
       k.behavior = '換分類'
@@ -355,6 +381,8 @@ test.describe('學校首頁', () => {
 
       // 3. 返回一下回上一層，再進來（剛返回過 1 秒內在同一處再按會被防連點擋掉，那是對的：先停一下）
       k.behavior = '著色本返回'
+      // 翻到第 2 頁再返回：再進來還在第 2 頁
+      await k.tap((await rect('.coloring-next'))!, '下一頁')
       await k.wait(1500)
       await settle(page, 4000)
       await holdHome(k, c, '著色本返回')
@@ -363,6 +391,8 @@ test.describe('學校首頁', () => {
       await k.tap((await centerOf(page, '[data-pick="book"]'))!, '著色本')
       await waitLive(page, (l) => l === 'coloring', 4000)
       await settle(page, 4000)
+      const back2 = Number(await attr('.coloring-book', 'data-page'))
+      c.outcome('返回再進來停在同一頁', back2 === 1, `第 ${back2 + 1} 頁`)
 
       // 4. 兩根手指同時點兩張圖：只進一張
       k.behavior = '兩根手指點兩張圖'
