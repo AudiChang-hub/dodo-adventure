@@ -114,6 +114,7 @@ function strokeStart(d: string) {
  *     描到一半放手：「You drew it!」、筆從他停下來的地方帶著描完，往下走（T-122：不要他重描）；
  *     完全沒描上（亂畫）：一樣「You drew it!」、筆帶著描完，往下走（T-125：不再要他重描，LESSON_RETRIES 0；
  *     以前整堂第一次是 Nice try! 再描一次）。不說 Almost、不讓他覺得錯了；
+ *     筆示範時搶著畫的那一下、多指或手掌壓著的那一下不算沒描好（T-134）：示範收掉、輪到他，綠點等他描；
  *   - 按得太遠（吸不到）：圓點彈一下；連兩次再說一次「從綠點開始」；
  *   - 下一筆的起點有一圈光往外擴，看得出要從哪裡開始；
  *   - 10 秒沒動：筆從現在描到的地方往後描一次（不出墨、不說話）；再 15 秒說一次「從綠點開始」；
@@ -205,6 +206,14 @@ export function Trace({
   const inkLast = useRef<P2 | null>(null)
   /** 按下去時描的是哪一筆（這一下描完一筆、換到下一筆的，不算沒描上） */
   const dragT = useRef<PathTracker | null>(null)
+  /** 現在按在畫面上的手指（觸控的 pointerId）：兩根以上就是多指或手掌 */
+  const touches = useRef(new Set<number>())
+  /**
+   * 這一下不算「沒描好」（T-134）：筆正在示範的時候搶著畫的那一下，或按著的時候畫面上有兩根以上的手指（手掌壓著）。
+   * PM 三歲測試「走完一課」：示範時手掌壓上去滑一下，第一根手指畫了 9 mm 以上，就被當成沒描好、筆帶著描完，他根本沒描到。
+   * 這一下照樣搶掉示範、描得上就照常算進度（描到 LIFT_FINISH 一樣補滿）；只是放手時不走 missed，綠點留著等他描。
+   */
+  const extra = useRef(false)
   const cur = useRef({ r: from, strokes, stroke: 0 })
   cur.current = { r, strokes, stroke }
 
@@ -393,6 +402,27 @@ export function Trace({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
+  // 數畫面上有幾根手指（T-134）：Ink 只跟著第一根手指，其他手指它不理，這裡在 window 的捕獲階段先數。
+  // 按著的時候又多一根手指（手掌壓上來）：這一下也不算沒描好
+  useEffect(() => {
+    const set = touches.current
+    const down = (e: PointerEvent) => {
+      if (e.pointerType !== 'touch') return
+      set.add(e.pointerId)
+      if (set.size >= 2) extra.current = true
+    }
+    const up = (e: PointerEvent) => void set.delete(e.pointerId)
+    window.addEventListener('pointerdown', down, true)
+    window.addEventListener('pointerup', up, true)
+    window.addEventListener('pointercancel', up, true)
+    return () => {
+      window.removeEventListener('pointerdown', down, true)
+      window.removeEventListener('pointerup', up, true)
+      window.removeEventListener('pointercancel', up, true)
+      set.clear()
+    }
+  }, [])
+
   const strokeDone = async () => {
     const { strokes: ss } = cur.current
     devs.current.push(tracker.current!.metrics())
@@ -523,6 +553,8 @@ export function Trace({
   const onDown = (p: P2) => {
     if (!tracker.current || busy.current || !armed.current) return
     // 示範、說明的時候下筆：示範收掉，這一筆照常描
+    // 只有筆正在示範（demo）的那一下：示範完念「Your turn!」、說明的時候（intro）下筆是真的在描，照常算
+    extra.current = phase.current === 'demo' || touches.current.size >= 2
     if (phase.current !== 'turn') takeOver()
     const t = tracker.current
     idle.poke()
@@ -593,7 +625,7 @@ export function Trace({
     if (open && drawing.current && t.progress > 0 && t.ratio >= LIFT_FINISH) {
       // 描到大部分就放手：算描完（T-101）
       void fillRest(t)
-    } else if (open && was && isAttempt(t, len)) {
+    } else if (open && was && isAttempt(t, len) && !extra.current) {
       // 沒描好（沒描上、描到一半放手都算，T-112、T-113）：描到一半放手的，筆從斷掉的地方帶著描完往下走；
       // 完全沒描上的，整堂課第一次 Nice try! 再描一次，之後也是帶著描完（T-122，missed）。
       // 沒描上的線淡掉；描到一半的照舊留著（跑道已經填到那裡）
