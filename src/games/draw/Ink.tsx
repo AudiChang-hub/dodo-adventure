@@ -55,6 +55,11 @@ interface Props {
    * plain(s) 是一般的筆（例如對稱筆畫兩次）。沒有 brush 的筆畫不會叫它。
    */
   paint?: (ctx: CanvasRenderingContext2D, s: Stroke, last: boolean, plain: (s: Stroke) => void) => boolean
+  /**
+   * 選用（T-132，只有自由畫畫給）：回 true 的筆畫在畫的途中就直接畫在底層的畫布上（橡皮擦：要擦到已經畫好的墨）。
+   * 這種筆畫要重畫幾次結果都一樣（例如不透明的 destination-out）。沒給就跟以前一樣畫在上層。
+   */
+  onBase?: (s: Stroke) => boolean
 }
 
 // 防手掌誤觸：只有在筆正在接觸螢幕或懸停、以及筆離開後約 1 秒內，才忽略手指與手掌。
@@ -88,7 +93,7 @@ function toPath(outline: number[][]): Path2D {
   return p
 }
 
-export const Ink = forwardRef<InkHandle, Props>(function Ink({ w, h, color = '#2E2A25', size = 14, ink = true, disabled = false, onBlocked, onDown, onMove, onUp, brush, paint }, ref) {
+export const Ink = forwardRef<InkHandle, Props>(function Ink({ w, h, color = '#2E2A25', size = 14, ink = true, disabled = false, onBlocked, onDown, onMove, onUp, brush, paint, onBase }, ref) {
   const base = useRef<HTMLCanvasElement>(null)
   const live = useRef<HTMLCanvasElement>(null)
   const strokes = useRef<Stroke[]>([])
@@ -100,8 +105,8 @@ export const Ink = forwardRef<InkHandle, Props>(function Ink({ w, h, color = '#2
   const [ghost, setGhost] = useState<{ x: number; y: number; n: number } | null>(null)
   const ghostTimer = useRef(0)
   useEffect(() => () => clearTimeout(ghostTimer.current), [])
-  const props = useRef({ color, size, ink, disabled, onBlocked, onDown, onMove, onUp, brush, paint })
-  props.current = { color, size, ink, disabled, onBlocked, onDown, onMove, onUp, brush, paint }
+  const props = useRef({ color, size, ink, disabled, onBlocked, onDown, onMove, onUp, brush, paint, onBase })
+  props.current = { color, size, ink, disabled, onBlocked, onDown, onMove, onUp, brush, paint, onBase }
   const notYet = useNotYet()
 
   const draw = (ctx: CanvasRenderingContext2D, s: Stroke, last: boolean) => {
@@ -224,19 +229,30 @@ export const Ink = forwardRef<InkHandle, Props>(function Ink({ w, h, color = '#2
     }
   }
 
+  /** 這一筆是不是直接畫在底層（onBase，例如橡皮擦） */
+  const onBaseNow = (s: Stroke | null) => !!s && !!props.current.onBase?.(s)
   const redrawLive = (last = false) => {
     const c = live.current
     if (!c || !cur.current) return
     clearCanvas(c)
-    if (props.current.ink) draw(c.getContext('2d')!, cur.current, last)
+    if (!props.current.ink) return
+    if (onBaseNow(cur.current)) return draw(base.current!.getContext('2d')!, cur.current, last)
+    draw(c.getContext('2d')!, cur.current, last)
+  }
+  /** 畫到一半丟掉的那一筆：直接畫在底層的（橡皮擦）要把底層重畫回來 */
+  const drop = () => {
+    const was = onBaseNow(cur.current)
+    active.current = null
+    cur.current = null
+    clearCanvas(live.current)
+    if (was) redrawBase()
   }
 
   /** 示範中變成 disabled：畫到一半的那一筆直接丟掉（不留墨、遊戲也不會收到 onUp） */
   useEffect(() => {
     if (!disabled || active.current === null) return
-    active.current = null
-    cur.current = null
-    clearCanvas(live.current)
+    drop()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [disabled])
 
   /** captured：這一筆是從畫布上下筆的（拿得到 pointer capture）；從畫布外滑進來的那一筆沒有 */
@@ -258,11 +274,7 @@ export const Ink = forwardRef<InkHandle, Props>(function Ink({ w, h, color = '#2
       return
     }
     // 手掌先碰到、筆才下來：筆優先，丟掉手掌那一筆（還沒留下筆跡）
-    if (active.current !== null && e.pointerType === 'pen' && !isPen.current) {
-      active.current = null
-      cur.current = null
-      clearCanvas(live.current)
-    }
+    if (active.current !== null && e.pointerType === 'pen' && !isPen.current) drop()
     if (active.current !== null) return
     active.current = e.pointerId
     isPen.current = e.pointerType === 'pen'

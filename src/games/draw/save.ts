@@ -44,3 +44,16 @@ export async function imageOf(url: string): Promise<HTMLImageElement> {
   await img.decode()
   return img
 }
+
+/** 透明底的圖（有用橡皮擦的筆跡，T-132）鋪在紙色上：擦掉的地方存成紙，不是透明的洞 */
+export async function onPaper(url: string, bg = '#FBF8F2'): Promise<string> {
+  const img = await imageOf(url)
+  const c = document.createElement('canvas')
+  c.width = img.naturalWidth
+  c.height = img.naturalHeight
+  const ctx = c.getContext('2d')!
+  ctx.fillStyle = bg
+  ctx.fillRect(0, 0, c.width, c.height)
+  ctx.drawImage(img, 0, 0)
+  return c.toDataURL('image/webp', 0.8)
+}

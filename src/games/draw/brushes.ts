@@ -7,6 +7,7 @@
 //   trail:ewe,cow      蓋印筆：沿著筆跡蓋出一串今天的小圖（冒號後面是 Fluent Emoji 的名字）
 //   dots               點點筆：畫出一顆一顆的點
 //   stamp:ewe          印章：手指放開的地方蓋一個今天的角色（稍微挪一下印章會跟著手指；拖遠了就變成用現在的顏色畫線）
+//   eraser             橡皮擦（T-132）：手指走過的地方擦成透明，擦得掉畫的線和印章；今天的背景是畫布底下的另一層，擦不掉
 import { EMOJI } from '../../art/emoji.generated'
 import type { Pt, Stroke } from './Ink'
 
@@ -115,6 +116,16 @@ export function isStampTap(s: Stroke): boolean {
   return s.pts.every((p) => Math.hypot(p.x - o.x, p.y - o.y) <= STAMP_DRAG)
 }
 
+/** 橡皮擦（T-132）：筆畫的 brush */
+export const ERASER = 'eraser'
+/**
+ * 橡皮擦的寬度（邏輯座標，畫紙 1000 寬；1200×786 上大約 70 px，比三歲的指頭寬一大圈）：
+ * 三歲的手不準，擦的地方要比手指寬，才擦得到他想擦的那一條
+ */
+export const ERASE_SIZE = 96
+/** 這一筆是橡皮擦 */
+export const isEraser = (s: Pick<Stroke, 'brush'>) => s.brush === ERASER
+
 /**
  * 給 Ink 的 paint：有 brush 的筆畫怎麼畫。回 false 就照一般的筆畫。
  * w：畫紙的邏輯寬度（對稱筆以正中間為軸）。plain：Ink 一般的筆（perfect-freehand）。
@@ -174,6 +185,26 @@ export function makePaint(w: number) {
         // 拖得很遠：是在畫線，照一般的筆畫（用現在的顏色）
         if (!isStampTap(s)) return false
         drawEmoji(ctx, arg, p.x, p.y, STAMP_SIZE)
+        return true
+      }
+      case 'eraser': {
+        // 用 destination-out 把之前畫的（線、印章）擦成透明：照順序重畫的時候，擦掉之後再畫的不受影響。
+        // 粗細一樣、不透明的圓頭線：同一個地方擦兩次結果一樣，所以畫到一半可以整筆直接畫在底層（Ink 的 onBase）
+        ctx.save()
+        ctx.globalCompositeOperation = 'destination-out'
+        ctx.fillStyle = ctx.strokeStyle = '#000'
+        ctx.lineCap = 'round'
+        ctx.lineJoin = 'round'
+        ctx.lineWidth = s.size
+        ctx.beginPath()
+        if (s.pts.length < 2) ctx.arc(s.pts[0].x, s.pts[0].y, s.size / 2, 0, Math.PI * 2)
+        else {
+          ctx.moveTo(s.pts[0].x, s.pts[0].y)
+          for (const p of s.pts.slice(1)) ctx.lineTo(p.x, p.y)
+        }
+        if (s.pts.length < 2) ctx.fill()
+        else ctx.stroke()
+        ctx.restore()
         return true
       }
       default:

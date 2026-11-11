@@ -473,6 +473,243 @@ for (const g of selected().filter((x) => x.kind === 'free')) {
   })
 }
 
+/**
+ * T-132 自由畫畫的橡皮擦（家長 2026-11-11：「畫圖的地方要多橡皮擦的功能」）。一個三歲小孩依序：
+ * 畫一條線、蓋一個印章 → 連點橡皮擦 → 沿著線擦、擦印章（墨要真的不見，今天的背景還在）→ 擦到一半放手（被系統搶走）
+ * → 手掌壓著擦 → 點顏色又能畫（畫在擦過的地方）→ 亂點工具和畫紙 → 擦的時候按返回 → 世界關掉時擦過再存檔（縮圖沒有透明的洞）。
+ */
+for (const g of selected().filter((x) => x.kind === 'free')) {
+  test(`${g.id} 橡皮擦`, async ({ page }, info) => {
+    const lite = !!info.project.metadata?.lite
+    const seed = hashSeed(BASE_SEED, g.id, 't132', info.project.name)
+    const k = new Toddler(page, info, seed, info.project.name)
+    const c = new Checker(k, page)
+    k.where = `${STATIONS[g.station]}／${g.title}（${g.id}）橡皮擦`
+    await page.addInitScript(() => {
+      if (!sessionStorage.getItem('t132.world')) localStorage.setItem('dodo:world', 'farm')
+    })
+    await boot(page, seed, { to: 'home' })
+    await k.init()
+    const up = upOf(g)
+    const at = (sel: string, i = 0) =>
+      page.evaluate(
+        ({ sel, i }) => {
+          const root = [...document.querySelectorAll<HTMLElement>('.scene')].filter((e) => !e.inert).pop() ?? document
+          const r = root.querySelectorAll(sel)[i]?.getBoundingClientRect()
+          return r ? { x: r.left + r.width / 2, y: r.top + r.height / 2, w: r.width, h: r.height, left: r.left, top: r.top } : null
+        },
+        { sel, i },
+      )
+    const pressed = (sel: string) => page.evaluate((sel) => document.querySelector(sel)?.getAttribute('aria-pressed') === 'true', sel)
+    /** 選到的顏色有幾個 */
+    const colorsOn = () => page.evaluate(() => document.querySelectorAll('.tool-col .tool[aria-label="顏色"][aria-pressed="true"]').length)
+    const room = async () => (await at('.tool-room'))!
+    /** 畫紙上一條橫線（f 是畫紙高度的比例），點落在畫紙左邊大半（避開右上角的白紙鍵） */
+    const lineAt = async (f: number) => {
+      const r = await room()
+      return [0.12, 0.22, 0.32, 0.42, 0.52].map((x) => ({ x: r.left + r.w * x, y: r.top + r.h * f }))
+    }
+    const spot = async () => {
+      const r = await room()
+      return { x: r.left + r.w * k.r.range(0.12, 0.7), y: r.top + r.h * k.r.range(0.25, 0.85) }
+    }
+    const eraser = async () => (await at('.tool-eraser'))!
+    const color = async (i: number) => (await at('.tool-col .tool[aria-label="顏色"]', i))!
+
+    try {
+      k.behavior = '進場'
+      if (!(await enterGame(k, c, g))) return
+      await k.wait(1500)
+      if (!(await at('.tool-eraser'))) {
+        await c.once('t132-tool', '困惑', '工具欄上找不到橡皮擦', '')
+        return
+      }
+
+      // 1. 先畫一條線、蓋一個印章
+      k.behavior = '畫線、蓋章'
+      const line = await lineAt(0.4)
+      await k.tap(await color(4), '藍色')
+      await k.drag(line, { label: '畫一條線' })
+      const stampAt = (await lineAt(0.75))[2]
+      const hasStamp = !!(await at('.tool-stamp'))
+      if (hasStamp) {
+        await k.tap((await at('.tool-stamp'))!, '印章')
+        await k.tap(stampAt, '蓋一個')
+      }
+      await k.wait(400)
+      const ink0 = await inkAt(page, line)
+      const stamp0 = hasStamp ? await inkAt(page, [stampAt]) : 0
+      c.outcome('畫線、蓋章', ink0 > 0 && (!hasStamp || stamp0 > 0), `線上的墨 ${ink0}、印章的墨 ${stamp0}`)
+
+      // 2. 連點橡皮擦：選到橡皮擦，顏色、印章、魔法筆都沒有選到（看得出現在拿的不是蠟筆）
+      k.behavior = '連點橡皮擦'
+      await k.spam(await eraser(), lite ? 3 : 6, '橡皮擦')
+      await k.wait(300)
+      {
+        const on = await pressed('.tool-eraser')
+        const others = (await colorsOn()) + ((await pressed('.tool-stamp')) ? 1 : 0) + ((await pressed('.tool-magic')) ? 1 : 0)
+        c.outcome('連點橡皮擦', on && others === 0, `橡皮擦${on ? '選到' : '沒選到'}，同時選到的其他工具 ${others} 個`)
+        if (!on || others) await c.once('t132-on', '困惑', '點橡皮擦之後看不出選到橡皮擦', `橡皮擦 ${on}、其他 ${others}`)
+      }
+
+      // 3. 沿著線擦、擦印章：墨真的不見，今天的背景還在
+      k.behavior = '擦掉'
+      {
+        // 三歲擦得歪歪的：上下晃 12 px 也要擦得到
+        await k.drag(
+          line.map((p, i) => ({ x: p.x, y: p.y + (i % 2 ? 12 : -12) })),
+          { label: '沿著線擦' },
+        )
+        if (hasStamp) await k.drag([{ x: stampAt.x - 20, y: stampAt.y }, { x: stampAt.x + 20, y: stampAt.y + 6 }], { label: '擦印章' })
+        await k.wait(300)
+        const ink1 = await inkAt(page, line)
+        const stamp1 = hasStamp ? await inkAt(page, [stampAt]) : 0
+        const bd = !!(await at('[data-backdrop]'))
+        const ok = ink1 === 0 && stamp1 === 0 && bd
+        c.outcome('擦掉', ok, `線上的墨 ${ink0} → ${ink1}；印章的墨 ${stamp0} → ${stamp1}；今天的背景${bd ? '還在' : '不見了'}`)
+        if (ink1 || stamp1) await c.once('t132-erase', '困惑', '用橡皮擦擦過，畫的東西還在', `線 ${ink0} → ${ink1}、印章 ${stamp0} → ${stamp1}`)
+        if (!bd) await c.once('t132-backdrop', '困惑', '用橡皮擦之後今天的背景不見了', '')
+      }
+
+      // 4. 擦到一半放手（手指被系統手勢搶走）：擦過的地方照樣擦掉，之後還能擦
+      k.behavior = '擦到一半放手'
+      {
+        await k.tap(await color(0), '紅色')
+        const l2 = await lineAt(0.6)
+        await k.drag(l2, { label: '再畫一條' })
+        const before = await inkAt(page, l2)
+        await k.tap(await eraser(), '橡皮擦')
+        await k.drag(l2.slice(0, 3), { cancel: true, label: '擦到一半被搶走' })
+        await k.wait(300)
+        const half = await inkAt(page, l2.slice(0, 3))
+        await k.drag(l2.slice(2), { label: '再擦另一半' })
+        await k.wait(300)
+        const rest = await inkAt(page, l2)
+        const ok = before > 0 && half === 0 && rest === 0
+        c.outcome('擦到一半放手', ok, `墨 ${before}；被搶走的那一半 ${half}；再擦完 ${rest}`)
+        if (!ok) await c.once('t132-cancel', '卡死', '擦到一半放手之後擦不掉', `墨 ${before} → 一半 ${half} → 全部 ${rest}`)
+      }
+
+      // 5. 手掌壓著擦、多指：不會壞
+      k.behavior = '手掌擦'
+      for (let i = 0; i < (lite ? 2 : 4); i++) {
+        const p = await spot()
+        await k.palm([p, { x: p.x + 60, y: p.y + 30 }, { x: p.x - 40, y: p.y + 50 }], 300)
+      }
+      await c.screenOk('手掌擦')
+
+      // 6. 點顏色：回到畫筆，畫在擦過的地方照樣出墨
+      k.behavior = '點顏色又能畫'
+      {
+        await k.tap(await color(3), '綠色')
+        await k.wait(200)
+        const off = !(await pressed('.tool-eraser'))
+        const on = (await colorsOn()) === 1
+        await k.drag(line, { label: '在擦過的地方畫' })
+        await k.wait(200)
+        const ink = await inkAt(page, line)
+        const ok = off && on && ink > 0
+        c.outcome('點顏色又能畫', ok, `橡皮擦${off ? '放下了' : '還拿著'}、顏色${on ? '選到' : '沒選到'}；擦過的地方再畫墨 ${ink}`)
+        if (!ok) await c.once('t132-back-to-pen', '困惑', '用過橡皮擦之後點顏色畫不出來', `橡皮擦 ${!off}、顏色 ${on}、墨 ${ink}`)
+      }
+
+      // 7. 亂點：橡皮擦和顏色換來換去，邊點邊畫、手掌、拖到一半放手（不能出錯、畫面不會壞）
+      k.behavior = '亂點橡皮擦和顏色'
+      {
+        const n = lite ? 10 : 24
+        for (let i = 0; i < n; i++) {
+          const roll = k.r.int(6)
+          if (roll === 0) await k.spam(await eraser(), 1 + k.r.int(3), '橡皮擦')
+          else if (roll === 1) await k.tap(await color(k.r.int(7)), '顏色')
+          else if (roll === 2) await k.palm([await spot(), await spot()], 200)
+          else if (roll === 3) await k.spam(await spot(), 2, '畫紙')
+          else await k.drag([await spot(), await spot(), await spot()], { stepMs: 8, cancel: roll === 4 && k.r.int(2) === 0 })
+        }
+        await k.wait(500)
+        await c.screenOk('亂點橡皮擦和顏色')
+        // 最後點一個顏色畫一筆：一定畫得出來
+        await k.tap(await color(1), '橘色')
+        const l3 = await lineAt(0.3)
+        await k.drag(l3, { label: '亂點完畫一筆' })
+        const ink = await inkAt(page, l3)
+        c.outcome('亂點之後還能畫', ink > 0, `墨 ${ink}`)
+        if (!ink) await c.once('t132-chaos', '卡死', '亂點橡皮擦和顏色之後畫不出來', '')
+      }
+
+      // 8. 拿著橡皮擦、手指還按在畫紙上就按返回：回到上一層
+      k.behavior = '擦的時候按返回'
+      await k.tap(await eraser(), '橡皮擦')
+      {
+        const p0 = await spot()
+        await holdHome(k, c, '擦的時候按返回', { second: [p0, { x: p0.x + 40, y: p0.y - 30 }] })
+        const live = (await snap(page)).live
+        c.rule('NAV-2', live === up, `擦的時候按返回到 ${live}（上一層 ${up}）`)
+      }
+
+      // 9. 沒有今天的世界（空白畫紙）：畫一條、擦一段再存檔，縮圖擦掉的地方是紙色，不是透明的洞
+      k.behavior = '擦過再存檔'
+      await page.evaluate(() => {
+        sessionStorage.setItem('t132.world', 'off')
+        localStorage.setItem('dodo:world', 'off')
+      })
+      if ((await toHome(k, c)) && (await enterGame(k, c, g))) {
+        await k.wait(1500)
+        await k.tap(await color(6), '黑色')
+        const l = await lineAt(0.5)
+        await k.drag(l, { label: '畫一條' })
+        await k.tap(await eraser(), '橡皮擦')
+        await k.drag(l.slice(0, 2), { label: '擦一段' })
+        await k.wait(800)
+        await k.tap((await at('.tool-done'))!, '完成')
+        await k.wait(2500)
+        const thumb = await page.evaluate(
+          () =>
+            new Promise<{ holes: number; ink: number } | null>((res) => {
+              const rq = indexedDB.open('dodo-adventure')
+              rq.onerror = () => res(null)
+              rq.onsuccess = () => {
+                const db = rq.result
+                const gq = db.transaction('drawings').objectStore('drawings').getAll()
+                gq.onsuccess = async () => {
+                  db.close()
+                  const last = (gq.result as { ts: number; thumb: string }[]).sort((a, b) => b.ts - a.ts)[0]
+                  if (!last) return res(null)
+                  const img = new Image()
+                  img.src = last.thumb
+                  await img.decode().catch(() => {})
+                  const cv = document.createElement('canvas')
+                  cv.width = img.naturalWidth
+                  cv.height = img.naturalHeight
+                  const ctx = cv.getContext('2d')!
+                  ctx.drawImage(img, 0, 0)
+                  const d = ctx.getImageData(0, 0, cv.width, cv.height).data
+                  let holes = 0
+                  let ink = 0
+                  for (let i = 0; i < d.length; i += 4) {
+                    if (d[i + 3] < 250) holes++
+                    else if (d[i] < 90 && d[i + 1] < 90 && d[i + 2] < 90) ink++
+                  }
+                  res({ holes, ink })
+                }
+                gq.onerror = () => res(null)
+              }
+            }),
+        )
+        const ok = !!thumb && thumb.holes === 0 && thumb.ink > 50
+        c.outcome('擦過再存檔', ok, thumb ? `縮圖透明的洞 ${thumb.holes} 個像素、黑色的墨 ${thumb.ink}` : '找不到作品')
+        if (!ok) await c.once('t132-save', '困惑', '用過橡皮擦的作品縮圖不對', JSON.stringify(thumb))
+      }
+      await c.flush()
+    } finally {
+      await c.flush().catch(() => {})
+      k.save(`${g.id}-t132`, { game: g, base: BASE_SEED, outcomes: c.outcomes, stats: c.stats, rules: c.rules })
+    }
+    const serious = k.findings.filter((f) => f.severity === '卡死' || f.severity === '無法返回' || f.severity === '誤記作答')
+    expect.soft(serious.map((f) => `${f.severity}：${f.title}`), '嚴重問題').toEqual([])
+    expect.soft(k.findings.length, `全部問題：${k.findings.map((f) => f.title).join(' | ')}`).toBe(0)
+  })
+}
+
 /** 確定在遊戲裡（玩完了、被帶走就再進去） */
 async function ensureIn(k: Toddler, c: Checker, g: (typeof import('./catalog'))['GAMES'][number]) {
   const s = await snap(k.page)
