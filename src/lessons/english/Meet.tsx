@@ -61,7 +61,8 @@ export function Meet({ letter, review, repeat = false, onDone }: { letter: Lesso
       if (!ok()) return
       // 開場：今天新的字母 Today's letter is S!；同一天複習 Let's practice S again!；
       // 隔天重上同一個字母 Look! S is back!（T-127：以前跟第一天一字不差，孩子聽到一模一樣的開場）
-      await say(review ? `ph.${l}.again` : repeat ? `ph.${l}.back` : `ph.${l}.today`)
+      // 前面先叫自己的名字 Hi! I'm Dodo!（T-137：記住恐龍的名字）；同一串念，點字母照舊整串停掉（T-108）
+      await say('hi.dodo', review ? `ph.${l}.again` : repeat ? `ph.${l}.back` : `ph.${l}.today`)
       if (!ok()) return
       setLit('big')
       await say(`ph.${l}.big`)

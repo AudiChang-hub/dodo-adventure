@@ -1,10 +1,12 @@
-import { useEffect, type CSSProperties, type ReactNode } from 'react'
+import { useEffect, useState, type CSSProperties, type ReactNode } from 'react'
 import { motion } from 'motion/react'
 import { Dino } from '../art/Dino'
 import { Emoji } from '../art/Emoji'
 import { go, type Route } from '../lib/nav'
-import { say, sfx } from '../lib/audio'
+import { onSpeech, say, sfx, stopSpeech } from '../lib/audio'
 import { audioReady, onUnlock } from '../lib/boot'
+import { getKV, setKV } from '../lib/db'
+import { segments } from '../content/lines'
 import { useTaps } from '../ui/tap'
 import { useInstall } from '../lib/install'
 import { useIntro } from '../ui/Scenes'
@@ -14,6 +16,38 @@ import { BoardStickers } from './StickerBook'
 import './school.css'
 
 let greeted = false
+
+/**
+ * 記住三隻恐龍的名字（T-137）：前 INTRO_TIMES 次打開 App，首頁的招呼換成豆豆介紹大家
+ * （Hi, 名字! I'm Dodo! → This is Bobo! → And this is Momo!），說到誰、門口那隻就跳一下。之後照舊只說 Hi, 名字! Let's go!
+ * 次數記在 kv 的 INTRO_KEY（開始介紹就算一次，被點門打斷也算）。
+ */
+export const INTRO_TIMES = 5
+export const INTRO_KEY = 'home.dinoIntro'
+/** 介紹的三句，依序是誰跳 */
+const INTRO: { key: string; who: Speaker }[] = [
+  { key: 'home.intro.0', who: 'dodo' },
+  { key: 'home.intro.1', who: 'bobo' },
+  { key: 'home.intro.2', who: 'momo' },
+]
+/** 這次打開 App 的招呼流程；點門離開時作廢（還沒讀到次數就點了門，就不再開口） */
+let greetRun = 0
+/** 介紹正在說（點門時停掉，不帶到課裡） */
+let introducing = false
+
+async function greet() {
+  const my = ++greetRun
+  const n = await getKV<number>(INTRO_KEY, 0).catch(() => INTRO_TIMES)
+  if (my !== greetRun) return
+  if (n >= INTRO_TIMES) return void say('home.hello')
+  void setKV(INTRO_KEY, n + 1).catch(() => {})
+  introducing = true
+  try {
+    await say(...INTRO.map((x) => x.key))
+  } finally {
+    if (my === greetRun) introducing = false
+  }
+}
 
 /** 門上的圖：孩子不識字，看圖和守門的恐龍就知道是哪一課（門下的字是給大人看的） */
 const SIGN: Record<Subject, ReactNode> = {
@@ -65,7 +99,7 @@ export function Home() {
   useEffect(() => {
     const hello = () => {
       greeted = true
-      void say('home.hello')
+      void greet()
     }
     if (!greeted && audioReady()) hello()
     return onUnlock(() => {
@@ -73,10 +107,29 @@ export function Home() {
     })
   }, [])
 
+  // 介紹說到誰，門口那隻跳一下（那一句的最後一段開始時；跳一次就停，MOTION-1/2）
+  const [hop, setHop] = useState<{ who: Speaker; n: number } | null>(null)
+  useEffect(
+    () =>
+      onSpeech((e) => {
+        if (e.type !== 'seg' && e.type !== 'whole') return
+        const x = INTRO.find((i) => i.key === e.key)
+        if (!x || (e.type === 'seg' && e.seg !== segments(e.line).length - 1)) return
+        setHop((h) => ({ who: x.who, n: (h?.n ?? 0) + 1 }))
+      }),
+    [],
+  )
+
   // 點門：按下、放開就進去，不等瀏覽器的 click（ui/tap.ts：有時候 click 沒來，孩子會覺得按了沒反應）
   const tap = useTaps()
   const open = (to: Route) => {
     greeted = true
+    // 介紹還沒說完就點門：停掉介紹，不帶到下一個畫面（T-137；以前的 Hi, 名字! Let's go! 照舊不停）
+    greetRun++
+    if (introducing) {
+      introducing = false
+      stopSpeech()
+    }
     sfx.pop()
     go(to)
   }
@@ -141,8 +194,16 @@ export function Home() {
                   <span className="door-glass">{SIGN[s]}</span>
                   <span className="door-knob" />
                 </span>
-                <span className="door-host">
-                  <Dino who={d.host} mood="idle" size="100%" flip={i === 2} />
+                <span className="door-host" data-hop={hop?.who === d.host ? hop.n : undefined}>
+                  {/* 換 key 重新掛上：從第一格開始跳一次 */}
+                  <motion.span
+                    key={hop?.who === d.host ? hop.n : 0}
+                    style={{ display: 'block' }}
+                    animate={hop?.who === d.host ? { y: [0, -36, 0, -12, 0] } : { y: 0 }}
+                    transition={{ duration: 0.8, ease: 'easeOut' }}
+                  >
+                    <Dino who={d.host} mood="idle" size="100%" flip={i === 2} />
+                  </motion.span>
                 </span>
                 <span className="door-label">{d.title}</span>
               </motion.button>

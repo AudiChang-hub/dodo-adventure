@@ -1,5 +1,7 @@
 import { test, expect, type Page } from '@playwright/test'
-import { boot, homeButton, settle, snap, storyToldToday, targets } from './lib/app'
+import { boot, homeButton, now, settle, snap, storyToldToday, targets } from './lib/app'
+import fs from 'node:fs'
+import path from 'node:path'
 import { Toddler, hashSeed } from './lib/toddler'
 import { Checker, doorAt, drawAndMeasure, pressBack, tapDoor, toHome, toddlerStep, waitLive } from './lib/flows'
 
@@ -231,6 +233,287 @@ test.describe('學校首頁', () => {
       }
     } finally {
       finish(k, c, '點門馬上畫')
+    }
+  })
+})
+
+// ── T-137 記住三隻恐龍的名字 ───────────────────────────────────
+// 首頁：前 5 次打開 App，豆豆介紹大家（說到誰、門口那隻跳一下），之後不再介紹；介紹時亂點、連點門不疊音，點門馬上進課、介紹停掉。
+// 點門口的恐龍：照舊進課（門口的恐龍是門的一部分），進課第一句就是恐龍自己的名字（英文 Hi! I'm Dodo!、數學 Hi! I'm Bobo!），
+// 開場被點擊打斷（T-108）；中文課不出聲，莫莫腳邊有名牌「莫莫 Momo」。
+// 只跑這一組：npm run test:toddler -- home-names
+const INTRO_KEY = 'home.dinoIntro'
+const SHOTS = path.resolve('test-results', 't137')
+
+const kvGet = (page: Page, key: string) =>
+  page.evaluate(
+    (key) =>
+      new Promise<unknown>((res) => {
+        const rq = indexedDB.open('dodo-adventure')
+        rq.onsuccess = () => {
+          const db = rq.result
+          const g = db.transaction('kv').objectStore('kv').get(key)
+          g.onsuccess = () => {
+            db.close()
+            res((g.result as { value?: unknown } | undefined)?.value ?? null)
+          }
+        }
+      }),
+    key,
+  )
+const kvSet = (page: Page, key: string, value: unknown) =>
+  page.evaluate(
+    ({ key, value }) =>
+      new Promise<void>((res) => {
+        const rq = indexedDB.open('dodo-adventure')
+        rq.onsuccess = () => {
+          const db = rq.result
+          const tx = db.transaction('kv', 'readwrite')
+          tx.objectStore('kv').put({ key, value })
+          tx.oncomplete = () => {
+            db.close()
+            res()
+          }
+        }
+      }),
+    { key, value },
+  )
+/** 從 t 開始的每一段語音（字幕在開始 120ms 後才填進來） */
+const voiceRecs = (page: Page, t: number) =>
+  page.evaluate((t) => window.__toddler.voices.filter((v) => v.t >= t).map((v) => ({ t: v.t, end: v.end, text: v.text ?? '', stopped: v.stopped })), t)
+const textsOf = (vs: { text: string }[]) => vs.map((v) => v.text).join(' / ')
+/** 等到某一句開始說（回傳那一段語音） */
+async function waitVoice(page: Page, t: number, re: RegExp, ms = 6000) {
+  const end = Date.now() + ms
+  while (Date.now() < end) {
+    const v = (await voiceRecs(page, t)).find((x) => re.test(x.text))
+    if (v) return v
+    await page.waitForTimeout(80)
+  }
+  return null
+}
+/** 首頁上沒有按鈕的一點（點了只是解鎖聲音，什麼都不會開） */
+const blankAt = (page: Page) =>
+  page.evaluate(() => {
+    for (const [x, y] of [
+      [40, innerHeight * 0.45],
+      [innerWidth - 40, innerHeight * 0.5],
+      [innerWidth / 2, innerHeight * 0.2],
+    ]) {
+      const el = document.elementFromPoint(x, y)
+      if (el && !el.closest('button, [role="button"], a, .parent-corner')) return { x, y, nav: true }
+    }
+    return { x: 40, y: innerHeight * 0.45, nav: true }
+  })
+/** 記下門口哪幾隻恐龍跳過（data-hop 變了就記那扇門） */
+const watchHops = (page: Page) =>
+  page.evaluate(() => {
+    const w = window as unknown as { __hops: string[] }
+    w.__hops = []
+    new MutationObserver((ms) => {
+      for (const m of ms) {
+        const el = m.target as Element
+        if (el.getAttribute('data-hop')) w.__hops.push(el.closest('[data-door]')?.getAttribute('data-door') ?? '?')
+      }
+    }).observe(document.body, { subtree: true, attributes: true, attributeFilter: ['data-hop'] })
+  })
+const hops = (page: Page) => page.evaluate(() => (window as unknown as { __hops?: string[] }).__hops ?? [])
+const dinoAt = (page: Page, door: string) =>
+  page.evaluate((door) => {
+    const r = document.querySelector(`.door[data-door="${door}"] .door-host`)?.getBoundingClientRect()
+    return r ? { x: r.left + r.width / 2, y: r.top + r.height * 0.45 } : null
+  }, door)
+const shot = async (page: Page, info: { project: { name: string } }, name: string) => {
+  fs.mkdirSync(SHOTS, { recursive: true })
+  await page.screenshot({ path: path.join(SHOTS, `${info.project.name}-${name}.png`) })
+}
+async function reopen(page: Page) {
+  await page.reload()
+  await page.waitForSelector('.screen.home', { timeout: 20_000 })
+  await settle(page)
+}
+
+test.describe('T-137 恐龍的名字', () => {
+  const on = () => want('home-names') || want('home-doors')
+
+  test('首頁介紹：前 5 次打開 App 才介紹、說到誰誰跳一下、亂點不疊音', async ({ page }, info) => {
+    test.skip(!on())
+    test.setTimeout(4 * 60_000)
+    const { k, c } = await setup(page, info, '恐龍介紹')
+    try {
+      // 第 1 次打開：點空白處（瀏覽器要點一下才出聲），接著亂點、連點空白處
+      k.behavior = '第 1 次打開：介紹時亂點空白處'
+      await watchHops(page)
+      const t0 = await now(page)
+      const blank = await blankAt(page)
+      await k.tap(blank, '空白處（解鎖聲音）')
+      const first = await waitVoice(page, t0, /Dodo/)
+      await k.wait(250)
+      await shot(page, info, '首頁介紹-豆豆')
+      await k.spam(blank, 6, '連點空白處')
+      const momo = await waitVoice(page, t0, /Momo/, 8000)
+      if (momo) {
+        await k.wait(250)
+        await shot(page, info, '首頁介紹-莫莫')
+      }
+      await k.wait(2500)
+      const v1 = await voiceRecs(page, t0)
+      const order = ['Dodo', 'Bobo', 'Momo'].map((n) => v1.findIndex((v) => v.text.includes(n)))
+      const okSay = !!first && order.every((i) => i >= 0) && order[0] < order[1] && order[1] < order[2]
+      c.outcome('第 1 次打開：豆豆說 I am Dodo、介紹 Bobo、Momo（依序）', okSay, textsOf(v1))
+      if (!okSay) await c.once('intro-1', '困惑', '第 1 次打開 App 沒有聽到三隻恐龍的介紹', textsOf(v1))
+      const h1 = await hops(page)
+      const want3 = ['english', 'math', 'chinese']
+      const okHop = want3.every((d) => h1.includes(d)) && h1.indexOf('english') < h1.indexOf('math') && h1.indexOf('math') < h1.indexOf('chinese')
+      c.outcome('說到誰、門口那隻跳一下（豆豆 → 波波 → 莫莫）', okHop, h1.join(' → '))
+      if (!okHop) await c.once('intro-hop', '困惑', '介紹時門口的恐龍沒有依序跳', h1.join(' → '))
+      const n1 = await kvGet(page, INTRO_KEY)
+      c.outcome('記下介紹過 1 次', n1 === 1, String(n1))
+      if (n1 !== 1) await c.once('intro-count', '小問題', '介紹的次數沒有記下來', String(n1))
+      await c.flush()
+
+      // 第 5 次打開（前面已經介紹 4 次）：還會介紹，記成 5
+      k.behavior = '第 5 次打開'
+      await kvSet(page, INTRO_KEY, 4)
+      await reopen(page)
+      const t5 = await now(page)
+      await k.tap(await blankAt(page), '空白處（解鎖聲音）')
+      const m5 = await waitVoice(page, t5, /Momo/, 9000)
+      const n5 = await kvGet(page, INTRO_KEY)
+      c.outcome('第 5 次打開還會介紹', !!m5 && n5 === 5, `${textsOf(await voiceRecs(page, t5))}；次數 ${n5}`)
+      if (!m5 || n5 !== 5) await c.once('intro-5', '困惑', '第 5 次打開 App 沒有介紹', `次數 ${n5}`)
+      await k.wait(1500)
+      await c.flush()
+
+      // 第 6 次打開：不再介紹，照舊 Hi, 名字! Let's go!
+      k.behavior = '第 6 次打開'
+      await reopen(page)
+      await watchHops(page)
+      const t6 = await now(page)
+      await k.tap(await blankAt(page), '空白處（解鎖聲音）')
+      const go = await waitVoice(page, t6, /Let's go/, 5000)
+      await k.wait(3000)
+      const v6 = await voiceRecs(page, t6)
+      const h6 = await hops(page)
+      const n6 = await kvGet(page, INTRO_KEY)
+      const okSix = !!go && !v6.some((v) => /Dodo|Bobo|Momo/.test(v.text)) && !h6.length && n6 === 5
+      c.outcome('第 6 次打開不再介紹（照舊 Let us go）', okSix, `${textsOf(v6)}；跳：${h6.join(',') || '沒有'}；次數 ${n6}`)
+      if (!okSix) await c.once('intro-6', '困惑', '介紹過 5 次之後還在介紹（或沒有招呼）', textsOf(v6))
+      await c.flush()
+    } finally {
+      finish(k, c, '恐龍介紹')
+    }
+  })
+
+  test('介紹時連點門：馬上進課、介紹停掉、不疊音', async ({ page }, info) => {
+    test.skip(!on())
+    test.setTimeout(3 * 60_000)
+    const { k, c } = await setup(page, info, '介紹時點門')
+    try {
+      for (const d of [
+        { door: 'math', live: 'lesson-math' },
+        { door: 'english', live: 'lesson-english' },
+      ]) {
+        k.behavior = `介紹到一半連點 ${d.door} 門`
+        await toHome(k, c)
+        await kvSet(page, INTRO_KEY, 0)
+        await reopen(page)
+        const t0 = await now(page)
+        await k.tap(await blankAt(page), '空白處（解鎖聲音）')
+        await waitVoice(page, t0, /Dodo/)
+        await k.wait(300)
+        const t1 = await now(page)
+        await k.spam((await doorAt(page, d.door))!, 4, `連點 ${d.door} 門`)
+        const live = await waitLive(page, (l) => l === d.live, 5000)
+        c.outcome(`介紹時連點門：進到 ${d.live}`, live === d.live, `${live}`)
+        if (live !== d.live) await c.once(`intro-door:${d.door}`, '卡死', `介紹時點 ${d.door} 門沒有進課`, `停在 ${live}`)
+        await k.wait(4000)
+        const after = (await voiceRecs(page, t1)).filter((v) => v.t > t1 + 250)
+        const leak = after.filter((v) => /This is Bobo|this is Momo/.test(v.text))
+        // 點門時正在說的那一句介紹：點了就停（不會說完）
+        const talking = (await voiceRecs(page, t0)).filter((v) => v.t < t1 && v.end > t1 + 1200)
+        const late = talking.filter((v) => v.stopped == null || v.stopped > t1 + 1200)
+        const ok = !leak.length && !late.length
+        c.outcome('點門之後介紹停掉、沒有帶到課裡', ok, `點門之後：${textsOf(after)}`)
+        if (!ok) await c.once(`intro-leak:${d.door}`, '小問題', '點門進課之後首頁的介紹還在說', textsOf(after))
+        await c.flush()
+      }
+    } finally {
+      finish(k, c, '介紹時點門')
+    }
+  })
+
+  test('點門口的恐龍：照舊進課、恐龍說自己的名字、開場點一下就停；中文課有莫莫的名牌', async ({ page }, info) => {
+    test.skip(!on())
+    test.setTimeout(4 * 60_000)
+    const { k, c } = await setup(page, info, '點恐龍')
+    try {
+      // 已經介紹過 5 次：只看點恐龍、進課
+      await kvSet(page, INTRO_KEY, 5)
+      for (const d of [
+        { door: 'english', live: 'lesson-english', hi: /I'm Dodo/, next: /Today's letter|practice|is back/, cut: '.en-letter.is-big' },
+        { door: 'math', live: 'lesson-math', hi: /I'm Bobo/, next: /Today's number/, cut: '.stage-main' },
+      ]) {
+        k.behavior = `點 ${d.door} 門口的恐龍`
+        await toHome(k, c)
+        await k.wait(600)
+        const t0 = await now(page)
+        await k.tap((await dinoAt(page, d.door))!, `${d.door} 門口的恐龍`)
+        const live = await waitLive(page, (l) => l === d.live, 5000)
+        c.outcome(`點門口的恐龍：照舊進 ${d.live}`, live === d.live, `${live}`)
+        if (live !== d.live) await c.once(`dino-door:${d.door}`, '卡死', `點 ${d.door} 門口的恐龍沒有進課`, `停在 ${live}`)
+        const hi = await waitVoice(page, t0, d.hi, 6000)
+        c.outcome(`進課第一句是恐龍自己的名字（${d.hi.source}）`, !!hi, textsOf(await voiceRecs(page, t0)))
+        if (!hi) {
+          await c.once(`dino-hi:${d.door}`, '困惑', `${d.door} 課的開場沒有叫恐龍自己的名字`, textsOf(await voiceRecs(page, t0)))
+          continue
+        }
+        // 開場搶著點（T-108）：名字還在說就點，整串停掉
+        await page.waitForTimeout(Math.max(0, hi.t + 650 - (await now(page))))
+        const box = await page.evaluate((sel) => {
+          const r = document.querySelector(sel)?.getBoundingClientRect()
+          return r ? { x: r.left + r.width / 2, y: r.top + r.height / 2 } : null
+        }, d.cut)
+        const tc = await now(page)
+        await k.tap(box ?? { x: 600, y: 420 }, '開場搶著點')
+        await k.wait(2500)
+        const rec = (await voiceRecs(page, t0)).find((v) => v.t === hi.t)!
+        const cutOk = rec.end <= tc + 100 || (rec.stopped != null && rec.stopped <= tc + 400)
+        const nextAfter = (await voiceRecs(page, tc + 100)).filter((v) => d.next.test(v.text))
+        c.outcome('開場叫名字時點一下：馬上停、不接著念開場', cutOk && !nextAfter.length, `停在 ${rec.stopped == null ? '沒停' : Math.round(rec.stopped - tc) + 'ms'}；之後：${textsOf(await voiceRecs(page, tc))}`)
+        if (!cutOk || nextAfter.length) await c.once(`dino-cut:${d.door}`, '困惑', `${d.door} 課開場叫名字時點畫面，語音沒有停`, `之後還念：${textsOf(nextAfter)}`)
+        const plate = await page.evaluate(() => !!document.querySelector('.stage-host-name'))
+        c.outcome(`${d.door} 課沒有名牌（恐龍自己會說）`, !plate)
+        if (plate) await c.once(`plate:${d.door}`, '小問題', `${d.door} 課也出現了名牌`, '')
+        await c.flush()
+      }
+
+      k.behavior = '點中文門口的莫莫'
+      await toHome(k, c)
+      await k.wait(600)
+      const t0 = await now(page)
+      await k.tap((await dinoAt(page, 'chinese'))!, '中文門口的莫莫')
+      const live = await waitLive(page, (l) => l === 'lesson-chinese', 5000)
+      c.outcome('點莫莫：照舊進中文課', live === 'lesson-chinese', `${live}`)
+      if (live !== 'lesson-chinese') await c.once('dino-door:chinese', '卡死', '點中文門口的莫莫沒有進課', `停在 ${live}`)
+      await settle(page)
+      await k.wait(1500)
+      const plate = await page.evaluate(() => {
+        const el = document.querySelector<HTMLElement>('.stage-host-name')
+        if (!el) return null
+        const r = el.getBoundingClientRect()
+        return { text: el.textContent ?? '', inView: r.left >= 0 && r.top >= 0 && r.right <= innerWidth && r.bottom <= innerHeight && r.width > 0, pe: getComputedStyle(el).pointerEvents }
+      })
+      const okPlate = !!plate && plate.text.includes('莫莫') && plate.text.includes('Momo') && plate.inView && plate.pe === 'none'
+      c.outcome('中文課莫莫腳邊有名牌「莫莫 Momo」（不接收點擊）', okPlate, JSON.stringify(plate))
+      if (!okPlate) await c.once('plate:chinese', '困惑', '中文課沒有莫莫的名牌', JSON.stringify(plate))
+      await shot(page, info, '中文課名牌')
+      const zhVoice = (await voiceRecs(page, t0)).filter((v) => v.text.includes('Momo'))
+      c.outcome('中文課照舊不出聲（沒有念莫莫的名字）', !zhVoice.length, textsOf(zhVoice))
+      if (zhVoice.length) await c.once('zh-voice', '小問題', '中文課念出了名字（中文課應該不出聲）', textsOf(zhVoice))
+      await c.flush()
+    } finally {
+      finish(k, c, '點恐龍')
     }
   })
 })

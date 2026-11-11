@@ -65,10 +65,18 @@ praise.dodo.forEach((t, i) => def(`praise.en.${i}`, 'dodo', t))
 
 // ── 首頁 ───────────────────────────────────────────────────
 def('home.hello', 'dodo', `Hi, ${N}! Let's go!`)
+// 記住三隻恐龍的名字（T-137，家長：孩子只知道豆豆）。前幾次打開 App，豆豆在首頁介紹大家，說到誰、那隻就跳一下（screens/Home.tsx）
+def('home.intro.0', 'dodo', `Hi, ${N}! I'm Dodo!`)
+def('home.intro.1', 'dodo', 'This is Bobo!')
+def('home.intro.2', 'dodo', 'And this is Momo!')
+// 上課開場先叫自己的名字（英文課 Meet、數學課開場）；中文課不出聲，莫莫旁邊放名牌（games/Shell）
+def('hi.dodo', 'dodo', "Hi! I'm Dodo!")
+def('hi.bobo', 'bobo', "Hi! I'm Bobo!")
 def('bedtime', 'dodo', `Dodo is sleepy... Let's play again tomorrow. Good night, ${N}!`)
 // 下課的晚安道別（T-118，lessons/LessonBye.tsx）：孩子點恐龍，恐龍揮手說晚安、躺下睡覺。中文課的莫莫不出聲（親子共讀）
-def('bye.night.dodo', 'dodo', `Good night, ${N}!`)
-def('bye.night.bobo', 'bobo', `Good night, ${N}!`)
+// T-137：道別帶恐龍自己的名字
+def('bye.night.dodo', 'dodo', `Good night, ${N}! Dodo will miss you!`)
+def('bye.night.bobo', 'bobo', `Good night, ${N}! Bobo will miss you!`)
 // 每局最後一題（比較難）：只說 Last one!，不用 tricky 這種抽象字
 def('challenge', 'dodo', 'Last one!')
 def('challenge.bobo', 'bobo', 'Last one!')

@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useState, type CSSProperties, type ReactNode } from 'react'
-import { Dino, type Mood } from '../art/Dino'
+import { DINO_EN, DINO_NAME, Dino, type Mood } from '../art/Dino'
 import { BackButton } from '../ui/Back'
 import { Scenery } from '../ui/Scenery'
 import { ProgressStars } from '../ui/ProgressStars'
@@ -79,6 +79,12 @@ interface Props {
   demo?: boolean
 }
 
+/**
+ * 主持的恐龍不出聲的站（中文課：親子共讀，大人念）：恐龍腳邊放一塊名牌「莫莫 Momo」，給陪讀的大人念（T-137，記住恐龍的名字）。
+ * 豆豆、波波會自己說 Hi! I'm …!，不放名牌。
+ */
+const NAMEPLATE: readonly StationId[] = ['mandarin']
+
 /** 每個遊戲共用的舞台：上方返回鍵（點一下回上一層）與進度、左下角是主持的恐龍（點它會再說一次題目） */
 export function Shell({ station, mood, progress, onExit, onHost, children, hideHost, hint = true, hintText, demo }: Props) {
   const st = stationDef(station)
@@ -111,6 +117,12 @@ export function Shell({ station, mood, progress, onExit, onHost, children, hideH
         </div>
       )}
       {!hideHost && <div className="stage-host-rest" aria-hidden="true" />}
+      {!hideHost && NAMEPLATE.includes(station) && (
+        // 名牌：不接收點擊（手腕靠的那一條照樣擋著），不動
+        <p className="stage-host-name" data-nameplate={st.host} aria-hidden="true">
+          <b>{DINO_NAME[st.host]}</b> {DINO_EN[st.host]}
+        </p>
+      )}
     </div>
   )
 }
