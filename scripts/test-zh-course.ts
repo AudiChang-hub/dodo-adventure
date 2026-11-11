@@ -5,6 +5,7 @@
 import assert from 'node:assert/strict'
 import { LEGACY, OLD_BACK, REVIEW_BACK, RUNS_PER_TEXT, applyPick, current, finishRun, logSession, migrate, nextDay, planOf, seedLog, undoPick, type Course, type Session } from '../src/lessons/chinese/course'
 import { stepsOf } from '../src/lessons/chinese/steps'
+import { enTodayOf, type EnSkip, type Heard } from '../src/screens/story/en-pages'
 import { readFileSync, readdirSync, statSync } from 'node:fs'
 import { join } from 'node:path'
 import { ZH_TEXTS, linePics, plain, questionsOf, talkFor, talkOf, type ZhText } from '../src/lessons/chinese/data'
@@ -70,6 +71,12 @@ const textOf = (d: number) => ZH_TEXTS.find((t) => t.day === d)!
 const stepsFor = (p: { day: number; n: number; old: number | null; review: number[] }, log: Session[], seed = 1) =>
   stepsOf({ t: textOf(p.day), n: p.n, old: p.old == null ? null : textOf(p.old), review: p.review.map(textOf) }, new Set(log.map((s) => s.day)), GLYPH_START, rng(seed))
 
+/** 一篇當新篇上的時候有哪幾步（念課文、選圖、找字）：舊篇要跟它一模一樣 */
+const lessonKinds = (day: number, done: ReadonlySet<number>) =>
+  stepsOf({ t: textOf(day), n: 1, old: null, review: [] }, done, GLYPH_START, rng(1))
+    .filter((s) => s.part === 'new')
+    .map((s) => s.k)
+
 function main() {
   const first = ZH_TEXTS[0].day
   assert.equal(RUNS_PER_TEXT, 1, '每上一次就換新的一篇')
@@ -82,6 +89,9 @@ function main() {
     const picks = new Map([[12, 40], [30, 120]])
     /** 這幾次課大人跳過舊篇 */
     const skipOld = new Set([6, 15])
+    /** 英文故事每一篇聽完的日期（en-book 的 heard）、大人跳過的舊篇 */
+    const heard: Heard = {}
+    let enSkip: EnSkip | undefined
     const lines: string[] = []
     const news: number[] = []
     let i = 0
@@ -107,16 +117,16 @@ function main() {
       // 小複習＝前 1 次、前 7 次那兩次課的新篇（那一次還沒有就略過）
       const want = REVIEW_BACK.filter((k) => i - k >= 0).map((k) => news[i - k])
       assert.deepEqual(p.review, want, `第 ${i + 1} 次課的小複習`)
-      // 這一堂的每一步：舊篇短版（念課文 → 一題 → 找一樣的字）→ 新篇完整 → 小複習每篇一題
+      // 這一堂的每一步：舊篇（跟它當新篇上的時候一模一樣）→ 新篇 → 小複習每篇一題
       const steps = stepsFor(p, log, i + 1)
       const parts = steps.map((s) => `${s.part}:${s.k}`)
       const old = steps.filter((s) => s.part === 'old')
+      const done = new Set(log.map((s) => s.day))
       if (p.old != null) {
-        assert.deepEqual(old.map((s) => s.k), ['read', 'quiz', 'glyph'], `舊篇短版：${parts.join(' ')}`)
+        assert.deepEqual(old.map((s) => s.k), lessonKinds(p.old, done), `舊篇跟原本的課一樣：${parts.join(' ')}`)
         assert.ok(old.every((s) => s.t.day === p.old))
-        const r = old[0]
-        assert.ok(r.k === 'read' && r.go === '去選圖', '舊篇念完直接去選圖（沒有聊一聊）')
       } else assert.equal(old.length, 0)
+      assert.deepEqual(steps.filter((s) => s.part === 'new').map((s) => s.k), lessonKinds(p.day, done), '新篇是完整的一堂')
       const fresh = steps.filter((s) => s.part === 'new')
       assert.deepEqual([fresh[0].k, fresh[fresh.length - 1].k], ['read', 'glyph'], `新篇完整：${parts.join(' ')}`)
       assert.ok(fresh.every((s) => s.t.day === p.day))
@@ -130,6 +140,19 @@ function main() {
         const to = steps.findIndex((s) => s.part !== 'old')
         assert.ok(to > 0 && steps[to].part === 'new' && steps[to].k === 'read', '跳過舊篇到新篇的念課文')
       }
+      // 英文故事（screens/story/en-pages.ts 的 enTodayOf，跟中文課用同一份排課）：先講舊篇、聽完（或大人跳過）講新篇，結尾小題一樣
+      const date = D(d)
+      const e1 = enTodayOf(p, heard, enSkip, date)
+      assert.deepEqual([e1.day, e1.part], p.old != null ? [p.old, 'old'] : [p.day, 'new'], `${date} 英文故事先講的跟中文課的舊篇一樣`)
+      if (e1.part === 'old') {
+        if (skipOld.has(i)) enSkip = { date, day: e1.day }
+        else (heard[e1.day] ??= []).push(date)
+      }
+      const e2 = enTodayOf(p, heard, enSkip, date)
+      assert.deepEqual([e2.day, e2.part, e2.isNew, e2.review], [p.day, 'new', true, p.review], `${date} 英文故事接著講的跟中文課的新篇、小複習一樣`)
+      ;(heard[e2.day] ??= []).push(date)
+      const e3 = enTodayOf(p, heard, enSkip, date)
+      assert.deepEqual([e3.day, e3.isNew], [p.day, false], `${date} 英文故事兩篇都聽完：今天的書是新篇、聽過了`)
       c = x.c
       log = x.log
       news.push(p.day)
@@ -138,7 +161,7 @@ function main() {
     }
     // 跳過舊篇不影響排課：下一次照樣換新篇、舊篇照紀錄
     assert.equal(log.length, 30)
-    console.log('ok 1 連續 30 次課（跳過 7 天、家長挑 2 次、跳過舊篇 2 次）：每次新篇、舊篇是 3 次前那篇、小複習是前 1 次和前 7 次的，同一天再進來還是同一次\n   ' + lines.join('\n   '))
+    console.log('ok 1 連續 30 次課（跳過 7 天、家長挑 2 次、跳過舊篇 2 次）：每次新篇、舊篇是 3 次前那篇（流程跟新篇一樣）、小複習是前 1 次和前 7 次的，同一天再進來還是同一次；英文故事每次的舊篇、新篇、小題都跟中文課一樣\n   ' + lines.join('\n   '))
   }
   {
     // 跳過的日子不往前；隔了好幾天沒上：下一次是下一篇
@@ -233,7 +256,7 @@ function main() {
     console.log('ok 6 180 篇上完從第 1 篇再來')
   }
   {
-    // 舊篇短版的找一樣的字一定要有（家長要求）：180 篇當舊篇 × 3 級 × 6 種亂數都出得了；小複習每篇都出得了一題
+    // 舊篇跟原本的課一樣（家長 2026-11-11）：180 篇當舊篇，步驟跟當新篇時一模一樣；找一樣的字（換一個紅字考）都出得了、都合法；小複習每篇都出得了一題
     let n = 0
     for (const t of ZH_TEXTS)
       for (const level of [1, 2, 3] as const)
@@ -244,18 +267,13 @@ function main() {
           n++
         }
     const done = new Set(ZH_TEXTS.map((t) => t.day))
-    /** 沒有一題選圖出得了的篇（當新篇也沒有選圖）：舊篇就是念課文 → 找一樣的字、小複習改出找一樣的字 */
-    const noQuiz: number[] = []
     for (const t of ZH_TEXTS) {
       const steps = stepsOf({ t: ZH_TEXTS[0].day === t.day ? ZH_TEXTS[1] : ZH_TEXTS[0], n: 1, old: t, review: [t] }, done, GLYPH_START, rng(t.day))
-      const hasQuiz = questionsOf(t, done).length > 0
-      if (!hasQuiz) noQuiz.push(t.day)
-      assert.deepEqual(steps.filter((s) => s.part === 'old').map((s) => s.k), hasQuiz ? ['read', 'quiz', 'glyph'] : ['read', 'glyph'], `第 ${t.day} 篇舊篇短版`)
+      assert.deepEqual(steps.filter((s) => s.part === 'old').map((s) => s.k), lessonKinds(t.day, done), `第 ${t.day} 篇舊篇跟新篇一樣`)
       const rev = steps.filter((s) => s.part === 'review')
-      assert.deepEqual(rev.map((s) => s.k), [hasQuiz ? 'quiz' : 'glyph'], `第 ${t.day} 篇小複習`)
+      assert.deepEqual(rev.map((s) => s.k), [questionsOf(t, done).length ? 'quiz' : 'glyph'], `第 ${t.day} 篇小複習`)
     }
-    assert.ok(noQuiz.length <= 5, `出不了選圖的篇太多：${noQuiz.join('、')}`)
-    console.log(`ok 7 舊篇短版 180 篇都有「念課文 → 一題 → 找一樣的字」（找字 ${n} 題都合法；第 ${noQuiz.join('、')} 篇本來就出不了選圖，只有念課文 → 找一樣的字），小複習 180 篇都出得了一題`)
+    console.log(`ok 7 舊篇跟原本的課一樣：180 篇當舊篇的步驟都跟當新篇時一模一樣（找一樣的字 ${n} 題都合法），小複習 180 篇都出得了一題`)
   }
   // ── 聊一聊（對話式共讀，T-102）：3 歲問得出來的一題，答不出來時大人示範 ─────────────
   {

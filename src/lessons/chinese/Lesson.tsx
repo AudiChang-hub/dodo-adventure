@@ -50,15 +50,16 @@ function hintOf(s: Step | 'intro', talk: boolean, demo: boolean, hadOld: boolean
         : '指著上面的字問他：「下面哪一個跟它長得一模一樣？」讓他自己找，不用念這是什麼字。找到了可以說：「你看得好仔細，一模一樣！」')
     )
   if (s.k === 'quiz') return `${tag}念題目給他聽：「哪個是〇〇？」再指著${COUNT[s.q.options.length] ?? s.q.options.length}張有黃框的圖說「點一下」。點錯會有提示，不用幫他點。`
-  if (s.part === 'old') return '複習舊篇（短版）：一行一行念，念完問一題、找一樣的字。他累了可以按右邊的「跳過舊篇」。'
-  if (talk) return `照下面的小字條問他，指著圖等他回答；答不出來就照字條說一次給他聽。右下角的「${s.go}」過幾秒才按得動。`
+  if (talk) return `${tag}照下面的小字條問他，指著圖等他回答；答不出來就照字條說一次給他聽。右下角的「${s.go}」過幾秒才按得動。`
+  if (s.part === 'old') return '複習舊篇：念到這行時，請他點亮起來的圖；一行一行念，念完按右下「下一行」。他累了可以按右邊的「跳過舊篇」。'
   return `${hadOld ? '新的一篇：' : ''}念到這行時，請他點亮起來的圖（點了圖會動、不出聲）。指著字一行一行念，念完一行按右下「下一行」。`
 }
 
 /**
  * 中文課的一堂（親子共讀，2026-11-03：App 不出聲，大人念給孩子聽）。家長 2026-11-11 定案（T-136）：一天兩篇，一舊一新：
- * 第一次進來先給大人一張說明 → 舊篇短版（3 次前上的那篇：念課文 → 一題選圖 → 找一樣的字；右上角大人可以跳過）
+ * 第一次進來先給大人一張說明 → 舊篇（3 次前上的那篇，跟原本的課一樣完整；右上角大人可以跳過）
  * → 新篇（念課文 → 聊一聊 → 選圖每個紅字一題 → 找一樣的字）→ 結尾小複習（前 1 次、前 7 次上的各一題）→ 上完叫 onDone。
+ * 英文故事（screens/story/en-book.ts）用同一份排課（course.ts 的 planOf），先舊後新也一樣。
  * 排課在 course.ts；前 3 次沒有舊篇、小複習那一次還沒有就略過。舊篇上完或跳過了，今天離開再回來直接上新篇（progress.ts 的 markOld）。
  * 兩段之間、每一題之間都是原地淡入淡出（ui/Scenes 的 Swap），沒有打斷課程的整頁卡片。
  */
@@ -187,7 +188,7 @@ export function ChineseLessonBody({ onDone }: LessonProps) {
           {at === 'intro' || !s ? (
             <Intro onStart={start} />
           ) : s.k === 'read' ? (
-            <Reader t={s.t} host={host} short={s.part === 'old'} goLabel={s.go} onTalk={setTalk} onNext={afterRead} onLine={onLine} setMood={setMood} />
+            <Reader t={s.t} host={host} goLabel={s.go} onTalk={setTalk} onNext={afterRead} onLine={onLine} setMood={setMood} />
           ) : s.k === 'glyph' ? (
             <Glyph t={s.t} q={s.q} demo={s.demo} host={host} setMood={setMood} onResult={(r) => void saveGlyph(r)} onDemoEnd={() => setGDemoing(false)} onNext={next} />
           ) : (
@@ -226,7 +227,7 @@ function Intro({ onStart }: { onStart: () => void }) {
             <b>一行一行念</b>：畫面一次亮一行，你指著字念，念完按右下「下一行」。念到的那一行，圖會放大、亮起來，請他點；點了圖會動。
           </li>
           <li>
-            <b>一天兩篇，一舊一新</b>：先複習 3 次前上的那篇（短短的：念一次、問一題、找一樣的字），再上新的一篇。他累了，右上角可以跳過舊篇。
+            <b>一天兩篇，一舊一新</b>：先複習 3 次前上的那篇（跟第一次上的一樣），再上新的一篇。他累了，右上角可以跳過舊篇。
           </li>
           <li>
             <b>念完聊一聊</b>：卡片上有一個問題（誰、什麼、哪裡），問他、等他回答；答不出來，卡片上有一句你可以說給他聽。

@@ -84,7 +84,6 @@ function Bits({ n }: { n: number }) {
  *   - 點課本上的空白處（沒點中圖，盲測 seed 2 第 3、4 步）：當作點了亮的那一行的圖，每一下照樣輪替動作；
  *   - 陪玩小字寫「念到這行時請他點亮起來的圖」。
  * - 點莫莫（T-111）：莫莫開心跳一下、彈一聲，亮的那一行的圖再亮黃框、跳一下（莫莫在說「看這裡」），8 秒內第 3 下起只點一下頭。
- * - 舊篇的短版（short，T-136 一天兩篇、一舊一新）：念完最後一行，右下的按鈕直接往下走（去選圖），沒有聊一聊。
  * - 最後一行念完按「念完了」：「聊一聊」卡片（對話式共讀，T-102）：3 歲問得出來的一題（誰、什麼、哪裡，./talk.json），
  *   有圖的放那張圖讓孩子用指的回答；下面一句「他答不出來，你可以說：…」給大人示範。
  *   孩子點了那張圖（用指的回答了，T-111：盲測裡媽媽問「誰跑得快快快？」他點兔子，什麼都沒發生，只好一直點）：
@@ -106,7 +105,6 @@ export function Reader({
   setMood,
   startAt = 0,
   startTalk = false,
-  short = false,
 }: {
   t: ZhText
   host: HostTap
@@ -123,8 +121,6 @@ export function Reader({
   startAt?: number
   /** 一開始就是聊一聊（排版檢查用：180 篇的聊一聊卡片都要量；課裡一律從念課文開始） */
   startTalk?: boolean
-  /** 舊篇的短版（T-136）：念完最後一行直接往下走（goLabel），沒有聊一聊 */
-  short?: boolean
 }) {
   const still = useReducedMotion()
   const [cur, setCur] = useState(startAt)
@@ -176,7 +172,6 @@ export function Reader({
   }
 
   const next = () => {
-    if (short && cur >= last) return go()
     sfx.tap()
     if (cur < last) setCur(cur + 1)
     else {
@@ -444,7 +439,7 @@ export function Reader({
               上一行
             </button>
             <button type="button" className="zh-next" onPointerDown={adult('next', next)}>
-              <span>{cur < last ? '下一行' : short ? goLabel : '念完了'}</span>
+              <span>{cur < last ? '下一行' : '念完了'}</span>
               <NextIcon />
             </button>
           </>

@@ -32,6 +32,8 @@ type Wait = { kind: 'next' } | { kind: 'q' | 'which'; pick: PicPick; key: string
  * 3. 認角色（Which one is the rabbit?，兩張圖選一張）。
  * 4. 找一樣的英文字（上面 rabbit，下面兩張，./WordMatch.tsx）。
  * 三題都不自己往下：發呆手每 8 秒來指一次。
+ * 一天兩篇，一舊一新（T-136，跟中文課同一份排課）：今天先講 3 次前的舊篇（跟新篇一樣完整：4 句＋三題），再講新篇；
+ * 舊篇時右上角有大人用的「跳過舊篇」（onSkip）。新篇講完接結尾小題：前 1 次、前 7 次的各一題（認角色，出不了就找一樣的英文字）。
  * 動作只用位移和淡入淡出（紙感螢幕，MOTION-1、2）：換頁時圖從左邊慢慢滑進來，做完就停；找對了一對字放大跳一下（家長要看得出來的回饋）。
  */
 export default function EnBook({
@@ -39,12 +41,15 @@ export default function EnBook({
   from,
   back,
   onDone,
+  onSkip,
 }: {
   row: EnBookRow
   from: number
   /** 回書架的返回鍵（StoryBook 的 BookBack） */
   back: ReactNode
   onDone: () => void
+  /** 今天的舊篇：大人按「跳過舊篇」（T-136） */
+  onSkip?: () => void
 }) {
   const t = zhTextOf(row.day)!
   const e = enText(row.day)!
@@ -53,6 +58,11 @@ export default function EnBook({
   const [at, setAt] = useState(start)
   const [waiting, setWaiting] = useState<Wait | null>(null)
   const [hand, setHand] = useState(0)
+  /** 第幾個等待（每一題換一個號，同一種題連著出也重新開始） */
+  const [waitNo, setWaitNo] = useState(0)
+  /** 結尾小題（T-136）：前幾次上過的那一篇 */
+  const [review, setReview] = useState<number | null>(null)
+  const skipLock = useRef(0)
   const resolve = useRef<(() => void) | null>(null)
   const run = useRef(0)
 
@@ -60,6 +70,7 @@ export default function EnBook({
     new Promise<void>((res) => {
       resolve.current = res
       setHand(0)
+      setWaitNo((n) => n + 1)
       setWaiting(w)
     })
   const waitDone = () => {
@@ -131,6 +142,21 @@ export default function EnBook({
         if (gone()) return
         void saveMatched()
       }
+      // 結尾小題（今天的新篇才有）：前 1 次、前 7 次的那一篇各一題，認角色；出不了就找一樣的英文字
+      for (const d of row.isNew ? (row.review ?? []) : []) {
+        const rt = zhTextOf(d)
+        const re = enText(d)
+        if (!rt || !re) continue
+        setReview(d)
+        await wait(300)
+        if (gone()) return
+        const w = whichOf(rt, re)
+        const rm = w && hasLine(enWhichKey(w.word)) ? null : matchOf(rt, re)
+        if (w && hasLine(enWhichKey(w.word))) await waitFor({ kind: 'which', pick: w, key: enWhichKey(w.word) })
+        else if (rm) await waitFor({ kind: 'match', q: rm, demo: false })
+        if (gone()) return
+      }
+      setReview(null)
       await finishEn(row.day)
       if (gone()) return
       onDone()
@@ -152,10 +178,28 @@ export default function EnBook({
     if (!waiting) sfx.tap()
   }
 
+  /** 大人跳過舊篇：連點、兩根手指只算一下 */
+  const skip = (ev: React.PointerEvent) => {
+    if (!firstFinger(ev.nativeEvent) || !onSkip) return
+    const now = performance.now()
+    if (now < skipLock.current) return
+    skipLock.current = now + 1000
+    run.current++
+    stopSpeech()
+    sfx.tap()
+    onSkip()
+  }
+
   const nextOn = waiting?.kind === 'next'
   return (
-    <div className="book-replay en-book" data-en-day={row.day}>
+    <div className="book-replay en-book" data-en-day={row.day} data-part={row.isNew ? row.part : undefined} data-review={review ?? undefined}>
       {back}
+      {/* 跳過舊篇（T-136）：大人用的，插畫下面右下角淡淡的底線字（孩子點的圖、下一句的箭頭以外），跟中文課一樣 */}
+      {onSkip && (
+        <button type="button" className="en-skip-old" onPointerDown={skip}>
+          跳過舊篇
+        </button>
+      )}
       <div className="book-progress" aria-hidden="true">
         {Array.from({ length: EN_PAGES }, (_, i) => (
           <i key={i} className={i <= at ? 'is-done' : undefined} />
@@ -174,7 +218,7 @@ export default function EnBook({
         <AnimatePresence>{hand > 0 && nextOn && <Hand key="hand-next" x={91} y={80} tap={hand} size="9cqmin" />}</AnimatePresence>
         {(waiting?.kind === 'q' || waiting?.kind === 'which') && (
           <Choose
-            key={waiting.kind}
+            key={`${waiting.kind}${waitNo}`}
             kind="ask"
             auto={false}
             ask={waiting.key}
@@ -183,7 +227,7 @@ export default function EnBook({
             onDone={waitDone}
           />
         )}
-        {waiting?.kind === 'match' && <WordMatch q={waiting.q} demo={waiting.demo} wordKey={enWordKey(waiting.q.zh)} onDone={waitDone} />}
+        {waiting?.kind === 'match' && <WordMatch key={`m${waitNo}`} q={waiting.q} demo={waiting.demo} wordKey={enWordKey(waiting.q.zh)} onDone={waitDone} />}
       </div>
       <div className="story-home-dino">
         <Dino who="momo" mood="happy" size="100%" />

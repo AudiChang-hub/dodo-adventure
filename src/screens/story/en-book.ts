@@ -3,9 +3,9 @@
 // 進度存在這台平板的 kv（storyEn），家長重置學習進度時跟著清掉。
 import { getKV, setKV, today } from '../../lib/db'
 import { ZH_TEXTS, type ZhText } from '../../lessons/chinese/data'
-import { lessonToday } from '../../lessons/chinese/progress'
+import { lessonPlan } from '../../lessons/chinese/progress'
 import { enText } from '../../content/story/english'
-import { heardTimes, pagePics } from './en-pages'
+import { enTodayOf, heardTimes, pagePics, type EnSkip } from './en-pages'
 
 export interface EnState {
   /** 每一篇聽完的日期（{ [篇]: 日期[] }，一天最多一筆） */
@@ -14,6 +14,8 @@ export interface EnState {
   at?: { date: string; day: number; at: number }
   /** 找一樣的英文字做過幾次（前 MATCH_DEMOS 次手先示範） */
   matched?: number
+  /** 大人今天跳過的舊篇（T-136；新加的欄位，舊版不讀） */
+  skip?: EnSkip
 }
 const KV = 'storyEn'
 const START: EnState = { heard: {} }
@@ -23,11 +25,13 @@ const load = () => getKV<EnState>(KV, START)
 export const MATCH_DEMOS = 2
 
 /**
- * 今天講哪一篇（換篇規則只在這裡）：跟今天中文課的新篇同一篇（lessons/chinese/progress 的 lessonToday；T-136 起中文課一天兩篇、一舊一新，每上一次換新的一篇，英文版跟新篇走）。
- * 家長要改成別的換法（例如每天新的一篇）時只改這個函式。
+ * 今天講哪一篇（T-136，家長 2026-11-11：中文課和英文故事並行，一天兩篇、一舊一新）：跟中文課用同一份排課
+ * （lessons/chinese/progress 的 lessonPlan → course.ts 的 planOf：新篇、3 次前的舊篇、前 1 次和前 7 次的結尾小題），
+ * 先講舊篇（還沒聽完、沒被跳過）、再講新篇（./en-pages.ts 的 enTodayOf）。換篇規則只在 course.ts。
  */
-async function todaysDay(): Promise<ZhText> {
-  return (await lessonToday()).t
+async function todays(st: EnState, date: string) {
+  const p = await lessonPlan()
+  return enTodayOf({ day: p.t.day, old: p.old?.day ?? null, review: p.review.map((t) => t.day) }, st.heard, st.skip, date)
 }
 
 /** 一本英文版課文（書架上的一本書） */
@@ -40,6 +44,10 @@ export interface EnBookRow {
   isNew: boolean
   /** 聽完幾天（書上一圈三格） */
   heard: number
+  /** 今天的書：舊篇還是新篇（T-136）；書架上聽過的書沒有 */
+  part?: 'old' | 'new'
+  /** 今天的新篇講完接結尾小題的篇 */
+  review?: number[]
 }
 
 const textOf = (day: number) => ZH_TEXTS.find((t) => t.day === day)
@@ -55,17 +63,19 @@ const rowOf = (t: ZhText, st: EnState, isNew: boolean): EnBookRow => ({
 /** 今天的英文版和書架上聽過的其他篇（最近聽的在前面）；from 是今天這一篇中途離開時講到第幾句 */
 export async function enShelf(): Promise<{ today: EnBookRow | null; heard: EnBookRow[]; from: number }> {
   const date = today()
-  const [t, st] = await Promise.all([todaysDay(), load()])
-  const todayRow = enText(t.day) ? rowOf(t, st, !(st.heard[t.day] ?? []).includes(date)) : null
+  const st = await load()
+  const p = await todays(st, date)
+  const t = textOf(p.day)
+  const todayRow = t && enText(t.day) ? { ...rowOf(t, st, p.isNew), part: p.part, review: p.review } : null
   const last = (d: string) => Math.max(...(st.heard[d] ?? []).map((x) => Date.parse(x) || 0))
   const heard = Object.keys(st.heard)
-    .filter((d) => Number(d) !== t.day && (st.heard[d] ?? []).length)
+    .filter((d) => Number(d) !== p.day && (st.heard[d] ?? []).length)
     .sort((a, b) => last(b) - last(a))
     .flatMap((d) => {
       const x = textOf(Number(d))
       return x && enText(x.day) ? [rowOf(x, st, false)] : []
     })
-  const from = todayRow?.isNew && st.at?.date === date && st.at.day === t.day ? st.at.at : 0
+  const from = todayRow?.isNew && st.at?.date === date && st.at.day === p.day ? st.at.at : 0
   return { today: todayRow, heard, from }
 }
 
@@ -81,6 +91,12 @@ export const matchDemo = async () => ((await load()).matched ?? 0) < MATCH_DEMOS
 export async function saveMatched() {
   const st = await load()
   await setKV(KV, { ...st, matched: (st.matched ?? 0) + 1 })
+}
+
+/** 大人跳過今天的舊篇（他累了）：接著講新篇 */
+export async function skipOldEn(day: number) {
+  const { at: _at, ...st } = await load()
+  await setKV(KV, { ...st, skip: { date: today(), day } })
 }
 
 /** 講完一篇：今天聽了一次（同一天再聽不多算） */
