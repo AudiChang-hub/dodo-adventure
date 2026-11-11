@@ -20,3 +20,7 @@ def('d.book.intro', 'dodo', 'Pick a picture!')
 // 畫完、慶祝完，停在作品上（T-139⑧）：兩個大圖示（再畫一張、回首頁）出來的時候問一句
 def('d.next.free', 'dodo', 'Draw another one?')
 def('d.next.color', 'dodo', 'Color another one?')
+// 停在作品上，說完「Draw another one?」再指小房子（T-140：只有圖示孩子看不懂，一個一個說出來）
+def('d.next.home', 'dodo', 'Or go home?')
+// 畫畫的入口：還沒玩過著色本時，指一下著色本（T-140：盲測孩子 6 次都選白紙）
+def('d.pick.book', 'dodo', 'Try the coloring book!')

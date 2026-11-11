@@ -15,7 +15,7 @@ import { useAdopt } from './adopt'
 import { game as gameDef } from '../../content/games'
 import { markPlayed, plays } from '../../lib/adaptive'
 import { logAttempt, logTeach } from '../../lib/record'
-import { say, sfx, stopSpeech } from '../../lib/audio'
+import { hushSpeech, isSpeaking, say, sfx, stopSpeech } from '../../lib/audio'
 import { wait, within } from '../lines'
 import { useIdle } from '../idle'
 import { DUR, EASE, ms } from '../../ui/motion'
@@ -90,7 +90,7 @@ interface StrokeLog {
  * - 線稿的黑線永遠在最上層；右邊是 6 支大蠟筆和橡皮擦（≥ 2 cm，準則 TOUCH-1）。
  * - 沒有對錯。塗了幾筆（3 筆，或面積到 READY）完成鍵才出現（剛進來不會誤按）；點一下就完成（T-134 盲測：三歲只會點，不會按住），但手還在畫、或剛放開時不算（手掌誤碰）。
  * - 第一次玩先示範：手拿起一支蠟筆，在一塊區域裡來回塗（真的蠟筆筆觸），示範塗的那一塊留在畫上（「我幫你塗了一點」），
- *   示範完才說「Pick a crayon, and color it in! Your turn!」。示範中孩子塗不出顏色，碰到的地方出現「看這裡」的圈圈。
+ *   示範的手一走就可以塗，豆豆接著說「Pick a crayon, and color it in! Your turn!」，孩子一下筆就停（T-140）。示範中孩子塗不出顏色，碰到的地方出現「看這裡」的圈圈。
  * - 完成後圖活起來一下，存進作品集（縮圖是孩子塗的筆觸＋線稿），接著是每局的慶祝；慶祝完停在作品上，
  *   蠟筆收起來換成兩個大圖示：再塗一張（回著色本）、回首頁（T-139⑧，DoneChoices.tsx）。按了完成蠟筆盒就收起來。返回鍵隨時一下回著色本。
  */
@@ -274,13 +274,15 @@ export function ColoringGame({ gameId, pic: picId, onDone, onExit }: GameProps) 
     busy.current = firstPlay.current
     setHold(firstPlay.current)
     if (firstPlay.current) {
-      // 先示範，指令放在示範之後，說完「Your turn!」才開放（準則 PHASE-3）
+      // 先示範，指令放在示範之後。示範的手一走就開放（T-140，盲測 73d57c7：孩子看到手走了就開始塗，
+      // 以前要等豆豆說完「Pick a crayon, and color it in! Your turn!」才收，那幾筆都塗不出來，塗到第 8 筆才有完成鍵）；
+      // 他一下筆，豆豆就停下來（跟自由畫畫一樣，T-108 搶點：孩子已經在做了）
       await showMe()
-      if (!live_.current) return
-      await say(def.intro, 'teach.turn.dodo')
       if (!live_.current) return
       busy.current = false
       setHold(false)
+      await say(def.intro, 'teach.turn.dodo')
+      if (!live_.current) return
     } else {
       await say(def.intro)
       if (!live_.current) return
@@ -343,6 +345,8 @@ export function ColoringGame({ gameId, pic: picId, onDone, onExit }: GameProps) 
       return
     }
     if (e.pointerType === 'touch' && penNear() && !active.current) return
+    // 豆豆還在說「Pick a crayon…」就下筆了：停掉語音，孩子已經在做了（T-140）；「All done? Tap the check!」不停
+    if (!active.current && !readySaid.current && !finishing.current && isSpeaking()) hushSpeech()
     // 手掌先碰到、筆才下來：筆優先，丟掉手掌那一筆（還在 live 層，沒有留下來）
     if (active.current && e.pointerType === 'pen' && active.current.type !== 'pen' && toolRef.current !== ERASER) drop()
     if (active.current) return

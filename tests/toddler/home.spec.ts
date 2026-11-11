@@ -295,10 +295,29 @@ test.describe('學校首頁', () => {
       return false
     }
     const crayon = async (i: number) => (await rect('.crayon-box [data-crayon]', i))!
+    // 記下豆豆說到哪一個、哪一個亮起來（.is-said：選擇畫面的著色本 book、畫完的 again／home，T-140）
+    const recSaid = () =>
+      page.evaluate(() => {
+        const w = window as unknown as { __said?: string[]; __saidT?: number }
+        w.__said = []
+        if (w.__saidT) return
+        w.__saidT = window.setInterval(() => {
+          const now = [...document.querySelectorAll('.is-said')].map((e) => e.getAttribute('data-next') ?? e.getAttribute('data-pick')).join('+')
+          if (now && w.__said![w.__said!.length - 1] !== now) w.__said!.push(now)
+        }, 100)
+      })
+    const saidList = () => page.evaluate(() => (window as unknown as { __said?: string[] }).__said ?? [])
+    /** 說到 again 再說到 home（一個一個亮） */
+    const saidInOrder = (l: string[]) => l.indexOf('again') >= 0 && l.indexOf('home') > l.indexOf('again')
     try {
       // 1. 首頁點畫畫：先到「白紙自由畫／著色本」，兩個大圖示
       k.behavior = '進畫畫'
+      await recSaid()
       const l0 = await tapDoor(k, c, 'draw', '畫畫', (l) => l === 'draw', 5000)
+      // 還沒玩過著色本：豆豆說完「Draw, or color?」接著指著色本（T-140）
+      for (let i = 0; i < 30 && !(await saidList()).includes('book'); i++) await k.wait(200)
+      const pointed = (await saidList()).includes('book')
+      c.outcome('第一次進畫畫：豆豆指著著色本', pointed, pointed ? '著色本亮起來、手點一下' : `沒有指（${(await saidList()).join(',')}）`)
       const picks = await page.evaluate(() => [...document.querySelectorAll('[data-pick]')].map((e) => e.getAttribute('data-pick')).join(','))
       c.outcome('畫畫的門進去：選白紙還是著色本', l0 === 'draw' && picks === 'free,book', `到 ${l0}；圖示 ${picks}`)
       await c.screenOk('選白紙還是著色本')
@@ -412,24 +431,35 @@ test.describe('學校首頁', () => {
       await k.drag(grab, { label: '示範時搶著塗', stepMs: 10 })
       await k.spam(await crayon(0), 3, '示範時點蠟筆')
       const inkGrab = await inkAt(page, grab)
-      const ok5 = await accepting(30_000)
+      // 等示範的手做完（不等說明講完：孩子看到手走了就會開始塗）
+      let demoEnd = false
+      for (const end = Date.now() + 30_000; Date.now() < end; await k.wait(200))
+        if ((await attr('.stage', 'data-demo')) !== '1') {
+          demoEnd = true
+          break
+        }
       c.outcome('第一次進來有示範', demo, demo ? '示範中畫紙不收' : '沒有示範')
-      c.outcome('示範時搶著塗', ok5 && inkGrab === 0, `搶著塗的地方墨 ${inkGrab}；${ok5 ? '示範完可以塗' : '示範一直沒結束'}`)
-      if (!ok5) return
+      c.outcome('示範時搶著塗', demoEnd && inkGrab === 0, `搶著塗的地方墨 ${inkGrab}；${demoEnd ? '示範的手做完了' : '示範一直沒結束'}`)
+      if (!demoEnd) return
       const doneEarly = await page.locator('.tool-done').count()
       c.outcome('剛進來沒有完成鍵', doneEarly === 0, `完成鍵 ${doneEarly} 個`)
 
-      // 5b. 塗幾筆短短的（三歲就是這樣塗）：完成鍵就要出現
-      // （AI 小男生盲測 ccf7ac7：示範完換 4 種顏色拖了幾筆短的、等 20 秒都沒有完成鍵，因為要塗滿線稿的 10%）
+      // 5b. 示範的手一走就塗幾筆短短的（三歲就是這樣塗，不會等豆豆說完）：塗 3 筆左右完成鍵就要出現
+      // （盲測 ccf7ac7：要塗滿線稿 10% 才出現；盲測 73d57c7：塗約 8 筆才出現，因為示範完豆豆還在說「Pick a crayon… Your turn!」，那幾筆都不算）
       k.behavior = '塗幾筆短的'
-      for (const [i, [fx, fy]] of [[0.18, 0.3], [0.72, 0.22], [0.3, 0.82]].entries()) {
-        await k.tap(await crayon(i + 1), '換一支蠟筆')
+      const SHORT = [[0.18, 0.3], [0.72, 0.22], [0.3, 0.82], [0.6, 0.86], [0.12, 0.6], [0.8, 0.6]]
+      let doneAt = 0
+      for (const [i, [fx, fy]] of SHORT.entries()) {
+        await k.tap(await crayon((i % 5) + 1), '換一支蠟筆')
         await k.drag([await onPaper(fx, fy), await onPaper(fx + 0.035, fy + 0.02), await onPaper(fx + 0.07, fy)], { label: `短短一筆 ${i + 1}`, stepMs: 12 })
+        await k.wait(300)
+        if (await page.locator('.tool-done').count()) {
+          doneAt = i + 1
+          break
+        }
       }
-      await k.wait(800)
-      const doneShort = await page.locator('.tool-done').count()
-      c.outcome('塗幾筆短的就有完成鍵', doneShort === 1, `三筆短的（每筆約畫紙寬的 7%）之後完成鍵 ${doneShort} 個`)
-      if (!doneShort) await c.once('done-short', '困惑', '塗了幾筆，完成鍵還是沒出來', `三筆短的之後完成鍵 ${doneShort} 個`)
+      c.outcome('示範完馬上塗，3 筆短的就有完成鍵', doneAt > 0 && doneAt <= 3, doneAt ? `第 ${doneAt} 筆（每筆約畫紙寬的 7%）之後完成鍵出現` : `塗了 ${SHORT.length} 筆完成鍵還沒出現`)
+      if (!doneAt || doneAt > 3) await c.once('done-short', '困惑', '塗了幾筆，完成鍵還是沒出來', doneAt ? `第 ${doneAt} 筆才出現` : `${SHORT.length} 筆都沒出現`)
 
       // 6. 亂玩：連點蠟筆、手掌壓畫紙、塗到一半被搶走（touchcancel）、亂點畫紙
       k.behavior = '亂玩'
@@ -501,6 +531,9 @@ test.describe('學校首頁', () => {
       await c.screenOk('完成之後')
       const nexts = await page.evaluate(() => [...document.querySelectorAll('[data-resting] [data-next]')].map((e) => e.getAttribute('data-next')).join(','))
       c.outcome('停在作品上：再塗一張、回首頁兩個大圖示', nexts === 'again,home', `大圖示 ${nexts}`)
+      for (let i = 0; i < 40 && !saidInOrder(await saidList()); i++) await k.wait(200)
+      const said9 = await saidList()
+      c.outcome('豆豆一個一個說：再塗一張、回首頁輪流亮', saidInOrder(said9), `亮的順序 ${said9.join(' → ')}`)
       const big = await rect('[data-resting] [data-next="again"]')
       if (big) await k.tap(big, '再塗一張')
       l = await waitLive(page, (x) => x === 'coloring', 5000)
@@ -548,10 +581,14 @@ test.describe('學校首頁', () => {
       const l11b = await live()
       c.outcome('每一層一步回上一層', l11a === 'draw' && l11b === 'home', `著色本 → ${l11a} → ${l11b}`)
 
-      // 12. 白紙自由畫照舊
+      // 12. 白紙自由畫照舊；玩過著色本了，豆豆不再指著色本
       k.behavior = '白紙自由畫'
+      await recSaid()
       await tapDoor(k, c, 'draw', '畫畫', (x) => x === 'draw', 5000)
       await settle(page, 4000)
+      await k.wait(3000)
+      const pointed2 = (await saidList()).includes('book')
+      c.outcome('玩過著色本以後不再指', !pointed2, pointed2 ? '還在指著色本' : '沒有指')
       await k.tap((await centerOf(page, '[data-pick="free"]'))!, '白紙自由畫')
       l = await waitLive(page, (x) => x === 'play-d-free', 5000)
       c.outcome('白紙自由畫進得去', l === 'play-d-free', `到 ${l}`)
@@ -878,6 +915,20 @@ test.describe('T-137 恐龍的名字', () => {
       await k.wait(700)
       return pts
     }
+    // 記下豆豆說到哪一個、哪一個亮起來（.is-said：選擇畫面的著色本 book、畫完的 again／home，T-140）
+    const recSaid = () =>
+      page.evaluate(() => {
+        const w = window as unknown as { __said?: string[]; __saidT?: number }
+        w.__said = []
+        if (w.__saidT) return
+        w.__saidT = window.setInterval(() => {
+          const now = [...document.querySelectorAll('.is-said')].map((e) => e.getAttribute('data-next') ?? e.getAttribute('data-pick')).join('+')
+          if (now && w.__said![w.__said!.length - 1] !== now) w.__said!.push(now)
+        }, 100)
+      })
+    const saidList = () => page.evaluate(() => (window as unknown as { __said?: string[] }).__said ?? [])
+    /** 說到 again 再說到 home（一個一個亮） */
+    const saidInOrder = (l: string[]) => l.indexOf('again') >= 0 && l.indexOf('home') > l.indexOf('again')
     /** 按勾勾，等到停在作品上（慶祝點一下看完） */
     const finishAndRest = async () => {
       const done = await rect('.tool-done')
@@ -911,6 +962,7 @@ test.describe('T-137 恐龍的名字', () => {
 
       // 1. 畫一筆、按完成：工具欄整個收起來（綠勾勾不在了），點原本勾勾的地方、點星星都不會離開
       k.behavior = '畫完按完成'
+      await recSaid()
       const before = await drawings()
       const pts = await scribble('畫一筆')
       const r1 = await finishAndRest()
@@ -922,6 +974,9 @@ test.describe('T-137 恐龍的名字', () => {
       const nexts = await page.evaluate(() => [...document.querySelectorAll('[data-resting] [data-next]')].map((e) => `${e.getAttribute('data-next')}:${Math.round(e.getBoundingClientRect().width)}`).join(','))
       const ok2 = /^again:\d+,home:\d+$/.test(nexts) && nexts.split(',').every((x) => Number(x.split(':')[1]) >= 90)
       c.outcome('停在作品上：再畫一張、回首頁兩個大圖示（≥ 2 cm）', ok2, `大圖示 ${nexts}`)
+      for (let i = 0; i < 40 && !saidInOrder(await saidList()); i++) await k.wait(200)
+      const said2 = await saidList()
+      c.outcome('豆豆一個一個說：再畫一張、回首頁輪流亮', saidInOrder(said2), `亮的順序 ${said2.join(' → ')}`)
       const paper = (await rect('.tool-room'))!
       await k.spam({ x: paper.x, y: paper.y }, 3, '點作品')
       await k.wait(800)

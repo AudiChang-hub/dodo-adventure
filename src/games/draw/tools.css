@@ -210,6 +210,25 @@
     0 6px 0 var(--paper-edge, #e6dccb),
     0 18px 28px -20px rgba(46, 42, 37, 0.35);
 }
+/* 豆豆說到這一個（T-140）：亮一圈、跳一下（一次就停，MOTION-1/2） */
+.draw-next-col .draw-next.is-said {
+  box-shadow:
+    0 7px 0 var(--paper-edge, #e6dccb),
+    0 0 0 12px rgba(241, 210, 124, 0.85),
+    0 22px 34px -20px rgba(46, 42, 37, 0.35);
+  animation: draw-next-said 0.7s var(--ease-out) both;
+}
+@keyframes draw-next-said {
+  0% {
+    translate: 0 0;
+  }
+  35% {
+    translate: 0 -14px;
+  }
+  100% {
+    translate: 0 0;
+  }
+}
 .draw-next-art {
   width: 78%;
   aspect-ratio: 6 / 5;
