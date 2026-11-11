@@ -20,7 +20,7 @@
 npm run test:ai-toddler -- --lesson zh --minutes 8 --seed 1
 ```
 
-- `--lesson`：`en` 英文字母、`zh` 中文課文、`math` 數學數字、`draw` 畫畫、`story` 故事（必填，一次一課）。
+- `--lesson`：`en` 英文字母、`zh` 中文課文、`math` 數學數字、`draw` 畫畫、`story` 故事、`stickers` 貼紙本（必填，一次一課）。
 - `--minutes`（預設 8，含大腦想的時間）、`--max-steps`（預設 60）、`--seed`（預設 1）。
 - `--brain`：`auto`（預設）、`cli`、`api`、`relay`、`mock`，見下面。`--model` 預設 `claude-sonnet-5-5`。
 - `--dev` 用 dev server；預設用打包版（`dist/` 不在才打包，`--build` 強制重新打包）。
@@ -33,10 +33,12 @@ npm run test:ai-toddler -- --lesson zh --minutes 8 --seed 1
 worktree 裡跑要先有 `node_modules`、`public/audio`、`.env.local`（都不進 git）：從主 repo 複製，或用 junction 連過去（PowerShell：`New-Item -ItemType Junction -Path node_modules -Target <主 repo>\node_modules`）。**用 junction 的話，清 worktree 前要先拆掉連結**（`[System.IO.Directory]::Delete((Resolve-Path node_modules).Path)`，只拆連結、不碰內容），不然遞迴刪除 worktree 時會刪到主 repo 的 `node_modules`、`public/audio`。
 
 開 App 的方式：首頁 → 爸爸媽媽幫他點開那一課（不算小男生的動作）→ 小男生自己玩。故事預設先放 8 本講過的書（同 test:toddler 那 8 本，但用 App 的 `scriptOf` 補成真的句數和每一句的圖），像用了一陣子的平板；點「故事」會先講今天的新章節（T-77）。加 `--fresh` 是新裝置（書架什麼都沒有）。
+- 故事（T-129）：今天中文課那一篇的英文版還沒聽過，點「故事」就直接念它（畫面 `en-<篇>`）：4 句一句一頁，每句念完等他點（箭頭或整張圖）→ 故事題（兩張圖選一張）→ Which one is the …?（兩張圖選一張）→ 找一樣的英文字（上面一張字卡、下面兩張）→ 念完的畫面 `endone-<篇>` 才算完成（第 4 句小點全亮還不算）。以前的故事（`replay-<id>`、`done-<id>`）在書架上照樣可以點。
+- 貼紙本（T-132）：從首頁門上方牆上的貼紙板（`data-door="stickers"`）進去（畫面 `stickers`）。預設放 9 張挑過的貼紙（最新 2 張還沒點過、會發光），像用了一陣子的平板；`--fresh` 是空的貼紙本。點過 3 張以上不同的貼紙、自己回到首頁算完成，回到首頁就收。
 
 ### 什麼時候停
 
-到時間、到步數、小男生說「不玩了」、上完一堂（出現下課畫面：挑貼紙，或沒有貼紙的那堂的恐龍和房子）之後再 3 步、或大腦連續 3 次沒回應。畫畫不會「上完」，畫了 3 筆以上算完成，繼續玩到時間或不玩了。
+到時間、到步數、小男生說「不玩了」、上完一堂（出現下課畫面：挑貼紙，或沒有貼紙的那堂的恐龍和房子）之後再 3 步、或大腦連續 3 次沒回應。畫畫不會「上完」，畫了 3 筆以上算完成，繼續玩到時間或不玩了。故事聽到最後（英文版是念完的畫面）之後再 3 步。貼紙本點過 3 張貼紙、回到首頁就收。
 
 ### 資源
 
@@ -98,7 +100,7 @@ claude 的位置：`CLAUDE_BIN` → PATH 上的 `claude` → 桌面版帶的 `cl
 
 **每一批**（合併前、跑完 `npm run test:toddler -- --changed` 之後）：
 
-1. 這一批改到哪幾課（看改了 `src/lessons/<課>`、`src/content/lines-*`、首頁、`src/games/draw`、`src/screens/StoryBook.tsx`…），只跑那幾課，一課一次：
+1. 這一批改到哪幾課（看改了 `src/lessons/<課>`、`src/content/lines-*`、首頁、`src/games/draw`、`src/screens/StoryBook.tsx`、`src/screens/story/`、`src/screens/StickerBook.tsx`…），只跑那幾課，一課一次：
    ```bash
    npm run test:ai-toddler -- --lesson zh --seed 1
    ```
@@ -107,7 +109,7 @@ claude 的位置：`CLAUDE_BIN` → PATH 上的 `claude` → 桌面版帶的 `cl
 3. 看「給開發的修正建議」的〈嚴重〉：是內容或流程問題的，開工作階段修；是測試延遲造成的（報告會標），記下來就好。〈重要〉〈小〉累積起來，排進下一批。
 4. 跟上一次同一課的報告比：完成了嗎、開始不耐煩的時間點、返回次數有沒有變差。
 
-**每週一次、或改了共用的東西**（首頁、返回鍵、字幕、語音、示範的手）：五課都跑一次，約 50 分鐘。
+**每週一次、或改了共用的東西**（首頁、返回鍵、字幕、語音、示範的手）：六課都跑一次（含貼紙本），約 55 分鐘。
 
 ### 要花多少
 
@@ -128,7 +130,7 @@ claude 的位置：`CLAUDE_BIN` → PATH 上的 `claude` → 桌面版帶的 `cl
 | [run.ts](run.ts) | 主程式：開 App、每一步截圖→問大腦→送觸控→檢查 App |
 | [lib/brain.ts](lib/brain.ts) | 大腦：api／cli／relay／mock |
 | [lib/finger.ts](lib/finger.ts) | 三歲的手指：誤差、連點、拖到一半放手 |
-| [lib/lessons.ts](lib/lessons.ts) | 五課的門、怎麼算完成、故事書的書 |
+| [lib/lessons.ts](lib/lessons.ts) | 六課的門（含貼紙本）、怎麼算完成、故事書的書、貼紙本的貼紙 |
 | [lib/report.ts](lib/report.ts) | 縮圖、分析、`報告.md` |
 | [relay.mjs](relay.mjs) | 交接模式的另一頭 |
 | [login.ts](login.ts) | `npm run ai-toddler:login` |

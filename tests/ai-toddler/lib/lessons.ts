@@ -17,10 +17,18 @@ export const LESSONS: Record<string, LessonDef> = {
   zh: { id: 'zh', name: '中文課文', door: 'chinese', isIn: (l) => l === 'lesson-chinese', intro: '媽媽說：「我們來念中文故事喔！」', doneMeans: '上完一堂、出現下課畫面' },
   math: { id: 'math', name: '數學數字', door: 'math', isIn: (l) => l === 'lesson-math', intro: '媽媽說：「我們來玩數字喔！」', doneMeans: '上完一堂、出現下課畫面' },
   draw: { id: 'draw', name: '畫畫', door: 'draw', isIn: (l) => l === 'play-d-free', intro: '媽媽說：「去畫畫吧！」', doneMeans: '在畫布上畫了 3 筆以上' },
-  story: { id: 'story', name: '故事', door: 'story', isIn: (l) => l === 'shelf' || l === 'storybook' || !!l?.startsWith('replay-') || !!l?.startsWith('done-'), intro: '媽媽說：「我們來看故事書！」', doneMeans: '一本書聽到最後一頁' },
+  // 故事（T-129）：今天的英文版課文 en-<篇>（念 4 句 → 故事題 → 認角色 → 找一樣的英文字）、念完 endone-<篇>；以前的故事 replay-<id>、讀完了 done-<id>
+  story: { id: 'story', name: '故事', door: 'story', isIn: isStory, intro: '媽媽說：「我們來看故事書！」', doneMeans: '一本書聽到最後（英文版：4 句和 3 題做完、出現念完的畫面）' },
+  // 貼紙本（T-132）：首頁門上方牆上的貼紙板進去；看一看、點一點貼紙，自己回首頁
+  stickers: { id: 'stickers', name: '貼紙本', door: 'stickers', isIn: (l) => l === 'stickers', intro: '媽媽說：「去看看你的貼紙本！」', doneMeans: '點了 3 張以上的貼紙、自己回到首頁' },
 }
 
-export const ALIASES: Record<string, string> = { english: 'en', chinese: 'zh', 中文: 'zh', 英文: 'en', 數學: 'math', 畫畫: 'draw', 故事: 'story' }
+/** 故事的那一層畫面：書架、英文版課文、以前的故事、讀完了 */
+export function isStory(l: string | null) {
+  return l === 'shelf' || l === 'storybook' || /^(replay|done|en|endone)-/.test(l ?? '')
+}
+
+export const ALIASES: Record<string, string> = { english: 'en', chinese: 'zh', 中文: 'zh', 英文: 'en', 數學: 'math', 畫畫: 'draw', 故事: 'story', sticker: 'stickers', 貼紙: 'stickers', 貼紙本: 'stickers' }
 
 /**
  * 舊裝置的故事書：書架上已經有講過的章節（T-77 之後點「故事」會先講今天的新章節，講完收進書架；
@@ -88,6 +96,45 @@ export async function seedStory(page: Page) {
   await page.waitForSelector('.screen.home', { timeout: 20_000 })
 }
 
+/**
+ * 舊裝置的貼紙本：已經挑過 9 張貼紙（最新的 2 張還沒點過，會輕輕發光），預設就放；--fresh 是新裝置（空的貼紙本）。
+ * 跟 App 的 achieve 一樣的格式（src/lib/achievements.ts 的 kind: 'sticker'），art 是 src/content/sticker-art.ts 的主角。
+ */
+const STICKER_ARTS = ['t-rex', 'fire-engine', 'sauropod', 'police-car', 'dragon', 'ambulance', 'turtle', 'mammoth', 'crocodile']
+
+export async function seedStickers(page: Page) {
+  await page.evaluate(async (arts) => {
+    const day = 86_400_000
+    const now = Date.now()
+    const log = arts.map((art, i) => {
+      const ts = now - (arts.length - i) * day
+      return { id: `seed-stk-${i}`, ts, date: new Date(ts).toISOString().slice(0, 10), kind: 'sticker', art, seed: 1000 + i * 37, why: { round: 5, learn: 0, fix: 0, level: 0 } }
+    })
+    await new Promise<void>((res, rej) => {
+      const rq = indexedDB.open('dodo-adventure')
+      rq.onerror = () => rej(rq.error)
+      rq.onsuccess = () => {
+        const db = rq.result
+        const tx = db.transaction('kv', 'readwrite')
+        const st = tx.objectStore('kv')
+        const g = st.get('achieve')
+        g.onsuccess = () => {
+          const old = g.result?.value ?? {}
+          st.put({ key: 'achieve', value: { best: {}, fixes: 0, picks: [], since: 0, ...old, v: 2, log, seen: log.slice(0, -2).map((m) => m.id) } })
+        }
+        tx.oncomplete = () => {
+          db.close()
+          res()
+        }
+        tx.onerror = () => rej(tx.error)
+      }
+    })
+    sessionStorage.setItem('dodo.resume', 'home')
+  }, STICKER_ARTS)
+  await page.reload()
+  await page.waitForSelector('.screen.home', { timeout: 20_000 })
+}
+
 /** 現在畫面上有沒有「這一課完成了」的樣子 */
 export const doneNow = (page: Page) =>
   page
@@ -98,8 +145,10 @@ export const doneNow = (page: Page) =>
       const lessonEnd = !!end
       const picker = !!end?.querySelector('.picker')
       const dots = live ? [...live.querySelectorAll('.book-progress i')] : []
-      // 聽到最後一頁：小點全亮，或已經換到「讀完了」（T-77：講完會出現讀完了的畫面）
-      const lastPage = (dots.length > 1 && dots.every((d) => d.classList.contains('is-done'))) || !!live?.dataset.scene?.startsWith('done-')
+      // 聽到最後一頁：小點全亮，或已經換到「讀完了」（T-77：講完會出現讀完了的畫面）。
+      // 英文版（en-<篇>）第 4 句小點就全亮了，後面還有 3 題：要等到念完的畫面 endone-<篇> 才算
+      const scene = live?.dataset.scene ?? ''
+      const lastPage = (!scene.startsWith('en-') && dots.length > 1 && dots.every((d) => d.classList.contains('is-done'))) || /^(done|endone)-/.test(scene)
       return { lessonEnd, picker, lastPage }
     })
     .catch(() => ({ lessonEnd: false, picker: false, lastPage: false }))

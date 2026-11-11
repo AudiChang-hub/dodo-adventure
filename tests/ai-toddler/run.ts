@@ -5,7 +5,7 @@
 // 自己決定下一步（點哪裡、拖、等、返回、不玩了）。手指誤差在 lib/finger.ts 套上。
 // 跟 npm run test:toddler（固定腳本的回歸測試）不一樣：這個是「真的孩子看得懂嗎」的探索測試。
 //
-//   --lesson ID       en（英文字母）zh（中文課文）math（數學數字）draw（畫畫）story（故事）；必填
+//   --lesson ID       en（英文字母）zh（中文課文）math（數學數字）draw（畫畫）story（故事）stickers（貼紙本）；必填
 //   --minutes N       最多玩幾分鐘（預設 8，含大腦想的時間）
 //   --max-steps N     最多幾步（預設 60）
 //   --seed N          手指誤差和 App 題目的亂數（預設 1；同一個 seed 手指偏法、題目一樣，大腦的回答不一定）
@@ -17,6 +17,7 @@
 //   --out DIR         報告放這裡（預設主 repo 的 docs/AI小男生測試/<日期>-<課>/）
 //   --no-lock         不跟 test:toddler 排隊（預設同一台機器同時只跑一個）
 //   --fresh           故事：新裝置（書架上什麼都沒有）；預設是已經聽過 8 本的舊裝置
+//                     貼紙本：新裝置（空的貼紙本）；預設是已經有 9 張貼紙的舊裝置（最新 2 張還沒點過）
 //   --zh-run N        中文課：今天是同一篇的第幾次（1～3，預設 1；2 是念到框起來的紅字前停下來讓孩子接）
 //                     中文課是親子共讀（App 不出聲）：每一步之前「媽媽」先做她的部分（念一行、按下一行、問聊一聊、念題目），見 mom()
 //   --external LABEL  不自己打包、不開 vite：用已經開在 AI_TODDLER_PORT 的打包版（例如在主 checkout 自己 build + vite preview），
@@ -32,7 +33,7 @@ import { fileURLToPath } from 'node:url'
 import sharp from 'sharp'
 import { Brain, type Answer, type BrainKind } from './lib/brain'
 import { Finger, type Touch } from './lib/finger'
-import { ALIASES, LESSONS, doneNow, seedStory } from './lib/lessons'
+import { ALIASES, LESSONS, doneNow, seedStickers, seedStory } from './lib/lessons'
 import { writeReport, type AppIssue, type Step, type Run } from './lib/report'
 
 const here = path.dirname(fileURLToPath(import.meta.url))
@@ -237,6 +238,7 @@ try {
   await boot(page, SEED, { to: 'home', settings: lesson.id === 'story' ? { story: true } : {} })
   // 故事：預設是舊裝置（書架上已經有 8 本講過的書，今天的新章節照樣先講）；--fresh 是新裝置（什麼都沒有）
   if (lesson.id === 'story' && !flag('fresh')) await seedStory(page)
+  if (lesson.id === 'stickers' && !flag('fresh')) await seedStickers(page)
   // 中文課：第 1 篇已經上過 N-1 次（很久以前），今天是第 N 次（src/lessons/chinese/course.ts 的 Course）
   const zhRun = Number(opt('zh-run', '1'))
   if (lesson.id === 'zh' && zhRun > 1)
@@ -260,7 +262,8 @@ try {
   await finger.init()
   // 爸爸媽媽幫他點開那一課（不算在小男生的動作裡，也不套誤差）
   const door = await page.evaluate((d) => {
-    const el = document.querySelector(`.door[data-door="${d}"], .side-door[data-door="${d}"]`)
+    // 貼紙本是門上方牆上的貼紙板（.sticker-board，T-132），不是門
+    const el = document.querySelector(`.door[data-door="${d}"], .side-door[data-door="${d}"], .sticker-board[data-door="${d}"]`)
     if (!el) return null
     const r = el.getBoundingClientRect()
     return { x: r.left + r.width / 2, y: r.top + r.height / 2 }
@@ -609,6 +612,10 @@ while (!fatal) {
     else if (lesson.id === 'draw') {
       const strokes = steps.filter((x) => x.touch?.kind === 'drag' && x.touch.hit === '畫布').length
       if (strokes >= 3) R.completed = { step: n, t: el, what: `畫了 ${strokes} 筆` }
+    } else if (lesson.id === 'stickers' && s2.live === 'home') {
+      // 貼紙本：點過 3 張以上的貼紙（不同張），自己回到首頁
+      const seen = new Set(steps.filter((x) => x.live === 'stickers' && x.touch?.kind === 'tap' && /^按鈕/.test(x.touch.hit)).map((x) => x.touch!.hit))
+      if (seen.size >= 3) R.completed = { step: n, t: el, what: `點了 ${seen.size} 張貼紙、回到首頁` }
     }
     if (R.completed) {
       doneAt = n
@@ -616,7 +623,8 @@ while (!fatal) {
     }
   }
   // 上完一堂之後再看 3 步（挑貼紙或下課畫面、回首頁），就收
-  if (doneAt && lesson.id !== 'draw' && n - doneAt >= 3) {
+  // 貼紙本：回到首頁就是完成，不用再看
+  if (doneAt && lesson.id !== 'draw' && n - doneAt >= (lesson.id === 'stickers' ? 0 : 3)) {
     R.endReason = `完成了（${R.completed!.what}），再玩 3 步後結束`
     break
   }
