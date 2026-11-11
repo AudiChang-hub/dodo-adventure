@@ -56,8 +56,9 @@ export const AWAY_S = 2.2
  *   第二次 → 手把剩下的放好、一起數，再指勾勾。空的就按勾勾：再說一次要幾個，不算錯。
  * - 小火車都坐滿了還點左邊的東西：那一個搖一搖、留在原位（多拿了），波波再數一次（Three!），勾勾跳一下；不算一次就對。
  * - 記錄：skill give:N、選項照拿給波波（plays.ts 的 giveOptions），game 是 m-train／m-plant；手帶著做的記成 guided。
- * - 交出去以後：勾勾變綠、跳一下就收起來，沒坐上火車的東西淡掉，數完（There is three!）要幾個的數字也收起來；
- *   接著說 Choo choo! Bye-bye!（Grow, grow!），同時出下一步的大箭頭，不等它念完（T-139）。等的時候點畫面只有「等一下」的圈圈。
+ * - 交出去以後：勾勾變綠、跳一下就收起來，沒坐上火車的東西淡掉（T-139）；火車停著、輕輕顛，數完（There is three!）才開走（T-140）；
+ *   開走的同一刻：要幾個的數字收起來、Choo choo! Bye-bye!（Grow, grow!）、下一步的大箭頭出來，手馬上指著它（T-140）。
+ *   等的時候點畫面只有「等一下」的圈圈。
  */
 export function LoadPart({ ctx, skin }: { ctx: PartCtx; skin: LoadSkin }) {
   const [round] = useState<GiveRound>(() => giveRounds(ctx.lesson)[0])
@@ -365,17 +366,20 @@ export function LoadPart({ ctx, skin }: { ctx: PartCtx; skin: LoadSkin }) {
     // 火車開走以後左邊剩下的東西、灰色的勾勾、要幾個的數字都還在，看起來像還有一題，他一直點都只有圈圈，「不知道要幹嘛」）：
     // 勾勾跳一下就收起來（不再變灰留著讓他點）、剩下的東西淡掉；點畫面只有「等一下」的圈圈
     window.setTimeout(() => live.current && setGone(true), 520)
-    // 火車開走、花長大：答案「做出來了」，不靠語言也看得懂
+    // 種花：花馬上長大（答案「做出來了」，不靠語言也看得懂）
+    if (skin.play !== 'train') setBloom(true)
+    // 小火車：數完才開走（T-140，盲測 73d57c7：以前一按勾勾火車就開走，1.2 秒就開出畫面，還在念 There is one!、大箭頭還沒出來，
+    // 畫面空空的只剩恐龍和鐵軌，「東西都不見了，我不知道要幹嘛」）。數的時候火車停著、輕輕顛（Train.tsx 的 is-ready），車上的東西看得到
+    await say(`m.total.${n}`)
+    if (!live.current) return
+    // 數完：火車開走、要幾個的數字收起來、Choo choo! Bye-bye!，同一刻出下一步的大箭頭，手馬上指著它（cue）——畫面不會空著沒有下一步
+    setSaid(true)
     if (skin.play === 'train') {
       setAway(true)
       sfx.whoosh()
-    } else setBloom(true)
-    await say(`m.total.${n}`)
-    if (!live.current) return
-    // 數完（There is three!）：要幾個的數字也收起來；Choo choo! Bye-bye! 跟下一步的大箭頭一起出來，不再等它念完（以前按勾勾後 4.3 秒才能往下）
-    setSaid(true)
+    }
     void say(skin.doneLine(n))
-    ctx.done(heard.current ? 1 : 0, heard.current && !firstTry ? 1 : 0)
+    ctx.done(heard.current ? 1 : 0, heard.current && !firstTry ? 1 : 0, { cue: true })
   }
 
   const check = async () => {

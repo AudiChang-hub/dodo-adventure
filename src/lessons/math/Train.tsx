@@ -66,11 +66,12 @@ export function TrainPart({ ctx }: { ctx: PartCtx }) {
     icon,
     sourceLabel: (k, on) => (on ? `拿回第 ${k + 1} 個（下車）` : `第 ${k + 1} 個坐上火車`),
     slotLabel: (i, full) => `第 ${i + 1} 節車廂${full ? '' : '（空的）'}`,
-    body: ({ away }) => (
+    body: ({ away, glad }) => (
       <>
         <div className="ma-rail" aria-hidden="true" />
         <motion.div
-          className="ma-engine"
+          // 交出去、數的時候（還沒開走）：火車頭輕輕顛，看得出要出發了、正在等（T-140）
+          className={`ma-engine${glad && !away ? ' is-ready' : ''}`}
           aria-hidden="true"
           initial={false}
           animate={{ left: `${ENGINE.x + (away ? AWAY_DX : 0)}%` }}
