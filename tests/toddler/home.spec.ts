@@ -1132,3 +1132,60 @@ test.describe('T-139 首頁介紹看得出是哪一隻', () => {
     }
   })
 })
+
+// ── T-140⑤ 首頁介紹說完，字幕淡掉（盲測 73d57c7 低 7：And this is Momo! 一直留在畫面上） ─────────────
+// 字幕常駐（2026-10-28 的設計，ui/Subtitle.tsx：唸完留著等下一句，stopSpeech 才收）是給上課用的；首頁介紹說完就收。
+// 只改首頁介紹：課裡的字幕照舊留著（這裡順便確認英文課開場那一句念完還在）。
+// 只跑這一組：npm run test:toddler -- home-names
+/** 畫面上還看得到的字幕（淡出中的不算） */
+const captionNow = (page: Page) =>
+  page.evaluate(() => {
+    const el = document.querySelector<HTMLElement>('.sub-pill:not([data-gone])')
+    if (!el) return null
+    const o = Number(getComputedStyle(el).opacity)
+    return o > 0.05 ? (el.textContent ?? '').replace(/\s+/g, ' ').trim() : null
+  })
+
+test.describe('T-140 首頁介紹說完字幕淡掉', () => {
+  const on = () => want('home-names') || want('home-doors')
+
+  test('介紹說完幾秒內字幕收起來；之後點門進課，課裡的字幕照舊留著', async ({ page }, info) => {
+    test.skip(!on())
+    test.setTimeout(3 * 60_000)
+    const { k, c } = await setup(page, info, '介紹完字幕')
+    try {
+      k.behavior = '第 1 次打開：聽完介紹、發呆'
+      const t0 = await now(page)
+      await k.tap(await blankAt(page), '空白處（解鎖聲音）')
+      const momo = await waitVoice(page, t0, /Momo/, 9000)
+      if (!momo) await c.once('no-momo', '困惑', '介紹沒有念到 Momo', textsOf(await voiceRecs(page, t0)))
+      else {
+        await page.waitForTimeout(Math.max(0, momo.end - (await now(page))) + 200)
+        const right = await captionNow(page)
+        // 剛說完：還看得到（不是一說完就消失）
+        c.outcome('剛說完 And this is Momo!，字幕還在', !!right && right.includes('Momo'), `${right}`)
+        if (!right) await c.once('caption-too-soon', '小問題', '介紹一說完字幕就不見了（來不及看）', '')
+        await k.wait(3500)
+        const later = await captionNow(page)
+        c.outcome('介紹說完 3.5 秒後字幕收起來', !later, `${later ?? '沒有字幕'}`)
+        if (later) await c.once('caption-stuck', '小問題', '首頁介紹說完，字幕一直留在畫面上', `${later}`)
+        await shot(page, info, 'T140-介紹說完')
+      }
+      // 課裡照舊：英文課開場那一句念完，字幕還留著（T-38 字幕常駐沒有被改到）
+      k.behavior = '點英文門，開場念完'
+      const t1 = await now(page)
+      await k.tap((await doorAt(page, 'english'))!, '英文門')
+      await waitLive(page, (l) => l === 'lesson-english', 5000)
+      const hi = await waitVoice(page, t1, /I'm Dodo/, 6000)
+      if (hi) {
+        await page.waitForTimeout(Math.max(0, hi.end - (await now(page))) + 1500)
+        const cap = await captionNow(page)
+        c.outcome('課裡的字幕念完照舊留著', !!cap, `${cap ?? '沒有字幕'}`)
+        if (!cap) await c.once('lesson-caption', '小問題', '英文課開場念完字幕就不見了（課裡的字幕應該留著）', '')
+      }
+      await c.flush()
+    } finally {
+      finish(k, c, '介紹完字幕')
+    }
+  })
+})
