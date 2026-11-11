@@ -143,7 +143,8 @@ export function MathLesson({ onDone }: LessonProps) {
     const t = window.setTimeout(async () => {
       setMood('happy')
       sfx.pop()
-      await say(`ma.today.${lesson.n}`)
+      // 先叫自己的名字 Hi! I'm Bobo!（T-137）；同一串念，開場時點大數字照舊整串停掉（T-108）。點波波重說的只有今天的數字
+      await say('hi.bobo', `ma.today.${lesson.n}`)
       // 開場中點波波會從頭再說一次：等這一次說完才往下，不要被「Let's count!」切掉
       const replayed = async () => {
         while (live.current && replay.current) {

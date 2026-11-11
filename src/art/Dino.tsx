@@ -178,6 +178,8 @@ export const DINO_BOX: Record<Speaker, { w: number; h: number }> = {
 }
 
 export const DINO_NAME: Record<Speaker, string> = { dodo: '豆豆', bobo: '波波', momo: '莫莫' }
+/** 英文名字（台詞裡叫的，T-137 名牌用） */
+export const DINO_EN: Record<Speaker, string> = { dodo: 'Dodo', bobo: 'Bobo', momo: 'Momo' }
 
 /** still：完全靜止（故事插畫用，T-127：不眨眼、嘴巴不跟著旁白開合、手臂不轉；紙感螢幕一句只有一個角色動） */
 export function DinoArt({ who, mood, still }: { who: Speaker; mood: Mood; still?: boolean }) {
