@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, useSyncExternalStore, type CSSProperties, type PointerEvent } from 'react'
-import { motion } from 'motion/react'
+import { motion, type TargetAndTransition } from 'motion/react'
 import { Dino } from '../art/Dino'
 import { BackButton } from '../ui/Back'
 import { HomeIcon } from '../games/Shell'
@@ -7,15 +7,19 @@ import { ArtSticker, Sticker } from '../ui/StickerArt'
 import { useTaps } from '../ui/tap'
 import { album, onAchieve, type OwnedSticker } from '../lib/achievements'
 import { hasLine } from '../content/lines'
+import { stickerBridge, stickerZh } from '../content/lines-stickers'
+import { artOf } from '../content/sticker-art'
+import { zhClipReady } from '../lib/words'
 import { say, sfx } from '../lib/audio'
-import { BOARD_PEEK, newestFirst, tiltOf } from './sticker-book'
+import { BOARD_PEEK, newestFirst, reactionOf, tiltOf, type Move, type Reaction } from './sticker-book'
 import './stickers.css'
 
 /**
  * 貼紙本（T-132，2026-11-11 家長：「要有貼紙本，這樣才可以回頭去看現在自己有哪些貼紙了」）。
  * 首頁牆上的貼紙板點進去。只看不改：只讀 lib/achievements 的 album()，不挑貼紙、不寫任何資料（連「看過了」都不記）。
  * - 他拿到的每一張都在，最新的在最前面（左上角），一張張大大的，像貼在一本有活頁圈的本子上。
- * - 點一張：貼紙跳一下、轉一下，豆豆念它的名字（挑貼紙時聽過的那一句）。連點、多指都只是再跳一下。
+ * - 點一張：每一類有自己的小動作（恐龍踩踩、車子開、動物跳…），豆豆念它的名字，有中文音檔的詞念單字三明治（獅子 → Lion.）。
+ *   同一張再點換一個反應：轉一圈＋狀聲詞（Vroom, vroom!），再點是不說話的亮晶晶（T-139，sticker-book.ts 的 reactionOf）。
  * - 還沒有貼紙：本子上是三張虛線的剪影（等著被貼上去的位置），沒有字；豆豆說「Your stickers will go here!」，接著帶他去玩：
  *   小房子（返回鍵）亮一圈、豆豆的腳印從他腳下一路走到小房子。點灰貼紙、點本子空白處、點豆豆都有回應（T-135，
  *   AI 小男生盲測 becf39a：空的貼紙本點了都沒反應，32 秒就走了、沒再回來）：貼紙晃一下、豆豆跳一下、腳印再走一次、說一句「去玩」。
@@ -194,14 +198,69 @@ function Foot() {
   )
 }
 
-/** 一張貼紙：點了跳一下、念名字。手指按下、放開就算（ui/tap.ts），滑動捲本子不算點 */
+/** 每一種動作（sticker-book.ts 的 Move）：只動貼紙本身，動完回到原位 */
+const MOVES: Record<Move, { a: TargetAndTransition; dur: number }> = {
+  stomp: { a: { y: [0, -16, 0, -10, 0], scaleY: [1, 1.06, 0.88, 1.04, 1], scaleX: [1, 0.96, 1.1, 0.98, 1], rotate: [0, -4, 4, -2, 0] }, dur: 0.8 },
+  drive: { a: { x: [0, -10, 30, 30, 0], rotate: [0, -3, 2, 2, 0], y: [0, 0, -3, 0, 0] }, dur: 0.95 },
+  hop: { a: { y: [0, -30, 0, -18, 0, -7, 0], scaleY: [1, 1.05, 0.92, 1.03, 0.96, 1, 1] }, dur: 0.95 },
+  swim: { a: { x: [0, 12, -12, 8, 0], y: [0, -6, 0, -4, 0], rotate: [0, 10, -10, 6, 0] }, dur: 1.05 },
+  flutter: { a: { rotate: [0, -12, 12, -12, 12, -5, 0], y: [0, -10, -6, -12, -4, 0, 0], scale: [1, 1.05, 1, 1.05, 1, 1, 1] }, dur: 0.85 },
+  squish: { a: { scaleX: [1, 1.22, 0.88, 1.08, 0.97, 1], scaleY: [1, 0.8, 1.14, 0.94, 1.03, 1] }, dur: 0.75 },
+  float: { a: { y: [0, -34, -28, -34, 0], rotate: [0, -5, 5, -3, 0] }, dur: 1.3 },
+  wobble: { a: { rotate: [0, -14, 12, -9, 6, -3, 0] }, dur: 0.9 },
+  bounce: { a: { scale: [1, 1.2, 0.95, 1.04, 1], rotate: [0, -9, 7, -3, 0], y: [0, -14, 0, -3, 0] }, dur: 0.7 },
+  twirl: { a: { rotate: [0, 360], scale: [1, 1.18, 1], y: [0, -10, 0] }, dur: 0.85 },
+  sparkle: { a: { scale: [1, 1.1, 0.97, 1] }, dur: 0.6 },
+}
+
+/** 每一種動作配的聲音（都是溫和的短音，lib/audio.ts 的 sfx） */
+const MOVE_SFX: Record<Move, () => void> = {
+  stomp: () => sfx.clack(),
+  drive: () => sfx.toot(),
+  hop: () => sfx.boing(),
+  swim: () => sfx.whoosh(),
+  flutter: () => sfx.tap(),
+  squish: () => sfx.pop(),
+  float: () => sfx.star(),
+  wobble: () => sfx.boing(),
+  bounce: () => sfx.pop(),
+  twirl: () => sfx.whoosh(),
+  sparkle: () => [0, 2, 4].forEach((i, k) => setTimeout(() => sfx.chime(i), k * 110)),
+}
+
+/** 亮晶晶：六顆小星星從貼紙中間往外飄 */
+const SPARKS = Array.from({ length: 6 }, (_, i) => {
+  const a = (i / 6) * Math.PI * 2 - Math.PI / 2
+  return { x: Math.cos(a) * 96, y: Math.sin(a) * 96, d: i * 0.03 }
+})
+
+/** 一張貼紙點了要念的台詞：名字（有中文音檔的詞加單字三明治）、那一類的狀聲詞、或不說話 */
+function voiceOf(s: OwnedSticker, r: Reaction): string[] {
+  if (r.voice === 'none') return []
+  const art = s.def.art
+  if (r.voice === 'act') {
+    const cat = art ? artOf(art)?.cat : undefined
+    return cat && hasLine(`stk.act.${cat}`) ? [`stk.act.${cat}`] : []
+  }
+  const keys = s.def.lines.filter(hasLine)
+  const zh = stickerZh(art)
+  if (art && zh && keys.length && hasLine(stickerBridge(art)) && zhClipReady(zh)) keys.push(stickerBridge(art))
+  return keys
+}
+
+/** 一張貼紙：點了照 reactionOf 換著動、念名字或狀聲詞。手指按下、放開就算（ui/tap.ts），滑動捲本子不算點 */
 function Item({ s, i }: { s: OwnedSticker; i: number }) {
   const [n, setN] = useState(0)
   const tap = useTaps()
+  const art = s.def.art
+  const cat = art ? artOf(art)?.cat : undefined
+  // 最近這一下的反應（還沒點過是 null）
+  const now = n ? reactionOf(cat, n - 1) : null
   const pop = () => {
-    sfx.pop()
+    const r = reactionOf(cat, n)
+    MOVE_SFX[r.move]()
     setN((x) => x + 1)
-    const keys = s.def.lines.filter(hasLine)
+    const keys = voiceOf(s, r)
     if (keys.length) void say(...keys)
   }
   return (
@@ -210,6 +269,7 @@ function Item({ s, i }: { s: OwnedSticker; i: number }) {
         className="sb-item"
         data-sticker={s.key}
         data-ts={s.ts}
+        data-move={now?.move}
         aria-label={s.def.zh}
         initial={{ scale: 0.6, opacity: 0 }}
         animate={{ scale: 1, opacity: 1 }}
@@ -217,11 +277,22 @@ function Item({ s, i }: { s: OwnedSticker; i: number }) {
         {...tap(s.key, pop)}
       >
         {n > 0 && <motion.span key={`r${n}`} className="sb-ring" aria-hidden="true" initial={{ scale: 0.7, opacity: 0 }} animate={{ scale: [0.7, 1.32], opacity: [0, 0.8, 0] }} transition={{ duration: 0.65, ease: 'easeOut' }} />}
+        {now?.move === 'sparkle' &&
+          SPARKS.map((p, k) => (
+            <motion.span
+              key={`${n}-${k}`}
+              className="sb-spark"
+              aria-hidden="true"
+              initial={{ x: 0, y: 0, scale: 0.3, opacity: 0 }}
+              animate={{ x: p.x, y: p.y, scale: [0.3, 1, 0.6], opacity: [0, 1, 0], rotate: 90 }}
+              transition={{ duration: 0.8, delay: p.d, ease: 'easeOut' }}
+            />
+          ))}
         <motion.span
           key={n}
           className="sb-sticker"
-          animate={n ? { scale: [1, 1.2, 0.95, 1.04, 1], rotate: [0, -9, 7, -3, 0], y: [0, -14, 0, -3, 0] } : {}}
-          transition={{ duration: 0.7, ease: 'easeInOut' }}
+          animate={now ? MOVES[now.move].a : {}}
+          transition={{ duration: now ? MOVES[now.move].dur : 0, ease: 'easeInOut' }}
         >
           <Sticker def={s.def} />
         </motion.span>

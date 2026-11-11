@@ -388,6 +388,43 @@ test.describe('畫面', () => {
         c.outcome('點一張：跳一下、念名字', ring && said.length > 0, `波紋 ${ring}；說了「${said.join('／')}」`)
         if (!ring || !said.length) await c.once('tap', '困惑', '點貼紙本裡的貼紙沒有反應', `波紋 ${ring}；語音 ${said.length} 句`)
 
+        // T-139（AI 小男生盲測 becf39a、61ee1cf：點 8～9 張就說「一直點都一樣」「好多都在講話，我聽不懂」）：
+        // 名字念單字三明治（有中文音檔的詞）；同一張再點換一個反應；不同種類的貼紙動作不一樣
+        k.behavior = '同一張再點、點別種貼紙'
+        await k.wait(2500)
+        const allSaid0 = (await linesSince(page, t0)).map((l) => l.text ?? '')
+        const zhSaid = allSaid0.some((t) => /[一-鿿]/.test(t))
+        c.outcome('點一張：名字念中文三明治', zhSaid, `說了「${allSaid0.join('／')}」`)
+        if (!zhSaid) await c.once('zh', '困惑', '貼紙的名字沒有念中文三明治（這個詞有中文音檔）', allSaid0.join('／'))
+        /** 第 i 張貼紙現在的動作 */
+        const moveOf = (i: number) =>
+          page.evaluate((i) => {
+            const root = [...document.querySelectorAll<HTMLElement>('.scene')].filter((e) => !e.inert).pop()!
+            return root.querySelectorAll<HTMLElement>('.sb-item')[i]?.dataset.move ?? ''
+          }, i)
+        const move0 = await moveOf(0)
+        const t2 = await page.evaluate(() => performance.now())
+        await k.tap(first, '第一張貼紙（第二下）')
+        await k.wait(300)
+        const move1 = await moveOf(0)
+        await k.wait(2500)
+        const said2 = (await linesSince(page, t2)).map((l) => l.text ?? '')
+        const changed = !!move1 && move1 !== move0 && said2.join('／') !== allSaid0.join('／')
+        c.outcome('同一張點第二下：換一個反應', changed, `動作 ${move0} → ${move1}；第二下說「${said2.join('／')}」`)
+        if (!changed) await c.once('same', '困惑', '同一張貼紙再點一次，反應跟第一次一樣', `動作 ${move0} → ${move1}`)
+        const second = await page.evaluate(() => {
+          const root = [...document.querySelectorAll<HTMLElement>('.scene')].filter((e) => !e.inert).pop()!
+          const r = root.querySelectorAll('.sb-item')[1]!.getBoundingClientRect()
+          return { x: r.left + r.width / 2, y: r.top + r.height / 2 }
+        })
+        await k.tap(second, '第二張貼紙（別種）')
+        await k.wait(300)
+        const moveB = await moveOf(1)
+        const differ = !!moveB && moveB !== move0
+        c.outcome('不同種類的貼紙：動作不一樣', differ, `第一張 ${move0}、第二張 ${moveB}`)
+        if (!differ) await c.once('kind', '困惑', '不同種類的貼紙點了動作都一樣', `${move0} / ${moveB}`)
+        await k.wait(2500)
+
         // 連點同一張、點別張、手掌壓、拖到一半放手、捲動：不出錯、不離開
         k.behavior = '連點、多指、亂點'
         await k.spam(first, 8, '連點第一張')

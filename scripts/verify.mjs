@@ -66,7 +66,7 @@ const CHECKS = [
   { id: 'test-story-en', name: '單元：故事時間英文版課文（180 篇 4 句短句、三明治、每頁有圖、故事題、認角色、找一樣的英文字）', cmd: ['npx', 'tsx', 'scripts/test-story-en.ts'], check: unit },
   { id: 'test-story-live', name: '單元：每週新故事直接上線（不用家長通過、撤下不播、重寫過再上線）', cmd: ['npx', 'tsx', 'scripts/test-story-live.ts'], check: unit },
   { id: 'test-lesson-sticker', name: '單元：上完一堂不定時挑貼紙（40 堂 8～14 次、間隔 ≤ 6）', cmd: ['npx', 'tsx', 'scripts/test-lesson-sticker.ts'], check: unit },
-  { id: 'test-sticker-book', name: '單元：貼紙本（最新的在最前面、只讀、每張固定歪一點）', cmd: ['npx', 'tsx', 'scripts/test-sticker-book.ts'], check: unit },
+  { id: 'test-sticker-book', name: '單元：貼紙本（最新的在最前面、只讀、每張固定歪一點、點了換反應、三明治只用現有中文音檔）', cmd: ['npx', 'tsx', 'scripts/test-sticker-book.ts'], check: unit },
   {
     id: 'lessons-teach',
     name: '三堂課不教不考（check-lessons-teach）',
