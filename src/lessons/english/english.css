@@ -265,13 +265,17 @@
   width: 100%;
   height: 100%;
 }
+/* 四線格（T-132）：暖灰色細線，跟彩色的粗跑道分得開，不會被當成要描的線；點不到（描字的手指在 Ink 上） */
+.en-trace-lines {
+  pointer-events: none;
+}
 .en-trace-lines line {
-  stroke: #d8e9de;
-  stroke-width: 0.8;
+  stroke: #ddd3c3;
+  stroke-width: 0.7;
 }
 .en-trace-lines line.is-base {
-  stroke: #b9d6c4;
-  stroke-width: 1.1;
+  stroke: #c3b49c;
+  stroke-width: 1;
 }
 .en-trace-rounds {
   position: absolute;

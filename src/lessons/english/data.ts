@@ -15,7 +15,10 @@ export interface LessonLetter {
   words: [PhonicsWord, PhonicsWord, PhonicsWord]
   /** 單字真的是這個字母開頭的（「Which one starts with …?」只問這些） */
   starts: PhonicsWord[]
+  /** 大寫的筆順（20～120，塗字母的泡泡字用） */
   upper: string[]
+  /** 大寫放到四線格上（頂線到底線，描字用，T-132） */
+  upperLined: string[]
   lower: string[]
 }
 
@@ -53,6 +56,50 @@ export const LOWER: Record<string, string[]> = {
 // 四條線（描字底下淡淡的格線）
 export const LINES = { top: 18, mid: 64, base: 110, bottom: 132 }
 
+/**
+ * 大寫放到四線格上（T-132，家長：「大小寫都要有格線，這樣才知道大小寫的差異」）：學校的寫法，大寫從頂線寫到底線。
+ * games/draw/glyphs.ts 的大寫大約畫在 20～120（數學課的數字也用那一份，不動），英文課描字時換算到 頂線 18～底線 110：
+ * 照每個字實際畫出來的上下範圍（彎的字 C、G、S 不是剛好 20～120）對齊，寬度跟著等比縮（以 x = 50 為中心），字的樣子不變。
+ * O、Q 的圓原本只有 33～107（跟數字 0 分得出來），這裡上下拉滿頂線到底線、寬度不變（英文課沒有數字 0）；
+ * Q 照 O 的圓對齊，尾巴落到底線下面一點點。
+ * 小寫本來就照四條線畫（LOWER）：有上伸的（b、d、h、k、l）從頂線、其他從中線，有下伸的（g、j、p、q、y）到下緣。
+ */
+export function onLines(L: string, strokes: string[]): string[] {
+  const round = L === 'O' || L === 'Q'
+  const [y0, y1] = yRange(round ? strokes.slice(0, 1) : strokes)
+  const sy = (LINES.base - LINES.top) / (y1 - y0)
+  const sx = round ? 1 : sy
+  const r = (v: number) => Math.round(v * 10) / 10
+  return strokes.map((d) => d.replace(/(-?\d+(?:\.\d+)?)\s+(-?\d+(?:\.\d+)?)/g, (_, x, y) => `${r(50 + (Number(x) - 50) * sx)} ${r(LINES.top + (Number(y) - y0) * sy)}`))
+}
+
+/** 筆順（只有 M、L、C 絕對座標）實際畫出來的上下範圍：貝茲曲線取樣，不用 DOM */
+function yRange(strokes: string[]): [number, number] {
+  let lo = Infinity
+  let hi = -Infinity
+  for (const d of strokes) {
+    let y0 = 0
+    for (const [, cmd, args] of d.matchAll(/([MLC])([^MLC]*)/g)) {
+      const v = args.trim().split(/\s+/).map(Number)
+      const step = cmd === 'C' ? 6 : 2
+      for (let i = 0; i + step - 1 < v.length; i += step) {
+        const y = v[i + step - 1]
+        if (cmd === 'C')
+          for (let t = 0; t <= 1; t += 0.01) {
+            const u = 1 - t
+            const yy = u * u * u * y0 + 3 * u * u * t * v[i + 1] + 3 * u * t * t * v[i + 3] + t * t * t * y
+            lo = Math.min(lo, yy)
+            hi = Math.max(hi, yy)
+          }
+        lo = Math.min(lo, y)
+        hi = Math.max(hi, y)
+        y0 = y
+      }
+    }
+  }
+  return [lo, hi]
+}
+
 const byLetter = new Map(ALL_PHONICS.map((u) => [u.letter, u]))
 
 export const LESSON_LETTERS: LessonLetter[] = [...ORDER].map((L) => {
@@ -61,7 +108,7 @@ export const LESSON_LETTERS: LessonLetter[] = [...ORDER].map((L) => {
   if (!unit) throw new Error(`英文課少了字母 ${L} 的念法`)
   const words = unit.keys
   const starts = words.filter((w) => w.w[0].toLowerCase() === l)
-  return { L, l, unit, words, starts, upper: GLYPHS[L], lower: LOWER[l] }
+  return { L, l, unit, words, starts, upper: GLYPHS[L], upperLined: onLines(L, GLYPHS[L]), lower: LOWER[l] }
 })
 
 /**

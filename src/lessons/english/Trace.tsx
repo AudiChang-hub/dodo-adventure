@@ -151,7 +151,7 @@ export function Trace({
   const [r, setR] = useState(from)
   const round = rounds[r]
   const look = LOOKS[round.look]
-  const strokes = round.big ? letter.upper : letter.lower
+  const strokes = round.big ? letter.upperLined : letter.lower
   const [stroke, setStroke] = useState(0)
   const [prog, setProg] = useState(0)
   const [done, setDone] = useState(false)
@@ -350,7 +350,7 @@ export function Trace({
     setReview(false)
     setGlow(0)
     onRound?.(i)
-    const ss = rd.big ? letter.upper : letter.lower
+    const ss = rd.big ? letter.upperLined : letter.lower
     const ok = flow.begin(live)
     devs.current = []
     setDone(false)
@@ -411,7 +411,7 @@ export function Trace({
    * 這一段不能搶（busy）；點描字板只有輕輕一聲（不會卡住、不會多記一筆）
    */
   const drewIt = async (i: number) => {
-    const ss = rounds[i].big ? letter.upper : letter.lower
+    const ss = rounds[i].big ? letter.upperLined : letter.lower
     const alive = () => live.current
     setReview(true)
     if (!affirmed.current) await say('d.glyph.drew')
@@ -662,15 +662,18 @@ export function Trace({
           <motion.div key={r} className="en-trace-board" initial={{ opacity: 0 }} animate={{ opacity: 1, transition: { duration: 0.45 } }} exit={{ opacity: 0, transition: { duration: 0.25 } }}>
             <svg viewBox={`0 0 100 ${VIEW_H}`} className="en-trace-svg" aria-hidden="true">
               <RainbowDef id={`en-rainbow-${r}`} w={100} h={VIEW_H} />
-              {/* 小寫的四條線（學校的作業簿）：中線虛線 */}
-              {!round.big && (
-                <g className="en-trace-lines">
-                  <line x1="2" x2="98" y1={LINES.top} y2={LINES.top} />
-                  <line x1="2" x2="98" y1={LINES.mid} y2={LINES.mid} strokeDasharray="2.4 2.4" />
-                  <line x1="2" x2="98" y1={LINES.base} y2={LINES.base} className="is-base" />
-                  <line x1="2" x2="98" y1={LINES.bottom} y2={LINES.bottom} />
-                </g>
-              )}
+              {/*
+                四線格（學校的作業簿；T-132 起大寫、小寫都有，同一個位置）：頂線、中線（虛線）、底線（深一點）、下緣。
+                大 S 從頂線到底線、小 s 從中線到底線，兩輪一比就看得出大小寫差在哪裡。
+                格線是暖灰色的細線，跟跑道（粗、彩色、有綠點和箭頭）長得完全不一樣，不會被當成要描的線；
+                它只是畫在跑道底下的圖，描字的判斷（PathTracker）只看這一筆的跑道，跟格線無關
+              */}
+              <g className="en-trace-lines" data-grid="">
+                <line x1="2" x2="98" y1={LINES.top} y2={LINES.top} data-line="top" />
+                <line x1="2" x2="98" y1={LINES.mid} y2={LINES.mid} strokeDasharray="2.4 2.4" data-line="mid" />
+                <line x1="2" x2="98" y1={LINES.base} y2={LINES.base} className="is-base" data-line="base" />
+                <line x1="2" x2="98" y1={LINES.bottom} y2={LINES.bottom} data-line="bottom" />
+              </g>
               {!done && glowLane(LANE + 14, '#FFEDB0')}
               {/* 畫完（不是示範）：整個字變彩虹色、跳一下 */}
               <g key={cheerTap} className={rainbow ? 'trace-pop' : undefined} data-trace-finished={finished ? '' : undefined} data-trace-neat={finished ? (neat ? '1' : '0') : undefined}>

@@ -6,7 +6,7 @@
 import assert from 'node:assert/strict'
 import '../src/content/lines'
 import { hasLine } from '../src/content/registry'
-import { ORDER, lessonLetter, orderFor, wordId, LESSON_LETTERS } from '../src/lessons/english/data'
+import { LINES, ORDER, lessonLetter, orderFor, wordId, LESSON_LETTERS } from '../src/lessons/english/data'
 import { doneRecord, lessonGood, planFor, startedRecord, type EnglishProgress } from '../src/lessons/english/plan'
 import { makeQuiz, wrongKeys } from '../src/lessons/english/quiz-plan'
 
@@ -169,5 +169,54 @@ ok('T-104、T-112 選擇題答完幾題、結果記下來，同一天回來從�
   assert.equal(planFor(rec, '2026-11-10').resume, undefined)
 }
 ok('T-122 上完了、還沒說完晚安就離開：同一天回來回到晚安道別，不從 Let’s practice 重來')
+
+// ── T-132 四線格：大寫從頂線到底線、小寫從中線（有上伸的從頂線）到底線 ──
+{
+  /** 筆順（只有 M、L、C）實際畫出來的上下範圍（貝茲曲線取樣，不用 DOM） */
+  const yRange = (ss: string[]) => {
+    let lo = Infinity
+    let hi = -Infinity
+    const see = (y: number) => ((lo = Math.min(lo, y)), (hi = Math.max(hi, y)))
+    for (const d of ss) {
+      let at = { x: 0, y: 0 }
+      for (const [, cmd, args] of d.matchAll(/([MLC])([^MLC]*)/g)) {
+        const v = args.trim().split(/\s+/).map(Number)
+        if (cmd === 'C') {
+          for (let i = 0; i + 5 < v.length; i += 6) {
+            const [x1, y1, x2, y2, x, y] = v.slice(i, i + 6)
+            for (let t = 0; t <= 1; t += 0.02) see((1 - t) ** 3 * at.y + 3 * (1 - t) ** 2 * t * y1 + 3 * (1 - t) * t * t * y2 + t ** 3 * y)
+            void x1, void x2
+            at = { x, y }
+          }
+        } else
+          for (let i = 0; i + 1 < v.length; i += 2) {
+            at = { x: v[i], y: v[i + 1] }
+            see(at.y)
+          }
+      }
+    }
+    return [lo, hi]
+  }
+  const near = (a: number, b: number, tol: number) => Math.abs(a - b) <= tol
+  for (const x of LESSON_LETTERS) {
+    const [top, base] = yRange(x.upperLined)
+    // 大寫：上緣貼頂線、下緣貼底線（曲線的字 S、C、G… 允許超出一點點；Q 的尾巴在底線下面、下緣上面）
+    assert.ok(near(top, LINES.top, 0.6), `${x.L} 的上緣 ${top.toFixed(1)} 沒有到頂線 ${LINES.top}`)
+    if (x.L === 'Q') assert.ok(base > LINES.base && base < LINES.bottom, `Q 的尾巴 ${base.toFixed(1)}`)
+    else assert.ok(near(base, LINES.base, 0.6), `${x.L} 的下緣 ${base.toFixed(1)} 沒有到底線 ${LINES.base}`)
+  }
+  // 大寫數學課共用的字形沒動（塗字母、數學課的數字照舊用 20～120）
+  assert.deepEqual(lessonLetter(ORDER.indexOf('S')).upper, ['M76 32 C66 12 24 14 26 44 C28 70 74 66 76 96 C78 128 32 130 22 106'])
+  // 小 s：上緣在中線附近、下緣在底線附近，比大 S 矮一半左右
+  const S = LESSON_LETTERS.find((x) => x.L === 'S')!
+  const [st, sb] = yRange(S.lower)
+  const [bt, bb] = yRange(S.upperLined)
+  assert.ok(near(st, LINES.mid, 4) && near(sb, LINES.base, 4), `小 s ${st.toFixed(1)}～${sb.toFixed(1)}`)
+  assert.ok((sb - st) / (bb - bt) < 0.6, '小 s 要明顯比大 S 矮')
+  // 有上伸的小寫（b、d、h、k、l）從頂線開始；其他的不超過中線太多（t、i、j 的點、f 例外）
+  for (const l of 'bdhkl') assert.ok(near(yRange(LESSON_LETTERS.find((x) => x.l === l)!.lower)[0], LINES.top, 2), `${l} 要從頂線開始`)
+  for (const l of 'acemnorsuvwxz') assert.ok(yRange(LESSON_LETTERS.find((x) => x.l === l)!.lower)[0] >= LINES.mid - 4, `${l} 不該超過中線`)
+}
+ok('T-132 四線格：大寫頂線到底線、小寫從中線（上伸的從頂線）到底線，大 S 和小 s 高度看得出不一樣')
 
 console.log('ALL PASS')
