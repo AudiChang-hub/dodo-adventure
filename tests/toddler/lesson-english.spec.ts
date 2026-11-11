@@ -332,18 +332,28 @@ test.describe('英文字母課', () => {
           return { x: s.x, y: s.y + down }
         })
       }, DOWN)
+      // 跑道填了多少：這一筆的彩色跑道是 pathLength 的那一條，stroke-dasharray 的第一個數字是描到哪裡
+      // （跑道發亮的那一層也有 pathLength，跳過，T-113：描到一半放手會亮）。
+      // 量放手之前填到哪裡（T-139 起描過三分之一放手就算過關、補滿、換下一段，放手之後跑道就不在了）
+      await page.evaluate(() => {
+        const w = window as unknown as { __fill?: number; __up?: boolean }
+        w.__fill = 0
+        w.__up = false
+        const read = () => {
+          if (w.__up) return
+          const boards = [...document.querySelectorAll('.en-trace-board')]
+          const lane = [...(boards[boards.length - 1]?.querySelectorAll('path[pathLength]') ?? [])].find((x) => !x.closest('[data-trace-glow]'))
+          if (!lane) return
+          const [a] = (lane.getAttribute('stroke-dasharray') ?? '0').split(' ').map(Number)
+          w.__fill = Math.max(w.__fill ?? 0, a / Number(lane.getAttribute('pathLength') ?? 1))
+        }
+        new MutationObserver(read).observe(document.querySelector('.en-trace')!, { subtree: true, attributes: true, childList: true })
+        window.addEventListener('pointerup', () => void (read(), (w.__up = true)), true)
+      })
       k.behavior = '瞄準綠點、手指落在下面一點，照小 s 的樣子畫一半'
       await k.drag(pts, { stepMs: 16, label: '描小 s（按偏 15 mm、畫一半）' })
       await k.wait(500)
-      // 跑道填了多少：這一筆的彩色跑道是 pathLength 的那一條，stroke-dasharray 的第一個數字是描到哪裡
-      // （跑道發亮的那一層也有 pathLength，跳過，T-113：描到一半放手會亮）
-      const prog = await page.evaluate(() => {
-        const boards = [...document.querySelectorAll('.en-trace-board')]
-        const lane = [...boards[boards.length - 1].querySelectorAll('path[pathLength]')].find((x) => !x.closest('[data-trace-glow]'))
-        const [a] = (lane?.getAttribute('stroke-dasharray') ?? '0').split(' ').map(Number)
-        return { at: a, total: Number(lane?.getAttribute('pathLength') ?? 1) }
-      })
-      const filled = prog.at / prog.total
+      const filled = await page.evaluate(() => (window as unknown as { __fill?: number }).__fill ?? 0)
       c.outcome('跑道有填（吸到起點、照樣子畫有算）', filled >= 0.25, `填了 ${Math.round(filled * 100)}%`)
       if (filled < 0.25) await c.once('trace-offset', '困惑', '描小 s 手指落在綠點下面一點、照樣子畫：畫得出灰線，跑道卻沒有填', `填了 ${Math.round(filled * 100)}%`)
     } finally {
@@ -416,6 +426,121 @@ test.describe('英文字母課', () => {
     }
   })
 
+  // T-139（盲測 61ee1cf 貼紙本 2 第 7～9 步、中文 2 第 10～12 步）：描大 S 從綠點描過上面的彎、斜下來到中間（四成左右）就放手，
+  // 以前算「沒描好」→ You drew it! → 筆帶著描完（平平的、沒有彩虹），接著又是小 s 的示範；他說「一直畫都不知道對不對，好久喔」離開。
+  // 要做到：(1) 跑道上有小星星，一邊描一邊亮（放手之前就亮）；(2) 照盲測那一筆描到四成放手：算過關、彩虹（不是筆帶著描完），
+  // 作答紀錄照樣嚴格（不算描好）；(3) 描不到三分之一就放手：照 T-125 由筆帶著描完（平平的）
+  test('描大 S：照盲測那一筆描到四成放手 → 小星星一邊描一邊亮、算過關（彩虹）；描不到三分之一才由筆帶著描完（T-139）', async ({ page }, info) => {
+    test.skip(!want('lesson-english'))
+    test.setTimeout(3 * 60_000)
+    const { k, c } = await setup(page, info, '描到四成過關')
+    try {
+      const day = await page.evaluate(() => {
+        const d = new Date()
+        return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+      })
+      await page.evaluate(
+        (day) =>
+          new Promise((res) => {
+            const rq = indexedDB.open('dodo-adventure')
+            rq.onsuccess = () => {
+              const tx = rq.result.transaction('kv', 'readwrite')
+              tx.objectStore('kv').put({ key: 'lesson.english', value: { idx: 0, seq: 'SABCDEFGHIJKLMNOPQRTUVWXYZ', date: day, done: false, good: false, stage: 'trace', round: 0 } })
+              tx.oncomplete = () => res(0)
+            }
+          }),
+        day,
+      )
+      if (!(await enter(k, c))) return
+      if (!(await waitStage(page, 'trace', 20_000))) return void (await c.once('no-trace', '卡死', '沒有從描字接著上', `停在 ${await stageOf(page)}`))
+      const canDraw = () => page.waitForFunction(() => document.querySelector('.en-trace')?.getAttribute('data-accepting') !== 'false' && !document.querySelector('.en-trace[data-demo]'), null, { timeout: 60_000 })
+      await canDraw()
+      await k.wait(400)
+      const miles = () => page.evaluate(() => [...document.querySelectorAll('.en-trace [data-trace-mile]')].map((m) => m.getAttribute('data-trace-mile')))
+      const m0 = await miles()
+      c.outcome('大 S 的跑道上有兩顆小星星、還沒亮', m0.length === 2 && m0.every((x) => x === ''), JSON.stringify(m0))
+      if (m0.length !== 2) await c.once('no-miles', '困惑', '描大 S 的跑道上沒有小星星，描的時候看不出進度', JSON.stringify(m0))
+      if (process.env.TODDLER_SHOTS && info.project.name === 'tab1200') await page.screenshot({ path: `${process.env.TODDLER_SHOTS}/大S小星星.png` })
+
+      // 記下第一顆星星什麼時候亮、手指什麼時候放開（星星要在放手之前、一邊描一邊亮）
+      await page.evaluate(() => {
+        const w = window as unknown as { __lit?: number; __up?: number }
+        delete w.__lit
+        delete w.__up
+        new MutationObserver(() => {
+          if (w.__lit === undefined && document.querySelector('.en-trace [data-trace-mile="lit"]')) w.__lit = performance.now()
+        }).observe(document.querySelector('.en-trace')!, { subtree: true, attributes: true, childList: true })
+        window.addEventListener('pointerup', () => void (w.__up ??= performance.now()), true)
+      })
+      // 盲測那一筆（中文 2 第 11 步截圖上他的墨水，1280×800；描字板在 (427,105) 寬 426 高 600），換算到這個尺寸的描字板
+      const BLIND = [
+        [733, 240],
+        [685, 188],
+        [600, 192],
+        [557, 258],
+        [600, 325],
+        [652, 360],
+      ]
+      const REF = { x: 427, y: 105, w: 426, h: 600 }
+      const box = await page.evaluate(() => {
+        const r = document.querySelector('.en-trace-paper')!.getBoundingClientRect()
+        return { x: r.left, y: r.top, w: r.width, h: r.height }
+      })
+      const pts = BLIND.map(([x, y]) => ({ x: box.x + ((x - REF.x) / REF.w) * box.w, y: box.y + ((y - REF.y) / REF.h) * box.h }))
+      k.behavior = '照盲測那一筆描大 S，描到中間放手'
+      await k.drag(pts, { stepMs: 24, label: '描大 S 到中間（盲測那一筆）' })
+      const t = await page.evaluate(() => {
+        const w = window as unknown as { __lit?: number; __up?: number }
+        return { lit: w.__lit ?? null, up: w.__up ?? null }
+      })
+      const early = t.lit !== null && t.up !== null && t.lit < t.up
+      c.outcome('一邊描、小星星一邊亮（放手之前就亮了）', early, JSON.stringify(t))
+      if (!early) await c.once('mile-late', '困惑', '描大 S 描到四成，跑道上的小星星沒有在描的時候亮，看不出自己描到哪裡', JSON.stringify(t))
+      const fin = await page
+        .waitForSelector('.en-trace [data-trace-finished]', { state: 'attached', timeout: 4000 })
+        .then((e) => e.getAttribute('data-trace-neat'))
+        .catch(() => null)
+      c.outcome('描到四成放手：算過關、彩虹慶祝（不是筆帶著描完）', fin === '1', `data-trace-neat=${fin}`)
+      if (fin !== '1') await c.once('short-pass', '困惑', '描大 S 描到四成放手，沒有算過關（沒有彩虹、或筆帶著描完）', `data-trace-neat=${fin}`)
+      if (process.env.TODDLER_SHOTS && info.project.name === 'tab1200') await page.screenshot({ path: `${process.env.TODDLER_SHOTS}/大S描到四成過關.png` })
+      await k.wait(1500)
+      // 示範（Watch me）也會記一筆 phase 'teach'，只看他自己描的那一筆
+      const rec = (await attempts(page)).filter((a) => a.game === 'lesson-en' && a.itemId === 'write:S' && a.phase !== 'teach')
+      c.outcome('作答紀錄照樣嚴格：描到四成的不算描好', rec.length === 1 && !rec[0].ok, JSON.stringify(rec.map((a) => a.ok)))
+      if (rec.length !== 1 || rec[0].ok) await c.once('short-record', '誤記作答', '描大 S 只描到四成，作答紀錄記成描好了（或記了不只一筆）', JSON.stringify(rec.map((a) => a.ok)))
+
+      // (3) 小 s 只描兩成就放手：照 T-125 由筆帶著描完（平平的、不是彩虹）
+      const little = await page
+        .waitForFunction(() => document.querySelector('.en-trace-rounds .is-now')?.textContent?.trim() === 's', null, { timeout: 20_000 })
+        .then(() => true, () => false)
+      if (!little) return void (await c.once('no-little', '卡死', '大 S 過關以後沒有換到小 s', ''))
+      await canDraw()
+      await k.wait(400)
+      const along = await page.evaluate(() => {
+        const boards = [...document.querySelectorAll('.en-trace-board')]
+        const p = boards[boards.length - 1].querySelector<SVGPathElement>('path[stroke-dasharray="3 3"]')!
+        const m = p.getScreenCTM()!
+        const len = p.getTotalLength()
+        return Array.from({ length: 7 }, (_, i) => {
+          const q = p.getPointAtLength(len * 0.2 * (i / 6))
+          const s = new DOMPoint(q.x, q.y).matrixTransform(m)
+          return { x: s.x, y: s.y }
+        })
+      })
+      k.behavior = '小 s 描兩成就放手'
+      await k.drag(along, { stepMs: 24, label: '描小 s 到兩成' })
+      const fin2 = await page
+        .waitForSelector('.en-trace [data-trace-finished]', { state: 'attached', timeout: 15_000 })
+        .then((e) => e.getAttribute('data-trace-neat'))
+        .catch(() => null)
+      c.outcome('描不到三分之一放手：照 T-125 由筆帶著描完（平平的）', fin2 === '0', `data-trace-neat=${fin2}`)
+      if (fin2 !== '0') await c.once('below-pass', '卡死', '小 s 描兩成放手，沒有照 T-125 由筆帶著描完', `data-trace-neat=${fin2}`)
+    } finally {
+      await c.flush().catch(() => {})
+      finish(k, c, '描到四成過關')
+    }
+  })
+
   // T-135（AI 小男生盲測 becf39a 英文 0/2：寫寫看二選一卡關）。今天直接從寫寫看接著上
   async function toWrite(k: Toddler, c: Checker) {
     const page = k.page
@@ -463,7 +588,7 @@ test.describe('英文字母課', () => {
       c.outcome('在描字卡上拖一下：選到描字', picked)
       if (!picked) return void (await c.once('drag-card', '卡死', '在描字卡上照著手拖一下，卡片沒有被選到、沒有回應（盲測 becf39a 英文 1 第 45、46 步）', ''))
 
-      // 描到一半放手（盲測：拖 2～3 次都半途放手）→ You drew it!、筆帶著描完（T-125）
+      // 描到一半放手（盲測：拖 2～3 次都半途放手）→ 帶著描完（T-125；T-139 起描過三分之一算過關、補滿）
       k.behavior = '描到一半放手'
       await page.waitForFunction(() => document.querySelector('.en-trace')?.getAttribute('data-accepting') !== 'false', null, { timeout: 20_000 })
       const half = await page.evaluate(() => {
@@ -479,7 +604,7 @@ test.describe('英文字母課', () => {
       })
       await k.drag(half, { stepMs: 24, label: '描到一半放手' })
       const helped = await page.waitForSelector('.en-trace [data-trace-finished]', { state: 'attached', timeout: 15_000 }).then(() => true, () => false)
-      c.outcome('描到一半放手：筆帶著描完（T-125）', helped)
+      c.outcome('描到一半放手：帶著描完（T-125、T-139）', helped)
       if (!helped) await c.once('half-lift', '卡死', '寫寫看描到一半放手，沒有回應、筆沒有帶著描完', '')
     } finally {
       await c.flush().catch(() => {})
@@ -688,13 +813,13 @@ test.describe('英文字母課', () => {
           .then(() => true)
           .catch(() => false)
 
-      // (1) 大寫 S 描到四成放手：不用重描，筆從斷掉的地方帶著描完（T-122，盲測 ca0d1e1：描到一半放手被說 Nice try 要重描，「好煩」離開）
+      // (1) 大寫 S 描到四成放手：不用重描、帶著描完（T-122，盲測 ca0d1e1：描到一半放手被說 Nice try 要重描，「好煩」離開；T-139 起描過三分之一算過關、補滿）
       k.behavior = '大寫 S 描到四成放手'
       await k.drag(await along(0, 0.4), { stepMs: 16, label: '描大 S 到四成' })
       const half = await filled()
       const carried = await finished(10_000)
       if (process.env.TODDLER_SHOTS && info.project.name === 'tab1280') await page.screenshot({ path: `${process.env.TODDLER_SHOTS}/大S描到四成放手.png` })
-      c.outcome('描到四成放手：不用重描，筆帶著描完（T-122）', carried, `放手時填了 ${Math.round(half * 100)}%${carried ? '' : `；10 秒後 ${Math.round((await filled()) * 100)}%`}`)
+      c.outcome('描到四成放手：不用重描，帶著描完（T-122；T-139 起描過三分之一算過關、補滿）', carried, `放手時填了 ${Math.round(half * 100)}%${carried ? '' : `；10 秒後 ${Math.round((await filled()) * 100)}%`}`)
       if (!carried) return void (await c.once('trace-half', '困惑', '描到一半放手，沒有帶著描完，還要他重描', `放手時填了 ${Math.round(half * 100)}%`))
 
       // (2) 小 s：盲測那一筆（1280×800 截圖上的座標，描字板在 (427,105) 寬 426 高 600），換算到這個尺寸的描字板
