@@ -1,5 +1,5 @@
 import { useContext, useEffect, useMemo, useRef, useState } from 'react'
-import { Resting, Shell, HomeIcon, type GameProps } from '../Shell'
+import { Again, Resting, Shell, type GameProps } from '../Shell'
 import { Ink, type InkHandle, type Pt } from './Ink'
 import { Palette, CheckButton, ClearButton, PALETTE } from './Palette'
 import { imageOf, onPaper, saveDrawing, svgThumb } from './save'
@@ -10,17 +10,19 @@ import { BRUSH_VARIETY, ERASER, ERASE_SIZE, brushOfDay, brushPool, isEraser, isS
 import { ideaKey } from './lines'
 import { dayNumber, getTodayWorld } from '../../lib/today-world'
 import { pickVariety } from '../../lib/variety'
-import { Hand, HandArt, easeInOut, tween } from '../Demo'
+import { HandArt, easeInOut, tween } from '../Demo'
+import { DoneChoices } from './DoneChoices'
+import { FreeArt } from './DrawPick'
+import { go } from '../../lib/nav'
 import { game as gameDef } from '../../content/games'
 import { markPlayed } from '../../lib/adaptive'
 import { logAttempt } from '../../lib/record'
 import { hushSpeech, isSpeaking, say, sfx, stopSpeech } from '../../lib/audio'
-import { AnimatePresence, motion, useAnimate } from 'motion/react'
+import { motion, useAnimate } from 'motion/react'
 import { Sparkles } from '../../ui/Sparkles'
 import { wait, within } from '../lines'
 import { useIdle } from '../idle'
 import { firstFinger } from '../NotYet'
-import { useTaps } from '../../ui/tap'
 
 /** 手指、筆剛離開畫紙這麼久以內點到完成鍵：當成畫畫的手順便碰到，不算（準則 DRAW-6） */
 const LIFT_MS = 500
@@ -29,8 +31,6 @@ const LIFT_MS = 500
  * T-110 起回顧完會回到作品上、點大房子才走，作品看得到的時間不再只有這一段，所以從 6 秒縮成 4 秒。
  */
 const SHOW_MS = 4000
-/** 停在作品上：多久沒點房子，示範的手在房子上點一下（跟下課畫面 LessonBye 一樣） */
-const HOME_HAND_MS = 3000
 
 /** 展示作品時畫紙邊上的星星（百分比位置、大小）：一顆一顆冒出來就留著，不閃（紙感螢幕） */
 const SHOW_STARS = [
@@ -57,7 +57,8 @@ type Mode = 'pen' | 'magic' | 'stamp' | 'eraser'
  * 完成、清空都是點一下（不用按住）；清空要再點一次確認（垃圾桶先晃一下）。
  * 發呆時：15 秒說今天的一句（例如「Draw a home for the cow!」，沒有世界時是「Draw anything you like!」），再 15 秒手在畫紙中間比劃一下，之後每 40 秒手再安靜地比劃一次（三歲模擬測試 B10）。
  * 按勾勾：作品留在畫紙上、星星撒下來，停 4 秒才交出去（之後是每局的慶祝）；慶祝完回到作品上，工具收起來，
- * 右邊換成一顆大房子（PlayGame 的 Resting），點房子才回首頁（T-110：以前點畫面任何地方就被帶回首頁，他只是想再看一下、去點星星）。
+ * 右邊換成兩個大圖示：再畫一張（新的白紙）、回首頁（T-139⑧，DoneChoices.tsx；T-110：以前點畫面任何地方就被帶回首頁，他只是想再看一下、去點星星）。
+ * 按了勾勾工具欄就整個收起來（T-139⑧：綠勾勾還在，孩子以為還要再按）。
  * 展示、停下來的時候點畫紙、星星：畫紙跳一下、冒一點星星（溫和的回應，不會離開）；停下來時再讓手在房子上點一下給他看。
  */
 export function FreeDraw({ gameId, onDone, onExit }: GameProps) {
@@ -93,10 +94,12 @@ export function FreeDraw({ gameId, onDone, onExit }: GameProps) {
   /** 展示、停下來的時候點畫紙：畫紙跳一下、手指的地方冒星星（n 每點一次加一） */
   const [hop, setHop] = useState<{ n: number; x: number; y: number }>({ n: 0, x: 50, y: 50 })
   const [room, animateRoom] = useAnimate<HTMLDivElement>()
-  /** 慶祝完、停在作品上：點大房子回首頁（PlayGame 給），其他時候是 null */
+  /** 慶祝完、停在作品上（PlayGame 給，回上一層），其他時候是 null */
   const home = useContext(Resting)
-  const [homeHand, setHomeHand] = useState(0)
-  const tap = useTaps()
+  /** 停在作品上點「再畫一張」：新的一張白紙（PlayGame 給，T-139⑧） */
+  const again = useContext(Again)
+  /** 停在作品上點畫紙幾次：每點一次，「再畫一張」上的手再點一次給他看 */
+  const [pokes, setPokes] = useState(0)
 
   useEffect(() => {
     live.current = true
@@ -212,24 +215,8 @@ export function FreeDraw({ gameId, onDone, onExit }: GameProps) {
     setHop((h) => ({ n: h.n + 1, x, y }))
     // 整張畫紙輕輕跳一下（一次就停，MOTION-1/2）。不能用換 key 重新掛上：畫布會被清掉
     if (room.current) void animateRoom(room.current, { y: [0, -16, 0] }, { duration: 0.45, ease: 'easeOut' })
-    if (home) setHomeHand(1)
+    if (home) setPokes((n) => n + 1)
   }
-
-  // 停在作品上：3 秒沒點房子，手在房子上點一下；點畫紙之後也會再點一下給他看
-  useEffect(() => {
-    if (!home) return
-    const h = window.setTimeout(() => setHomeHand((v) => v || 1), HOME_HAND_MS)
-    return () => clearTimeout(h)
-  }, [home])
-  useEffect(() => {
-    if (homeHand !== 1) return
-    const t = window.setTimeout(() => setHomeHand(2), 700)
-    const tt = window.setTimeout(() => setHomeHand(0), 1700)
-    return () => {
-      clearTimeout(t)
-      clearTimeout(tt)
-    }
-  }, [homeHand])
 
   return (
     <Shell station="draw" mood="idle" onExit={onExit} hideHost>
@@ -330,35 +317,19 @@ export function FreeDraw({ gameId, onDone, onExit }: GameProps) {
           </div>
         )}
       </div>
-      {/* 停在作品上：工具收起來，同一個地方換成一顆大房子，點了才回首頁（T-110）。左上角的返回鍵照樣也能回去 */}
+      {/* 停在作品上：工具收起來，同一個地方換成兩個大圖示：再畫一張（新的白紙）、回首頁（T-139⑧）。左上角的返回鍵照樣回上一層 */}
       {home && (
-        <div className="draw-home-col" data-resting="">
-          <motion.button
-            className="draw-home turn-hop"
-            aria-label="回首頁"
-            style={{ animationDelay: '0.9s' }}
-            initial={{ scale: 0.6, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            transition={{ type: 'spring', stiffness: 260, damping: 20, delay: 0.2 }}
-            whileTap={{ scale: 0.92 }}
-            {...tap('home', () => {
-              sfx.tap()
-              home()
-            })}
-          >
-            <HomeIcon />
-            <AnimatePresence>
-              {homeHand > 0 && (
-                <span className="draw-home-hand" aria-hidden="true">
-                  <Hand x={58} y={56} tap={homeHand - 1} size="52%" cuff="#F2C9A8" />
-                </span>
-              )}
-            </AnimatePresence>
-          </motion.button>
-        </div>
+        <DoneChoices
+          again={() => (again ? again() : home())}
+          againArt={<FreeArt />}
+          againLabel="再畫一張"
+          line="d.next.free"
+          home={() => go({ name: 'home' }, { back: true })}
+          poke={pokes}
+        />
       )}
-      {/* 展示作品的時候工具都不能按（不會一碰垃圾桶就把作品清掉）；停在作品上的時候整個收起來 */}
-      <div style={{ display: home ? 'none' : 'contents', pointerEvents: show ? 'none' : undefined }}>
+      {/* 按了勾勾就整個收起來（T-139⑧：工具、綠勾勾還在的話，孩子以為還要再按一次）；停在作品上換成兩個大圖示 */}
+      <div style={{ display: home || show ? 'none' : 'contents' }}>
         <Palette
           value={mode === 'pen' ? color : ''}
           onChange={(c) => {

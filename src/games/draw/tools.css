@@ -178,6 +178,43 @@
   inset: 0;
   pointer-events: none;
 }
+/* T-139⑧ 畫完停在作品上：兩個大圖示上下排（上「再畫一張」、下「回首頁」），跟大房子同一種圓鈕 */
+.draw-next-col {
+  grid-auto-flow: row;
+  align-content: center;
+  gap: clamp(28px, 5vh, 48px);
+}
+.draw-next-col .draw-next {
+  position: relative;
+  width: clamp(130px, 19vmin, 176px);
+  aspect-ratio: 1;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: var(--card, #fbf8f2);
+  box-shadow:
+    0 7px 0 var(--paper-edge, #e6dccb),
+    0 0 0 10px rgba(241, 210, 124, 0.45),
+    0 22px 34px -20px rgba(46, 42, 37, 0.35);
+  touch-action: manipulation;
+}
+.draw-next-col .draw-next:active {
+  box-shadow:
+    0 2px 0 var(--paper-edge, #e6dccb),
+    0 0 0 10px rgba(241, 210, 124, 0.45);
+}
+.draw-next-col .draw-home {
+  /* 回首頁比再畫一張小一點、沒有黃光：主要的下一步是再畫一張 */
+  width: clamp(104px, 15vmin, 136px);
+  box-shadow:
+    0 6px 0 var(--paper-edge, #e6dccb),
+    0 18px 28px -20px rgba(46, 42, 37, 0.35);
+}
+.draw-next-art {
+  width: 78%;
+  aspect-ratio: 6 / 5;
+  pointer-events: none;
+}
 
 /* T-127 印章：格子底下一塊淡淡的印泥色，看得出「這是蓋的」；上面是下一個要蓋的角色 */
 .tool-stamp-pad {

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type ReactElement } from 'react'
 import { game } from '../content/games'
-import { Cheering, Resting, type GameProps, type GameResult } from './Shell'
+import { Again, Cheering, Resting, type GameProps, type GameResult } from './Shell'
 import { Celebrate } from '../ui/Celebrate'
 import { beginRound, endRound, type RoundSummary } from '../lib/achievements'
 import { useBack } from '../lib/nav'
@@ -30,6 +30,8 @@ export function PlayGame(props: GameProps) {
    * 以前慶祝一結束（或點一下跳過）就回首頁：孩子點畫上的星星想再看一下，就被帶走了。
    */
   const [rest, setRest] = useState(false)
+  /** 第幾張（T-139⑧ 停在作品上點「再畫一張」）：換一個 key，遊戲重新掛上，是新的一局 */
+  const [round, setRound] = useState(0)
   const ended = useRef(false)
   /** 已經交回去了（站點或冒險的下一段）：只交一次，慶祝自己結束和返回鍵不會各交一次 */
   const handed = useRef(false)
@@ -60,6 +62,16 @@ export function PlayGame(props: GameProps) {
     }
     props.onExit()
   }
+  /** 再畫一張：這一局的慶祝、停下來都收掉，重新開一局（遊戲自己重新掛上：新的白紙、開場句） */
+  const again = () => {
+    if (handed.current) return
+    stopSpeech()
+    ended.current = false
+    setCheer(null)
+    setRest(false)
+    beginRound(g.id)
+    setRound((n) => n + 1)
+  }
   useBack(exit)
   useEffect(() => {
     if (!C) props.onExit()
@@ -68,7 +80,9 @@ export function PlayGame(props: GameProps) {
   return (
     <Cheering.Provider value={!!cheer && !rest}>
       <Resting.Provider value={rest ? () => void exit() : null}>
-        <C key={g.id} {...props} gameId={g.id} onDone={onDone} onExit={exit} />
+        <Again.Provider value={rest ? again : null}>
+          <C key={`${g.id}-${round}`} {...props} gameId={g.id} onDone={onDone} onExit={exit} />
+        </Again.Provider>
       </Resting.Provider>
       {cheer && !rest && <Celebrate summary={cheer.s} onDone={() => setRest(true)} />}
     </Cheering.Provider>

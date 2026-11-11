@@ -23,6 +23,11 @@ export const Cheering = createContext(false)
  */
 export const Resting = createContext<(() => void) | null>(null)
 
+/**
+ * 停在作品上時「再畫一張」（T-139⑧）：這一局重新開始（新的一張白紙），不離開這個畫面。PlayGame 給，其他時候是 null。
+ */
+export const Again = createContext<(() => void) | null>(null)
+
 /** 現在在玩哪個遊戲（陪玩提示要依遊戲 id 挑）：路由帶著遊戲 id；學校的一堂課沒有 */
 function usePlayingGame(): string | null {
   const r = useRoute()

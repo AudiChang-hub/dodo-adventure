@@ -316,25 +316,52 @@ test.describe('學校首頁', () => {
         l = await live()
       }
       const cats = await page.evaluate(() => [...document.querySelectorAll('.coloring-cat')].map((e) => e.getAttribute('data-cat')!))
-      const pages = await page.evaluate(() => document.querySelectorAll('[data-pic]').length)
-      c.outcome('著色本有分類、恐龍很多張', cats.length >= 5 && cats[0] === 'dino' && pages >= 30, `分類 ${cats.join('、')}；恐龍 ${pages} 張`)
+      // 一頁 6 張（T-139 翻頁）：恐龍有幾頁
+      const pages = Number(await attr('.coloring-book', 'data-pages')) * 6
+      c.outcome('著色本有分類、恐龍很多張', cats.length >= 5 && cats[0] === 'dino' && pages >= 30, `分類 ${cats.join('、')}；恐龍 ${pages / 6} 頁`)
       await c.screenOk('著色本')
 
-      // 2b. 往下滑：看得到更多，滑的時候不會打開一張圖
-      k.behavior = '往下滑'
-      const sc = (await rect('.coloring-scroll'))!
-      const vh = page.viewportSize()!.height
-      const y0 = Math.min(sc.top + sc.h * 0.7, vh * 0.75)
-      await k.drag([{ x: sc.x, y: y0 }, { x: sc.x + 10, y: y0 - 150 }, { x: sc.x + 20, y: y0 - 300 }], { label: '往上推（往下看）', stepMs: 12 })
+      // 2b. 翻頁（T-139：不用捲）：一頁 6 張，大箭頭點一下翻頁，左右滑也可以；第一頁沒有往左、最後一頁沒有往右
+      k.behavior = '翻頁'
+      const pg = async () => ({
+        page: Number(await attr('.coloring-book', 'data-page')),
+        pages: Number(await attr('.coloring-book', 'data-pages')),
+        pics: await page.evaluate(() => [...document.querySelectorAll('[data-pic]')].map((e) => e.getAttribute('data-pic')).join(',')),
+        prev: (await attr('.coloring-prev', 'data-hidden')) === null,
+        next: (await attr('.coloring-next', 'data-hidden')) === null,
+      })
+      const p0 = await pg()
+      c.outcome('一頁 6 張、不用捲', p0.pics.split(',').length === 6 && p0.pages >= 2 && !p0.prev && p0.next, `第 ${p0.page + 1}/${p0.pages} 頁 ${p0.pics.split(',').length} 張；往左 ${p0.prev}、往右 ${p0.next}`)
+      await k.tap((await rect('.coloring-next'))!, '下一頁')
+      await k.wait(700)
+      const p1 = await pg()
+      c.outcome('點大箭頭翻到下一頁', p1.page === 1 && p1.pics !== p0.pics && p1.prev, `第 ${p1.page + 1} 頁；圖換了 ${p1.pics !== p0.pics}；往左 ${p1.prev}`)
+      // 連點下一頁：一直翻，但不會離開著色本、不會打開圖
+      await k.spam((await rect('.coloring-next'))!, 6, '連點下一頁')
       await k.wait(900)
-      const top1 = await page.evaluate(() => document.querySelector('.coloring-scroll')?.scrollTop ?? 0)
-      c.outcome('往下滑看更多、不會打開圖', top1 > 40 && (await live()) === 'coloring', `捲了 ${Math.round(top1)} px；在 ${await live()}`)
-      // 再往下拉回最上面
-      await k.drag([{ x: sc.x, y: y0 - 300 }, { x: sc.x - 10, y: y0 - 100 }, { x: sc.x - 20, y: y0 + 60 }], { label: '往下拉（回上面）', stepMs: 12 })
-      await k.drag([{ x: sc.x, y: y0 - 300 }, { x: sc.x - 10, y: y0 - 100 }, { x: sc.x - 20, y: y0 + 60 }], { label: '再往下拉', stepMs: 12 })
-      await k.wait(600)
-      const top2 = await page.evaluate(() => document.querySelector('.coloring-scroll')?.scrollTop ?? 0)
-      c.outcome('往下拉回最上面', top2 === 0 && (await live()) === 'coloring', `捲到 ${Math.round(top2)} px；在 ${await live()}`)
+      const p2 = await pg()
+      c.outcome('連點下一頁', p2.page >= p1.page && (await live()) === 'coloring', `第 ${p2.page + 1} 頁；在 ${await live()}`)
+      // 左右滑：往右滑回上一頁，滑的時候不會打開圖
+      const box = (await rect('.coloring-pagebox'))!
+      await k.drag([{ x: box.x - 160, y: box.y }, { x: box.x, y: box.y + 10 }, { x: box.x + 160, y: box.y + 6 }], { label: '往右滑', stepMs: 12 })
+      await k.wait(800)
+      const p3 = await pg()
+      c.outcome('往右滑回上一頁、不會打開圖', p3.page === p2.page - 1 && (await live()) === 'coloring', `第 ${p2.page + 1} → ${p3.page + 1} 頁；在 ${await live()}`)
+      // 一直點下一頁到最後一頁：最後一頁沒有往右的箭頭
+      for (let i = 0; i < 20 && (await pg()).next; i++) {
+        await k.tap((await rect('.coloring-next'))!, '下一頁')
+        await k.wait(750)
+      }
+      const pz = await pg()
+      c.outcome('翻到最後一頁', pz.page === pz.pages - 1 && !pz.next && pz.prev && pz.pics.length > 0, `第 ${pz.page + 1}/${pz.pages} 頁；往右 ${pz.next}`)
+      // 翻回第一頁
+      for (let i = 0; i < 20 && (await pg()).prev; i++) {
+        await k.tap((await rect('.coloring-prev'))!, '上一頁')
+        await k.wait(750)
+      }
+      const pa = await pg()
+      c.outcome('翻回第一頁', pa.page === 0 && !pa.prev && pa.pics === p0.pics, `第 ${pa.page + 1} 頁；往左 ${pa.prev}`)
+      await c.screenOk('翻頁')
 
       // 2c. 換分類：連點、每一類都點一次，縮圖跟著換；再回到恐龍
       k.behavior = '換分類'
@@ -355,6 +382,8 @@ test.describe('學校首頁', () => {
 
       // 3. 返回一下回上一層，再進來（剛返回過 1 秒內在同一處再按會被防連點擋掉，那是對的：先停一下）
       k.behavior = '著色本返回'
+      // 翻到第 2 頁再返回：再進來還在第 2 頁
+      await k.tap((await rect('.coloring-next'))!, '下一頁')
       await k.wait(1500)
       await settle(page, 4000)
       await holdHome(k, c, '著色本返回')
@@ -363,6 +392,8 @@ test.describe('學校首頁', () => {
       await k.tap((await centerOf(page, '[data-pick="book"]'))!, '著色本')
       await waitLive(page, (l) => l === 'coloring', 4000)
       await settle(page, 4000)
+      const back2 = Number(await attr('.coloring-book', 'data-page'))
+      c.outcome('返回再進來停在同一頁', back2 === 1, `第 ${back2 + 1} 頁`)
 
       // 4. 兩根手指同時點兩張圖：只進一張
       k.behavior = '兩根手指點兩張圖'
@@ -451,6 +482,9 @@ test.describe('學校首頁', () => {
       await k.wait(900)
       const done = await rect('.tool-done')
       if (done) await k.tap(done, '完成（點一下）')
+      await k.wait(600)
+      const boxGone = await page.evaluate(() => !document.querySelector('.crayon-box')?.getClientRects().length)
+      c.outcome('按了完成蠟筆盒就收起來', boxGone, boxGone ? '綠勾勾、蠟筆都不見了' : '蠟筆盒還在')
       let rest = false
       const end = Date.now() + 40_000
       while (Date.now() < end) {
@@ -465,10 +499,12 @@ test.describe('學校首頁', () => {
       const after = await drawings()
       c.outcome('點一下完成：慶祝、存進作品', !!done && rest && after === before + 1, `完成鍵 ${done ? '有' : '沒有'}；停在作品上 ${rest}；作品 ${before} → ${after}`)
       await c.screenOk('完成之後')
-      const big = await rect('[data-resting] .draw-home')
-      if (big) await k.tap(big, '大鈕')
+      const nexts = await page.evaluate(() => [...document.querySelectorAll('[data-resting] [data-next]')].map((e) => e.getAttribute('data-next')).join(','))
+      c.outcome('停在作品上：再塗一張、回首頁兩個大圖示', nexts === 'again,home', `大圖示 ${nexts}`)
+      const big = await rect('[data-resting] [data-next="again"]')
+      if (big) await k.tap(big, '再塗一張')
       l = await waitLive(page, (x) => x === 'coloring', 5000)
-      c.outcome('作品上的大鈕回著色本', l === 'coloring', `到 ${l}`)
+      c.outcome('再塗一張回著色本', l === 'coloring', `到 ${l}`)
 
       // 9b. 亂點縮圖（連點同一張）：只進一張，返回回著色本（放在第一次塗完之後：第一次進來要看示範）
       k.behavior = '連點縮圖'
@@ -803,6 +839,120 @@ test.describe('T-137 恐龍的名字', () => {
       await c.flush()
     } finally {
       finish(k, c, '點恐龍')
+    }
+  })
+
+  test('畫畫：白紙畫完以後（T-139⑧）', async ({ page }, info) => {
+    test.skip(!want('home-draw'))
+    test.setTimeout(6 * 60_000)
+    const { k, c } = await setup(page, info, '白紙畫完以後')
+    const live = async () => (await snap(page)).live
+    const rect = (sel: string) =>
+      page.evaluate((sel) => {
+        const root = [...document.querySelectorAll<HTMLElement>('.scene')].filter((e) => !e.inert).pop() ?? document
+        const r = root.querySelector(sel)?.getBoundingClientRect()
+        return r && r.width ? { x: r.left + r.width / 2, y: r.top + r.height / 2, w: r.width, h: r.height, left: r.left, top: r.top } : null
+      }, sel)
+    const drawings = () =>
+      page.evaluate(
+        () =>
+          new Promise<number>((res) => {
+            const rq = indexedDB.open('dodo-adventure')
+            rq.onerror = () => res(-1)
+            rq.onsuccess = () => {
+              try {
+                const q = rq.result.transaction('drawings', 'readonly').objectStore('drawings').count()
+                q.onsuccess = () => (rq.result.close(), res(q.result))
+                q.onerror = () => res(-1)
+              } catch {
+                res(-1)
+              }
+            }
+          }),
+      )
+    /** 在畫紙上畫一筆，回傳那一筆經過的點 */
+    const scribble = async (label: string) => {
+      const r = (await rect('.tool-room'))!
+      const pts = [0.2, 0.35, 0.5, 0.65].map((f, i) => ({ x: r.left + r.w * f, y: r.top + r.h * (i % 2 ? 0.45 : 0.6) }))
+      await k.drag(pts, { label, stepMs: 12 })
+      await k.wait(700)
+      return pts
+    }
+    /** 按勾勾，等到停在作品上（慶祝點一下看完） */
+    const finishAndRest = async () => {
+      const done = await rect('.tool-done')
+      if (done) await k.tap(done, '完成（點一下）')
+      await k.wait(700)
+      const toolsGone = !(await rect('.tool-done')) && !(await rect('.tool-col'))
+      // 展示作品、慶祝的時候：孩子點星星、點右邊原本有綠勾勾的地方，都不會離開
+      if (done) await k.tap({ x: done.x, y: done.y }, '再點一次原本勾勾的地方')
+      await k.tap({ x: done ? done.x - 300 : 500, y: 220 }, '點星星')
+      const end = Date.now() + 40_000
+      let rest = false
+      while (Date.now() < end) {
+        const s = await snap(page)
+        if (s.rest) {
+          rest = true
+          break
+        }
+        if (s.cheer) await k.tap({ x: 600, y: 400 }, '看慶祝')
+        await k.wait(1200)
+      }
+      return { toolsGone, rest, stay: !!(await live())?.startsWith('play-d-free') }
+    }
+    try {
+      k.behavior = '進白紙'
+      await tapDoor(k, c, 'draw', '畫畫', (l) => l === 'draw', 5000)
+      await settle(page, 4000)
+      await k.tap((await centerOf(page, '[data-pick="free"]'))!, '白紙自由畫')
+      await waitLive(page, (l) => l === 'play-d-free', 5000)
+      await settle(page, 4000)
+      await k.wait(2000)
+
+      // 1. 畫一筆、按完成：工具欄整個收起來（綠勾勾不在了），點原本勾勾的地方、點星星都不會離開
+      k.behavior = '畫完按完成'
+      const before = await drawings()
+      const pts = await scribble('畫一筆')
+      const r1 = await finishAndRest()
+      c.outcome('按了完成工具欄就收起來', r1.toolsGone, r1.toolsGone ? '綠勾勾、顏色都不見了' : '工具欄還在')
+      c.outcome('慶祝時亂點不會離開、停在作品上', r1.rest && r1.stay, `停在作品上 ${r1.rest}；在 ${await live()}`)
+
+      // 2. 停在作品上：兩個大圖示（再畫一張、回首頁）；點作品不會離開
+      k.behavior = '停在作品上'
+      const nexts = await page.evaluate(() => [...document.querySelectorAll('[data-resting] [data-next]')].map((e) => `${e.getAttribute('data-next')}:${Math.round(e.getBoundingClientRect().width)}`).join(','))
+      const ok2 = /^again:\d+,home:\d+$/.test(nexts) && nexts.split(',').every((x) => Number(x.split(':')[1]) >= 90)
+      c.outcome('停在作品上：再畫一張、回首頁兩個大圖示（≥ 2 cm）', ok2, `大圖示 ${nexts}`)
+      const paper = (await rect('.tool-room'))!
+      await k.spam({ x: paper.x, y: paper.y }, 3, '點作品')
+      await k.wait(800)
+      c.outcome('停在作品上點作品不會離開', (await snap(page)).rest && (await live()) === 'play-d-free', `在 ${await live()}`)
+      await c.screenOk('停在作品上')
+
+      // 3. 連點「再畫一張」：一張新的白紙（作品已經存了），工具欄回來、可以再畫
+      k.behavior = '再畫一張'
+      await k.spam((await rect('[data-next="again"]'))!, 3, '再畫一張')
+      await k.wait(2500)
+      const ink0 = await inkAt(page, pts)
+      const fresh = !(await snap(page)).rest && !!(await rect('.tool-done')) && (await live()) === 'play-d-free'
+      const saved = await drawings()
+      c.outcome('再畫一張：新的白紙、工具回來', fresh && ink0 === 0, `停在作品上 ${(await snap(page)).rest}；勾勾 ${!!(await rect('.tool-done'))}；舊的那筆墨 ${ink0}；在 ${await live()}`)
+      c.outcome('第一張存進作品', saved === before + 1, `作品 ${before} → ${saved}`)
+      const pts2 = await scribble('再畫一筆')
+      const ink2 = await inkAt(page, pts2)
+      c.outcome('新的白紙畫得出來', ink2 > 0, `墨 ${ink2}`)
+
+      // 4. 再按完成、點回首頁：直接回首頁
+      k.behavior = '畫完回首頁'
+      const r2 = await finishAndRest()
+      c.outcome('第二張也停在作品上', r2.rest, `停在作品上 ${r2.rest}`)
+      const home = await rect('[data-next="home"]')
+      if (home) await k.tap({ ...home, nav: true }, '回首頁')
+      const l = await waitLive(page, (x) => x === 'home', 5000)
+      c.outcome('點小房子直接回首頁', l === 'home', `到 ${l}`)
+      c.outcome('兩張都存進作品', (await drawings()) === before + 2, `作品 ${before} → ${await drawings()}`)
+      await c.flush()
+    } finally {
+      finish(k, c, '白紙畫完以後')
     }
   })
 })

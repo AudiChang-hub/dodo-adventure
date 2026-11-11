@@ -37,7 +37,7 @@
     0 12px 22px -18px rgba(46, 42, 37, 0.4);
 }
 
-/* 著色本：左邊一排分類的大圖示（每格 ≥ 2 cm），右邊是那一類的縮圖，3 欄、往下滑看更多（圖的比例 5:3） */
+/* 著色本：左邊一排分類的大圖示（每格 ≥ 2 cm），右邊是那一類的縮圖，一頁 3 欄 2 排、兩邊大箭頭翻頁（圖的比例 5:3） */
 .coloring-book {
   position: absolute;
   inset: 0 2% 4% 3%;
@@ -80,32 +80,75 @@
     0 5px 0 var(--paper-edge, #e6dccb),
     0 0 0 4px #2e2a25;
 }
-.coloring-scroll {
+.coloring-pager {
   flex: 1;
   min-width: 0;
-  overflow-y: auto;
-  overscroll-behavior: contain;
-  /* 觸控捲動由 DrawPick.tsx 自己跟著手指做（瀏覽器的不一定接得到）；滑鼠滾輪照樣 */
-  touch-action: none;
-  border-radius: 24px;
-  scrollbar-width: none;
-  /* 上下邊緣淡出：看得出底下還有，往下滑 */
-  mask-image: linear-gradient(to bottom, transparent 0, #000 18px, #000 calc(100% - 40px), transparent 100%);
+  display: flex;
+  align-items: center;
+  gap: clamp(10px, 1.6cqw, 22px);
 }
-.coloring-scroll::-webkit-scrollbar {
-  display: none;
+/* 翻頁的大箭頭：圓鈕，≥ 2 cm；第一頁沒有往左、最後一頁沒有往右（位置留著，版面不會跳） */
+.coloring-arrow {
+  flex: none;
+  width: clamp(84px, 9cqw, 104px);
+  aspect-ratio: 1;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: var(--card, #fbf8f2);
+  box-shadow:
+    0 6px 0 var(--paper-edge, #e6dccb),
+    0 0 0 6px rgba(241, 210, 124, 0.45);
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  cursor: pointer;
+}
+.coloring-arrow:active {
+  transform: translateY(4px);
+  box-shadow:
+    0 2px 0 var(--paper-edge, #e6dccb),
+    0 0 0 6px rgba(241, 210, 124, 0.45);
+}
+.coloring-arrow[data-hidden] {
+  visibility: hidden;
+  pointer-events: none;
+}
+.coloring-pagebox {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 14px;
+  touch-action: none;
 }
 .coloring-grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   gap: 22px clamp(14px, 2cqw, 26px);
-  padding: 18px 8px 56px;
 }
 .coloring-page {
   touch-action: none;
   aspect-ratio: 5 / 3;
   border-radius: 24px;
   overflow: hidden;
+}
+/* 第幾頁：小圓點，現在這一頁是長一點的深色 */
+.coloring-dots {
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+}
+.coloring-dots i {
+  width: 12px;
+  height: 12px;
+  border-radius: 6px;
+  background: rgba(46, 42, 37, 0.18);
+  transition: width 0.25s var(--ease-out);
+}
+.coloring-dots i.on {
+  width: 30px;
+  background: #2e2a25;
 }
 /* 手機直式：分類改成上面一排，縮圖兩欄，不跑版就好 */
 @container (max-aspect-ratio: 1 / 1) {
@@ -130,6 +173,9 @@
   }
   .coloring-grid {
     grid-template-columns: repeat(2, 1fr);
+  }
+  .coloring-arrow {
+    width: 64px;
   }
 }
 

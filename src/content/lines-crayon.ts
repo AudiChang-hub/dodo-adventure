@@ -17,3 +17,6 @@ def('d.color.beep', 'dodo', 'Beep beep!')
 def('d.pick.intro', 'dodo', 'Draw, or color?')
 // 著色本：選一張圖
 def('d.book.intro', 'dodo', 'Pick a picture!')
+// 畫完、慶祝完，停在作品上（T-139⑧）：兩個大圖示（再畫一張、回首頁）出來的時候問一句
+def('d.next.free', 'dodo', 'Draw another one?')
+def('d.next.color', 'dodo', 'Color another one?')

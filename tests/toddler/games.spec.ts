@@ -174,7 +174,8 @@ for (const g of selected()) {
         await c.screenOk('返回鍵')
         await c.flush()
 
-        // 11. 玩到一半重新整理
+        // 11. 玩到一半重新整理：返回鍵回到上一層了（自由畫畫是「選白紙還是著色本」，T-138），先再進遊戲
+        if ((await snap(page)).live !== `play-${g.id}`) await enterGame(k, c, g)
         await k.wait(500)
         for (let i = 0; i < 4; i++) await toddlerStep(k, c, { drawing, free: g.kind === 'coloring' || g.kind === 'free', fading: FADING.has(g.kind) })
         await reload(k, c)
