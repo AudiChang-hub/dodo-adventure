@@ -151,9 +151,9 @@ export async function writeReport(R: Run, brain: Brain, analystFile: string) {
   const lastT = S.length ? S[S.length - 1].t : 0
 
   // 去過哪些畫面（連續同一個畫面合成一段）
-  const LIVE: Record<string, string> = { home: '首頁', 'lesson-english': '英文字母', 'lesson-chinese': '中文課文', 'lesson-math': '數學數字', 'play-d-free': '畫畫', shelf: '故事書架', storybook: '故事書', stickers: '貼紙本' }
+  const LIVE: Record<string, string> = { home: '首頁', 'lesson-english': '英文字母', 'lesson-chinese': '中文課文', 'lesson-math': '數學數字', 'play-d-free': '畫畫', draw: '畫畫', coloring: '畫畫', shelf: '故事書架', storybook: '故事書', stickers: '貼紙本' }
   // 故事裡的畫面（T-129）：英文版課文 en-<篇>、念完 endone-<篇>；以前的故事 replay-<id>、讀完了 done-<id>
-  const STORY_LIVE: [RegExp, string][] = [[/^replay-/, '聽故事'], [/^en-/, '聽英文故事'], [/^(done|endone)-/, '故事讀完了']]
+  const STORY_LIVE: [RegExp, string][] = [[/^play-d-color/, '畫畫'], [/^replay-/, '聽故事'], [/^en-/, '聽英文故事'], [/^(done|endone)-/, '故事讀完了']]
   const liveName = (l: string | null) => (l ? LIVE[l] ?? STORY_LIVE.find(([re]) => re.test(l))?.[1] ?? l : '?')
   const route: { name: string; from: number; to: number }[] = []
   for (const s of S) {

@@ -16,11 +16,17 @@ export const LESSONS: Record<string, LessonDef> = {
   en: { id: 'en', name: '英文字母', door: 'english', isIn: (l) => l === 'lesson-english', intro: '媽媽說：「我們來上英文課喔！」', doneMeans: '上完一堂、出現下課畫面' },
   zh: { id: 'zh', name: '中文課文', door: 'chinese', isIn: (l) => l === 'lesson-chinese', intro: '媽媽說：「我們來念中文故事喔！」', doneMeans: '上完一堂、出現下課畫面' },
   math: { id: 'math', name: '數學數字', door: 'math', isIn: (l) => l === 'lesson-math', intro: '媽媽說：「我們來玩數字喔！」', doneMeans: '上完一堂、出現下課畫面' },
-  draw: { id: 'draw', name: '畫畫', door: 'draw', isIn: (l) => l === 'play-d-free', intro: '媽媽說：「去畫畫吧！」', doneMeans: '在畫布上畫了 3 筆以上' },
+  // 畫畫（T-138）：門進去先選白紙自由畫／著色本（draw）→ 白紙 play-d-free；著色本 coloring → 塗一張 play-d-color-<圖>。都算在畫畫裡
+  draw: { id: 'draw', name: '畫畫', door: 'draw', isIn: isDraw, intro: '媽媽說：「去畫畫吧！」', doneMeans: '白紙或著色本按了完成（作品展示、慶祝或停在作品上）' },
   // 故事（T-129）：今天的英文版課文 en-<篇>（念 4 句 → 故事題 → 認角色 → 找一樣的英文字）、念完 endone-<篇>；以前的故事 replay-<id>、讀完了 done-<id>
   story: { id: 'story', name: '故事', door: 'story', isIn: isStory, intro: '媽媽說：「我們來看故事書！」', doneMeans: '一本書聽到最後（英文版：4 句和 3 題做完、出現念完的畫面）' },
   // 貼紙本（T-132）：首頁門上方牆上的貼紙板進去；看一看、點一點貼紙，自己回首頁
   stickers: { id: 'stickers', name: '貼紙本', door: 'stickers', isIn: (l) => l === 'stickers', intro: '媽媽說：「去看看你的貼紙本！」', doneMeans: '點了 3 張以上的貼紙、自己回到首頁' },
+}
+
+/** 畫畫裡的畫面：選白紙還是著色本、著色本、白紙自由畫、塗一張圖（T-138） */
+export function isDraw(l: string | null) {
+  return l === 'draw' || l === 'coloring' || /^play-d-(free|color)/.test(l ?? '')
 }
 
 /** 故事的那一層畫面：書架、英文版課文、以前的故事、讀完了 */
@@ -149,6 +155,8 @@ export const doneNow = (page: Page) =>
       // 英文版（en-<篇>）第 4 句小點就全亮了，後面還有 3 題：要等到念完的畫面 endone-<篇> 才算
       const scene = live?.dataset.scene ?? ''
       const lastPage = (!scene.startsWith('en-') && dots.length > 1 && dots.every((d) => d.classList.contains('is-done'))) || /^(done|endone)-/.test(scene)
-      return { lessonEnd, picker, lastPage }
+      // 畫畫按了完成（T-138）：白紙的作品展示（data-show）、每局的慶祝、停在作品上（data-resting）；白紙或著色本
+      const drawDone = /^play-d-(free|color)/.test(scene) && !!document.querySelector('[data-show], [data-resting], .cheer-scrim')
+      return { lessonEnd: lessonEnd && !drawDone, picker, lastPage, drawDone, coloring: scene.startsWith('play-d-color') }
     })
-    .catch(() => ({ lessonEnd: false, picker: false, lastPage: false }))
+    .catch(() => ({ lessonEnd: false, picker: false, lastPage: false, drawDone: false, coloring: false }))
