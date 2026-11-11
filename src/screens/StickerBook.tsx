@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState, useSyncExternalStore, type CSSProperties, type PointerEvent } from 'react'
-import { motion, type TargetAndTransition } from 'motion/react'
+import { AnimatePresence, motion, type TargetAndTransition } from 'motion/react'
 import { Dino } from '../art/Dino'
 import { BackButton } from '../ui/Back'
 import { HomeIcon } from '../games/Shell'
+import { Hand } from '../games/Demo'
 import { ArtSticker, Sticker } from '../ui/StickerArt'
 import { useTaps } from '../ui/tap'
 import { album, onAchieve, type OwnedSticker } from '../lib/achievements'
@@ -23,6 +24,8 @@ import './stickers.css'
  * - 還沒有貼紙：本子上是三張虛線的剪影（等著被貼上去的位置），沒有字；豆豆說「Your stickers will go here!」，接著帶他去玩：
  *   小房子（返回鍵）亮一圈、豆豆的腳印從他腳下一路走到小房子。點灰貼紙、點本子空白處、點豆豆都有回應（T-135，
  *   AI 小男生盲測 becf39a：空的貼紙本點了都沒反應，32 秒就走了、沒再回來）：貼紙晃一下、豆豆跳一下、腳印再走一次、說一句「去玩」。
+ * - 一進來（T-140，AI 小男生盲測 73d57c7：點了 8 次還是「不知道要做什麼」）：豆豆說「Look! Your stickers! Tap one!」，
+ *   最新的那張亮起來，說完示範的手指過來點它一下（它就照第一下的樣子動、念名字）。孩子一碰本子示範就收起來；亮光留到他自己點了一張。
  * - 返回鍵點一下回首頁（NAV-1）。
  */
 
@@ -45,6 +48,10 @@ const GHOSTS = [
 
 /** 空的貼紙本：說過一句之後這段時間內再點，只動畫面不重講（連點、手掌壓不會一直打斷豆豆） */
 const POKE_TALK_MS = 2600
+/** 開場示範（T-140）：介紹句說完多久手指出現、出現後多久點下去、點完多久收起來 */
+const DEMO_IN_MS = 250
+const DEMO_TAP_MS = 750
+const DEMO_OUT_MS = 1200
 /** 從豆豆腳下走到小房子的腳印數 */
 const STEPS = 5
 
@@ -56,11 +63,41 @@ export function StickerBook() {
   const talked = useRef(-Infinity)
   const tap = useTaps()
 
+  // 有貼紙時的開場示範（T-140）：hand 0 沒有手、1 手指過來、2 點下去；demo 每加 1，最新那張就照第一下的樣子動一次
+  const [hand, setHand] = useState(0)
+  const [demo, setDemo] = useState(0)
+  // 孩子碰過本子了：示範收起來、不再出現；亮光留到他自己點了一張貼紙（tapped）
+  const touched = useRef(false)
+  const [tapped, setTapped] = useState(false)
+
   useEffect(() => {
-    void (list.length ? say('stk.book.hi') : say('stk.book.empty', 'stk.book.go'))
+    let alive = true
+    const timers: number[] = []
+    const later = (ms: number, fn: () => void) => timers.push(window.setTimeout(() => alive && !touched.current && fn(), ms))
+    if (list.length)
+      // 介紹那一句說完，手指才過來（不跟豆豆搶）
+      void say('stk.book.hi').then(() => {
+        later(DEMO_IN_MS, () => setHand(1))
+        later(DEMO_IN_MS + DEMO_TAP_MS, () => {
+          setHand(2)
+          setDemo((d) => d + 1)
+        })
+        later(DEMO_IN_MS + DEMO_TAP_MS + DEMO_OUT_MS, () => setHand(0))
+      })
+    else void say('stk.book.empty', 'stk.book.go')
+    return () => {
+      alive = false
+      timers.forEach(clearTimeout)
+    }
     // 進來說一次就好
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  /** 孩子碰了本子（點、捲、手掌壓都算）：示範的手指馬上收起來 */
+  const grab = () => {
+    touched.current = true
+    setHand(0)
+  }
 
   /** 空的貼紙本：點哪裡都有回應（動一下＋豆豆說「去玩」，小房子再亮一次）。只看不改：不寫任何資料 */
   const nudge = (g: number) => {
@@ -123,11 +160,15 @@ export function StickerBook() {
             <p className="sb-count" aria-hidden="true">
               貼紙本<b>{list.length}</b>張
             </p>
-            <div className="sb-scroll">
+            <div className="sb-scroll" onPointerDownCapture={grab}>
               <ul className="sb-grid">
-                {list.map((s, i) => (
-                  <Item key={s.key} s={s} i={i} />
-                ))}
+                {list.map((s, i) =>
+                  i ? (
+                    <Item key={s.key} s={s} i={i} onTap={() => setTapped(true)} />
+                  ) : (
+                    <Item key={s.key} s={s} i={i} onTap={() => setTapped(true)} glow={!tapped} hand={hand} demo={demo} />
+                  ),
+                )}
               </ul>
             </div>
           </>
@@ -249,38 +290,64 @@ function voiceOf(s: OwnedSticker, r: Reaction): string[] {
 }
 
 /** 一張貼紙：點了照 reactionOf 換著動、念名字或狀聲詞。手指按下、放開就算（ui/tap.ts），滑動捲本子不算點 */
-function Item({ s, i }: { s: OwnedSticker; i: number }) {
+interface ItemProps {
+  s: OwnedSticker
+  i: number
+  /** 孩子自己點了（不是示範） */
+  onTap: () => void
+  /** 最新的那張：亮起來（T-140），孩子自己點了一張就收 */
+  glow?: boolean
+  /** 開場示範的手指：0 沒有、1 過來、2 點下去 */
+  hand?: number
+  /** 開場示範點了幾下：每加 1 就照第一下的樣子動、念名字一次（不算進孩子自己的三下一輪） */
+  demo?: number
+}
+
+function Item({ s, i, onTap, glow, hand = 0, demo = 0 }: ItemProps) {
+  // 孩子自己點了幾下（三下一輪，sticker-book.ts 的 reactionOf）
   const [n, setN] = useState(0)
+  // 正在播的反應：k 每次加 1 重播一次（孩子點的、示範點的都算）
+  const [play, setPlay] = useState<{ k: number; r: Reaction | null }>({ k: 0, r: null })
   const tap = useTaps()
   const art = s.def.art
   const cat = art ? artOf(art)?.cat : undefined
-  // 最近這一下的反應（還沒點過是 null）
-  const now = n ? reactionOf(cat, n - 1) : null
-  const pop = () => {
-    const r = reactionOf(cat, n)
+  const now = play.r
+  const react = (r: Reaction) => {
     MOVE_SFX[r.move]()
-    setN((x) => x + 1)
+    setPlay((p) => ({ k: p.k + 1, r }))
     const keys = voiceOf(s, r)
     if (keys.length) void say(...keys)
   }
+  const pop = () => {
+    onTap()
+    react(reactionOf(cat, n))
+    setN((x) => x + 1)
+  }
+  // 示範的手指點下去：照孩子點第一下的樣子動、念名字（他跟著點，會得到一樣的回應）
+  useEffect(() => {
+    if (demo) react(reactionOf(cat, 0))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [demo])
   return (
     <li className="sb-slot" style={{ '--tilt': `${tiltOf(s.key)}deg` } as CSSProperties}>
+      {glow && <span className="sb-new" aria-hidden="true" />}
       <motion.button
         className="sb-item"
         data-sticker={s.key}
         data-ts={s.ts}
         data-move={now?.move}
+        data-demo={demo || undefined}
         aria-label={s.def.zh}
         initial={{ scale: 0.6, opacity: 0 }}
         animate={{ scale: 1, opacity: 1 }}
         transition={{ type: 'spring', stiffness: 300, damping: 20, delay: 0.15 + Math.min(i, 15) * 0.03 }}
         {...tap(s.key, pop)}
       >
-        {n > 0 && <motion.span key={`r${n}`} className="sb-ring" aria-hidden="true" initial={{ scale: 0.7, opacity: 0 }} animate={{ scale: [0.7, 1.32], opacity: [0, 0.8, 0] }} transition={{ duration: 0.65, ease: 'easeOut' }} />}
+        {play.k > 0 && <motion.span key={`r${play.k}`} className="sb-ring" aria-hidden="true" initial={{ scale: 0.7, opacity: 0 }} animate={{ scale: [0.7, 1.32], opacity: [0, 0.8, 0] }} transition={{ duration: 0.65, ease: 'easeOut' }} />}
         {now?.move === 'sparkle' &&
           SPARKS.map((p, k) => (
             <motion.span
-              key={`${n}-${k}`}
+              key={`${play.k}-${k}`}
               className="sb-spark"
               aria-hidden="true"
               initial={{ x: 0, y: 0, scale: 0.3, opacity: 0 }}
@@ -289,7 +356,7 @@ function Item({ s, i }: { s: OwnedSticker; i: number }) {
             />
           ))}
         <motion.span
-          key={n}
+          key={play.k}
           className="sb-sticker"
           animate={now ? MOVES[now.move].a : {}}
           transition={{ duration: now ? MOVES[now.move].dur : 0, ease: 'easeInOut' }}
@@ -297,6 +364,13 @@ function Item({ s, i }: { s: OwnedSticker; i: number }) {
           <Sticker def={s.def} />
         </motion.span>
       </motion.button>
+      <AnimatePresence>
+        {hand > 0 && (
+          <span className="sb-hand" aria-hidden="true">
+            <Hand x={54} y={50} tap={hand - 1} size="54%" cuff="#F2C9A8" />
+          </span>
+        )}
+      </AnimatePresence>
     </li>
   )
 }

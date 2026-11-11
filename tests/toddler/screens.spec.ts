@@ -364,12 +364,31 @@ test.describe('畫面', () => {
       const board = await page.evaluate(() => document.querySelectorAll('.sticker-board .sbd-stk:not(.is-ghost)').length)
       c.outcome('首頁貼紙板露出最新的 3 張', board === 3, `${board} 張`)
       const before = await achieve()
+      const tIn = await page.evaluate(() => performance.now())
       if (await enter('有貼紙')) {
         const list = await items()
         const newest = list.every((x, i) => !i || list[i - 1].ts >= x.ts)
         const ok = list.length === N && newest && list[0]?.key === `stk-test-${N - 1}`
         c.outcome(`有 ${N} 張：每一張都在、最新的在最前面`, ok, `${list.length} 張；第一張 ${list[0]?.key}；由新到舊 ${newest}`)
         if (!ok) await c.once('list', '困惑', '貼紙本沒有列出全部的貼紙，或最新的不在最前面', JSON.stringify(list.slice(0, 5)))
+
+        // T-140（AI 小男生盲測 73d57c7 低 6：點了 8 次說「不知道要做什麼」）：一進來就看得出「這些是我的貼紙、可以點」——
+        // 豆豆介紹一句、最新那張亮起來、示範的手指點它一下（它就動、念名字）。孩子不動手也會看到
+        k.behavior = '一進來：看示範'
+        let intro = { glow: false, demo: 0 }
+        for (let i = 0; i < 20 && !intro.demo; i++) {
+          await k.wait(400)
+          intro = await page.evaluate(() => {
+            const root = [...document.querySelectorAll<HTMLElement>('.scene')].filter((e) => !e.inert).pop()!
+            const first = root.querySelector<HTMLElement>('.sb-item')
+            return { glow: !!first?.closest('.sb-slot')?.querySelector('.sb-new'), demo: Number(first?.dataset.demo ?? 0) }
+          })
+        }
+        await k.wait(2500)
+        const introSaid = (await linesSince(page, tIn)).map((l) => l.text ?? '')
+        const shown = intro.glow && intro.demo > 0 && introSaid.length >= 2
+        c.outcome('一進來：最新那張亮起來、手指示範點它、它念名字', shown, `亮 ${intro.glow}；示範 ${intro.demo} 次；說了「${introSaid.join('／')}」`)
+        if (!shown) await c.once('intro', '困惑', '貼紙本一進來沒有示範要做什麼（最新那張沒亮、沒有手指示範點）', JSON.stringify(intro))
 
         // 點一張：跳一下（波紋）、念名字
         k.behavior = '點一張貼紙'
