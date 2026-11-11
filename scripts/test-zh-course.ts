@@ -6,6 +6,7 @@ import assert from 'node:assert/strict'
 import { LEGACY, OLD_BACK, REVIEW_BACK, RUNS_PER_TEXT, applyPick, current, finishRun, logSession, migrate, nextDay, planOf, seedLog, undoPick, type Course, type Session } from '../src/lessons/chinese/course'
 import { stepsOf } from '../src/lessons/chinese/steps'
 import { enTodayOf, type EnSkip, type Heard } from '../src/screens/story/en-pages'
+import { ZH_RUN_MAX, zhRunKV } from '../tests/ai-toddler/lib/zh-run'
 import { readFileSync, readdirSync, statSync } from 'node:fs'
 import { join } from 'node:path'
 import { ZH_TEXTS, linePics, plain, questionsOf, talkFor, talkOf, type ZhText } from '../src/lessons/chinese/data'
@@ -274,6 +275,27 @@ function main() {
       assert.deepEqual(rev.map((s) => s.k), [questionsOf(t, done).length ? 'quiz' : 'glyph'], `第 ${t.day} 篇小複習`)
     }
     console.log(`ok 7 舊篇跟原本的課一樣：180 篇當舊篇的步驟都跟當新篇時一模一樣（找一樣的字 ${n} 題都合法），小複習 180 篇都出得了一題`)
+  }
+  {
+    // 盲測工具的 --zh-run N（tests/ai-toddler/lib/zh-run.ts，T-139）：寫進 kv 的舊紀錄，App 照自己的排課排出今天的課。
+    // 以前最多只能放 2 次（走不到一天兩篇）；現在第 4 次起有舊篇，第 8 次起結尾小題有前 7 次的
+    const today = '2026-11-11'
+    for (const n of [1, 2, 3, 4, 5, 8, 30, ZH_RUN_MAX]) {
+      const kv = zhRunKV(n)
+      const c = (kv['zhLesson:course'] as Course | undefined) ?? migrate([], null, today)
+      const log = (kv['zhLesson:log'] as Session[] | undefined) ?? seedLog((kv['zhLesson:done'] as number[] | undefined) ?? [], c, today)
+      const p = planOf(c, log, today)
+      const day = ZH_TEXTS[(n - 1) % ZH_TEXTS.length].day
+      assert.equal(p.day, day, `--zh-run ${n}：新篇是第 ${day} 篇`)
+      assert.equal(p.old, n >= 4 ? n - 3 : null, `--zh-run ${n}：舊篇`)
+      assert.deepEqual(p.review, [n - 1, n - 7].filter((d) => d >= 1 && d !== p.old), `--zh-run ${n}：結尾小題`)
+      // 英文故事也先講舊篇（同一份排課）
+      assert.equal(enTodayOf(p, {}, undefined, today).day, p.old ?? p.day, `--zh-run ${n}：英文故事先講的`)
+    }
+    assert.throws(() => zhRunKV(0))
+    assert.throws(() => zhRunKV(ZH_RUN_MAX + 1))
+    assert.throws(() => zhRunKV(2.5))
+    console.log(`ok 8 盲測工具 --zh-run 1～${ZH_RUN_MAX}：第 4 次起排得出「先上舊篇」（舊篇是第 N-3 篇）、第 8 次起有前 7 次的小題，中文課和英文故事一樣`)
   }
   // ── 聊一聊（對話式共讀，T-102）：3 歲問得出來的一題，答不出來時大人示範 ─────────────
   {

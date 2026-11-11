@@ -12,6 +12,8 @@ export const PICK_HAND_MS = 8000
 export const PICK_AGAIN_MS = 16_000
 /** 還是沒選：手點對的那一張，故事自己往下走（30 秒內一定能往下） */
 export const PICK_AUTO_MS = 24_000
+/** lead：一進來多久手就來指（題目剛開始念） */
+export const PICK_LEAD_MS = 600
 
 /**
  * 兩張圖選一張（T-127）：第 3 天「你來說」每一頁之前（What happens next?，對的是下一頁的插畫），
@@ -20,6 +22,7 @@ export const PICK_AUTO_MS = 24_000
  * - 點錯：那一張淡下去（不出怪聲、不扣分），手馬上指對的那一張；他再點對的。
  * - 8 秒沒選：手指對的那一張點一下；16 秒再一次；24 秒手點下去，故事自己往下走（30 秒內一定能往下）。
  * - 連點、好幾根手指：只算第一下；選好之後再點都不算。
+ * - lead（故事時間英文版，T-139）：一進來手就指對的那一張（示範），不等 8 秒；盲測 ccf7ac7 沒有手的那幾秒孩子就說「聽不懂」走了。
  */
 export function Choose({
   cards,
@@ -27,6 +30,7 @@ export function Choose({
   ask,
   kind,
   auto = true,
+  lead = false,
   onDone,
 }: {
   cards: [ReactNode, ReactNode]
@@ -37,6 +41,8 @@ export function Choose({
   kind: 'tell' | 'ask'
   /** 24 秒手點下去、自己往下（預設）；false 是絕不自己往下，手每 8 秒來指一次（故事時間英文版課文 T-129：家長要等他點） */
   auto?: boolean
+  /** 一進來（PICK_LEAD_MS）手就指對的那一張 */
+  lead?: boolean
   /** first：第一下就點對 */
   onDone: (r: { first: boolean; by: 'kid' | 'auto' }) => void
 }) {
@@ -55,12 +61,13 @@ export function Choose({
   useEffect(() => {
     if (hasLine(ask)) void say(ask)
     const show = () => setHand((n) => n + 1)
+    const first = lead ? window.setTimeout(show, PICK_LEAD_MS) : 0
     if (!auto) {
       const id = window.setInterval(show, PICK_HAND_MS)
-      return () => clearInterval(id)
+      return () => (clearTimeout(first), clearInterval(id))
     }
     const ts = [window.setTimeout(show, PICK_HAND_MS), window.setTimeout(show, PICK_AGAIN_MS), window.setTimeout(() => (show(), window.setTimeout(() => finish('auto'), 450)), PICK_AUTO_MS)]
-    return () => ts.forEach(clearTimeout)
+    return () => (clearTimeout(first), ts.forEach(clearTimeout))
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
   const pick = (i: number) => {

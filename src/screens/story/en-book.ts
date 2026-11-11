@@ -12,7 +12,7 @@ export interface EnState {
   heard: Record<string, string[]>
   /** 講到一半離開：哪一天、哪一篇、下一次從第幾句接著講 */
   at?: { date: string; day: number; at: number }
-  /** 找一樣的英文字做過幾次（前 MATCH_DEMOS 次手先示範） */
+  /** 找一樣的英文字做過幾次（T-139 起每次都先示範，這個只是記錄） */
   matched?: number
   /** 大人今天跳過的舊篇（T-136；新加的欄位，舊版不讀） */
   skip?: EnSkip
@@ -20,9 +20,6 @@ export interface EnState {
 const KV = 'storyEn'
 const START: EnState = { heard: {} }
 const load = () => getKV<EnState>(KV, START)
-
-/** 找一樣的英文字：前幾次手先示範一次 */
-export const MATCH_DEMOS = 2
 
 /**
  * 今天講哪一篇（T-136，家長 2026-11-11：中文課和英文故事並行，一天兩篇、一舊一新）：跟中文課用同一份排課
@@ -83,9 +80,6 @@ export async function enShelf(): Promise<{ today: EnBookRow | null; heard: EnBoo
 export async function saveEnAt(day: number, at: number) {
   await setKV(KV, { ...(await load()), at: { date: today(), day, at } })
 }
-
-/** 找一樣的英文字這一次要不要手先示範 */
-export const matchDemo = async () => ((await load()).matched ?? 0) < MATCH_DEMOS
 
 /** 找一樣的英文字做完一次 */
 export async function saveMatched() {

@@ -216,6 +216,44 @@
   height: 100%;
   pointer-events: none;
 }
+/* 點一下轉個方向、停在那裡（T-139：動作播完還看得出它變了）；外面那層的動作（act-*）照樣播 */
+.zh-pic-face {
+  display: block;
+  width: 100%;
+  height: 100%;
+  transition: transform 0.35s var(--ease-out);
+}
+.zh-pic-face[data-flip] {
+  transform: scaleX(-1);
+}
+/* 點過幾下：圖框下緣一排小星星（最多 3 顆，留著），在圖框裡面，不會蓋到字 */
+.zh-pic-stars {
+  position: absolute;
+  left: 50%;
+  bottom: 3%;
+  translate: -50% 0;
+  display: flex;
+  gap: 4%;
+  width: 60%;
+  justify-content: center;
+  pointer-events: none;
+  z-index: 2;
+}
+.zh-pic-star {
+  width: 30%;
+  aspect-ratio: 1;
+  fill: #f1b83c;
+  stroke: #fff;
+  stroke-width: 2;
+  paint-order: stroke;
+  animation: zh-star-in 0.4s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+@keyframes zh-star-in {
+  from {
+    opacity: 0;
+    transform: scale(0.3);
+  }
+}
 
 /*
  * 連點同一張圖（T-113）：每一下換一種動作（Reader 的 ACTS），一次就停、不循環。

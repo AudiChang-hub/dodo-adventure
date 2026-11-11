@@ -379,6 +379,71 @@ test.describe('中文課', () => {
     }
   })
 
+  test('選圖答對之後的下一步（T-139，盲測 ccf7ac7 中文 2：打勾後找不到下一步）：1 秒內出現大箭頭、手馬上點給他看', async ({ page }, info) => {
+    test.skip(!want('lesson-chinese-arrow'))
+    test.setTimeout(4 * 60_000)
+    // 不自動點大箭頭：看它自己什麼時候出來
+    const { k, c } = await setup(page, info, '答對後的大箭頭', false, false)
+    try {
+      await putKV(page, 'zhLesson:introSeen', true)
+      if (!(await enter(k, c))) return
+      if (!(await readAll(k, c))) return
+      const cue = await page.waitForSelector('.zh-quiz .tile.cue', { timeout: 30_000 }).catch(() => null)
+      if (!cue) return void (await c.once('arrow-quiz', '卡死', '念完課文沒有出現選圖', ''))
+      const ans = (await points(page, '.zh-quiz .tile[data-answer]'))[0]
+      await k.tap(ans, '點對的那張')
+      const t0 = Date.now()
+      let arrowAt = 0
+      let handAt = 0
+      while (Date.now() - t0 < 6000 && !handAt) {
+        const x = await page.evaluate(() => ({ arrow: !!document.querySelector('.next-step'), hand: !!document.querySelector('.next-step .next-step-hand') }))
+        if (x.arrow && !arrowAt) arrowAt = Date.now() - t0
+        if (x.hand && !handAt) handAt = Date.now() - t0
+        await page.waitForTimeout(80)
+      }
+      const ok = arrowAt > 0 && arrowAt <= 1100 && handAt > 0 && handAt <= 2000
+      c.outcome('打勾後 1 秒內大箭頭出來、2 秒內手點給他看', ok, `大箭頭 ${(arrowAt / 1000).toFixed(1)} 秒、手 ${(handAt / 1000).toFixed(1)} 秒`)
+      if (!ok) await c.once('arrow-slow', '困惑', '選圖答對打勾之後，大箭頭、手來得太慢，孩子看不出下一步', `大箭頭 ${(arrowAt / 1000).toFixed(1)} 秒、手 ${(handAt / 1000).toFixed(1)} 秒`)
+      await c.flush()
+    } finally {
+      finish(k, c, '答對後的大箭頭')
+    }
+  })
+
+  test('念課文時點亮的圖（T-139，盲測：「兔子都不動」「一直點都一樣」）：每點一下都留下看得到的改變，不只是一下就停的動畫', async ({ page }, info) => {
+    test.skip(!want('lesson-chinese-tap'))
+    test.setTimeout(3 * 60_000)
+    const { k, c } = await setup(page, info, '點圖有變化')
+    try {
+      await putKV(page, 'zhLesson:introSeen', true)
+      if (!(await enter(k, c))) return
+      /** 點完、動畫播完之後畫面上看得到的樣子：圖朝哪邊、旁邊有幾顆星星 */
+      const look = () =>
+        page.evaluate(() => {
+          const p = document.querySelector('.zh-line.on .zh-pic')
+          const face = p?.querySelector<HTMLElement>('.zh-pic-face')
+          return `${face ? getComputedStyle(face).transform : 'none'}|${p?.querySelectorAll('.zh-pic-star').length ?? 0}`
+        })
+      // 課本剛換進來的那一下不收（轉場）：等它停好再點
+      await page.waitForSelector('.zh-line.on .zh-pic', { timeout: 10_000 })
+      await k.wait(1200)
+      const states = [await look()]
+      for (let i = 0; i < 3; i++) {
+        const pic = (await points(page, '.zh-line.on .zh-pic'))[0]
+        if (!pic) break
+        await k.tap(pic, `亮的圖（第 ${i + 1} 下）`)
+        await k.wait(1400)
+        states.push(await look())
+      }
+      const changed = states.slice(1).every((x, i) => x !== states[i])
+      c.outcome('每點一下，停下來之後的樣子都跟上一下不一樣', changed, states.join(' → '))
+      if (!changed) await c.once('tap-same', '困惑', '念課文時點亮的圖，點了看起來都一樣（動畫一下就停）', states.join(' → '))
+      await c.flush()
+    } finally {
+      finish(k, c, '點圖有變化')
+    }
+  })
+
   test('親子共讀走完一堂：說明卡、大人還沒按下一行時亂點、連點下一行、聊一聊、連點選項，下課', async ({ page }, info) => {
     test.skip(!want('lesson-chinese-play'))
     test.setTimeout(8 * 60_000)

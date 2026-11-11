@@ -13,7 +13,7 @@ import { zhClipReady } from '../../lib/words'
 import { Pic } from '../../lessons/chinese/Pic'
 import { Choose } from './Tell'
 import { WordMatch } from './WordMatch'
-import { finishEn, matchDemo, saveEnAt, saveMatched, zhTextOf, type EnBookRow } from './en-book'
+import { finishEn, saveEnAt, saveMatched, zhTextOf, type EnBookRow } from './en-book'
 import { matchOf, pagePics, storyAskOf, whichOf, type PicPick, type WordMatch as MatchQ } from './en-pages'
 
 /** 停下來等他點：第一次手來指的時間（小班段 8 秒），之後每隔這麼久再指一次。絕不自己往下（家長要求：等他點才講下一句） */
@@ -31,7 +31,7 @@ type Wait = { kind: 'next' } | { kind: 'q' | 'which'; pick: PicPick; key: string
  * 2. 故事題（Who runs fast?，兩張圖選一張）。
  * 3. 認角色（Which one is the rabbit?，兩張圖選一張）。
  * 4. 找一樣的英文字（上面 rabbit，下面兩張，./WordMatch.tsx）。
- * 三題都不自己往下：發呆手每 8 秒來指一次。
+ * 三題都不自己往下：一進來手就示範（選圖題手指對的那張、找字手先做一次，T-139），之後發呆手每 8 秒來指一次。
  * 一天兩篇，一舊一新（T-136，跟中文課同一份排課）：今天先講 3 次前的舊篇（跟新篇一樣完整：4 句＋三題），再講新篇；
  * 舊篇時右上角有大人用的「跳過舊篇」（onSkip）。新篇講完接結尾小題：前 1 次、前 7 次的各一題（認角色，出不了就找一樣的英文字）。
  * 動作只用位移和淡入淡出（紙感螢幕，MOTION-1、2）：換頁時圖從左邊慢慢滑進來，做完就停；找對了一對字放大跳一下（家長要看得出來的回饋）。
@@ -134,11 +134,10 @@ export default function EnBook({
       }
       const m = matchOf(t, e)
       if (m) {
-        const demo = await matchDemo()
-        if (gone()) return
         await wait(300)
         if (gone()) return
-        await waitFor({ kind: 'match', q: m, demo })
+        // 每次都先示範（T-139：以前只有前 2 次；一天兩篇以後第一天就用完了。盲測 ccf7ac7 沒有示範的時候「都是字」就走了）
+        await waitFor({ kind: 'match', q: m, demo: true })
         if (gone()) return
         void saveMatched()
       }
@@ -153,7 +152,7 @@ export default function EnBook({
         const w = whichOf(rt, re)
         const rm = w && hasLine(enWhichKey(w.word)) ? null : matchOf(rt, re)
         if (w && hasLine(enWhichKey(w.word))) await waitFor({ kind: 'which', pick: w, key: enWhichKey(w.word) })
-        else if (rm) await waitFor({ kind: 'match', q: rm, demo: false })
+        else if (rm) await waitFor({ kind: 'match', q: rm, demo: true })
         if (gone()) return
       }
       setReview(null)
@@ -221,6 +220,7 @@ export default function EnBook({
             key={`${waiting.kind}${waitNo}`}
             kind="ask"
             auto={false}
+            lead
             ask={waiting.key}
             answer={waiting.pick.answer}
             cards={[<EnCard key="a" pics={[waiting.pick.icons[0]]} />, <EnCard key="b" pics={[waiting.pick.icons[1]]} />]}
