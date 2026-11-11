@@ -168,7 +168,7 @@ export function ChineseLessonBody({ onDone }: LessonProps) {
           ) : scene === 'glyph' ? (
             gq && <Glyph t={t} q={gq} demo={gDemo} host={host} setMood={setMood} onResult={(r) => void saveGlyph(r)} onDemoEnd={() => setGDemoing(false)} onNext={next} />
           ) : (
-            <Quiz key={scene} t={t} q={qs[scene]} last={scene + 1 >= qs.length && !gq} host={host} setMood={setMood} onNext={next} />
+            <Quiz key={scene} t={t} q={qs[scene]} last={scene + 1 >= qs.length && !gq} first={scene === 0} host={host} setMood={setMood} onNext={next} />
           )}
         </Swap>
       )}

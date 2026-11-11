@@ -26,6 +26,18 @@ const LAST_CHEER_MS = 800
 /** 答錯幾次以後把答案標出來（手點一下） */
 const HINT_AFTER = 2
 
+/**
+ * 沒有大人帶的時候（T-135，AI 小男生盲測 becf39a 中文 2：選圖一出來，大人還沒念題目，畫面上只有兔子、烏龜和一堆字，
+ * 他不知道要做什麼，「好久喔」就按返回）：孩子還沒點任何一張時，
+ * - 這一篇的第一題一出來，手就輪流在每一張上點一下（「點一張」，每一張都點，不洩露答案），點完就收走；
+ * - 發呆 WAKE_MS：圖依序再輕輕跳一下；發呆 POINT_MS：手再輪流點一次。
+ * 15 秒題目卡跳一下（提醒大人再問一次）、30 秒手點答案（useIdle）照舊。孩子點了任何一張就不再出來（他知道要點圖了）。
+ */
+const WAKE_MS = 3000
+const POINT_MS = 6000
+/** 手在一張上停多久（出現 → 點一下 → 換下一張） */
+const POINT_STAY_MS = 850
+
 
 /**
  * 選圖：「哪個是烏龜？」三張圖選一張（親子共讀：App 不出聲，2026-11-03）。
@@ -41,6 +53,7 @@ export function Quiz({
   t,
   q,
   last = false,
+  first = false,
   host,
   setMood,
   onNext,
@@ -49,6 +62,8 @@ export function Quiz({
   q: ZhQuestion
   /** 這一篇的最後一題：答對了看一下打勾就下課（T-113：不再等滿 1.5 秒） */
   last?: boolean
+  /** 這一篇的第一題：一出來手就輪流點每一張（T-135） */
+  first?: boolean
   host: HostTap
   setMood: (m: Mood) => void
   onNext: () => void
@@ -78,11 +93,51 @@ export function Quiz({
   const wrongs = useRef(0)
   const hintUsed = useRef(false)
   const led = useRef(false)
+  /** 「點一張」的手在第幾張上（沒有是 null）、點了幾下；圖再跳一下（data-wake）幾次（T-135） */
+  const [point, setPoint] = useState<number | null>(null)
+  const [pointTap, setPointTap] = useState(0)
+  const [wake, setWake] = useState(0)
+  const early = useRef<number[]>([])
+  /** 手輪流點的這一輪（新的一輪、孩子點了就換號，舊的停下來） */
+  const sweepId = useRef(0)
+
+  /** 孩子點了、標出答案、換題：早期的提醒都收掉 */
+  const calm = () => {
+    for (const k of early.current) clearTimeout(k)
+    early.current = []
+    sweepId.current++
+    setPoint(null)
+  }
+
+  /** 手輪流在每一張上點一下，點完收走（不停在任何一張上：不是在說答案是哪張） */
+  const sweep = async () => {
+    const id = ++sweepId.current
+    for (let i = 0; i < opts.length; i++) {
+      setPoint(i)
+      setPointTap(0)
+      await wait(still ? 120 : 300)
+      if (sweepId.current !== id || !live.current) return
+      setPointTap((n) => n + 1)
+      await wait(POINT_STAY_MS - 300)
+      if (sweepId.current !== id || !live.current) return
+    }
+    setPoint(null)
+  }
+
+  /** 孩子還沒點過任何一張：排好早期的提醒（第一題一出來手就點；WAKE_MS 圖跳、POINT_MS 手再點） */
+  const plan = () => {
+    calm()
+    if (taps.current.length || hintUsed.current || locked.current) return
+    if (first) void sweep()
+    const at = first ? opts.length * POINT_STAY_MS : 0
+    early.current = [window.setTimeout(() => setWake((n) => n + 1), at + WAKE_MS), window.setTimeout(() => void sweep(), at + POINT_MS)]
+  }
 
   /** 再問一次：題目卡跳一下（大人看到就再念一次） */
   const ask = () => setNudge((n) => n + 1)
 
   const showHint = () => {
+    calm()
     hintUsed.current = true
     setMarks((m) => ({ ...m, [q.word]: 'hint' }))
     setHandTap((n) => n + 1)
@@ -93,6 +148,7 @@ export function Quiz({
     setAccepting(true)
     if (!shownAt.current) shownAt.current = performance.now()
     idle.start({ repeat: ask, hint: showHint })
+    plan()
   }
 
   useEffect(() => {
@@ -106,6 +162,7 @@ export function Quiz({
     return () => {
       live.current = false
       idle.stop()
+      calm()
     }
     // 每一題進來問一次
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -125,6 +182,7 @@ export function Quiz({
   const tap = async (id: string) => {
     if (!acceptRef.current || locked.current || marks[id] === 'wrong') return
     idle.poke()
+    calm()
     // 第一次點的時候手正指著答案（發呆太久手出來示範了，T-111）：答案是看手的，記成一起練、不計入熟練
     if (!taps.current.length) led.current = hintUsed.current
     taps.current.push({ pick: id, ms: Math.round(performance.now() - shownAt.current) })
@@ -187,7 +245,7 @@ export function Quiz({
         <span className="zh-ask-word">{q.word}</span>
         <span className="zh-ask-lead">？</span>
       </motion.button>
-      <div className={`options with-stim zh-options${solved ? ' is-solved' : ''}`}>
+      <div className={`options with-stim zh-options${solved ? ' is-solved' : ''}`} data-wake={wake || undefined}>
         {opts.map((o, i) => {
           const m = marks[o.word]
           return (
@@ -219,9 +277,11 @@ export function Quiz({
                 if (firstFinger(e.nativeEvent)) void tap(o.word)
               }}
             >
-              <div className="tile-in">
+              {/* 發呆幾秒：圖依序再輕輕跳一下（turn-hop 換 key 重播，T-135） */}
+              <div className={`tile-in${wake && !m ? ' turn-hop' : ''}`} key={`in${wake}`}>
                 <Pic name={o.icon} />
               </div>
+              {point === i && !m && <Hand x={62} y={64} size="12cqmin" tap={pointTap} />}
               {m === 'hint' && handTap > 0 && <Hand x={74} y={72} size="12cqmin" tap={handTap} />}
               {m === 'correct' && <Sparkles key={burst} count={16} />}
               {m === 'correct' && (
