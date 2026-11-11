@@ -57,7 +57,6 @@ def('ma.plant.grow1', 'bobo', 'Look! It grows!')
 def('ma.pen', 'bobo', 'Use the pen!')
 def('ma.write.go', 'bobo', 'Start at the green dot!')
 def('ma.write.next', 'bobo', 'Now the next line!')
-def('ma.write.again', 'bobo', 'One more time!')
 def('ma.write.done', 'bobo', 'Great writing!')
 
 // 同一天再進來（複習）、1～10 都上完之後的混合複習、下課

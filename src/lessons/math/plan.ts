@@ -205,7 +205,7 @@ export interface CompareQ {
   a: number
   b: number
   ask: 'more' | 'less'
-  /** 先上教學卡（第一次問「多」或「少」） */
+  /** 先由手示範一次（第一次問「多」或「少」，Compare.tsx 的 CompareDemo） */
   teach: boolean
 }
 
