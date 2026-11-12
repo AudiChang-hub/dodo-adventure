@@ -49,6 +49,49 @@
     translate: 0 0;
   }
 }
+/* 還沒玩過著色本（T-141③）：一進來就亮著，亮圈一直輕輕地呼吸，直到他選了；豆豆說到著色本時再跳一下 */
+.draw-pick-card.is-hint {
+  animation:
+    draw-pick-said 0.8s var(--ease-out) 0.35s both,
+    draw-pick-glow 2.4s ease-in-out 1.15s infinite;
+}
+.draw-pick-card.is-hint.is-again {
+  animation:
+    draw-pick-said-again 0.8s var(--ease-out) both,
+    draw-pick-glow 2.4s ease-in-out 0.8s infinite;
+}
+@keyframes draw-pick-said-again {
+  0% {
+    translate: 0 0;
+  }
+  35% {
+    translate: 0 -18px;
+  }
+  100% {
+    translate: 0 0;
+  }
+}
+@keyframes draw-pick-glow {
+  0%,
+  100% {
+    box-shadow:
+      0 8px 0 var(--paper-edge, #e6dccb),
+      0 0 0 12px rgba(241, 210, 124, 0.85),
+      0 26px 40px -26px rgba(46, 42, 37, 0.4);
+  }
+  50% {
+    box-shadow:
+      0 8px 0 var(--paper-edge, #e6dccb),
+      0 0 0 20px rgba(241, 210, 124, 0.55),
+      0 26px 40px -26px rgba(46, 42, 37, 0.4);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .draw-pick-card.is-hint,
+  .draw-pick-card.is-hint.is-again {
+    animation: none;
+  }
+}
 .draw-pick-card:active,
 .coloring-page:active {
   box-shadow:

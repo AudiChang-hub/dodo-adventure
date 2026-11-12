@@ -94,35 +94,41 @@ export function BookArt() {
 
 /**
  * 首頁「畫畫」進來：白紙自由畫、著色本，兩個大圖示。
- * 還沒玩過著色本的時候（T-140，盲測 73d57c7：6 次都選白紙，沒有人點著色本）：豆豆說完「Draw, or color?」接著說
- * 「Try the coloring book!」，著色本那張卡亮一圈、跳一下，手在上面點一下給他看。白紙照樣點得到，孩子自己選。
+ * 還沒玩過著色本的時候，畫面一出現就推薦著色本：那張卡一直亮著一圈（輕輕地呼吸），手一出來就在上面輕輕點；
+ * 豆豆說完「Draw, or color?」接著說「Try the coloring book!」，卡再跳一下、手再點一下，然後手收起來，亮圈留著。
+ * 白紙照樣點得到，孩子自己選；玩過著色本就都不出現。
+ * （T-140 原本是豆豆說完「Draw, or color?」才亮、才出手；T-141③ 盲測 c9bb003 兩輪都在 2 秒內就點了白紙，引導來得太晚。）
  */
 export function DrawPick() {
   const tap = useTaps()
   const once = useGoOnce()
-  /** 著色本那張卡要不要指給他看（亮一圈、跳一下、手點一下）：還沒玩過著色本才指 */
-  const [point, setPoint] = useState(0)
+  /** 還沒玩過著色本：一進來就推薦（只在進來那一刻看一次，玩到一半不會變） */
+  const [hint] = useState(() => plays('d-color') === 0)
+  /** 手：一進來就在著色本上輕輕點（beckon）；豆豆說到著色本時點一下（said）；說完收起來（gone） */
+  const [hand, setHand] = useState<'beckon' | 'said' | 'gone'>(hint ? 'beckon' : 'gone')
+  /** 豆豆說到著色本：卡再跳一下 */
+  const [said, setSaid] = useState(false)
   useEffect(() => {
     let alive = true
     const t = window.setTimeout(async () => {
       await say('d.pick.intro')
-      if (!alive || plays('d-color') > 0) return
-      setPoint(1)
+      if (!alive || !hint) return
+      setSaid(true)
+      setHand('said')
       await say('d.pick.book')
-      if (alive) setPoint(2)
     }, 0)
     return () => {
       alive = false
       clearTimeout(t)
       stopSpeech()
     }
-  }, [])
-  // 手點一下就收起來
+  }, [hint])
+  // 說到著色本、手點一下以後就收起來（亮圈留著）
   useEffect(() => {
-    if (point !== 2) return
-    const t = window.setTimeout(() => setPoint(3), 1100)
+    if (hand !== 'said') return
+    const t = window.setTimeout(() => setHand('gone'), 2200)
     return () => clearTimeout(t)
-  }, [point])
+  }, [hand])
   const cards = [
     { id: 'free', label: '白紙自由畫', art: <FreeArt />, to: () => go({ name: 'play', game: 'd-free', station: 'draw' }) },
     { id: 'book', label: '著色本', art: <BookArt />, to: () => go({ name: 'coloring' }) },
@@ -133,7 +139,7 @@ export function DrawPick() {
         {cards.map((c, i) => (
           <motion.button
             key={c.id}
-            className={`draw-pick-card${c.id === 'book' && point > 0 && point < 3 ? ' is-said' : ''}`}
+            className={`draw-pick-card${c.id === 'book' && hint ? ` is-said is-hint${said ? ' is-again' : ''}` : ''}`}
             data-pick={c.id}
             aria-label={c.label}
             initial={{ y: 24, opacity: 0 }}
@@ -143,9 +149,9 @@ export function DrawPick() {
             {...tap(c.id, () => once(c.to))}
           >
             {c.art}
-            {c.id === 'book' && (point === 1 || point === 2) && (
+            {c.id === 'book' && hand !== 'gone' && (
               <span className="draw-home-hand" aria-hidden="true">
-                <Hand x={56} y={62} tap={point === 2 ? 1 : 0} size="22%" cuff="#F2C9A8" />
+                <Hand x={56} y={62} tap={hand === 'said' ? 1 : 0} beckon={hand === 'beckon'} size="22%" cuff="#F2C9A8" />
               </span>
             )}
           </motion.button>

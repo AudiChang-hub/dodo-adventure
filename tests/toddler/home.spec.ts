@@ -314,6 +314,23 @@ test.describe('學校首頁', () => {
       k.behavior = '進畫畫'
       await recSaid()
       const l0 = await tapDoor(k, c, 'draw', '畫畫', (l) => l === 'draw', 5000)
+      // T-141③（盲測 c9bb003：孩子 2 秒內就點了白紙，豆豆才指著色本）：畫面一出現，著色本就亮著、手指在上面
+      const t0 = Date.now()
+      let early = { lit: false, hand: false }
+      while (Date.now() - t0 < 900) {
+        early = await page.evaluate(() => ({
+          lit: !!document.querySelector('[data-pick="book"].is-said'),
+          hand: !!document.querySelector('[data-pick="book"] .draw-home-hand'),
+        }))
+        if (early.lit && early.hand) break
+        await page.waitForTimeout(100)
+      }
+      const earlyMs = Date.now() - t0
+      c.outcome(
+        '一進畫畫著色本就亮、手指在上面（不等豆豆說完）',
+        early.lit && early.hand,
+        early.lit && early.hand ? `${earlyMs} ms 就指著著色本` : `0.9 秒內沒有（亮 ${early.lit}、手 ${early.hand}）`,
+      )
       // 還沒玩過著色本：豆豆說完「Draw, or color?」接著指著色本（T-140）
       for (let i = 0; i < 30 && !(await saidList()).includes('book'); i++) await k.wait(200)
       const pointed = (await saidList()).includes('book')
