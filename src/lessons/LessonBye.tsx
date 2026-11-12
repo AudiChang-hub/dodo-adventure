@@ -9,12 +9,15 @@ import { wait } from '../games/lines'
 import { Sparkles } from '../ui/Sparkles'
 import type { Speaker } from '../content/lines'
 
-/** 多久沒點，示範的手來指（先指恐龍、睡著以後指房子） */
-const HAND_MS = 3000
-/** 之後每隔多久再指一次（PHASE-7 小班段 8 秒）。不會自己離開（T-118） */
+/**
+ * 下課畫面出來多久，恐龍就開口請他點、手同時來指恐龍（T-141：以前沒有聲音、手等 3 秒才來，
+ * 孩子「好久喔、不知道要做什麼」先按了返回）。留一點時間給畫面淡入，也不蓋到課最後那一句 You did it!
+ */
+const ASK_MS = 600
+/** 點空白處再請一次：這段時間內不重說（連點不會一直念） */
+const ASK_GAP_MS = 3000
+/** 之後每隔多久手再指一次（PHASE-7 小班段 8 秒）。不會自己離開（T-118） */
 const AGAIN_MS = 8000
-/** 還沒道別時，恐龍每隔多久睏得閉一下眼睛 */
-const DROWSY_MS = 3600
 /** 揮手說晚安至少多久才躺下（說話比這個長就等說完） */
 const WAVE_MS = 1700
 
@@ -23,7 +26,9 @@ type Phase = 'awake' | 'wave' | 'asleep'
 /**
  * 下課畫面：跟這堂課的恐龍說晚安（T-118，家長：「下課畫面不要自己離開，讓小朋友跟他做最後晚安道別」）。
  * 以前 20 秒沒碰就自己回首頁，孩子回頭時課已經不見了（「怎麼不見了」）。現在**不會自己離開**：
- * 1. 恐龍站著，睏睏的（每隔一陣子閉一下眼睛）。3 秒沒點，手指著恐龍點一下；之後每 8 秒再指一次。
+ * 1. 恐龍站著、張著眼睛。一出來（0.6 秒）就開口 Tap me! Let's say good night!（莫莫不出聲），手同時指著恐龍點一下；
+ *    之後每 8 秒手再指一次。點空白處：手再指一次、再請一次（T-141）。
+ *    以前還沒道別的恐龍會睏得閉一下眼睛，孩子看了以為已經睡著、就去點左上角的房子（盲測 c9bb003 英文 2），拿掉了。
  * 2. 孩子點恐龍：恐龍左右揮手、旁邊一隻小手揮一揮，說 Good night, 名字!（豆豆、波波；中文課的莫莫不出聲，只有輕輕的音效）。
  * 3. 恐龍趴下睡覺（閉眼、身體放低、頭上三個 Z 一個一個冒出來），天色變暗一點、出現月亮。
  * 4. 房子（時間到的那一天是月亮）亮起來，手指著它；孩子點了才回首頁（時間到：去睡覺畫面）。
@@ -36,13 +41,22 @@ export function LessonBye({ host, timeUp = false, onDone, onAsleep }: { host: Sp
   const still = useReducedMotion()
   const [phase, setPhase] = useState<Phase>('awake')
   const [hand, setHand] = useState(0)
-  const [drowsy, setDrowsy] = useState(false)
   const [snore, setSnore] = useState(0)
   const done = useRef(false)
   const live = useRef(true)
   const handTimers = useRef<number[]>([])
   const phaseRef = useRef<Phase>('awake')
   phaseRef.current = phase
+  const asked = useRef(-Infinity)
+
+  /** 還沒道別：恐龍開口請他點自己（莫莫不出聲，只有手） */
+  const ask = () => {
+    if (host === 'momo' || phaseRef.current !== 'awake' || !live.current) return
+    const t = performance.now()
+    if (t - asked.current < ASK_GAP_MS) return
+    asked.current = t
+    void say(`bye.ask.${host}`)
+  }
 
   /** 手在現在要點的東西（恐龍或房子）上點一下：出來 → 點 → 收起來 */
   const point = (after: number) => {
@@ -85,27 +99,19 @@ export function LessonBye({ host, timeUp = false, onDone, onAsleep }: { host: Sp
   useEffect(() => {
     live.current = true
     sfx.pop()
-    point(HAND_MS)
+    const a = window.setTimeout(ask, ASK_MS)
+    point(ASK_MS)
     const again = window.setInterval(() => {
       if (phaseRef.current !== 'wave') point(0)
     }, AGAIN_MS)
     return () => {
       live.current = false
       handTimers.current.forEach(clearTimeout)
+      clearTimeout(a)
       clearInterval(again)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
-
-  // 還沒道別：每隔一陣子睏得閉一下眼睛（一下就張開）
-  useEffect(() => {
-    if (phase !== 'awake' || still) return
-    const k = window.setInterval(() => {
-      setDrowsy(true)
-      window.setTimeout(() => live.current && setDrowsy(false), 700)
-    }, DROWSY_MS)
-    return () => clearInterval(k)
-  }, [phase, still])
 
   const asleep = phase === 'asleep'
   return (
@@ -114,8 +120,11 @@ export function LessonBye({ host, timeUp = false, onDone, onAsleep }: { host: Sp
       data-bye={phase}
       onPointerDown={(e) => {
         const el = e.target instanceof Element ? e.target : null
-        // 點空白處：手再指一次現在要點的東西
-        if (!el?.closest('.lb-host, .lb-home')) point(0)
+        // 點空白處：手再指一次現在要點的東西；還沒道別就再請一次（T-141）
+        if (!el?.closest('.lb-host, .lb-home')) {
+          point(0)
+          ask()
+        }
       }}
     >
       <AnimatePresence>
@@ -154,7 +163,7 @@ export function LessonBye({ host, timeUp = false, onDone, onAsleep }: { host: Sp
           }
           transition={phase === 'wave' ? { duration: 1.4, ease: 'easeInOut' } : { duration: 0.9, ease: 'easeOut' }}
         >
-          <Dino who={host} mood={asleep || drowsy ? 'sleep' : phase === 'wave' ? 'cheer' : 'happy'} size="100%" />
+          <Dino who={host} mood={asleep ? 'sleep' : phase === 'wave' ? 'cheer' : 'happy'} size="100%" />
         </motion.div>
         {/* 揮手的小手 */}
         <AnimatePresence>

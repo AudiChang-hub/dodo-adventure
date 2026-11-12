@@ -105,6 +105,11 @@
   z-index: 2;
   pointer-events: none;
 }
+/* 下課畫面出來了（T-141）：左下角的豆豆收起來，只留下課畫面中間那一隻 */
+.en-host.is-away {
+  opacity: 0;
+  transition: opacity 0.4s ease;
+}
 .en-stage {
   position: absolute;
   inset: 104px 3vw 12vh 3vw;

@@ -30,7 +30,8 @@ const findWord = (w: string) => (BARE.has(w) && w !== 'ice cream' && w !== 'zero
 
 def('le.en.write', 'dodo', "Let's write it!")
 def('le.en.play', 'dodo', "Let's play!")
-def('le.en.done', 'dodo', 'You did it! See you tomorrow!')
+// 上完只說 You did it!（T-141：以前接著說 See you tomorrow!，孩子聽了以為結束了，先按返回；道別留給下課畫面的 Good night）
+def('le.en.done', 'dodo', 'You did it!')
 
 for (const x of LESSON_LETTERS) {
   const { L, l } = x
