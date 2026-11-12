@@ -77,6 +77,9 @@ def('bedtime', 'dodo', `Dodo is sleepy... Let's play again tomorrow. Good night,
 // T-137：道別帶恐龍自己的名字
 def('bye.night.dodo', 'dodo', `Good night, ${N}! Dodo will miss you!`)
 def('bye.night.bobo', 'bobo', `Good night, ${N}! Bobo will miss you!`)
+// 下課畫面一出來就請他點恐龍（T-141：以前沒有聲音、手 3 秒後才來，孩子「好久喔、不知道要做什麼」先按了返回）。莫莫照舊不出聲
+def('bye.ask.dodo', 'dodo', "Tap me! Let's say good night!")
+def('bye.ask.bobo', 'bobo', "Tap me! Let's say good night!")
 // 每局最後一題（比較難）：只說 Last one!，不用 tricky 這種抽象字
 def('challenge', 'dodo', 'Last one!')
 def('challenge.bobo', 'bobo', 'Last one!')

@@ -1224,6 +1224,83 @@ test.describe('英文字母課', () => {
     }
   })
 
+  test('下課畫面一出來就知道要點恐龍說晚安，點了馬上有反應（T-141）', async ({ page }, info) => {
+    // 盲測 c9bb003 英文 1、2：下課畫面出來後「好久喔、不知道要做什麼」，先按了返回，回來才點晚安。
+    // 那時下課畫面沒有聲音（最後聽到的是 See you tomorrow!）、手 3 秒後才來指恐龍、
+    // 左下角還留著一隻淡淡的豆豆（孩子點它，是空白處，沒有反應）、站著的恐龍會閉眼（看起來已經睡著，孩子就去點房子）。
+    test.skip(!want('lesson-english') || info.project.name !== 'tab1200')
+    test.setTimeout(2 * 60_000)
+    const { k, c } = await setup(page, info, '下課馬上知道')
+    try {
+      const d = new Date()
+      const today = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+      // 上完了的樣子（同 T-122）：進課直接回到晚安道別，跟上完一堂出來的是同一個下課畫面
+      await page.evaluate(
+        (p) =>
+          new Promise<void>((res) => {
+            const rq = indexedDB.open('dodo-adventure')
+            rq.onsuccess = () => {
+              const tx = rq.result.transaction('kv', 'readwrite')
+              tx.objectStore('kv').put({ key: 'lesson.english', value: p })
+              tx.oncomplete = () => (rq.result.close(), res())
+            }
+          }),
+        { idx: 0, date: today, done: true, good: true, stage: 'end' },
+      )
+      k.behavior = '下課畫面發呆'
+      if (!(await enter(k, c))) return
+      const bye = await page.waitForSelector('.cheer-scrim .lesson-bye', { timeout: 6000 }).catch(() => null)
+      c.outcome('回到晚安道別', !!bye, bye ? '' : `停在 ${await stageOf(page)}`)
+      if (!bye) return void (await c.once('t141-bye', '卡死', '上完了回來沒有回到晚安道別', `停在 ${await stageOf(page)}`))
+      // 下課畫面出來的前 5 秒（孩子不碰）：聲音、手、恐龍的眼睛、左下角的豆豆
+      const s = await page.evaluate(async () => {
+        const t0 = performance.now()
+        let hand: number | null = null
+        const eyes = new Set<number>()
+        let corner = 0
+        while (performance.now() - t0 < 5000) {
+          const t = performance.now() - t0
+          if (hand == null && document.querySelector('.lb-hand-dino')) hand = Math.round(t)
+          // 只數恐龍本身（.lb-host 的第一層）：示範的手也在 .lb-host 裡，不算。閉眼時眼睛的橢圓會不見
+          eyes.add(document.querySelectorAll('.lb-host > :first-child ellipse').length)
+          const h = document.querySelector('.en-host')
+          if (t > 1500 && h) corner = Math.max(corner, Number(getComputedStyle(h).opacity))
+          await new Promise((r) => setTimeout(r, 80))
+        }
+        const voice = window.__toddler.voices.filter((v) => v.t >= t0 - 300 && v.t <= t0 + 2500).map((v) => Math.round(v.t - t0))
+        return { hand, eyes: [...eyes], corner, voice, still: document.querySelector('.lesson-bye')?.getAttribute('data-bye') ?? null }
+      })
+      await shot(page, '9-下課等點恐龍', info)
+      c.outcome('下課畫面一出來就說要點恐龍', s.voice.length > 0, `語音 ${s.voice.join('、') || '沒有'} ms`)
+      if (!s.voice.length) await c.once('t141-voice', '困惑', '下課畫面出來 2.5 秒內沒有聲音告訴他要點恐龍', '只看得到恐龍，不知道下一步')
+      c.outcome('手 1.5 秒內指著恐龍', s.hand != null && s.hand <= 1500, `${s.hand ?? '沒有'} ms`)
+      if (s.hand == null || s.hand > 1500) await c.once('t141-hand', '困惑', '下課畫面的手太晚才指恐龍', `${s.hand ?? '5 秒內沒有'} ms`)
+      c.outcome('還沒道別的恐龍不閉眼（不像已經睡著）', s.eyes.length === 1, `眼睛的橢圓數 ${s.eyes.join('、')}`)
+      if (s.eyes.length !== 1) await c.once('t141-eyes', '困惑', '還沒道別的恐龍會閉眼，看起來已經睡著了', `眼睛的橢圓數 ${s.eyes.join('、')}`)
+      c.outcome('左下角的豆豆收起來，只有一隻恐龍', s.corner < 0.05, `左下角豆豆的透明度 ${s.corner}`)
+      if (s.corner >= 0.05) await c.once('t141-corner', '困惑', '下課畫面左下角還有一隻豆豆，點它沒有反應', `透明度 ${s.corner}`)
+      c.outcome('5 秒不碰：還停在晚安道別', s.still === 'awake', `${s.still}`)
+      if (s.still !== 'awake') await c.once('t141-still', '卡死', '下課畫面不碰卻自己往下走或離開了', `${s.still}`)
+      // 點恐龍：馬上揮手（一按就有反應）
+      k.behavior = '點恐龍說晚安'
+      const dino = await page.evaluate(() => {
+        const r = document.querySelector('.lb-host')?.getBoundingClientRect()
+        return r ? { x: r.left + r.width / 2, y: r.top + r.height / 2 } : null
+      })
+      if (dino) {
+        const t1 = await page.evaluate(() => performance.now())
+        await k.tap(dino, '恐龍')
+        const wave = await page.waitForSelector('.lesson-bye[data-bye="wave"]', { timeout: 1500 }).catch(() => null)
+        const dt = Math.round((await page.evaluate(() => performance.now())) - t1)
+        c.outcome('點恐龍馬上揮手', !!wave, `${dt} ms`)
+        if (!wave) await c.once('t141-wave', '卡死', '下課畫面點恐龍沒有馬上反應', `${dt} ms`)
+      }
+    } finally {
+      await c.flush().catch(() => {})
+      finish(k, c, '下課馬上知道')
+    }
+  })
+
   test('找大 S、小 s：照示範的手剛剛點的位置點下去，要點到對的那張（T-100）', async ({ page }, info) => {
     test.skip(!want('lesson-english'))
     test.setTimeout(4 * 60_000)

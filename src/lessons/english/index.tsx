@@ -98,6 +98,13 @@ export function EnglishLesson({ onDone }: LessonProps) {
   const [look, setLook] = useState<QuizLook>('cards')
   /** 今天的世界（T-127）：背景換成這個世界的場景；選擇題的時候看得更清楚，選項站在世界裡 */
   const [world] = useState(() => getTodayWorld())
+  /** 下課畫面出來了：左下角的豆豆收起來，畫面上只有下課畫面中間那一隻（T-141） */
+  const [bye, setBye] = useState(false)
+  /** 上完：交給 LessonScreen 放下課畫面 */
+  const toBye = () => {
+    setBye(true)
+    onDone()
+  }
   const qs = useRef<Question[]>([])
   const live = useRef(true)
   /** 描字、寫寫看共用的重描次數（T-122 整堂最多一次；T-125 起 0 次：沒描好就由筆帶著描完） */
@@ -121,7 +128,7 @@ export function EnglishLesson({ onDone }: LessonProps) {
         if (!live.current) return
         // 上完時已經算過一堂：不再算一次，不會因為貼紙的間隔剛好到了直接變成挑貼紙（T-125，盲測 0f3363f 英文 seed 2）
         resumeEnd()
-        onDone()
+        toBye()
         return
       }
       if (pl.resume) {
@@ -165,7 +172,7 @@ export function EnglishLesson({ onDone }: LessonProps) {
     sfx.done()
     void say('le.en.done')
     await Promise.all([markDone(plan, lessonGood(rs)), wait(1100)])
-    if (live.current) onDone()
+    if (live.current) toBye()
   }
 
   /** 選擇題又答完一題：聽完才答、一次就對的小點亮一顆、豆豆歡呼一下（其他的只留一圈淡框），記下來（中途離開，回來從下一題接著問） */
@@ -222,7 +229,8 @@ export function EnglishLesson({ onDone }: LessonProps) {
           {pending ? NEXT_HINT : hintOf(stage, letter, qs.current[Math.min(quizDone, qs.current.length - 1)], look)}
         </p>
       )}
-      <div className="en-host" aria-hidden="true">
+      {/* 下課畫面出來就收起來（T-141：盲測 c9bb003 英文 2，孩子點了淡淡的這一隻，是空白處、沒有反應） */}
+      <div className={`en-host${bye ? ' is-away' : ''}`} aria-hidden="true">
         <Dino who="dodo" mood={stage === 'end' || cheer ? 'cheer' : 'happy'} size="100%" />
       </div>
       <div className="en-stage">
