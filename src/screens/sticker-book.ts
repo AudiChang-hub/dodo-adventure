@@ -58,3 +58,14 @@ export function reactionOf(cat: Cat | undefined, n: number): Reaction {
   if (r === 1) return { move: 'twirl', voice: cat ? 'act' : 'none' }
   return { move: 'sparkle', voice: 'none' }
 }
+
+// ── 點下去有累積（T-141：AI 小男生盲測 c9bb003，第一張發光他點了別張；後來「點了好多次都一樣」就走了）──
+// 這一趟點過的貼紙記在畫面上（不寫資料）；亮光、示範的手指跟著「下一張還沒點過的」走，每點滿幾張豆豆跳一下。
+
+/** 每點滿幾張不同的貼紙，豆豆跳一下 */
+export const CHEER_EVERY = 4
+
+/** 下一張要亮的貼紙：照畫面上的順序（最新的在前），第一張還沒點過的；都點過了是 null */
+export function nextToShow<T extends { key: string }>(list: readonly T[], seen: ReadonlySet<string>): string | null {
+  return list.find((s) => !seen.has(s.key))?.key ?? null
+}

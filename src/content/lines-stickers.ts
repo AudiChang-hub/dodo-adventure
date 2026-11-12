@@ -36,9 +36,12 @@ def('stk.book.hi', 'dodo', 'Look! || Your stickers! Tap one!')
 def('stk.book.empty', 'dodo', 'Your stickers will go here!')
 // 空的貼紙本：帶他回去玩（T-135，AI 小男生盲測：點灰貼紙沒回應就走了）。只說「去玩」，不說哪一堂、什麼時候會有
 def('stk.book.go', 'dodo', "Let's go play! Stickers come when you play!")
-// 點灰貼紙、點空白處、點豆豆：輪流說，配合返回鍵（小房子）亮起來
+// 點灰貼紙、點空白處、點豆豆：輪流說，本子上的三扇門跳一下（T-141：以前是「Tap the house!」叫他點返回鍵，
+// 盲測 c9bb003 看到的是按返回離開、回首頁還要再找門；改成本子上就有門，一步進課）
 def('stk.book.poke.0', 'dodo', "Hmm... || Not yet! Let's go play!")
-def('stk.book.poke.1', 'dodo', "Look! || Tap the house! Let's go play!")
+def('stk.book.poke.1', 'dodo', "Look! || Pick one! Let's go play!")
+// 貼紙本裡每一張都點過一次（T-141：點了好多次都一樣）：大家一起跳一下
+def('stk.book.all', 'dodo', 'Hooray! || So many stickers!')
 
 // ── 點貼紙念它的英文名字（順便學詞彙）──────────────────────────────
 // 「這是 ___」全站只用一種說法（2026-10-28 單字盤點第 4 章）：This is a | dog! ／ These are | grapes!
