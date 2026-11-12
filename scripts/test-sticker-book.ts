@@ -4,7 +4,7 @@
 // 執行：npx tsx scripts/test-sticker-book.ts（失敗就 exit 1）
 import assert from 'node:assert/strict'
 import { existsSync, readFileSync } from 'node:fs'
-import { BOARD_PEEK, CAT_MOVE, newestFirst, reactionOf, tiltOf, type Cat } from '../src/screens/sticker-book'
+import { BOARD_PEEK, CAT_MOVE, nextToShow, newestFirst, reactionOf, tiltOf, type Cat } from '../src/screens/sticker-book'
 
 const { hasLine, line } = await import('../src/content/lines')
 const { STICKER_ART } = await import('../src/content/sticker-art')
@@ -120,6 +120,24 @@ if (existsSync('public/audio/zh/index.json')) {
   const yes = STICKER_ART.filter((a) => have.has(stickerZh(a.id)!))
   assert.ok(yes.length >= STICKER_ART.length / 2, `只有 ${yes.length} 張有中文音檔`)
   ok(`有中文音檔的貼紙 ${yes.length}/${STICKER_ART.length} 張念三明治，其他只念英文`)
+}
+
+// T-141：亮光跟著他走——點了別張，亮的換到畫面上第一張還沒點過的；都點過了就不亮
+{
+  const list = [{ key: 'd' }, { key: 'c' }, { key: 'b' }]
+  assert.equal(nextToShow(list, new Set()), 'd')
+  assert.equal(nextToShow(list, new Set(['c'])), 'd')
+  assert.equal(nextToShow(list, new Set(['d'])), 'c')
+  assert.equal(nextToShow(list, new Set(['d', 'c', 'b'])), null)
+  assert.equal(nextToShow([], new Set()), null)
+  ok('亮光在第一張還沒點過的；都點過了不亮')
+}
+
+// T-141：空的貼紙本不再叫他點小房子（返回鍵）；全部點過一次豆豆說 Hooray（溫和的感嘆詞）
+{
+  assert.ok(!/house/i.test(line('stk.book.poke.1').text), 'stk.book.poke.1 還在叫他點小房子')
+  assert.ok(hasLine('stk.book.all') && /^Hooray!/.test(line('stk.book.all').text))
+  ok('空的貼紙本不叫他點小房子；全部點過說 Hooray')
 }
 
 console.log('ALL PASS')

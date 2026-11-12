@@ -306,14 +306,17 @@ test.describe('畫面', () => {
         if (!ok) await c.once('empty', '困惑', '沒有貼紙時貼紙本不是空的剪影（或出現了字）', JSON.stringify(empty))
 
         // T-135（AI 小男生盲測 becf39a）：空的貼紙本點灰貼紙、點空白處、點豆豆都沒反應，32 秒就走了。
-        // 要有引導（返回鍵那裡亮起來：去玩）、點哪裡都有回應（動一下＋豆豆說話）。
+        // 要有引導、點哪裡都有回應（動一下＋豆豆說話）。
+        // T-141（盲測 c9bb003 低 4）：以前的引導是「亮起來的小房子」＝返回鍵，孩子點了也只是回首頁、還要再找門，
+        // 測試員看到的是「按返回離開」。改成本子上就有三扇課的門（一步進課），返回鍵不亮、就只是返回。
         k.behavior = '沒有貼紙：點灰貼紙、點空白、點豆豆'
         const hint = await page.evaluate(() => {
           const root = [...document.querySelectorAll<HTMLElement>('.scene')].filter((e) => !e.inert).pop()!
-          return !!root.querySelector('.sb-back[data-hint] [data-back]')
+          return { go: root.querySelectorAll('.sb-empty [data-go]').length, backLit: !!root.querySelector('.sb-back .sb-halo') }
         })
-        c.outcome('沒有貼紙：返回首頁的鍵亮起來，帶他去玩', hint, hint ? '' : '沒有引導')
-        if (!hint) await c.once('empty-hint', '困惑', '空的貼紙本沒有引導孩子去哪裡拿貼紙', '')
+        const direct = hint.go === 3 && !hint.backLit
+        c.outcome('沒有貼紙：本子上就有三扇課的門（去玩），返回鍵不亮', direct, `門 ${hint.go} 扇；返回鍵亮 ${hint.backLit}`)
+        if (!direct) await c.once('empty-hint', '困惑', '空的貼紙本沒有直接去玩的門（只能靠返回鍵回首頁再找門）', JSON.stringify(hint))
         await k.wait(5000)
         const where = await page.evaluate(() => {
           const root = [...document.querySelectorAll<HTMLElement>('.scene')].filter((e) => !e.inert).pop()!
@@ -346,6 +349,24 @@ test.describe('畫面', () => {
           c.outcome(`沒有貼紙：點${what}有回應`, moved && said.length > 0, `動了 ${moved}；說了「${said.join('／')}」`)
           if (!moved || !said.length) await c.once(`poke:${what}`, '困惑', `空的貼紙本點${what}沒有回應`, `動了 ${moved}；語音 ${said.length} 句`)
         }
+
+        // T-141：點本子上的門，一步就進那一堂課；課裡返回鍵回首頁
+        k.behavior = '沒有貼紙：點去玩的門'
+        const door = await page.evaluate(() => {
+          const root = [...document.querySelectorAll<HTMLElement>('.scene')].filter((e) => !e.inert).pop()!
+          const e = root.querySelector<HTMLElement>('.sb-empty [data-go="english"]')
+          const r = e?.getBoundingClientRect()
+          return r?.width ? { x: r.left + r.width / 2, y: r.top + r.height / 2 } : null
+        })
+        if (door && (await live()) === 'stickers') {
+          await k.tap(door, '去玩的門（英文）')
+          const l = await waitLive(page, (x) => x !== 'stickers', 5000)
+          const ok = /english/.test(l ?? '')
+          c.outcome('沒有貼紙：點門一步進英文課', ok, `到 ${l}`)
+          if (!ok) await c.once('go-door', '困惑', '空的貼紙本點去玩的門沒有進課', `到 ${l}`)
+          await toHome(k, c)
+          await enter('沒有貼紙（從課回來再進來）')
+        } else await c.once('go-door', '困惑', '空的貼紙本找不到去玩的門', '')
 
         k.behavior = '沒有貼紙：亂點、多指'
         for (let i = 0; i < 8; i++) {
@@ -381,7 +402,8 @@ test.describe('畫面', () => {
           intro = await page.evaluate(() => {
             const root = [...document.querySelectorAll<HTMLElement>('.scene')].filter((e) => !e.inert).pop()!
             const first = root.querySelector<HTMLElement>('.sb-item')
-            return { glow: !!first?.closest('.sb-slot')?.querySelector('.sb-new'), demo: Number(first?.dataset.demo ?? 0) }
+            // data-demos：示範點了幾下（T-141 起 data-demo 只在手指還在的時候標 1）
+            return { glow: !!first?.closest('.sb-slot')?.querySelector('.sb-new'), demo: Number(first?.dataset.demos ?? first?.dataset.demo ?? 0) }
           })
         }
         await k.wait(2500)
@@ -389,6 +411,60 @@ test.describe('畫面', () => {
         const shown = intro.glow && intro.demo > 0 && introSaid.length >= 2
         c.outcome('一進來：最新那張亮起來、手指示範點它、它念名字', shown, `亮 ${intro.glow}；示範 ${intro.demo} 次；說了「${introSaid.join('／')}」`)
         if (!shown) await c.once('intro', '困惑', '貼紙本一進來沒有示範要做什麼（最新那張沒亮、沒有手指示範點）', JSON.stringify(intro))
+
+        // ── T-141（AI 小男生盲測 c9bb003 低 6）：第一張發光，孩子點了別張；之後「點了好多次都一樣」就走了 ──
+        /** 現在這一層的貼紙本狀態：還標著示範中的、亮著的是第幾張、有記號（點過）的有哪幾張、手指在不在、慶祝了沒 */
+        const book = () =>
+          page.evaluate(() => {
+            const root = [...document.querySelectorAll<HTMLElement>('.scene')].filter((e) => !e.inert).pop()!
+            const slots = [...root.querySelectorAll<HTMLElement>('.sb-slot')]
+            return {
+              demoing: root.querySelectorAll('[data-demo="1"]').length,
+              glow: slots.findIndex((s) => !!s.querySelector('.sb-new')),
+              glows: root.querySelectorAll('.sb-new').length,
+              seen: slots.map((s, i) => (s.querySelector('.sb-seen') ? i : -1)).filter((i) => i >= 0),
+              hand: !!root.querySelector('.sb-hand'),
+              cheer: Number(root.querySelector<HTMLElement>('.sticker-book')?.dataset.cheer ?? 0),
+            }
+          })
+        /** 第 i 張貼紙捲進畫面、回傳中心點 */
+        const at = (i: number) =>
+          page.evaluate((i) => {
+            const root = [...document.querySelectorAll<HTMLElement>('.scene')].filter((e) => !e.inert).pop()!
+            const e = root.querySelectorAll('.sb-item')[i]
+            e?.scrollIntoView({ block: 'center' })
+            const r = e?.getBoundingClientRect()
+            return r ? { x: r.left + r.width / 2, y: r.top + r.height / 2 } : null
+          }, i)
+
+        // 示範做完（手指收起來）：不能還標著「示範中」——c9bb003 整段 26 步都被探針當成示範中
+        k.behavior = 'T-141：示範做完'
+        await k.wait(1500)
+        const done = await book()
+        c.outcome('示範做完：不再標著示範中', done.demoing === 0, `手指 ${done.hand}；標著示範中 ${done.demoing} 個`)
+        if (done.demoing) await c.once('demo-stuck', '困惑', '貼紙本示範做完了，還一直標著示範中', JSON.stringify(done))
+
+        // 孩子點的是別張（不是亮的那一張）：點過的有記號，亮光換到下一張還沒點過的，不是直接收掉
+        k.behavior = 'T-141：點了別張'
+        const other = await at(2)
+        if (other) await k.tap(other, '第三張貼紙（不是亮的那張）')
+        await k.wait(600)
+        const after1 = await book()
+        const follow = after1.seen.includes(2) && after1.glows === 1 && after1.glow >= 0 && after1.glow !== 2
+        c.outcome('點了別張：那張有記號、亮光還在（換到還沒點過的）', follow, JSON.stringify(after1))
+        if (!follow) await c.once('glow-follow', '困惑', '孩子點了不是亮的那一張，亮光就收掉了、點過的也沒有記號', JSON.stringify(after1))
+
+        // 他停下來不動：手指回來，帶他點亮著的那一張
+        k.behavior = 'T-141：發呆'
+        let back = false
+        for (let i = 0; i < 30 && !back; i++) {
+          await k.wait(400)
+          const b = await book()
+          back = b.hand && b.demoing > 0
+        }
+        c.outcome('點了別張之後發呆：手指回來示範亮著的那一張', back, back ? '' : '12 秒內手指沒有回來')
+        if (!back) await c.once('demo-again', '困惑', '孩子沒照示範點、停下來之後，示範的手指沒有再來', '')
+        await k.wait(2500)
 
         // 點一張：跳一下（波紋）、念名字
         k.behavior = '點一張貼紙'
@@ -443,6 +519,29 @@ test.describe('畫面', () => {
         c.outcome('不同種類的貼紙：動作不一樣', differ, `第一張 ${move0}、第二張 ${moveB}`)
         if (!differ) await c.once('kind', '困惑', '不同種類的貼紙點了動作都一樣', `${move0} / ${moveB}`)
         await k.wait(2500)
+
+        // T-141：一張一張點下去有累積（點過的有記號），全部點過一次：大家一起跳、豆豆說 Hooray
+        k.behavior = 'T-141：每一張都點一次'
+        const tAll = await page.evaluate(() => performance.now())
+        for (let i = 0; i < N; i++) {
+          if ((await live()) !== 'stickers') break
+          if ((await book()).seen.includes(i)) continue
+          const p = await at(i)
+          if (!p) continue
+          await k.tap(p, `第 ${i + 1} 張貼紙`)
+          await k.wait(900)
+        }
+        await k.wait(2500)
+        const all = await book()
+        const cheerSaid = (await linesSince(page, tAll)).map((l) => l.text ?? '')
+        const cheered = all.seen.length === N && all.cheer > 0 && cheerSaid.some((t) => /Hooray/i.test(t))
+        c.outcome('每一張都點過：都有記號、大家一起跳、豆豆說 Hooray', cheered, `記號 ${all.seen.length}/${N}；慶祝 ${all.cheer}；說了「${cheerSaid.slice(-3).join('／')}」`)
+        if (!cheered) await c.once('cheer', '困惑', '貼紙本一張張點完沒有累積感（沒有記號或點完沒有慶祝）', JSON.stringify(all))
+        await page.evaluate(() => {
+          const root = [...document.querySelectorAll<HTMLElement>('.scene')].filter((e) => !e.inert).pop()!
+          root.querySelector('.sb-scroll')?.scrollTo({ top: 0 })
+        })
+        await k.wait(600)
 
         // 連點同一張、點別張、手掌壓、拖到一半放手、捲動：不出錯、不離開
         k.behavior = '連點、多指、亂點'

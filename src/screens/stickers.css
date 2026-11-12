@@ -119,14 +119,15 @@
   place-items: center;
   aspect-ratio: 1;
 }
-/* 最新的那張（T-140）：後面一圈暖暖的光，一進來呼吸幾下就停在淡淡的亮；孩子自己點了一張就收 */
+/* 亮著的那一張（T-140；T-141 起是「下一張還沒點過的」，點了就換下一張亮）：後面一圈暖暖的光，
+   一進來呼吸幾下，之後慢慢地一直呼吸（低對比、不閃），讓他知道「點這個」 */
 .sb-new {
   position: absolute;
-  inset: -6%;
+  inset: -8%;
   border-radius: 50%;
-  background: radial-gradient(circle, rgba(246, 220, 143, 0.75) 38%, rgba(246, 220, 143, 0.35) 56%, rgba(246, 220, 143, 0) 70%);
+  background: radial-gradient(circle, rgba(246, 220, 143, 0.9) 38%, rgba(246, 220, 143, 0.45) 56%, rgba(246, 220, 143, 0) 70%);
   pointer-events: none;
-  animation: sb-new-in 0.6s ease-out 0.4s both, sb-new-breathe 1.6s ease-in-out 1s 4;
+  animation: sb-new-in 0.6s ease-out 0.4s both, sb-new-breathe 1.6s ease-in-out 1s 3, sb-new-breathe 2.6s ease-in-out 5.8s infinite;
 }
 @keyframes sb-new-in {
   from {
@@ -139,6 +140,31 @@
     scale: 1.1;
     opacity: 0.7;
   }
+}
+/* 這一趟點過了（T-141）：右上角一顆小星星，像蓋了章；只在畫面上，不寫資料 */
+.sb-seen {
+  position: absolute;
+  right: 2%;
+  top: 0;
+  width: 26%;
+  padding: 4.5%;
+  border-radius: 50%;
+  background: #fffaf0;
+  box-shadow:
+    0 0 0 3px rgba(240, 185, 65, 0.55),
+    0 3px 6px rgba(46, 42, 37, 0.14);
+  color: #f0b941;
+  pointer-events: none;
+  z-index: 2;
+}
+.sb-seen svg {
+  display: block;
+  overflow: visible;
+}
+.sb-seen path {
+  stroke: #fffaf0;
+  stroke-width: 2.6;
+  paint-order: stroke;
 }
 /* 開場示範的手指（games/Demo 的 Hand）：蓋在最新那張上面，不收點 */
 .sb-hand {
@@ -200,10 +226,24 @@
   z-index: 2;
 }
 
-/* 還沒有貼紙：三張虛線的剪影，等著被貼上去 */
+/* 還沒有貼紙：上面三張虛線的剪影（等著被貼上去），下面三堂課的門（T-141：一步就去玩） */
 .sb-empty {
   position: absolute;
   inset: 0;
+}
+/* 剪影那一層：整頁都收點（點在剪影上或空白處都有回應），手指按下去不要出現瀏覽器的反白 */
+.sb-page {
+  position: absolute;
+  inset: 0;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+}
+.sb-ghosts {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 7%;
+  height: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -213,80 +253,89 @@
 .sb-ghost {
   position: relative;
   display: block;
-  width: clamp(120px, 19vw, 230px);
+  width: clamp(110px, 15.5vw, 200px);
 }
 .sb-ghost:nth-child(2) {
-  translate: 0 -18px;
-}
-/* 整頁都收點（點在剪影上或空白處都有回應），手指按下去不要出現瀏覽器的反白 */
-.sb-empty {
-  -webkit-tap-highlight-color: transparent;
-  user-select: none;
+  translate: 0 -14px;
 }
 .sb-ghost-art {
   display: block;
 }
 
-/* ── 空的貼紙本：帶他回去玩（T-135）──
-   小房子（返回鍵）外面一圈暖光；豆豆的腳印從他腳下走到小房子；豆豆本人也可以點 */
+/* ── 空的貼紙本：去玩（T-135、T-141）──
+   豆豆坐在本子左下角外面，他的腳印往右走到門前；門跟首頁的一樣（同一隻恐龍、同一個顏色），點了一步就進課。
+   返回鍵不亮，就只是返回。豆豆本人也可以點（說「去玩」，門跳一下） */
 .sticker-book.is-empty .sb-host {
   pointer-events: auto;
   -webkit-tap-highlight-color: transparent;
 }
-.sb-halo,
-.sb-pulse {
+.sb-go {
   position: absolute;
-  left: -14px;
-  top: -14px;
-  width: calc(100% + 28px);
-  height: calc(100% + 28px);
-  border-radius: 50%;
+  left: 0;
+  right: 0;
+  bottom: 7%;
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: end;
+  /* 門之間的空隙點下去算點本子（落到下面的剪影那一層） */
   pointer-events: none;
-}
-/* 一直留著的暖光：淡淡一圈；豆豆說完第一句時呼吸三下 */
-.sb-halo {
-  background: radial-gradient(circle, rgba(246, 220, 143, 0.5) 60%, rgba(246, 220, 143, 0) 71%);
-  box-shadow: 0 0 0 4px rgba(241, 210, 124, 0.55);
-  animation: sb-breathe 1.4s ease-in-out 2.2s 3;
-}
-@keyframes sb-breathe {
-  50% {
-    scale: 1.14;
-    box-shadow: 0 0 0 6px rgba(241, 210, 124, 0.9);
-  }
-}
-.sb-pulse {
-  border: 5px solid rgba(241, 210, 124, 0.9);
-}
-@media (prefers-reduced-motion: reduce) {
-  .sb-halo {
-    animation: none;
-  }
 }
 .sb-trail {
-  position: absolute;
-  left: 26px;
-  width: 92px;
-  top: 128px;
-  /* 豆豆的頭頂：bottom 22px＋身高（寬 × 210/230） */
-  bottom: calc(22px + clamp(104px, 11vw, 150px) * 0.913 + 6px);
   display: flex;
-  flex-direction: column-reverse;
   justify-content: space-evenly;
   align-items: center;
+  height: 64px;
+  margin-bottom: 18px;
+  padding: 0 6px 0 2px;
   color: #d9b85a;
-  pointer-events: none;
-  z-index: 1;
 }
 .sb-step {
   display: block;
   width: 24px;
-  translate: 12px 0;
-  rotate: 8deg;
+  rotate: 90deg;
+  translate: 0 -9px;
 }
 .sb-step:nth-child(even) {
-  translate: -12px 0;
-  rotate: -8deg;
+  translate: 0 9px;
+}
+.sb-go-row {
+  display: flex;
+  gap: clamp(18px, 3vw, 40px);
+}
+.sb-door {
+  position: relative;
+  display: block;
+  width: clamp(116px, 12.5vw, 158px);
+  padding: 0;
+  border: 0;
+  background: none;
+  pointer-events: auto;
+  -webkit-tap-highlight-color: transparent;
+  transition: transform 0.16s var(--ease-out);
+}
+.sb-door:active {
+  transform: scale(0.95);
+}
+/* 拱形的門：外框是那一課的顏色，裡面一塊淡淡的玻璃，恐龍站在裡面 */
+.sb-door-arch {
+  display: block;
+  aspect-ratio: 0.8;
+  padding: 9% 9% 0;
+  border-radius: 999px 999px 20px 20px;
+  background: var(--door);
+  box-shadow:
+    0 7px 0 var(--door-deep),
+    0 18px 26px -14px rgba(46, 42, 37, 0.3);
+}
+.sb-door-glass {
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  height: 100%;
+  padding: 0 10% 4%;
+  border-radius: 999px 999px 0 0;
+  background: var(--glass);
+  overflow: hidden;
 }
 
 /* 手機直式（家長遠端看）：本子在返回鍵下面占滿寬度，不跑版就好 */
@@ -313,15 +362,25 @@
     padding: 28px 18px 44px;
     grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
   }
-  .sb-empty {
+  .sb-ghosts {
+    top: 3%;
+    height: 56%;
     flex-direction: column;
-    gap: 18px;
+    gap: 6px;
   }
   .sb-ghost {
-    width: min(42vw, 22vh);
+    width: min(34vw, 16vh);
   }
   .sb-ghost:nth-child(2) {
     translate: 0;
+  }
+  .sb-go {
+    bottom: 5%;
+    grid-template-columns: 1fr;
+    justify-items: center;
+  }
+  .sb-door {
+    width: min(25vw, 112px);
   }
 }
 
