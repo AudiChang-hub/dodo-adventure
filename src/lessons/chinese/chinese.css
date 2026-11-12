@@ -945,6 +945,42 @@
   width: 56%;
   height: auto;
 }
+/* 手也會來指回家（T-141）：手放在房子上面 */
+.zh-choice-home {
+  position: relative;
+}
+
+/*
+ * 喘口氣（T-141，./Between.tsx 的 Breath）：選了再一篇，新的一篇的書在中間，後面一圈暖光慢慢變大、變小一次（吸一口氣、吐一口氣），
+ * 約 3 秒後開始念。跟課本同一塊地方（左邊讓給莫莫）；只有這一次的進場動作，做完就停（紙感螢幕）
+ */
+.zh-breath {
+  position: absolute;
+  inset: 0 2.5cqw 4cqh 17cqw;
+  display: grid;
+  place-items: center;
+}
+.zh-breath > * {
+  grid-area: 1 / 1;
+}
+.zh-breath-glow {
+  width: min(44cqw, 66cqh);
+  aspect-ratio: 1;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(246, 222, 154, 0.85) 0 38%, rgba(246, 222, 154, 0.35) 58%, rgba(246, 222, 154, 0) 72%);
+  pointer-events: none;
+}
+.zh-breath-book {
+  width: min(26cqw, 40cqh);
+}
+@media (orientation: portrait) {
+  .zh-breath {
+    inset: 0 3cqw 26cqh 3cqw;
+  }
+  .zh-breath-book {
+    width: min(42vw, 32cqh);
+  }
+}
 
 /* 手機直式（家長遠端看）：不壞版就好——課本佔滿寬度，按鈕排到下面 */
 @media (orientation: portrait) {

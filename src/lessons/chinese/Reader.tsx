@@ -1,6 +1,7 @@
 import { Fragment, useEffect, useRef, useState, type CSSProperties } from 'react'
 import { motion, useReducedMotion } from 'motion/react'
 import { sfx } from '../../lib/audio'
+import { cheer } from '../../lib/achievements'
 import { firstFinger, nod } from '../../games/NotYet'
 import { EASE } from '../../ui/motion'
 import { Sparkles } from '../../ui/Sparkles'
@@ -173,6 +174,17 @@ export function Reader({
    * 不出聲音以外的東西（中文課不出聲：只有輕輕一聲音效）；不蓋課文、不蓋大人的按鈕。spot 是在哪裡，n 是第幾次冒出來
    */
   const [peek, setPeek] = useState({ spot: 0, n: 0 })
+  /**
+   * 這一行換到星星了沒（T-141，AI 小男生盲測 c9bb003 中文 1、2：新篇念故事時「點了好多次都一樣」，累計 3、4 分鐘就走了）：
+   * 念到的那一行，他第一次點到那一行的圖（或躲貓貓的角色），一顆星星從他的手指飛進上面進度的那一格（ui/ProgressStars，跟答對一樣），
+   * 每一行都有一顆星可以拿，點了看得到「我讓星星變多了」。大人沒等他點就按下一行，那一格照樣補上（進度不會卡住）。不出聲，只有星星落下的一聲。
+   */
+  const starred = useRef(new Set<number>())
+  const earn = (line: number) => {
+    if (talk || line !== cur || starred.current.has(line)) return
+    starred.current.add(line)
+    cheer('momo')
+  }
   /** 現在在動的那張圖：哪一張、第幾下（換 key 重播）、什麼動作（ACTS） */
   const [act, setAct] = useState<{ key: string; n: number; kind: Act } | null>(null)
   /** 亮的那一行的圖沒被點：第幾次自己跳一下（換行從 0 開始） */
@@ -248,6 +260,7 @@ export function Reader({
     if (!touched.has(key)) setTouched((s) => new Set(s).add(key))
     setTaps((m) => new Map(m).set(key, (m.get(key) ?? 0) + 1))
     setPop({ w, k: performance.now() })
+    earn(line)
   }
 
   /** 聊一聊：孩子點了問題的主角（用指的回答）：圖跳一下；第一次再加綠框、星星、莫莫開心，「去選圖」馬上出來 */
@@ -302,6 +315,7 @@ export function Reader({
     const key = `${cur}:${p.word}`
     sfx.pop()
     if (!touched.has(key)) setTouched((s) => new Set(s).add(key))
+    earn(cur)
     setPeek((x) => {
       const others = PEEK_SPOTS.map((_, i) => i).filter((i) => i !== x.spot)
       if ((x.n + 1) % 3 === 0) happy()
