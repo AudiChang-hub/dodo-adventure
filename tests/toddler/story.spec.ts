@@ -1027,12 +1027,16 @@ test.describe('故事', () => {
       const m0 = Date.now()
       let ghost = 0
       while (Date.now() - m0 < 5000) {
-        if (!ghost && (await page.$('.en-match .en-word.is-ghost'))) ghost = Date.now() - m0
+        if (!ghost && (await page.$('.en-match .en-word.is-ghost'))) {
+          ghost = Date.now() - m0
+          // 飛到空格、兩張並排的那一刻
+          await page.waitForTimeout(900)
+          await shot(page, 'T141-故事-找字示範', info)
+        }
         await page.waitForTimeout(100)
       }
       c.outcome('找一樣的字：手先做一輪（把一樣的字帶到空格）', ghost > 0, ghost ? `${(ghost / 1000).toFixed(1)} 秒` : '沒有')
       if (!ghost) await c.once('t141-match-demo', '困惑', '找一樣的字的示範沒有做完一輪（看不出要把字放到空格）', '')
-      await shot(page, 'T141-故事-找字示範', info)
       // 示範完：手留在一樣的那張、那張亮著，等他做第一下（以前示範完手就收起來，8 秒後才再來）
       await k.wait(Math.max(0, 6200 - (Date.now() - m0)))
       const guide = await page.evaluate(() => ({
