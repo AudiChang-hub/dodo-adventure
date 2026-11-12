@@ -974,6 +974,126 @@ test.describe('故事', () => {
       finish(k, c, '英文版三題')
     }
   })
+
+  /*
+   * T-141（AI 小男生盲測 c9bb003 故事 2，一天兩篇）：孩子念的時候點豬、點房子都「沒有變」，到「Find the same word!」
+   * 「我一直點都不知道要幹嘛」1:41 就離開。照孩子的順序走一次：念的時候點圖（圖要動）→ 下一句、選圖 → 找一樣的字：
+   * 手先完整做一輪（點上面的字、把下面一樣的那張帶到空格），再帶他做第一下（手留在一樣的那張、那張亮著）→
+   * 舊篇講完的選擇畫面手兩邊都指 → 點再一篇先喘口氣 → 新篇念的時候點圖也會動。
+   */
+  test('T-141 英文故事一天兩篇：念的時候點圖會動、找一樣的字手先做一輪再帶第一下、選擇畫面手兩邊都指、再一篇先喘口氣', async ({ page }, info) => {
+    test.skip(!want('story-en-t141'))
+    test.setTimeout(8 * 60_000)
+    const { k, c } = await setup(page, info, 'T141英文一天兩篇')
+    /** 念的時候點一張圖：那張有沒有動（data-act） */
+    const tapPicMoves = async (ctx: string) => {
+      const p = await center(page, '.en-pics .en-pic')
+      if (!p) return false
+      await k.tap(p, `${ctx}：念的時候點圖`)
+      for (let i = 0; i < 8; i++) {
+        if (await page.$('.en-pics .en-pic[data-act]')) return true
+        await page.waitForTimeout(100)
+      }
+      return false
+    }
+    try {
+      await seedStory(page, { kv: zhTwoKV() })
+      await k.tap((await center(page, DOOR))!, '故事')
+      let live = await waitLive(page, (l) => (l ?? '').startsWith('en-'), 10_000)
+      if (live !== 'en-1') return void (await c.once('t141-old', '困惑', '英文故事今天沒有先講舊篇', `到 ${live}`))
+      await k.wait(900)
+      k.behavior = '舊篇念的時候點圖'
+      const moved = await tapPicMoves('舊篇')
+      c.outcome('念的時候點圖：那張圖會動（不只一聲）', moved, moved ? '會動' : '沒有變')
+      if (!moved) await c.once('t141-pic-still', '困惑', '英文故事念的時候點圖，圖沒有變化（孩子說「都沒有變」）', '')
+
+      // 一句一句點、選圖點對的，直到找一樣的字
+      k.behavior = '舊篇點完、選圖'
+      for (const end = Date.now() + 120_000; Date.now() < end; ) {
+        const kind = await waitKind(page)
+        if (kind === 'match') break
+        if (kind === 'next') await k.tap((await center(page, '.en-next'))!, '下一句')
+        else if (kind === 'q' || kind === 'which') {
+          await k.wait(700)
+          const a = await center(page, '.story-choice[data-answer]')
+          if (a) await k.tap(a, '點對的圖')
+        }
+        await k.wait(600)
+      }
+      if ((await waitKind(page)) !== 'match') return void (await c.once('t141-no-match', '卡死', '舊篇走不到找一樣的字', ''))
+
+      // 找一樣的字：孩子先看（不點）。手要完整做一輪：下面一樣的那張被帶到空格（.is-ghost）
+      k.behavior = '找一樣的字：先看手做'
+      const m0 = Date.now()
+      let ghost = 0
+      while (Date.now() - m0 < 5000) {
+        if (!ghost && (await page.$('.en-match .en-word.is-ghost'))) {
+          ghost = Date.now() - m0
+          // 飛到空格、兩張並排的那一刻
+          await page.waitForTimeout(900)
+          await shot(page, 'T141-故事-找字示範', info)
+        }
+        await page.waitForTimeout(100)
+      }
+      c.outcome('找一樣的字：手先做一輪（把一樣的字帶到空格）', ghost > 0, ghost ? `${(ghost / 1000).toFixed(1)} 秒` : '沒有')
+      if (!ghost) await c.once('t141-match-demo', '困惑', '找一樣的字的示範沒有做完一輪（看不出要把字放到空格）', '')
+      // 示範完：手留在一樣的那張、那張亮著，等他做第一下（以前示範完手就收起來，8 秒後才再來）
+      await k.wait(Math.max(0, 6200 - (Date.now() - m0)))
+      const guide = await page.evaluate(() => ({
+        demo: !!document.querySelector('.en-match.is-demo'),
+        hand: !!document.querySelector('.en-match .demo-hand'),
+        glow: !!document.querySelector('.en-word.is-option[data-answer].is-hint'),
+      }))
+      const led = !guide.demo && guide.hand && guide.glow
+      c.outcome('示範完：手帶他做第一下（手指著、一樣的那張亮著）', led, JSON.stringify(guide))
+      if (!led) await c.once('t141-match-lead', '困惑', '找一樣的字示範完，沒有帶孩子做第一下', JSON.stringify(guide))
+      await shot(page, 'T141-故事-找字輪到你', info)
+      const a = await center(page, '.en-word.is-option[data-answer]')
+      if (a) await k.tap(a, '點一樣的字')
+
+      // 舊篇講完 → 選擇畫面：手兩邊都指
+      live = await waitLive(page, (l) => l === 'ennext-4', 15_000)
+      if (live !== 'ennext-4') return void (await c.once('t141-choice', '困惑', '英文故事舊篇講完沒有選擇畫面', `到 ${live}`))
+      const t0 = Date.now()
+      let more = 0
+      let home = 0
+      while (Date.now() - t0 < 10_000 && !(more && home)) {
+        const h = await page.evaluate(() => ({ more: !!document.querySelector('.en-choice-more .demo-hand'), home: !!document.querySelector('.en-choice-home .demo-hand') }))
+        if (h.more && !more) more = Date.now() - t0
+        if (h.home && !home) home = Date.now() - t0
+        await page.waitForTimeout(120)
+      }
+      c.outcome('選擇畫面：手兩邊都指（再一篇、回家）', more > 0 && home > 0, `再一篇 ${(more / 1000).toFixed(1)} 秒、回家 ${(home / 1000).toFixed(1)} 秒`)
+      if (!(more && home)) await c.once('t141-en-hand-both', '困惑', '英文故事選擇畫面的手只指一邊', `再一篇 ${more}ms、回家 ${home}ms`)
+      await shot(page, 'T141-故事-選擇畫面', info)
+
+      // 點再一篇 → 先喘口氣（新的書打開來），不是馬上講
+      k.behavior = '點再一篇'
+      await k.tap((await center(page, '.en-cover.is-new'))!, '再一篇')
+      let breath = false
+      for (let i = 0; i < 25 && !breath; i++) {
+        breath = !!(await page.$('.en-breath[data-breath]'))
+        if (!breath) await page.waitForTimeout(100)
+      }
+      c.outcome('點再一篇 → 先喘口氣，不是馬上講', breath, breath ? '有' : '馬上開始講')
+      if (!breath) await c.once('t141-en-breath', '困惑', '英文故事點再一篇，新篇馬上開始講，中間沒有喘口氣', '')
+      else {
+        await shot(page, 'T141-故事-喘口氣', info)
+        await k.spam({ x: 640, y: 420 }, 2, '喘口氣時亂點')
+      }
+      live = await waitLive(page, (l) => l === 'en-4', 8000)
+      c.outcome('喘口氣完 → 講新篇', live === 'en-4', `到 ${live}`)
+      if (live !== 'en-4') return void (await c.once('t141-en-new', '卡死', '英文故事點再一篇沒有講新篇', `到 ${live}`))
+      await k.wait(900)
+      k.behavior = '新篇念的時候點圖'
+      const moved2 = await tapPicMoves('新篇')
+      c.outcome('新篇念的時候點圖：那張圖會動', moved2, moved2 ? '會動' : '沒有變')
+      if (!moved2) await c.once('t141-pic-still-new', '困惑', '英文故事新篇念的時候點圖，圖沒有變化', '')
+      await c.flush()
+    } finally {
+      finish(k, c, 'T141英文一天兩篇')
+    }
+  })
 })
 
 /** 第 n+1 天的故事進度：p1-a01 第 1 章講完過 n 天；故事時間都講過了（每天都是長篇，不管今天星期幾） */

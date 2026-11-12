@@ -545,7 +545,8 @@ test.describe('中文課', () => {
     const { k, c } = await setup(page, info, '選再一篇', false, false)
     try {
       if (!(await toChoice(k, c))) return
-      await k.wait(1500)
+      // 先慶祝一拍、選項 1.1 秒後才進來，手 2 秒後來指再一篇（T-141）
+      await k.wait(2400)
       const b = await page.evaluate(() => ({
         done: !!document.querySelector('.zh-between .zh-book.is-done[data-day="1"] .zh-book-check'),
         more: !!document.querySelector('.zh-between .zh-choice-more[data-day="4"] .zh-book-new'),
@@ -589,7 +590,8 @@ test.describe('中文課', () => {
       const { k, c } = await setup(page, info, `選擇畫面${how}`, false, false)
       try {
         if (!(await toChoice(k, c))) return
-        await k.wait(1200)
+        // 選項 1.1 秒後才進來（T-141：先慶祝一拍），之前點了不算
+        await k.wait(1800)
         k.behavior = `選擇畫面按${how}`
         if (how === '回家') {
           const h = (await points(page, '.zh-choice-home'))[0]
@@ -1103,6 +1105,82 @@ test.describe('中文課', () => {
       await c.flush()
     } finally {
       finish(k, c, '挑貼紙')
+    }
+  })
+
+  /*
+   * T-141（AI 小男生盲測 c9bb003 中文 1、2）：兩輪都把舊篇上完、跟著手點「再一篇」，新篇念故事時一直點亮起來的圖，
+   * 「點了好多次都一樣／沒有變，好久喔」，累計 3:49、4:22 就離開。照孩子的順序走一次：
+   * 舊篇上完 → 選擇畫面（手要兩邊都指，不只指再一篇）→ 點再一篇 → 先喘口氣（新的書打開來）→ 新篇念故事：
+   * 上面的進度從空的開始，每一行他點了亮的圖，就有一顆星飛上去（看得到進度）。全程不出聲。
+   */
+  test('T-141 一天兩篇：選擇畫面手兩邊都指、點再一篇先喘口氣、新篇念故事時點亮的圖會換到進度的星星（進度從空的開始）、不出聲', async ({ page }, info) => {
+    test.skip(!want('lesson-chinese-t141'))
+    test.setTimeout(7 * 60_000)
+    await page.addInitScript({ path: path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'ai-toddler', 'heard.js') })
+    const { k, c } = await setup(page, info, 'T141新篇有事做', false, false)
+    try {
+      if (!(await toChoice(k, c))) return
+      // 選擇畫面：手輪流指「再一篇」和「回家」（盲測兩輪都只看到手指著再一篇）
+      const t0 = Date.now()
+      let more = 0
+      let home = 0
+      while (Date.now() - t0 < 10_000 && !(more && home)) {
+        const h = await page.evaluate(() => ({ more: !!document.querySelector('.zh-choice-more .demo-hand'), home: !!document.querySelector('.zh-choice-home .demo-hand') }))
+        if (h.more && !more) more = Date.now() - t0
+        if (h.home && !home) home = Date.now() - t0
+        await page.waitForTimeout(120)
+      }
+      c.outcome('選擇畫面：手兩邊都指（再一篇、回家）', more > 0 && home > 0, `再一篇 ${(more / 1000).toFixed(1)} 秒、回家 ${(home / 1000).toFixed(1)} 秒`)
+      if (!(more && home)) await c.once('t141-hand-both', '困惑', '選擇畫面的手只指一邊（孩子只會跟著手點）', `再一篇 ${more}ms、回家 ${home}ms`)
+      await shot(page, info, 'T141-中文-選擇畫面')
+
+      // 孩子跟著手點「再一篇」（盲測兩輪都是）→ 先喘口氣：新的書打開來，一下下才開始念；這時候亂點不會跳過、不會卡住
+      k.behavior = '點再一篇'
+      const m = (await points(page, '.zh-choice-more'))[0]
+      if (m) await k.tap(m, '再一篇')
+      let breath = false
+      for (let i = 0; i < 25 && !breath; i++) {
+        breath = !!(await page.$('.zh-breath[data-breath]'))
+        if (!breath) await page.waitForTimeout(100)
+      }
+      c.outcome('點再一篇 → 先喘口氣（新的書打開來），不是馬上念', breath, breath ? '有' : '馬上開始念')
+      if (!breath) await c.once('t141-breath', '困惑', '慶祝完點再一篇，新篇馬上開始念，中間沒有喘口氣', '')
+      else {
+        await shot(page, info, 'T141-中文-喘口氣')
+        await k.spam({ x: 640, y: 420 }, 2, '喘口氣時亂點')
+      }
+      const fresh = await waitFor(k, (s) => s.title === NEW_TITLE && s.at === '0', 8000)
+      if (!fresh) return void (await c.once('t141-new', '卡死', '點再一篇沒有開始新篇', ''))
+      await k.wait(900)
+
+      // 上面的進度：新篇從空的開始（以前是舊篇的星星留著，一開始就幾乎滿了，點了也看不出進度）
+      const stars = () => page.evaluate(() => document.querySelectorAll('.progress i.star').length)
+      const s0 = await stars()
+      c.outcome('新篇的進度從空的開始', s0 === 0, `${s0} 顆星`)
+      if (s0 !== 0) await c.once('t141-progress', '困惑', '新篇開始時上面的進度已經有舊篇的星星，看不出新篇的進度', `${s0} 顆`)
+
+      // 盲測的孩子：每一行都點亮起來的圖（點 2 下），大人念完按下一行
+      k.behavior = '新篇念故事時一直點亮的圖'
+      const per: number[] = []
+      for (let i = 0; i < fresh.lines; i++) {
+        const before = await stars()
+        const p = (await points(page, '.zh-line.on .zh-pic'))[0]
+        if (p) await k.spam(p, 2, `第 ${i + 1} 行亮的圖`)
+        await k.wait(1500)
+        per.push((await stars()) - before)
+        if (i === 1) await shot(page, info, 'T141-中文-新篇點圖換星星')
+        if (i < fresh.lines - 1) await adult(k, '.zh-next', '下一行（大人）')
+      }
+      const ok = per.length > 0 && per.every((d) => d === 1)
+      c.outcome('每一行點了亮的圖，上面就多一顆星（看得到進度）', ok, per.join(','))
+      if (!ok) await c.once('t141-star', '困惑', '新篇念故事時點了亮的圖，上面的進度沒有變', per.join(','))
+      const zh = await page.evaluate(() => ((window as unknown as { __heard?: { name: string }[] }).__heard ?? []).filter((h) => /^zh/.test(h.name)).length)
+      c.outcome('全程不出聲（沒有中文音檔）', zh === 0, `${zh} 個`)
+      if (zh) await c.once('t141-voice', '困惑', '中文課出聲了', `${zh} 個`)
+      await c.flush()
+    } finally {
+      finish(k, c, 'T141新篇有事做')
     }
   })
 })

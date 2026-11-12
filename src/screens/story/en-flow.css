@@ -1,0 +1,109 @@
+/*
+ * 故事時間英文版一天兩篇（T-141，AI 小男生盲測 c9bb003 故事 2）：其他樣子在 ../story.css，這裡只放 T-141 加的東西。
+ * 動作只用位移、縮放一下就停（紙感螢幕，MOTION-1、2）。
+ */
+
+/* 選擇畫面：手也會來指回家（./EnNext.tsx） */
+.en-choice-home {
+  position: relative;
+}
+
+/* 喘口氣（./EnNext.tsx）：選了再一篇，新的書在中間，後面一圈暖光吸一口氣、吐一口氣一次，約 3 秒後開始講 */
+.en-breath {
+  position: absolute;
+  top: 10vh;
+  bottom: 18vh;
+  left: calc(50% + 7vw);
+  translate: -50% 0;
+  width: min(60vw, 70vh);
+  display: grid;
+  place-items: center;
+}
+.en-breath > * {
+  grid-area: 1 / 1;
+}
+.en-breath-glow {
+  width: 100%;
+  aspect-ratio: 1;
+  max-height: 100%;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(246, 222, 154, 0.85) 0 38%, rgba(246, 222, 154, 0.35) 58%, rgba(246, 222, 154, 0) 72%);
+  pointer-events: none;
+}
+.en-cover.en-breath-book {
+  width: clamp(200px, 40vh, 340px);
+}
+@media (orientation: portrait) {
+  .en-breath {
+    left: 50%;
+    width: 90vw;
+  }
+  .en-cover.en-breath-book {
+    width: min(50vw, 30vh);
+  }
+}
+
+/* 念的時候點圖（./EnBook.tsx）：被點的那張做一個動作，每一下換一種；做完就停 */
+.en-pic-in {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+.en-act-hop {
+  animation: en-act-hop 0.6s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.en-act-wiggle {
+  animation: en-act-wiggle 0.6s ease-in-out;
+}
+.en-act-spin {
+  animation: en-act-spin 0.7s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.en-act-squish {
+  animation: en-act-squish 0.55s cubic-bezier(0.22, 1, 0.36, 1);
+}
+@keyframes en-act-hop {
+  40% {
+    translate: 0 -14%;
+  }
+}
+@keyframes en-act-wiggle {
+  20% {
+    rotate: -9deg;
+  }
+  45% {
+    rotate: 8deg;
+  }
+  70% {
+    rotate: -5deg;
+  }
+}
+@keyframes en-act-spin {
+  to {
+    rotate: 360deg;
+  }
+}
+@keyframes en-act-squish {
+  35% {
+    scale: 1.14 0.84;
+  }
+  70% {
+    scale: 0.94 1.08;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .en-act-hop,
+  .en-act-wiggle,
+  .en-act-spin,
+  .en-act-squish {
+    animation: none;
+  }
+}
+
+/* 找一樣的字的示範（./WordMatch.tsx）：一模一樣的一張從下面飛到空格（看的，點不到） */
+.en-word.is-ghost {
+  position: absolute;
+  z-index: 2;
+  min-width: 0;
+  padding: 0;
+  pointer-events: none;
+}

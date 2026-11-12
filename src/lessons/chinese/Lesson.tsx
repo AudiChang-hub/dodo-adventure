@@ -14,7 +14,7 @@ import { stepsOf, weight, type Part, type Step } from './steps'
 import { doneDays, glyphState, lessonPlan, markDone, markOld, saveGlyph } from './progress'
 import { NEXT_HINT, nextStep, useNextPending } from '../../ui/NextStep'
 import { Reader } from './Reader'
-import { Between } from './Between'
+import { Between, Breath } from './Between'
 import { Quiz } from './Quiz'
 import { Glyph } from './Glyph'
 import { firstFinger } from '../../games/NotYet'
@@ -35,6 +35,8 @@ const COUNT = ['零', '一', '兩', '三', '四']
 
 /** 舊篇上完、新篇開始之前（Between）的陪玩小字 */
 const BETWEEN_HINT = '舊篇上完了！問他「要不要再聽一個新的故事？」讓他自己選：點書是再一篇，點房子是回家（新篇留到下次）。'
+/** 喘口氣（T-141）的陪玩小字 */
+const BREATH_HINT = '新的一篇要開始了，先跟他一起深呼吸一下，書打開就開始念。'
 
 /** 每一段開頭的小字：大人看得出現在是舊篇、新篇還是小複習 */
 const PART_TAG: Record<Part, string> = { old: '複習舊篇・', new: '', review: '最後小複習・' }
@@ -85,6 +87,8 @@ export function ChineseLessonBody({ onDone }: LessonProps) {
   const skipLock = useRef(0)
   /** 舊篇上完、讓他選「再一篇」還是「回家」的畫面（T-140）；選再一篇要去的那一步 */
   const [between, setBetween] = useState<number | null>(null)
+  /** 新的一篇開始前喘口氣（T-141）：喘完要去的那一步、是不是大人跳過舊篇來的 */
+  const [breath, setBreath] = useState<{ i: number; skipped: boolean } | null>(null)
 
   useEffect(() => {
     let off = false
@@ -135,7 +139,8 @@ export function ChineseLessonBody({ onDone }: LessonProps) {
     skipLock.current = now + 1000
     sfx.tap()
     setMood('idle')
-    enter(steps.findIndex((s) => s.part !== 'old'), true)
+    if (old) void markOld(old.day, true)
+    setBreath({ i: steps.findIndex((s) => s.part !== 'old'), skipped: true })
   }
 
   /** 課文念完：新篇第一次念完時，每個要考的字詞記一筆「教學」（家長區看得到今天教了什麼） */
@@ -178,10 +183,18 @@ export function ChineseLessonBody({ onDone }: LessonProps) {
   }
   const more = () => {
     if (between == null) return
-    setMood('idle')
+    setMood('happy')
     const i = between
     setBetween(null)
-    enter(i)
+    setBreath({ i, skipped: false })
+  }
+  /** 喘完口氣：開始念新的一篇（上面的進度在喘口氣時收起來，新篇從空的一排重新開始，T-141） */
+  const breathed = () => {
+    if (!breath) return
+    const { i, skipped } = breath
+    setMood('idle')
+    setBreath(null)
+    enter(i, skipped)
   }
   const live = useRef(true)
   useEffect(() => {
@@ -203,15 +216,18 @@ export function ChineseLessonBody({ onDone }: LessonProps) {
       station="mandarin"
       mood={mood}
       // 上面的進度（T-111，盲測 a35cd5e：念課文的時候看不出有進展）：課文一行一格、選圖一題一格，
-      // 大人按「下一行」亮一格，選對一題亮一格；看得出「念到哪裡、還剩多少」（舊篇一排；新篇和小複習一排）
-      progress={s ? { total, done: between != null ? total : before + (s.k === 'read' ? read : 0) } : undefined}
+      // 大人按「下一行」亮一格，選對一題亮一格；看得出「念到哪裡、還剩多少」（舊篇一排；新篇和小複習一排）。
+      // 喘口氣時收起來（T-141，盲測 c9bb003：以前舊篇的星星留在新篇那一排，新篇一開始就幾乎滿了，孩子點了也看不出進度）
+      progress={s && !breath ? { total, done: between != null ? total : before + (s.k === 'read' ? read : 0) } : undefined}
       onExit={leaveLesson}
       onHost={() => host.current?.()}
-      hintText={at == null ? undefined : between != null ? BETWEEN_HINT : pending ? NEXT_HINT : hintOf(s ?? 'intro', talk, gDemoing, !!old)}
+      hintText={at == null ? undefined : breath ? BREATH_HINT : between != null ? BETWEEN_HINT : pending ? NEXT_HINT : hintOf(s ?? 'intro', talk, gDemoing, !!old)}
     >
       {t && at != null && (
-        <Swap id={between != null ? 'between' : typeof at === 'number' ? `s${at}` : at}>
-          {between != null && old ? (
+        <Swap id={breath ? 'breath' : between != null ? 'between' : typeof at === 'number' ? `s${at}` : at}>
+          {breath ? (
+            <Breath t={t} onDone={breathed} />
+          ) : between != null && old ? (
             <Between old={old} t={t} onMore={more} onHome={leaveLesson} />
           ) : at === 'intro' || !s ? (
             <Intro onStart={start} />
@@ -225,7 +241,7 @@ export function ChineseLessonBody({ onDone }: LessonProps) {
         </Swap>
       )}
       {/* 跳過舊篇（T-136）：大人用的，放在右上角陪玩小字下面（孩子點的課本、圖、右下角的大箭頭以外），淡淡的底線字、不像要按的大按鈕 */}
-      {s?.part === 'old' && !pending && between == null && (
+      {s?.part === 'old' && !pending && between == null && !breath && (
         <button type="button" className="zh-skip-old" onPointerDown={skipOld}>
           跳過舊篇
         </button>

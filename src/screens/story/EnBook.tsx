@@ -15,9 +15,20 @@ import { Choose } from './Tell'
 import { WordMatch } from './WordMatch'
 import { finishEn, saveEnAt, saveMatched, zhTextOf, type EnBookRow } from './en-book'
 import { matchOf, pagePics, storyAskOf, whichOf, type PicPick, type WordMatch as MatchQ } from './en-pages'
+import './en-flow.css'
 
 /** 停下來等他點：第一次手來指的時間（小班段 8 秒），之後每隔這麼久再指一次。絕不自己往下（家長要求：等他點才講下一句） */
 export const EN_HAND_MS = 8000
+
+/**
+ * 念的當下點圖（T-141，AI 小男生盲測 c9bb003 故事 2：點豬、點房子「都沒有變」，以前只有輕輕一聲）：
+ * 被點的那張圖做一個動作，每一下換一種（跳、搖一搖、轉一圈、壓扁彈回），配那個動作的短音效；不跳過正在念的這一句
+ */
+const PIC_ACTS = ['hop', 'wiggle', 'spin', 'squish'] as const
+type PicAct = (typeof PIC_ACTS)[number]
+const PIC_SFX: Record<PicAct, () => void> = { hop: () => sfx.boing(), wiggle: () => sfx.pop(), spin: () => sfx.star(), squish: () => sfx.pop() }
+/** 被點的那張圖：哪一頁、第幾張、第幾下 */
+type Poke = { page: number; i: number; n: number }
 
 /** 正在等他做的事：next 點一下講下一句；q 故事題、which 認角色（兩張圖選一張）；match 找一樣的英文字 */
 type Wait = { kind: 'next' } | { kind: 'q' | 'which'; pick: PicPick; key: string } | { kind: 'match'; q: MatchQ; demo: boolean }
@@ -63,6 +74,8 @@ export default function EnBook({
   /** 結尾小題（T-136）：前幾次上過的那一篇 */
   const [review, setReview] = useState<number | null>(null)
   const skipLock = useRef(0)
+  const [poke, setPoke] = useState<Poke | null>(null)
+  const pokes = useRef(0)
   const resolve = useRef<(() => void) | null>(null)
   const run = useRef(0)
 
@@ -173,8 +186,14 @@ export default function EnBook({
       sfx.pop()
       return waitDone()
     }
-    // 念的當下點圖：輕輕一聲就好（不跳過正在念的這一句）；選圖、找字由 Choose、WordMatch 自己回應
-    if (!waiting) sfx.tap()
+    // 念的當下點圖：被點的那張（點在空白處就是第一張）做一個動作，每一下換一種（T-141）；不跳過正在念的這一句。
+    // 選圖、找字由 Choose、WordMatch 自己回應
+    if (waiting) return
+    const el = (ev.target as Element).closest<HTMLElement>('.en-pic[data-i]')
+    const i = el ? Number(el.dataset.i) : 0
+    const n = ++pokes.current
+    PIC_SFX[PIC_ACTS[(n - 1) % PIC_ACTS.length]]()
+    setPoke({ page: at, i, n })
   }
 
   /** 大人跳過舊篇：連點、兩根手指只算一下 */
@@ -206,7 +225,7 @@ export default function EnBook({
       </div>
       <div className="book-art en-art" data-page={at} data-beat={at} data-wait={waiting?.kind} onPointerDown={tapArt}>
         <Swap id={`p${at}`} className="swap-pic" arm={false}>
-          <EnPage pics={pics[at]} text={e.en[at]} />
+          <EnPage pics={pics[at]} text={e.en[at]} poke={poke?.page === at ? poke : null} />
         </Swap>
         {/* 下一句的大箭頭：一直看得到（念的時候淡淡的），念完亮起來；點整張圖也算 */}
         <button type="button" className={`en-next${nextOn ? ' is-on' : ''}`} aria-label="下一句" tabIndex={nextOn ? 0 : -1}>
@@ -237,15 +256,21 @@ export default function EnBook({
 }
 
 /** 一頁：中文課文那一行的圖（1～3 張）、下面一行英文（給大人看，孩子聽） */
-function EnPage({ pics, text }: { pics: string[]; text: string }) {
+function EnPage({ pics, text, poke }: { pics: string[]; text: string; poke: Poke | null }) {
   return (
     <div className="en-page">
       <div className={`en-pics n${Math.min(pics.length, 3)}`}>
-        {pics.slice(0, 3).map((p) => (
-          <span key={p} className="en-pic">
-            <Pic name={p} />
-          </span>
-        ))}
+        {pics.slice(0, 3).map((p, i) => {
+          const act = poke?.i === i ? PIC_ACTS[(poke.n - 1) % PIC_ACTS.length] : undefined
+          return (
+            <span key={p} className="en-pic" data-i={i} data-act={act}>
+              {/* 換 key 重播：同一張連點，每一下都看得到動作 */}
+              <span key={act ? poke!.n : 0} className={`en-pic-in${act ? ` en-act-${act}` : ''}`}>
+                <Pic name={p} />
+              </span>
+            </span>
+          )
+        })}
       </div>
       <p className="en-line">{text}</p>
     </div>
