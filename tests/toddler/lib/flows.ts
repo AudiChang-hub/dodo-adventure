@@ -3,6 +3,7 @@ import { attempts, drain, homeButton, settle, snap, targets, type Target } from 
 import type { Pt, Severity, Toddler } from './toddler'
 import type { GameDef } from '../catalog'
 import { HOME_GAMES, PICK, upOf } from './features'
+import { PAGE_ARM_QUIET_MS } from '../../../src/ui/motion'
 
 /** 一段行為的結果，報告的結果表用 */
 export interface Outcome {
@@ -237,10 +238,34 @@ async function enterFromHome(k: Toddler, c: Checker, g: GameDef, opts: { spam?: 
   // 門進去還要再選一次（T-138：畫畫先選白紙自由畫還是著色本）
   const pick = PICK[g.id]
   const first = pick ? pick.live : `play-${g.id}`
+  /** 連點門的那一串，相鄰兩下最長隔多久（頁面自己記的 e.timeStamp，跟 App 判斷連點用的是同一個時間） */
+  let gap = 0
   if (opts.spam) {
+    await page.evaluate(() => {
+      const w = window as unknown as { __spamDowns: number[]; __spamRec: (e: Event) => void }
+      w.__spamDowns = []
+      w.__spamRec = (e) => w.__spamDowns.push(e.timeStamp)
+      window.addEventListener('pointerdown', w.__spamRec, { capture: true })
+    })
     await k.spam(door, 5 + k.r.int(5), '首頁的門')
+    gap = await page.evaluate(() => {
+      const w = window as unknown as { __spamDowns: number[]; __spamRec: (e: Event) => void }
+      window.removeEventListener('pointerdown', w.__spamRec, { capture: true })
+      const t = w.__spamDowns
+      return Math.round(Math.max(0, ...t.slice(1).map((x, i) => x - t[i])))
+    })
     live = await waitLive(page, (l) => l === first)
   } else live = await tapDoor(k, c, HOME_GAMES[g.id], '首頁的門', (l) => l === first, 6000)
+  // 連點被拉慢了（B01，main eea5843 完整版 1/3 偶發）：機器很忙時（完整版好幾個 worker 一起跑），模擬的手指每一下都要等頁面收到才送下一下，
+  // 5 下「連點」拉成約 3.5 秒、中間停了 ≥ 0.9 秒。App 照設計把停過之後的那一下當成新的一下（ui/Scenes.tsx 的 Gate，T-67：
+  // 停 PAGE_ARM_QUIET_MS 以上再點就算數），門的位置（1039,636）剛好在著色本那張卡上，就進了著色本。
+  // 這是孩子停了一下又點，不是連點，不算 App 的問題：按返回回到選擇畫面，再照原本的步驟選。真的連點（每一下都 < 0.9 秒）還是進了別的畫面，照樣記卡死。
+  if (pick && opts.spam && live !== pick.live && gap >= PAGE_ARM_QUIET_MS) {
+    k.act(`連點被拉慢了（最長隔 ${gap}ms ≥ ${PAGE_ARM_QUIET_MS}ms），停過之後的那一下照設計算新的一下、進了 ${live}；按返回回到選擇畫面`)
+    const h = await homeButton(page)
+    if (h) await pressBack(k, h)
+    live = await waitLive(page, (l) => l === pick.live)
+  }
   if (pick && live === pick.live) {
     await settle(page, 4000)
     const p = await centerOf(page, `[data-pick="${pick.pick}"]`)
@@ -251,7 +276,7 @@ async function enterFromHome(k: Toddler, c: Checker, g: GameDef, opts: { spam?: 
     }
   }
   if (live !== `play-${g.id}`) {
-    await c.once('enter-door', '卡死', `點首頁的門沒有進到遊戲（停在 ${live}）`, '')
+    await c.once('enter-door', '卡死', `點首頁的門沒有進到遊戲（停在 ${live}）`, opts.spam ? `連點門的那一串相鄰兩下最長隔 ${gap}ms` : '')
     return false
   }
   return true
