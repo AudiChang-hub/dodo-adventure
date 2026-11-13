@@ -46,6 +46,44 @@ function finish(k: Toddler, c: Checker, name: string) {
   expect.soft(k.findings.length, `全部問題：${k.findings.map((f) => f.title).join(' | ')}`).toBe(0)
 }
 
+/**
+ * T-143（盲測 9231aa6 低 6：著色本第 2 張塗完，孩子說「現在要做什麼？我不知道」就按返回；「再塗一張」的手只點一下就收起來，他沒看到）：
+ * 按完成之前呼叫 watchNext，記下畫完的兩個大圖示什麼時候出來、手什麼時候指到「再畫一張／再塗一張」。
+ */
+const watchNext = (page: Page) =>
+  page.evaluate(() => {
+    const w = window as unknown as { __next?: { t0: number; rest: number; hand: number }; __nextT?: number }
+    w.__next = { t0: performance.now(), rest: 0, hand: 0 }
+    if (w.__nextT) return
+    w.__nextT = window.setInterval(() => {
+      const n = w.__next!
+      const t = performance.now()
+      if (!n.rest && document.querySelector('[data-resting] [data-next]')) n.rest = t
+      if (n.rest && !n.hand && document.querySelector('[data-resting] [data-next="again"] .draw-home-hand')) n.hand = t
+    }, 100)
+  })
+
+/** 大圖示一出來（1 秒內）手就指著「再畫一張」，孩子什麼都不做，8 秒後手還在：每一張都一樣，不是只有第 1 張 */
+async function nextClear(page: Page, k: Toddler, c: Checker, which: string) {
+  const read = () => page.evaluate(() => (window as unknown as { __next: { t0: number; rest: number; hand: number } }).__next)
+  let n = await read()
+  for (let i = 0; i < 150 && !n.rest; i++) {
+    await k.wait(200)
+    n = await read()
+  }
+  const age = n.rest ? await page.evaluate((r) => performance.now() - r, n.rest) : 0
+  if (n.rest && age < 8000) await k.wait(8000 - age, '看大圖示 8 秒，不點')
+  n = await read()
+  const still = await page.evaluate(() => !!document.querySelector('[data-resting] [data-next="again"] .draw-home-hand'))
+  const handMs = n.rest && n.hand ? Math.round(n.hand - n.rest) : -1
+  const ok = !!n.rest && handMs >= 0 && handMs <= 1000 && still
+  const note = !n.rest
+    ? '大圖示沒出來'
+    : `按完成 ${((n.rest - n.t0) / 1000).toFixed(1)} 秒後大圖示出來；手 ${handMs < 0 ? '沒有出來' : `${(handMs / 1000).toFixed(1)} 秒後指到`}；8 秒後手${still ? '還在' : '不在了'}`
+  c.outcome(`${which}畫完：大圖示一出來手就指著下一步、一直在`, ok, note)
+  if (!ok) await c.once(`next-clear-${which}`, '困惑', `${which}畫完不知道下一步`, note)
+}
+
 /** 平板忙：下一次 click 之後（換畫面的那一下），主執行緒卡 ms */
 const stallAfterNextClick = (page: Page, ms: number) =>
   page.evaluate((ms) => {
@@ -528,6 +566,7 @@ test.describe('學校首頁', () => {
       const before = await drawings()
       await k.wait(900)
       const done = await rect('.tool-done')
+      await watchNext(page)
       if (done) await k.tap(done, '完成（點一下）')
       await k.wait(600)
       const boxGone = await page.evaluate(() => !document.querySelector('.crayon-box')?.getClientRects().length)
@@ -551,6 +590,7 @@ test.describe('學校首頁', () => {
       for (let i = 0; i < 40 && !saidInOrder(await saidList()); i++) await k.wait(200)
       const said9 = await saidList()
       c.outcome('豆豆一個一個說：再塗一張、回首頁輪流亮', saidInOrder(said9), `亮的順序 ${said9.join(' → ')}`)
+      await nextClear(page, k, c, '著色本第 1 張')
       const big = await rect('[data-resting] [data-next="again"]')
       if (big) await k.tap(big, '再塗一張')
       l = await waitLive(page, (x) => x === 'coloring', 5000)
@@ -586,6 +626,40 @@ test.describe('學校首頁', () => {
       const q = await onPaper(0.5, 0.5)
       await holdHome(k, c, '塗到一半返回', { second: [q, { x: q.x + 60, y: q.y - 20 }, { x: q.x + 120, y: q.y }] })
       c.outcome('塗到一半返回回著色本', (await live()) === 'coloring', `到 ${await live()}`)
+
+      // 10b. 第 2 張塗完（T-143，盲測 9231aa6：第 2 張塗完孩子不知道下一步）：跟第 1 張一樣，大圖示一出來手就指著再塗一張
+      k.behavior = '第 2 張塗完'
+      await k.wait(1500)
+      await settle(page, 4000)
+      const third = await page.evaluate(() => document.querySelectorAll('.coloring-page')[3]?.getAttribute('data-pic') ?? null)
+      for (let i = 0; i < 3 && third && (await live()) === 'coloring'; i++) {
+        const p3 = await rect(`.coloring-page[data-pic="${third}"]`)
+        if (!p3) break
+        await k.tap(p3, i ? '再點一次' : '第 2 張')
+        await waitLive(page, (x) => x === `play-d-color-${third}`, 3000)
+      }
+      if ((await live()) !== `play-d-color-${third}`) {
+        c.outcome('第 2 張進得去', false, `停在 ${await live()}`)
+        return
+      }
+      await accepting(10_000)
+      await k.tap(await crayon(2), '蠟筆')
+      for (let i = 0; i < 6 && !(await page.locator('.tool-done').count()); i++) await scribble(0.47, 0.5, 0.24, 0.26, `第 2 張塗第 ${i + 1} 下`)
+      await k.wait(900)
+      const done2 = await rect('.tool-done')
+      await watchNext(page)
+      if (done2) await k.tap(done2, '第 2 張完成')
+      for (const end = Date.now() + 40_000; Date.now() < end; await k.wait(600)) {
+        const s = await snap(page)
+        if (s.rest || (await page.locator('[data-resting]').count())) break
+        if (s.cheer) await k.tap({ x: 600, y: 400 }, '看慶祝')
+      }
+      await nextClear(page, k, c, '著色本第 2 張')
+      await c.screenOk('第 2 張塗完')
+      const big2 = await rect('[data-resting] [data-next="again"]')
+      if (big2) await k.tap(big2, '再塗一張')
+      l = await waitLive(page, (x) => x === 'coloring', 5000)
+      c.outcome('第 2 張塗完再塗一張回著色本', l === 'coloring', `到 ${l}`)
 
       // 11. 一層一層回首頁：著色本 → 選白紙還是著色本 → 首頁
       k.behavior = '回首頁'
@@ -949,6 +1023,7 @@ test.describe('T-137 恐龍的名字', () => {
     /** 按勾勾，等到停在作品上（慶祝點一下看完） */
     const finishAndRest = async () => {
       const done = await rect('.tool-done')
+      await watchNext(page)
       if (done) await k.tap(done, '完成（點一下）')
       await k.wait(700)
       const toolsGone = !(await rect('.tool-done')) && !(await rect('.tool-col'))
@@ -994,6 +1069,7 @@ test.describe('T-137 恐龍的名字', () => {
       for (let i = 0; i < 40 && !saidInOrder(await saidList()); i++) await k.wait(200)
       const said2 = await saidList()
       c.outcome('豆豆一個一個說：再畫一張、回首頁輪流亮', saidInOrder(said2), `亮的順序 ${said2.join(' → ')}`)
+      await nextClear(page, k, c, '白紙第 1 張')
       const paper = (await rect('.tool-room'))!
       await k.spam({ x: paper.x, y: paper.y }, 3, '點作品')
       await k.wait(800)
@@ -1017,6 +1093,7 @@ test.describe('T-137 恐龍的名字', () => {
       k.behavior = '畫完回首頁'
       const r2 = await finishAndRest()
       c.outcome('第二張也停在作品上', r2.rest, `停在作品上 ${r2.rest}`)
+      await nextClear(page, k, c, '白紙第 2 張')
       const home = await rect('[data-next="home"]')
       if (home) await k.tap({ ...home, nav: true }, '回首頁')
       const l = await waitLive(page, (x) => x === 'home', 5000)
