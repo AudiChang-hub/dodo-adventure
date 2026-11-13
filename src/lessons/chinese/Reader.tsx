@@ -17,6 +17,9 @@ const TALK_WAIT_MS = 4000
 /** 大人的按鈕：同一顆連點時，每兩下之間不到這麼久就不算（孩子連點、手掌壓到，連點再久也只走一行）；每顆按鈕各自算，換一顆按照樣有反應 */
 const NEXT_LOCK_MS = 900
 
+/** 複習篇孩子翻行（childTurns，T-144）：一行亮了這麼久以後，孩子點亮的圖才翻到下一行（大人念一行的時間；之前點照舊只動一下） */
+const TURN_AFTER_MS = 3000
+
 /** 亮的那一行，紅字的圖放大到幾倍（孩子的眼睛跟著大人念到哪裡，圖是他看得懂的東西） */
 const BIG = 1.25
 
@@ -110,6 +113,10 @@ function Bits({ n }: { n: number }) {
  *   課本收起來，中間一張大圖（問題的主角；主角沒有圖的篇放問題裡提到的、或第一個紅字的圖），點得到；
  *   問題、示範句、還可以做的事收成下面一張小字條（給大人看）。往下走的按鈕一出來就看得到（淡淡的），
  *   4 秒後（或孩子點了圖）才按得動；還按不動時點它、點空白處、點字條，大圖再亮黃框、跳一下。
+ * - 複習篇孩子翻行（childTurns，T-144，家長 2026-11-13 選 A 案；盲測 c9bb003、9231aa6、112cb8d 連三版在複習篇離開：
+ *   念課文時他點亮的圖不會往下走，「一直點都一樣」）：只有舊篇開。一行亮了 3 秒以後（大人念一行的時間），
+ *   孩子點亮的圖、探頭的角色或課本空白處，就翻到下一行（最後一行點了到聊一聊），跟故事課孩子點了才念下一句一樣。
+ *   3 秒內點照舊（動一下、星星）；翻了就重新算 3 秒，連點、手掌壓只翻一行（多指另外由 firstFinger 擋）。大人的「下一行／上一行」照舊。
  */
 export function Reader({
   t,
@@ -121,6 +128,7 @@ export function Reader({
   setMood,
   startAt = 0,
   startTalk = false,
+  childTurns = false,
 }: {
   t: ZhText
   host: HostTap
@@ -137,6 +145,8 @@ export function Reader({
   startAt?: number
   /** 一開始就是聊一聊（排版檢查用：180 篇的聊一聊卡片都要量；課裡一律從念課文開始） */
   startTalk?: boolean
+  /** 複習篇：一行亮了 3 秒以後，孩子點亮的圖就翻下一行（T-144；新篇不開，只有大人按） */
+  childTurns?: boolean
 }) {
   const still = useReducedMotion()
   const [cur, setCur] = useState(startAt)
@@ -209,23 +219,38 @@ export function Reader({
     if (!locked) fn()
   }
 
-  const next = () => {
-    sfx.tap()
+  /** 這一行什麼時候亮的（複習篇孩子翻行：亮滿 TURN_AFTER_MS 才算）。換行當下就改（同一瞬間的第二下就看得到，不會連翻兩行） */
+  const litAt = useRef(performance.now())
+  const advance = () => {
+    litAt.current = performance.now()
     if (cur < last) setCur(cur + 1)
     else {
       setTalk(true)
       onTalk?.(true)
     }
   }
+  const next = () => {
+    sfx.tap()
+    advance()
+  }
+
+  /** 複習篇：孩子點了亮的那一行（圖、字、空白處、探頭的角色）。亮滿 3 秒就翻下一行（點的動作、音效照舊，不再多一聲） */
+  const childTurn = (line: number) => {
+    if (!childTurns || talk || left.current || line !== cur) return
+    if (performance.now() - litAt.current < TURN_AFTER_MS) return
+    advance()
+  }
 
   /** 孩子不小心按了「下一行」：大人退回上一行 */
   const prev = () => {
     sfx.tap()
+    litAt.current = performance.now()
     setCur((c) => Math.max(0, c - 1))
   }
 
   const again = () => {
     sfx.tap()
+    litAt.current = performance.now()
     setTalk(false)
     onTalk?.(false)
     setCur(0)
@@ -261,6 +286,7 @@ export function Reader({
     setTaps((m) => new Map(m).set(key, (m.get(key) ?? 0) + 1))
     setPop({ w, k: performance.now() })
     earn(line)
+    childTurn(line)
   }
 
   /** 聊一聊：孩子點了問題的主角（用指的回答）：圖跳一下；第一次再加綠框、星星、莫莫開心，「去選圖」馬上出來 */
@@ -321,6 +347,7 @@ export function Reader({
       if ((x.n + 1) % 3 === 0) happy()
       return { spot: others[(x.n * 7 + cur) % others.length], n: x.n + 1 }
     })
+    childTurn(cur)
   }
 
   // 上面的進度：念完幾行（聊一聊的時候整篇都念完了）

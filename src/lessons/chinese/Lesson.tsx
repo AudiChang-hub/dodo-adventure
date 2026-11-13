@@ -59,7 +59,8 @@ function hintOf(s: Step | 'intro', talk: boolean, demo: boolean, hadOld: boolean
     )
   if (s.k === 'quiz') return `${tag}念題目給他聽：「哪個是〇〇？」再指著${COUNT[s.q.options.length] ?? s.q.options.length}張有黃框的圖說「點一下」。點錯會有提示，不用幫他點。`
   if (talk) return `${tag}照下面的小字條問他，指著圖等他回答；答不出來就照字條說一次給他聽。右下角的「${s.go}」過幾秒才按得動。`
-  if (s.part === 'old') return '複習舊篇：念到這行時，請他點亮起來的圖；一行一行念，念完按右下「下一行」。上完就下課，他想聽新的再點書。'
+  // 複習篇孩子翻行（T-144）：他點亮的圖就翻下一行（Reader 的 childTurns）
+  if (s.part === 'old') return '他聽過這篇了：你念這一行，他點亮的圖就翻下一行（你也可以按下一行）'
   return `${hadOld ? '新的一篇：' : ''}念到這行時，請他點亮起來的圖（點了圖會動、不出聲）。指著字一行一行念，念完一行按右下「下一行」。`
 }
 
@@ -244,7 +245,7 @@ export function ChineseLessonBody({ onDone }: LessonProps) {
           ) : at === 'intro' || !s ? (
             <Intro onStart={start} />
           ) : s.k === 'read' ? (
-            <Reader t={s.t} host={host} goLabel={s.go} onTalk={setTalk} onNext={afterRead} onLine={onLine} setMood={setMood} />
+            <Reader t={s.t} host={host} goLabel={s.go} onTalk={setTalk} onNext={afterRead} onLine={onLine} setMood={setMood} childTurns={s.part === 'old'} />
           ) : s.k === 'glyph' ? (
             <Glyph t={s.t} q={s.q} demo={s.demo} host={host} setMood={setMood} onResult={(r) => void saveGlyph(r)} onDemoEnd={() => setGDemoing(false)} onNext={next} />
           ) : (

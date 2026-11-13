@@ -393,7 +393,7 @@ test.describe('中文課', () => {
     }
   })
 
-  test('選圖沒有大人帶（T-135，盲測 becf39a 中文 2）：一出來手就輪流點每一張、發呆 3 秒圖再跳、6 秒手再點；手不洩露答案，照著點對算自己答的', async ({ page }, info) => {
+  test('選圖沒有大人帶（T-135，盲測 becf39a 中文 2）：一出來手就輪流點每一張、發呆 3 秒圖再跳、8 秒手指著答案（T-144）；照著手點對記成一起練', async ({ page }, info) => {
     test.skip(!want('lesson-chinese-ask'))
     test.setTimeout(4 * 60_000)
     const { k, c } = await setup(page, info, '沒人帶的選圖', false, false)
@@ -407,7 +407,13 @@ test.describe('中文課', () => {
       const look = () =>
         page.evaluate(() => {
           const tiles = [...document.querySelectorAll('.zh-quiz .zh-options .tile')]
-          return { hand: tiles.findIndex((t) => t.querySelector('.demo-hand')), hint: tiles.some((t) => t.classList.contains('hint')), n: tiles.length, wake: Number(document.querySelector('.zh-quiz .zh-options')?.getAttribute('data-wake') ?? 0) }
+          return {
+            hand: tiles.findIndex((t) => t.querySelector('.demo-hand')),
+            ans: tiles.findIndex((t) => t.hasAttribute('data-answer')),
+            hint: tiles.some((t) => t.classList.contains('hint')),
+            n: tiles.length,
+            wake: Number(document.querySelector('.zh-quiz .zh-options')?.getAttribute('data-wake') ?? 0),
+          }
         })
       /** ms 內手去過哪幾張 */
       const watch = async (ms: number) => {
@@ -415,33 +421,37 @@ test.describe('中文課', () => {
         let hint = false
         let wake = 0
         let n = 0
+        let ans = -1
         for (const end = Date.now() + ms; Date.now() < end; ) {
           const x = await look()
           if (x.hand >= 0) seen.add(x.hand)
           hint ||= x.hint
           wake = Math.max(wake, x.wake)
           n = x.n
+          ans = x.ans
           await page.waitForTimeout(120)
         }
-        return { seen, hint, wake, n }
+        return { seen, hint, wake, n, ans }
       }
       // 一出來（大人還沒念題目、孩子不知道要做什麼）：3 秒內手輪流點過每一張，不是只點答案
       const a = await watch(3500)
       c.outcome('選圖一出來手輪流點每一張', a.seen.size === a.n && a.n >= 2, `手點過 ${a.seen.size}／${a.n} 張`)
       if (a.seen.size < a.n) await c.once('ask-first-hand', '困惑', '選圖一出來沒有人帶，畫面沒有手告訴他要點一張圖', `手點過 ${a.seen.size}／${a.n} 張`)
       c.outcome('手不洩露答案（沒有標出答案）', !a.hint, a.hint ? '答案被標出來了' : '')
-      // 孩子發呆：3 秒圖再跳一下、6 秒手再輪流點一次（不等 15、30 秒）
+      // 孩子發呆：3 秒圖再跳一下、8 秒手靜靜指著答案（T-144，PHASE-7；以前 6 秒手再輪流掃一次，會停在錯的那張）
       const b = await watch(9500)
-      c.outcome('發呆幾秒：圖再跳一下、手再輪流點', b.wake > 0 && b.seen.size === b.n, `跳 ${b.wake} 次、手點過 ${b.seen.size}／${b.n} 張`)
-      if (!(b.wake > 0 && b.seen.size === b.n)) await c.once('ask-idle', '困惑', '選圖發呆好幾秒都沒有東西提醒他點圖', `跳 ${b.wake} 次、手點過 ${b.seen.size}／${b.n} 張`)
-      c.outcome('發呆 13 秒還沒標出答案', !b.hint, b.hint ? '答案被標出來了' : '')
-      // 照著點對：算他自己答的（quiz，不是 guided）
+      const onAns = b.seen.size === 1 && b.seen.has(b.ans)
+      c.outcome('發呆幾秒：圖再跳一下、手指著答案（不去別張）', b.wake > 0 && onAns, `跳 ${b.wake} 次、手去過第 ${[...b.seen].map((i) => i + 1).join('、')} 張（答案第 ${b.ans + 1} 張）`)
+      if (!(b.wake > 0 && onAns)) await c.once('ask-idle', '困惑', '選圖發呆好幾秒，沒有圖跳、或手沒有指著答案', `跳 ${b.wake} 次、手去過 ${[...b.seen].join(',')}（答案 ${b.ans}）`)
+      c.outcome('發呆 13 秒還沒到 30 秒的提示（答案沒有標黃）', !b.hint, b.hint ? '答案被標出來了' : '')
+      // 照著手點對：答案是看手的，記成一起練（guided，跟 30 秒的提示一樣，T-111），不算自己答的
       const ans = (await points(page, '.zh-quiz .tile[data-answer]'))[0]
       await k.tap(ans, '點對的那張')
       await k.wait(1200)
-      const rows = await quizRows(page)
-      c.outcome('點對記一筆、算自己答的', rows.length === 1, `作答 ${rows.length} 筆（${(await attempts(page)).filter((r) => r.game === 'zh-lesson').map((r) => r.phase).join('、')}）`)
-      if (rows.length !== 1) await c.once('ask-led', '誤記作答', '手輪流點過以後點對，沒有記成自己答的', '')
+      const zh = (await attempts(page)).filter((r) => r.game === 'zh-lesson')
+      const led = zh.filter((r) => r.phase === 'guided')
+      c.outcome('照著手點對：記一筆一起練（不算自己答的）', led.length === 1 && !(await quizRows(page)).length, `作答 ${zh.map((r) => r.phase).join('、') || '沒有'}`)
+      if (!(led.length === 1 && !(await quizRows(page)).length)) await c.once('ask-led', '誤記作答', '手指著答案以後點對，沒有記成一起練', zh.map((r) => r.phase).join('、'))
       await c.flush()
     } finally {
       finish(k, c, '沒人帶的選圖')
@@ -910,7 +920,8 @@ test.describe('中文課', () => {
       await c.screenOk('舊篇・念課文')
       await shot(page, info, '中文課-舊篇-念課文')
 
-      // 舊篇時亂點：連點亮的圖、課本空白、手掌壓；不會跳過舊篇、不會自己往下
+      // 舊篇時亂點：連點亮的圖、課本空白、手掌壓；不會跳過舊篇。
+      // T-144 起複習篇亮了 3 秒以後孩子點圖會翻一行（翻了重新算 3 秒），所以一陣亂點最多翻一兩行，不會翻到聊一聊、不會離開舊篇
       k.behavior = '舊篇時亂點'
       const pic = (await points(page, '.zh-line.on .zh-pic'))[0]
       if (pic) await k.spam(pic, 4, '亮的圖')
@@ -921,7 +932,7 @@ test.describe('中文課', () => {
       }
       await k.wait(800)
       s = await state(page)
-      c.outcome('舊篇時亂點不跳過、不往下', s.title === OLD_TITLE && s.at === '0', `〈${s.title}〉第 ${s.at} 行`)
+      c.outcome('舊篇時亂點不跳過舊篇、不會一下翻好幾行', s.title === OLD_TITLE && !s.talk && Number(s.at) <= 2, `〈${s.title}〉第 ${s.at} 行`)
       if (s.title !== OLD_TITLE) await c.once('two-tap-skip', '困惑', '舊篇時孩子亂點就跳過了舊篇', `〈${s.title}〉`)
 
       // 舊篇念到一半按返回 → 首頁；再進來還是舊篇、從第一行開始
@@ -1246,4 +1257,223 @@ test.describe('中文課', () => {
       finish(k, c, 'T141新篇有事做')
     }
   })
+
+  /*
+   * T-144 A 案（家長 2026-11-13，盲測 c9bb003、9231aa6、112cb8d：連三版都在複習篇離開，念課文時孩子點亮的圖不會往下走）：
+   * 複習篇（舊篇）一行亮了 3 秒以後，孩子點亮的圖、探頭的角色或課本空白處就翻到下一行；最後一行點了到聊一聊。
+   * 3 秒內點照舊（動一下、星星）；連點、多指只翻一行；大人的「下一行／上一行」照舊；亂點不會跳過聊一聊。
+   */
+  test('T-144 複習篇孩子翻行：亮了 3 秒後點亮的圖翻一行、3 秒內不翻、連點多指只翻一行、探頭也算、大人按鈕照常、亂點不跳過聊一聊', async ({ page }, info) => {
+    test.skip(!want('lesson-chinese-turn'))
+    test.setTimeout(5 * 60_000)
+    const { k, c } = await setup(page, info, 'T144複習篇翻行')
+    try {
+      await seedTwo(page)
+      if (!(await enter(k, c))) return
+      let s = await state(page)
+      if (s.title !== OLD_TITLE) return void (await c.once('turn-old', '困惑', '第 4 次課沒有先上舊篇', `〈${s.title}〉`))
+      await page.waitForSelector('.zh-line.on .zh-pic', { timeout: 10_000 })
+      const at = async () => (await state(page)).at
+      /** 等這一行亮滿 3.5 秒（從 since 算） */
+      const ripe = async (since: number) => {
+        const left = since + 3500 - Date.now()
+        if (left > 0) await k.wait(left)
+      }
+      const litPic = async () => (await points(page, '.zh-line.on .zh-pic'))[0]
+
+      // 課本剛換進來的那一下不收（轉場）：等它停好，大人再按下一行 → 第 1 行（從這裡開始計時）
+      await k.wait(1200)
+      await adult(k, '.zh-next', '下一行（大人）')
+      let t = Date.now() - 1000
+      c.outcome('大人的「下一行」照常（第 0 → 1 行）', (await at()) === '1', `第 ${await at()} 行`)
+
+      // 3 秒內：點亮的圖、點課本空白，照舊不翻
+      k.behavior = '亮了 3 秒內點'
+      let p = await litPic()
+      if (p) await k.tap(p, '亮的圖（3 秒內）')
+      const book = (await points(page, '.zh-page'))[0]
+      if (book) await k.tap({ x: book.x + 40, y: book.y + book.w * 0.02 }, '課本空白（3 秒內）')
+      await k.wait(300)
+      const early = await at()
+      const earlyOk = early === '1' && Date.now() - t < 3000
+      c.outcome('亮了 3 秒內點圖、點空白不翻行', early === '1', `第 ${early} 行（${((Date.now() - t) / 1000).toFixed(1)} 秒）`)
+      if (!earlyOk && early !== '1') await c.once('turn-early', '困惑', '複習篇一行剛亮（3 秒內）孩子點圖就翻走了，大人還沒念完', `第 ${early} 行`)
+
+      // 3 秒後：點一下亮的圖 → 翻到第 2 行
+      k.behavior = '亮了 3 秒後點'
+      await ripe(t)
+      p = await litPic()
+      if (p) await k.tap(p, '亮的圖（3 秒後）')
+      await k.wait(400)
+      const one = await at()
+      c.outcome('亮了 3 秒後點亮的圖翻一行（1 → 2）', one === '2', `第 ${one} 行`)
+      if (one !== '2') await c.once('turn-none', '困惑', '複習篇孩子點亮的圖（亮了 3 秒以後）沒有翻到下一行', `第 ${one} 行`)
+
+      // 大人退回：上一行照常
+      k.behavior = '大人退回'
+      await adult(k, '.zh-prev', '上一行（大人）')
+      t = Date.now() - 1000
+      const back = await at()
+      c.outcome('大人的「上一行」照常（2 → 1）', back === '1', `第 ${back} 行`)
+
+      // 連點 6 下：只翻一行
+      k.behavior = '連點亮的圖'
+      await ripe(t)
+      p = await litPic()
+      if (p) await k.spam(p, 6, '亮的圖（連點）')
+      await k.wait(500)
+      const spam = await at()
+      t = Date.now() - 500
+      c.outcome('連點亮的圖只翻一行（1 → 2）', spam === '2', `第 ${spam} 行`)
+      if (spam !== '2') await c.once('turn-spam', '困惑', '複習篇連點亮的圖，翻了不只一行（或沒翻）', `第 ${spam} 行`)
+
+      // 手掌壓（三根手指，第一根在亮的圖上，另外兩根壓在旁邊）：只翻一行
+      k.behavior = '手掌壓亮的圖'
+      await ripe(t)
+      p = await litPic()
+      if (p) await k.palm([{ x: p.x, y: p.y }, { x: p.x - 70, y: p.y + 10 }, { x: p.x + 10, y: p.y + 60 }], 250)
+      await k.wait(500)
+      const palm = await at()
+      c.outcome('多指壓課本只翻一行（2 → 3）', palm === '3', `第 ${palm} 行`)
+      if (palm !== '3') await c.once('turn-palm', '困惑', '複習篇手掌壓課本，翻了不只一行（或沒翻）', `第 ${palm} 行`)
+
+      // 探頭的角色也算
+      k.behavior = '點探頭的角色'
+      await adult(k, '.zh-prev', '上一行（大人）')
+      t = Date.now() - 1000
+      await ripe(t)
+      const peek = (await points(page, '.zh-peek'))[0]
+      if (peek) await k.tap(peek, '探頭的角色（3 秒後）')
+      await k.wait(500)
+      const pk = await at()
+      c.outcome('亮了 3 秒後點探頭的角色也翻一行（2 → 3）', pk === '3', `第 ${pk} 行`)
+
+      // 最後一行：大人按上一行、下一行照常；3 秒後孩子連點 → 到聊一聊；接著亂點不會跳過聊一聊
+      k.behavior = '最後一行連點、聊一聊亂點'
+      await adult(k, '.zh-prev', '上一行（大人）')
+      await adult(k, '.zh-next', '下一行（大人）')
+      t = Date.now() - 1000
+      const adultOk = (await at()) === '3'
+      c.outcome('大人的上一行、下一行照常（3 → 2 → 3）', adultOk, `第 ${await at()} 行`)
+      if (!adultOk) await c.once('turn-adult', '困惑', '複習篇大人的上一行／下一行按了沒有照常走', `第 ${await at()} 行`)
+      await ripe(t)
+      p = await litPic()
+      if (p) await k.spam(p, 6, '最後一行亮的圖（連點）')
+      await k.wait(500)
+      s = await state(page)
+      c.outcome('最後一行亮了 3 秒後點圖 → 聊一聊', s.talk && !s.quiz, s.talk ? '聊一聊' : s.quiz ? '跳到選圖' : `第 ${s.at} 行`)
+      if (!s.talk) await c.once('turn-talk', '困惑', '複習篇最後一行點了亮的圖，沒有到聊一聊', s.quiz ? '跳過聊一聊直接選圖' : `第 ${s.at} 行`)
+      // 翻到聊一聊的那一陣連點還沒停：點右下角（往下走的按鈕還按不動）、原來圖的地方、課本
+      const corner = (await points(page, '.zh-controls'))[0]
+      if (corner) await k.spam(corner, 3, '亂點右下角')
+      for (let i = 0; i < 3; i++) {
+        if (p) await k.spam(p, 2, '亂點（原來圖的地方）')
+        if (book) await k.tap({ x: book.x + k.r.range(-120, 120), y: book.y + k.r.range(-60, 60) }, '亂點課本')
+        await k.wait(300)
+      }
+      s = await state(page)
+      c.outcome('聊一聊時亂點不會跳過聊一聊', s.talk && !s.quiz, s.talk ? '還在聊一聊' : '被跳過了')
+      if (!s.talk) await c.once('turn-skip-talk', '困惑', '複習篇翻到聊一聊之後，孩子亂點就跳過了聊一聊', '')
+      const n = (await quizRows(page)).length
+      c.outcome('翻行不記作答', n === 0, `作答 ${n} 筆`)
+      if (n) await c.once('turn-rows', '誤記作答', '複習篇孩子翻行記了選圖的作答', `${n} 筆`)
+      await c.flush()
+    } finally {
+      finish(k, c, 'T144複習篇翻行')
+    }
+  })
+
+  /** 新篇不受影響：亮了 3 秒以後點亮的圖，照舊不翻（只有大人按下一行） */
+  test('T-144 新篇照舊：亮了 3 秒後孩子點亮的圖不翻行', async ({ page }, info) => {
+    test.skip(!want('lesson-chinese-turn'))
+    test.setTimeout(3 * 60_000)
+    const { k, c } = await setup(page, info, 'T144新篇不翻')
+    try {
+      await putKV(page, 'zhLesson:introSeen', true)
+      if (!(await enter(k, c))) return
+      await page.waitForSelector('.zh-line.on .zh-pic', { timeout: 10_000 })
+      await k.wait(3800)
+      const p = (await points(page, '.zh-line.on .zh-pic'))[0]
+      if (p) await k.spam(p, 3, '亮的圖（3 秒後）')
+      await k.wait(500)
+      const s = await state(page)
+      c.outcome('新篇亮了 3 秒後點圖不翻行（大人念）', s.at === '0', `第 ${s.at} 行`)
+      if (s.at !== '0') await c.once('turn-new', '困惑', '新篇孩子點亮的圖就翻行了（新篇應該由大人按下一行）', `第 ${s.at} 行`)
+      await c.flush()
+    } finally {
+      finish(k, c, 'T144新篇不翻')
+    }
+  })
+
+  /*
+   * T-144 A 案（PHASE-7：發呆 8 秒，手靜靜指著答案；盲測 9231aa6、112cb8d：以前 6 秒手輪流掃三張，截圖上停在錯的那張，孩子照著點錯）：
+   * 第一題一出來的輪流點照舊；輪流點完發呆 8 秒，手停在答案上不動（不再去別張）。新篇、舊篇都一樣。
+   */
+  for (const part of ['新篇', '舊篇'] as const) {
+    test(`T-144 選圖發呆 8 秒手指著答案（${part}）：輪流點完、發呆 8±1 秒手出現在答案上、停著不去別張`, async ({ page }, info) => {
+      test.skip(!want('lesson-chinese-point'))
+      test.setTimeout(5 * 60_000)
+      const { k, c } = await setup(page, info, `T144發呆手指答案-${part}`, false, false)
+      try {
+        if (part === '舊篇') await seedTwo(page)
+        else await putKV(page, 'zhLesson:introSeen', true)
+        if (!(await enter(k, c))) return
+        const title = (await state(page)).title
+        if (part === '舊篇' && title !== OLD_TITLE) return void (await c.once('point-old', '困惑', '第 4 次課沒有先上舊篇', `〈${title}〉`))
+        if (!(await readAll(k, c))) return
+        const cue = await page.waitForSelector('.zh-quiz .tile.cue', { timeout: 30_000 }).catch(() => null)
+        if (!cue) return void (await c.once('point-quiz', '卡死', '念完課文沒有出現選圖', ''))
+        /** 手在第幾張（沒有手是 -1）、答案是第幾張 */
+        const look = () =>
+          page.evaluate(() => {
+            const tiles = [...document.querySelectorAll('.zh-quiz .zh-options .tile')]
+            return { hand: tiles.findIndex((t) => t.querySelector('.demo-hand')), ans: tiles.findIndex((t) => t.hasAttribute('data-answer')), n: tiles.length }
+          })
+        // 第一題一出來：手輪流點過每一張（照舊），點完收走
+        const seen = new Set<number>()
+        let sweptAt = 0
+        for (const end = Date.now() + 8000; Date.now() < end; ) {
+          const x = await look()
+          if (x.hand >= 0) seen.add(x.hand)
+          else if (seen.size && seen.size >= x.n) {
+            sweptAt = Date.now()
+            break
+          }
+          await page.waitForTimeout(60)
+        }
+        const n = (await look()).n
+        c.outcome('第一題一出來手輪流點每一張（照舊）', seen.size === n && !!sweptAt, `手點過 ${seen.size}／${n} 張`)
+        if (!sweptAt) return void (await c.once('point-sweep', '困惑', '選圖第一題一出來，手沒有輪流點每一張', `手點過 ${seen.size}／${n} 張`))
+        // 發呆：手什麼時候再出來、出來在哪一張
+        let came = 0
+        let where = -1
+        let ans = -1
+        for (const end = sweptAt + 12_000; Date.now() < end; ) {
+          const x = await look()
+          if (x.hand >= 0) {
+            came = Date.now() - sweptAt
+            where = x.hand
+            ans = x.ans
+            break
+          }
+          await page.waitForTimeout(60)
+        }
+        const okTime = came >= 7000 && came <= 9000
+        c.outcome('發呆 8±1 秒手出現在答案上', okTime && where === ans, came ? `${(came / 1000).toFixed(1)} 秒，在第 ${where + 1} 張（答案第 ${ans + 1} 張）` : '12 秒內沒有手')
+        if (!(okTime && where === ans)) await c.once('point-answer', '困惑', `${part}選圖發呆時，手沒有在 8 秒左右指著答案`, came ? `${(came / 1000).toFixed(1)} 秒、第 ${where + 1} 張（答案第 ${ans + 1} 張）` : '沒有手')
+        // 手停著：接下來 2.5 秒只在答案上（不輪流掃別張）
+        const after = new Set<number>()
+        for (const end = Date.now() + 2500; Date.now() < end; ) {
+          after.add((await look()).hand)
+          await page.waitForTimeout(100)
+        }
+        const stay = after.size === 1 && after.has(ans)
+        c.outcome('手靜靜停在答案上，不去別張', stay, [...after].map((i) => (i < 0 ? '沒有' : `第 ${i + 1} 張`)).join('、'))
+        if (!stay) await c.once('point-stay', '困惑', `${part}選圖發呆時手沒有停在答案上（去了別張或不見了）`, [...after].join(','))
+        await c.flush()
+      } finally {
+        finish(k, c, `T144發呆手指答案-${part}`)
+      }
+    })
+  }
 })
