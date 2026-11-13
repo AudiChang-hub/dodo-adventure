@@ -3,7 +3,7 @@
 // 同一天再進來還是同一次、家長挑的那篇當今天的新篇、跳過舊篇不卡住、已存的進度和舊版（照日期）的進度接得上。對照 docs/全球幼教指引-現況對照.md A3。
 // 執行：npx tsx scripts/test-zh-course.ts（npm run verify 的「單元：中文課文每篇 3 次」）
 import assert from 'node:assert/strict'
-import { LEGACY, OLD_BACK, REVIEW_BACK, RUNS_PER_TEXT, applyPick, current, finishRun, logSession, migrate, nextDay, planOf, seedLog, undoPick, type Course, type Session } from '../src/lessons/chinese/course'
+import { LEGACY, OLD_BACK, REVIEW_BACK, RUNS_PER_TEXT, applyPick, current, finishRun, logSession, migrate, nextDay, planOf, reviewDone, seedLog, undoPick, type Course, type OldMark, type Session } from '../src/lessons/chinese/course'
 import { stepsOf } from '../src/lessons/chinese/steps'
 import { enTodayOf, type EnSkip, type Heard } from '../src/screens/story/en-pages'
 import { ZH_RUN_MAX, zhRunKV, zhRunToday } from '../tests/ai-toddler/lib/zh-run'
@@ -446,6 +446,58 @@ function main() {
     for (let i = 0; i < 12; i++) z = afterGlyph(z, { date: D2(i), first: true, demo: false, led: false })
     assert.equal(z.level, 3, '最多第 3 級（4 選 1、很像的字留給 4 歲）')
     console.log('ok 13 找一樣的字升降級：8 題 ≥ 7 題第一次就對、≥ 3 天才升；同一天全對不升；示範、手指著才點的不算；連錯 2 題退一級；最多第 3 級')
+  }
+  {
+    // T-142（家長 2026-11-12：第二篇改成提議）：複習上完就下課，孩子沒點「再一篇」的話新篇不消耗，
+    // 下次進來直接上那篇新篇（不再複習同一篇），上完照常下課；再下一次才是下一次的複習。複習和新篇輪流，不跳篇、不重複。
+    let c: Course = { day: first, runs: [] }
+    let log: Session[] = []
+    let mark: OldMark | null = null
+    /** 英文故事自己的複習紀錄（en-book 的 review）和聽過的 */
+    let enMark: OldMark | null = null
+    const heard: Heard = {}
+    const did: string[] = []
+    const news: number[] = []
+    const olds: number[] = []
+    for (let d = 0; news.length < 12; d++) {
+      const date = D(d)
+      const p = planOf(c, log, date)
+      const e = enTodayOf(p, heard, undefined, date, enMark ?? undefined)
+      if (p.old != null && !reviewDone(mark, p, date)) {
+        // 今天是複習：上完就下課（沒點再一篇），新篇不消耗
+        assert.equal(e.part, 'old', `${date} 英文故事也先講複習`)
+        assert.equal(e.day, p.old)
+        mark = { date, day: p.old, skipped: false, for: p.day }
+        enMark = { date, day: p.old, for: p.day }
+        ;(heard[p.old] ??= []).push(date)
+        olds.push(p.old)
+        did.push(`${date} 複習第 ${p.old} 篇`)
+        // 同一天再進來：直接是那篇新篇（不再複習）
+        const again = planOf(c, log, date)
+        assert.deepEqual([again.day, again.old], [p.day, p.old])
+        assert.ok(reviewDone(mark, again, date), '同一天再進來不再複習')
+        assert.deepEqual([enTodayOf(again, heard, undefined, date, enMark).part, enTodayOf(again, heard, undefined, date, enMark).day], ['new', p.day], '英文故事同一天再進來是新篇')
+        continue
+      }
+      // 今天是新篇（前 3 次沒有複習，或複習上次做過了）
+      assert.deepEqual([e.part, e.day], ['new', p.day], `${date} 英文故事也是新篇`)
+      assert.ok(!news.includes(p.day), `新篇第 ${p.day} 篇上過了`)
+      if (news.length) assert.equal(p.day, nextDay(news[news.length - 1]), '照順序，不跳篇')
+      ;({ c, log } = session(c, log, date))
+      ;(heard[p.day] ??= []).push(date)
+      news.push(p.day)
+      did.push(`${date} 新篇第 ${p.day} 篇`)
+    }
+    // 前 3 次沒有複習，之後複習、新篇輪流；每一篇複習只做一次，是 3 次前的那篇
+    const kinds = did.map((x) => (x.includes('複習') ? 'r' : 'n')).join('')
+    assert.equal(kinds, 'nnn' + 'rn'.repeat(9), kinds)
+    assert.deepEqual(olds, news.slice(0, olds.length), '複習的是 3 次前的那篇，依序、不重複')
+    // 舊版的複習紀錄（沒有 for）：只認今天的
+    assert.equal(reviewDone({ date: D(0), day: 1, skipped: false }, { day: 4, old: 1 }, D(1)), false)
+    assert.equal(reviewDone({ date: D(1), day: 1, skipped: false }, { day: 4, old: 1 }, D(1)), true)
+    // 別的一次課的複習紀錄不算
+    assert.equal(reviewDone({ date: D(0), day: 1, for: 4 }, { day: 5, old: 2 }, D(1)), false)
+    console.log('ok 15 第二篇是提議（T-142）：複習上完就下課，新篇不消耗；下次直接上那篇新篇（不再複習），之後複習、新篇輪流，不跳篇、不重複；中文課和英文故事一樣\n   ' + did.join('\n   '))
   }
   console.log('ALL PASS')
 }

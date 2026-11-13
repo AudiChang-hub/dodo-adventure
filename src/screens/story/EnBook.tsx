@@ -43,7 +43,7 @@ type Wait = { kind: 'next' } | { kind: 'q' | 'which'; pick: PicPick; key: string
  * 3. 認角色（Which one is the rabbit?，兩張圖選一張）。
  * 4. 找一樣的英文字（上面 rabbit，下面兩張，./WordMatch.tsx）。
  * 三題都不自己往下：一進來手就示範（選圖題手指對的那張、找字手先做一次，T-139），之後發呆手每 8 秒來指一次。
- * 一天兩篇，一舊一新（T-136，跟中文課同一份排課）：今天先講 3 次前的舊篇（跟新篇一樣完整：4 句＋三題），再講新篇；
+ * 先複習、新篇是提議（T-136、T-142，跟中文課同一份排課）：舊篇（3 次前的那篇，跟新篇一樣完整：4 句＋三題）講完就是讀完了，孩子點了書才講新篇；
  * 舊篇時右上角有大人用的「跳過舊篇」（onSkip）。新篇講完接結尾小題：前 1 次、前 7 次的各一題（認角色，出不了就找一樣的英文字）。
  * 動作只用位移和淡入淡出（紙感螢幕，MOTION-1、2）：換頁時圖從左邊慢慢滑進來，做完就停；找對了一對字放大跳一下（家長要看得出來的回饋）。
  */
@@ -75,6 +75,27 @@ export default function EnBook({
   const [review, setReview] = useState<number | null>(null)
   const skipLock = useRef(0)
   const [poke, setPoke] = useState<Poke | null>(null)
+  /**
+   * 念完 4 句之後還有幾題（T-143①，AI 小男生盲測 9231aa6：「找一樣的字」做完以為整本講完了，最後一題前就按返回）：
+   * 故事題、認角色、找一樣的英文字，新篇再加結尾小題。下面的小點點接在 4 句後面，一題一顆星，答完亮起來；
+   * 下一題的星星輕輕跳一下，最後一題的星星大一點——看得出「後面還有一題」。跟下面的流程用同一套條件，數字才對得上
+   */
+  const quizzes = useMemo(() => {
+    const has = (pick: unknown, key: string) => !!pick && hasLine(key)
+    const w = whichOf(t, e)
+    let n = [has(storyAskOf(t, e), enQKey(row.day)), !!w && hasLine(enWhichKey(w.word)), !!matchOf(t, e)].filter(Boolean).length
+    for (const d of row.isNew ? (row.review ?? []) : []) {
+      const rt = zhTextOf(d)
+      const re = enText(d)
+      if (!rt || !re) continue
+      const rw = whichOf(rt, re)
+      if ((rw && hasLine(enWhichKey(rw.word))) || matchOf(rt, re)) n++
+    }
+    return n
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [row.day])
+  /** 答完幾題 */
+  const [answered, setAnswered] = useState(0)
   const pokes = useRef(0)
   const resolve = useRef<(() => void) | null>(null)
   const run = useRef(0)
@@ -137,6 +158,7 @@ export default function EnBook({
       if (q && hasLine(enQKey(row.day))) {
         await waitFor({ kind: 'q', pick: q, key: enQKey(row.day) })
         if (gone()) return
+        setAnswered((n) => n + 1)
       }
       const which = whichOf(t, e)
       if (which && hasLine(enWhichKey(which.word))) {
@@ -144,6 +166,7 @@ export default function EnBook({
         if (gone()) return
         await waitFor({ kind: 'which', pick: which, key: enWhichKey(which.word) })
         if (gone()) return
+        setAnswered((n) => n + 1)
       }
       const m = matchOf(t, e)
       if (m) {
@@ -152,6 +175,7 @@ export default function EnBook({
         // 每次都先示範（T-139：以前只有前 2 次；一天兩篇以後第一天就用完了。盲測 ccf7ac7 沒有示範的時候「都是字」就走了）
         await waitFor({ kind: 'match', q: m, demo: true })
         if (gone()) return
+        setAnswered((n) => n + 1)
         void saveMatched()
       }
       // 結尾小題（今天的新篇才有）：前 1 次、前 7 次的那一篇各一題，認角色；出不了就找一樣的英文字
@@ -167,6 +191,7 @@ export default function EnBook({
         if (w && hasLine(enWhichKey(w.word))) await waitFor({ kind: 'which', pick: w, key: enWhichKey(w.word) })
         else if (rm) await waitFor({ kind: 'match', q: rm, demo: true })
         if (gone()) return
+        if ((w && hasLine(enWhichKey(w.word))) || rm) setAnswered((n) => n + 1)
       }
       setReview(null)
       await finishEn(row.day)
@@ -218,10 +243,22 @@ export default function EnBook({
           跳過舊篇
         </button>
       )}
-      <div className="book-progress" aria-hidden="true">
+      <div className="book-progress" aria-hidden="true" data-quizzes={quizzes} data-answered={answered}>
         {Array.from({ length: EN_PAGES }, (_, i) => (
           <i key={i} className={i <= at ? 'is-done' : undefined} />
         ))}
+        {/* 念完 4 句之後的每一題（T-143①）：一題一顆星；念完了（還在念的時候不跳），下一題的那顆跳一下，最後一題大一點 */}
+        {Array.from({ length: quizzes }, (_, j) => {
+          const read = (!!waiting && waiting.kind !== 'next') || answered > 0
+          const now = read && j === answered
+          return (
+            <i
+              key={`q${j}-${now ? answered : ''}`}
+              className={`is-q${j < answered ? ' is-done' : ''}${now ? ' is-now' : ''}${j === quizzes - 1 ? ' is-last' : ''}`}
+              data-q={j}
+            />
+          )
+        })}
       </div>
       <div className="book-art en-art" data-page={at} data-beat={at} data-wait={waiting?.kind} onPointerDown={tapArt}>
         <Swap id={`p${at}`} className="swap-pic" arm={false}>

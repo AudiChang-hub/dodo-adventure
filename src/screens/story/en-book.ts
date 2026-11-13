@@ -6,6 +6,7 @@ import { ZH_TEXTS, type ZhText } from '../../lessons/chinese/data'
 import { lessonPlan } from '../../lessons/chinese/progress'
 import { enText } from '../../content/story/english'
 import { enTodayOf, heardTimes, pagePics, type EnSkip } from './en-pages'
+import type { OldMark } from '../../lessons/chinese/course'
 
 export interface EnState {
   /** 每一篇聽完的日期（{ [篇]: 日期[] }，一天最多一筆） */
@@ -16,6 +17,8 @@ export interface EnState {
   matched?: number
   /** 大人今天跳過的舊篇（T-136；新加的欄位，舊版不讀） */
   skip?: EnSkip
+  /** 這一次課的舊篇（複習）講完或跳過了（T-142，course.ts 的 OldMark）：新篇還沒聽，下次進來直接講新篇 */
+  review?: OldMark
 }
 const KV = 'storyEn'
 const START: EnState = { heard: {} }
@@ -28,7 +31,7 @@ const load = () => getKV<EnState>(KV, START)
  */
 async function todays(st: EnState, date: string) {
   const p = await lessonPlan()
-  return enTodayOf({ day: p.t.day, old: p.old?.day ?? null, review: p.review.map((t) => t.day) }, st.heard, st.skip, date)
+  return enTodayOf({ day: p.t.day, old: p.old?.day ?? null, review: p.review.map((t) => t.day) }, st.heard, st.skip, date, st.review)
 }
 
 /** 一本英文版課文（書架上的一本書） */
@@ -90,7 +93,9 @@ export async function saveMatched() {
 /** 大人跳過今天的舊篇（他累了）：接著講新篇 */
 export async function skipOldEn(day: number) {
   const { at: _at, ...st } = await load()
-  await setKV(KV, { ...st, skip: { date: today(), day } })
+  const date = today()
+  const p = await lessonPlan()
+  await setKV(KV, { ...st, skip: { date, day }, review: { date, day, skipped: true, for: p.t.day } })
 }
 
 /** 講完一篇：今天聽了一次（同一天再聽不多算） */
@@ -98,7 +103,10 @@ export async function finishEn(day: number) {
   const date = today()
   const { at: _at, ...st } = await load()
   const ds = st.heard[day] ?? []
-  await setKV(KV, { ...st, heard: { ...st.heard, [day]: ds.includes(date) ? ds : [...ds, date] } })
+  // 講完的是今天的舊篇：這一次課的複習做過了（T-142），新篇還沒聽的話下次直接講新篇
+  const p = await lessonPlan()
+  const review = p.old?.day === day ? { date, day, skipped: false, for: p.t.day } : st.review
+  await setKV(KV, { ...st, review, heard: { ...st.heard, [day]: ds.includes(date) ? ds : [...ds, date] } })
 }
 
 export const zhTextOf = (day: number) => textOf(day)

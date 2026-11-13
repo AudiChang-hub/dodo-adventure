@@ -1,6 +1,7 @@
 // 故事時間的英文版課文（T-129）的純函式：每一頁放什麼圖、念完 4 句之後的三題（故事題、認角色、找一樣的英文字）。
 // 不碰資料庫（scripts/test-story-en.ts 直接測）；進度存取在 ./en-book.ts，畫面在 ./EnBook.tsx。
 import { linePics, type ZhText } from '../../lessons/chinese/data'
+import { reviewDone, type OldMark } from '../../lessons/chinese/course'
 import { EN_PAGES, enWordOf, type EnText } from '../../content/story/english'
 
 /** 書架上的書一圈三格：聽了幾天（最多 3） */
@@ -104,12 +105,12 @@ export interface EnToday {
 /**
  * 今天故事要講的（T-136，家長 2026-11-11：中文課和英文故事並行，一樣一天兩篇、一舊一新）。
  * p 是中文課的排課（lessons/chinese/course.ts 的 planOf：新篇、舊篇、結尾小題的篇，中英文共用這一份，不另外算）：
- * - 舊篇今天還沒聽完、也沒被大人跳過（新篇也還沒聽完）→ 先講舊篇；
+ * - 舊篇今天還沒聽完、也沒被大人跳過（新篇也還沒聽完），這一次課也還沒複習過（mark，T-142）→ 先講舊篇；
  * - 不然講新篇，新篇講完接結尾小題（前 1 次、前 7 次的各一題）。
  */
-export function enTodayOf(p: { day: number; old: number | null; review: number[] }, heard: Heard, skip: EnSkip | undefined, date: string): EnToday {
+export function enTodayOf(p: { day: number; old: number | null; review: number[] }, heard: Heard, skip: EnSkip | undefined, date: string, mark?: OldMark): EnToday {
   const on = (d: number) => (heard[d] ?? []).includes(date)
   const fresh = !on(p.day)
-  if (p.old != null && fresh && !on(p.old) && !(skip?.date === date && skip.day === p.old)) return { day: p.old, part: 'old', isNew: true, review: [] }
+  if (p.old != null && fresh && !on(p.old) && !(skip?.date === date && skip.day === p.old) && !reviewDone(mark, p, date)) return { day: p.old, part: 'old', isNew: true, review: [] }
   return { day: p.day, part: 'new', isNew: fresh, review: p.review }
 }

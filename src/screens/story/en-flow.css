@@ -3,9 +3,47 @@
  * 動作只用位移、縮放一下就停（紙感螢幕，MOTION-1、2）。
  */
 
-/* 選擇畫面：手也會來指回家（./EnNext.tsx） */
-.en-choice-home {
-  position: relative;
+/*
+ * 複習講完的「再一篇」（T-142，./EnNext.tsx 的 EnOffer）：讀完了的圓形封面右下角旁邊，一本小小的新書。
+ * 淡淡的紙、沒有黃框、沒有 New!、沒有手、不會跳——看得到但不搶眼（再聽一次、回書架照常在右下角）
+ */
+.en-offer {
+  position: absolute;
+  left: calc(50% + clamp(100px, 20vh, 170px) + 2vw);
+  top: calc(18vh + clamp(200px, 40vh, 340px) * 0.62);
+  width: clamp(72px, 12vh, 100px);
+  aspect-ratio: 0.8;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: 14px;
+  background: var(--card, #fbf8f2);
+  box-shadow:
+    0 5px 0 rgba(46, 42, 37, 0.06),
+    0 0 0 2px rgba(46, 42, 37, 0.05) inset;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+.en-offer-pic {
+  width: 70%;
+  aspect-ratio: 1;
+  opacity: 0.7;
+}
+@media (orientation: portrait) {
+  .en-offer {
+    left: auto;
+    right: 8vw;
+    top: calc(18vh + clamp(200px, 40vh, 340px) + 4vh);
+  }
+}
+
+/* 點了書：喘口氣的那一層蓋住整個讀完了 */
+.en-breath-cover {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  background: linear-gradient(#f2eadb, var(--paper) 60%);
 }
 
 /* 喘口氣（./EnNext.tsx）：選了再一篇，新的書在中間，後面一圈暖光吸一口氣、吐一口氣一次，約 3 秒後開始講 */
@@ -106,4 +144,38 @@
   min-width: 0;
   padding: 0;
   pointer-events: none;
+}
+
+/*
+ * 念完 4 句之後的每一題（T-143①，./EnBook.tsx）：小點點後面接一排星星，一題一顆，答完亮暖黃；
+ * 下一題的那顆跳一下（一次就停）、最後一題的那顆大一點——找完一樣的字，還看得到後面空著的星星（「還有一題」）
+ */
+.book-progress i.is-q {
+  width: 18px;
+  height: 18px;
+  border-radius: 0;
+  clip-path: polygon(50% 0, 61% 35%, 98% 35%, 68% 57%, 79% 91%, 50% 70%, 21% 91%, 32% 57%, 2% 35%, 39% 35%);
+  background: var(--paper-edge);
+  align-self: center;
+}
+.book-progress i.is-q.is-last {
+  width: 26px;
+  height: 26px;
+}
+.book-progress i.is-q.is-done {
+  background: #f2c14e;
+}
+.book-progress i.is-q.is-now {
+  background: #e9cf8a;
+  animation: en-q-now 0.7s cubic-bezier(0.22, 1, 0.36, 1) 2;
+}
+@keyframes en-q-now {
+  40% {
+    scale: 1.5;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .book-progress i.is-q.is-now {
+    animation: none;
+  }
 }

@@ -11,7 +11,7 @@ for (const t of EN_TEXTS) {
   if (t.which) def(enWhichKey(t.which), 'momo', `Which one is the | ${enWordOf(t.which)}?`)
 }
 def(EN_SAME_KEY, 'momo', 'Find the same word!')
-// 舊篇講完：慶祝、問要不要再聽一篇（T-140，家長：讓他自己選）
+// 舊篇講完：慶祝、問要不要再聽一篇（T-140）。T-142 起第二篇是提議、不再問，這一句沒有在念（音檔還在，之後要用再接回來）
 def(EN_NEXT_KEY, 'momo', 'Yay! One more story?')
 
 for (const zh of enSpokenWords()) def(enWordKey(zh), 'momo', enNounEn(zh))
