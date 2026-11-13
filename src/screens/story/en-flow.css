@@ -145,3 +145,37 @@
   padding: 0;
   pointer-events: none;
 }
+
+/*
+ * 念完 4 句之後的每一題（T-143①，./EnBook.tsx）：小點點後面接一排星星，一題一顆，答完亮暖黃；
+ * 下一題的那顆跳一下（一次就停）、最後一題的那顆大一點——找完一樣的字，還看得到後面空著的星星（「還有一題」）
+ */
+.book-progress i.is-q {
+  width: 18px;
+  height: 18px;
+  border-radius: 0;
+  clip-path: polygon(50% 0, 61% 35%, 98% 35%, 68% 57%, 79% 91%, 50% 70%, 21% 91%, 32% 57%, 2% 35%, 39% 35%);
+  background: var(--paper-edge);
+  align-self: center;
+}
+.book-progress i.is-q.is-last {
+  width: 26px;
+  height: 26px;
+}
+.book-progress i.is-q.is-done {
+  background: #f2c14e;
+}
+.book-progress i.is-q.is-now {
+  background: #e9cf8a;
+  animation: en-q-now 0.7s cubic-bezier(0.22, 1, 0.36, 1) 2;
+}
+@keyframes en-q-now {
+  40% {
+    scale: 1.5;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .book-progress i.is-q.is-now {
+    animation: none;
+  }
+}

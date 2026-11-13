@@ -827,6 +827,65 @@ test.describe('故事', () => {
     }
   })
 
+  /*
+   * T-143①（AI 小男生盲測 9231aa6 低度 3）：「找一樣的字」做完後還有最後一題（結尾小題），孩子以為整本講完了，
+   * 2 次在最後一題前按返回（故事 1 1:18、故事 2 新篇 3:26）。以前下面的小點點只算 4 句，念完就全滿了。
+   * 照孩子的順序走：新篇最後一句 → 故事題 → 認角色 → 找一樣的字做完：下面還看得到空著的星星（還有一題），接著就是最後一題。
+   */
+  test('T-143① 英文故事找一樣的字做完：下面還有空著的星星（看得出後面還有一題），接著出最後一題', async ({ page }, info) => {
+    test.skip(!want('story-en-t143'))
+    test.setTimeout(5 * 60_000)
+    const { k, c } = await setup(page, info, 'T143找字之後還有一題')
+    try {
+      const date = todayId()
+      // 今天的複習（第 1 篇）聽完了，新篇第 4 篇講到第 4 句；新篇講完有結尾小題（前 1 次的第 3 篇）
+      await seedStory(page, { kv: { ...zhTwoKV(), storyEn: { heard: { 1: [date] }, review: { date, day: 1, for: 4 }, at: { date, day: 4, at: 3 } } } })
+      await k.tap((await center(page, DOOR))!, '故事')
+      const live = await waitLive(page, (l) => (l ?? '').startsWith('en-'), 10_000)
+      if (live !== 'en-4') return void (await c.once('t143-new', '困惑', '沒有講到新篇', `到 ${live}`))
+      const stars = () =>
+        page.evaluate(() => {
+          const all = [...document.querySelectorAll<HTMLElement>('.book-progress i.is-q')].filter((e) => e.getBoundingClientRect().width > 0)
+          return { all: all.length, left: all.filter((e) => !e.classList.contains('is-done')).length }
+        })
+      for (const end = Date.now() + 90_000; Date.now() < end; ) {
+        const kind = await waitKind(page)
+        if (kind === 'match') break
+        if (kind === 'next') await k.tap((await center(page, '.en-next'))!, '下一句')
+        else if (kind === 'q' || kind === 'which') {
+          await k.wait(700)
+          const a = await center(page, '.story-choice[data-answer]')
+          if (a) await k.tap(a, '點對的圖')
+        }
+        await k.wait(600)
+      }
+      if ((await waitKind(page)) !== 'match') return void (await c.once('t143-no-match', '卡死', '新篇走不到找一樣的字', ''))
+      const before = await stars()
+      c.outcome('找字的時候：下面看得到每一題的星星', before.all >= 2, JSON.stringify(before))
+      await k.wait(4800)
+      const a = await center(page, '.en-word.is-option[data-answer]')
+      if (a) await k.tap(a, '點一樣的字')
+      // 找對了、一對字亮綠框的那一刻：後面還有空著的星星
+      await k.wait(1000)
+      const after = await stars()
+      await shot(page, 'T143-故事-找字之後還有一題', info)
+      const more = after.left >= 1
+      c.outcome('找一樣的字做完：還看得到空著的星星（後面還有一題）', more, JSON.stringify(after))
+      if (!more) await c.once('t143-looks-end', '困惑', '找一樣的字做完，畫面看起來像整本講完了（看不出後面還有一題）', JSON.stringify(after))
+      // 接著就是最後一題（結尾小題，不用等很久、不會先到讀完了）
+      let next = ''
+      for (const end = Date.now() + 6000; Date.now() < end && !next; await page.waitForTimeout(150)) {
+        const kd = await waitKind(page)
+        if (kd === 'which' || kd === 'match') next = kd
+      }
+      c.outcome('接著出最後一題', !!next, next || '沒有')
+      if (!next) await c.once('t143-no-last', '困惑', '找一樣的字做完沒有接著出最後一題', `到 ${(await snap(page)).live}`)
+      await c.flush()
+    } finally {
+      finish(k, c, 'T143找字之後還有一題')
+    }
+  })
+
   test('T-136 英文故事跳過舊篇：大人按右下「跳過舊篇」直接講新篇、連點只算一下；離開再回來不會又講舊篇', async ({ page }, info) => {
     test.skip(!want('story-en-skip'))
     test.setTimeout(4 * 60_000)
