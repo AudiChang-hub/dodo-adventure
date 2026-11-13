@@ -4,7 +4,7 @@ import { Dino } from '../art/Dino'
 import { Hand } from '../games/Demo'
 import { HomeIcon } from '../games/Shell'
 import { useTaps } from '../ui/tap'
-import { say, sfx } from '../lib/audio'
+import { isSpeaking, say, sfx } from '../lib/audio'
 import { wait } from '../games/lines'
 import { Sparkles } from '../ui/Sparkles'
 import type { Speaker } from '../content/lines'
@@ -14,6 +14,8 @@ import type { Speaker } from '../content/lines'
  * 孩子「好久喔、不知道要做什麼」先按了返回）。留一點時間給畫面淡入，也不蓋到課最後那一句 You did it!
  */
 const ASK_MS = 600
+/** 課最後那一句（You did it!）還在說：等它說完再請他點（T-143：以前會把它切掉），最多等這麼久 */
+const ASK_WAIT_MAX_MS = 3500
 /** 點空白處再請一次：這段時間內不重說（連點不會一直念） */
 const ASK_GAP_MS = 3000
 /** 之後每隔多久手再指一次（PHASE-7 小班段 8 秒）。不會自己離開（T-118） */
@@ -26,8 +28,9 @@ type Phase = 'awake' | 'wave' | 'asleep'
 /**
  * 下課畫面：跟這堂課的恐龍說晚安（T-118，家長：「下課畫面不要自己離開，讓小朋友跟他做最後晚安道別」）。
  * 以前 20 秒沒碰就自己回首頁，孩子回頭時課已經不見了（「怎麼不見了」）。現在**不會自己離開**：
- * 1. 恐龍站著、張著眼睛。一出來（0.6 秒）就開口 Tap me! Let's say good night!（莫莫不出聲），手同時指著恐龍點一下；
- *    之後每 8 秒手再指一次。點空白處：手再指一次、再請一次（T-141）。
+ * 1. 恐龍站著、張著眼睛，腳下一圈暖暖的光，示範的手一出來就停在恐龍身上（T-143：一眼就知道要點牠，不用等提示）。
+ *    0.6 秒手點一下、恐龍開口 Tap me! Let's say good night!（莫莫不出聲；課最後那一句還在說就等它說完）；
+ *    之後每 8 秒手再點一次。點空白處：手再點一次、再請一次（T-141）。
  *    以前還沒道別的恐龍會睏得閉一下眼睛，孩子看了以為已經睡著、就去點左上角的房子（盲測 c9bb003 英文 2），拿掉了。
  * 2. 孩子點恐龍：恐龍左右揮手、旁邊一隻小手揮一揮，說 Good night, 名字!（豆豆、波波；中文課的莫莫不出聲，只有輕輕的音效）。
  * 3. 恐龍趴下睡覺（閉眼、身體放低、頭上三個 Z 一個一個冒出來），天色變暗一點、出現月亮。
@@ -56,6 +59,12 @@ export function LessonBye({ host, timeUp = false, onDone, onAsleep }: { host: Sp
     if (t - asked.current < ASK_GAP_MS) return
     asked.current = t
     void say(`bye.ask.${host}`)
+  }
+  /** 一出來的那一次：前一句還在說就等它說完（不切掉課最後的 You did it!） */
+  const firstAsk = (since: number) => {
+    if (!live.current || phaseRef.current !== 'awake') return
+    if (isSpeaking() && performance.now() - since < ASK_WAIT_MAX_MS) return void window.setTimeout(() => firstAsk(since), 150)
+    ask()
   }
 
   /** 手在現在要點的東西（恐龍或房子）上點一下：出來 → 點 → 收起來 */
@@ -99,7 +108,8 @@ export function LessonBye({ host, timeUp = false, onDone, onAsleep }: { host: Sp
   useEffect(() => {
     live.current = true
     sfx.pop()
-    const a = window.setTimeout(ask, ASK_MS)
+    const t0 = performance.now()
+    const a = window.setTimeout(() => firstAsk(t0), ASK_MS)
     point(ASK_MS)
     const again = window.setInterval(() => {
       if (phaseRef.current !== 'wave') point(0)
@@ -205,9 +215,10 @@ export function LessonBye({ host, timeUp = false, onDone, onAsleep }: { host: Sp
           </div>
         )}
         <AnimatePresence>
-          {hand > 0 && phase === 'awake' && (
-            <span className="lb-hand lb-hand-dino" aria-hidden="true">
-              <Hand x={50} y={46} tap={hand - 1} size="34%" cuff="#F2C9A8" />
+          {/* 還沒道別：手一直停在恐龍身上（T-143），每次 point 點一下（漣漪） */}
+          {phase === 'awake' && (
+            <span key="hand" className="lb-hand lb-hand-dino" aria-hidden="true">
+              <Hand x={50} y={46} tap={hand === 2 ? 1 : 0} size="34%" cuff="#F2C9A8" />
             </span>
           )}
         </AnimatePresence>

@@ -39,6 +39,11 @@
   width: clamp(180px, 30vmin, 320px);
   cursor: pointer;
 }
+/* 還沒道別（T-143）：恐龍腳下一圈暖暖的光（跟道別完的房子同一種光），一眼就看得出要點牠。靜態、不閃 */
+.lesson-bye[data-bye='awake'] .lb-host {
+  border-radius: 50%;
+  background: radial-gradient(ellipse 58% 34% at 50% 86%, rgba(255, 214, 120, 0.7) 0%, rgba(241, 210, 124, 0.35) 55%, rgba(241, 210, 124, 0) 100%);
+}
 /* 晚安道別（T-118）：睡著以後天色暗一點、出現月亮；三個 Z；揮手的小手 */
 .lesson-bye::before {
   content: '';

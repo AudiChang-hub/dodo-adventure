@@ -80,6 +80,9 @@ def('bye.night.bobo', 'bobo', `Good night, ${N}! Bobo will miss you!`)
 // 下課畫面一出來就請他點恐龍（T-141：以前沒有聲音、手 3 秒後才來，孩子「好久喔、不知道要做什麼」先按了返回）。莫莫照舊不出聲
 def('bye.ask.dodo', 'dodo', "Tap me! Let's say good night!")
 def('bye.ask.bobo', 'bobo', "Tap me! Let's say good night!")
+// 晚安道別還沒說完就按返回（T-143）：回到首頁後恐龍說一聲再見，不是一聲不響被丟回首頁（lessons/LessonScreen.tsx）。莫莫不出聲
+def('bye.leave.dodo', 'dodo', `Bye-bye, ${N}! See you soon!`)
+def('bye.leave.bobo', 'bobo', `Bye-bye, ${N}! See you soon!`)
 // 每局最後一題（比較難）：只說 Last one!，不用 tricky 這種抽象字
 def('challenge', 'dodo', 'Last one!')
 def('challenge.bobo', 'bobo', 'Last one!')

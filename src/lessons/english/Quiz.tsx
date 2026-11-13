@@ -161,6 +161,15 @@ export function Quiz({
   const bubble = useRef<HTMLDivElement | null>(null)
   const tiles = useRef(new Map<string, HTMLElement>())
   const live = useRef(true)
+  /**
+   * 題目都做完、交給課去慶祝了（T-143）：之後題目淡出卸載時不停掉語音。
+   * 以前題目淡出（0.3 秒）卸載時 stopSpeech，把課剛開口的 You did it! 切掉（盲測 9231aa6 的重現測試抓到）
+   */
+  const over = useRef(false)
+  const done = (rs: QuizResult[]) => {
+    over.current = true
+    onDone(rs)
+  }
   /** demo 示範、ask 念題目、fb 答錯的說明（可以搶）；turn 輪到孩子；done 答完了（不能再點） */
   const phase = useRef<'demo' | 'ask' | 'fb' | 'turn' | 'done'>('ask')
   /** 這一題剛出來的 0.5 秒過了（PACE.BARGE_ARM） */
@@ -301,7 +310,7 @@ export function Quiz({
       live.current = false
       clearTimeout(armTimer.current)
       idle.stop()
-      stopSpeech()
+      if (!over.current) stopSpeech()
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
@@ -461,14 +470,14 @@ export function Quiz({
       if (!live.current) return
       // 手帶著做完的最後一題（T-118，家長：做完一樣停住）：停在答案上，點「下一步」才去下課的慶祝；自己點對的直接慶祝
       if (together && !(await nextStep({ cue: true }))) return
-      if (live.current) onDone(results.current)
+      if (live.current) done(results.current)
       return
     }
     // 聽完才答、一次就對：Yes! S… s, s…。猜對（關鍵字還沒念完就點對）：不說 Yes!，平平地把關鍵字和答案再念一次（Big S!）
     await say(...(full ? [praiseKey('dodo'), q.yes] : first ? q.echo : [q.yes]))
     await wait(500)
     if (!live.current) return
-    if (i + 1 >= list.current.length) return onDone(results.current)
+    if (i + 1 >= list.current.length) return done(results.current)
     // 停在答完的這一題（打勾、綠框留著），等孩子點「下一步」才換題（T-118：不自己換）。
     // 箭頭一出來就跳、手馬上點給他看（T-122，盲測 ca0d1e1 英文 seed 2 重跑：答完他「不知道要幹嘛，好久喔」按返回離開）
     if (!(await nextStep({ cue: true })) || !live.current) return
