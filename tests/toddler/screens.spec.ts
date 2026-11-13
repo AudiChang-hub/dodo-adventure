@@ -425,6 +425,13 @@ test.describe('畫面', () => {
               seen: slots.map((s, i) => (s.querySelector('.sb-seen') ? i : -1)).filter((i) => i >= 0),
               hand: !!root.querySelector('.sb-hand'),
               cheer: Number(root.querySelector<HTMLElement>('.sticker-book')?.dataset.cheer ?? 0),
+              // T-143：手指在不在亮的那一張上、亮的那一張有沒有在動、星星盒（幾格、亮了幾格、第幾輪）、點亮的那張的特別反應
+              handOnGlow: slots.some((s) => !!s.querySelector('.sb-new') && !!s.querySelector('.sb-hand')),
+              glowMoves: slots.some((s) => !!s.querySelector('.sb-new') && getComputedStyle(s.querySelector('.sb-item')!).animationName !== 'none'),
+              tray: root.querySelectorAll('.sb-tray .sb-tray-slot').length,
+              trayOn: root.querySelectorAll('.sb-tray .sb-tray-slot.is-on').length,
+              round: Number(root.querySelector<HTMLElement>('.sb-tray')?.dataset.round ?? 0),
+              pop: [...root.querySelectorAll<HTMLElement>('.sb-item')].reduce((n, e) => n + Number(e.dataset.pop ?? 0), 0),
             }
           })
         /** 第 i 張貼紙捲進畫面、回傳中心點 */
@@ -454,17 +461,24 @@ test.describe('畫面', () => {
         c.outcome('點了別張：那張有記號、亮光還在（換到還沒點過的）', follow, JSON.stringify(after1))
         if (!follow) await c.once('glow-follow', '困惑', '孩子點了不是亮的那一張，亮光就收掉了、點過的也沒有記號', JSON.stringify(after1))
 
-        // 他停下來不動：手指回來，帶他點亮著的那一張
-        k.behavior = 'T-141：發呆'
-        let back = false
-        for (let i = 0; i < 30 && !back; i++) {
+        // ── T-143（AI 小男生盲測 9231aa6 低 5）：亮的那張他一直沒去點（手指只在一進來和發呆 6 秒後才出現、還會念名字蓋過他點的那張），
+        // 點了 10 下說「一直點都不知道要幹嘛」1:48 就走了 ──
+        // 點了別張：手指很快（4 秒內）回到亮的那一張、一直輕輕點著等他（不說話，不蓋過他點的那張）；亮的那一張自己也一直輕輕在動
+        k.behavior = 'T-143：點了別張，手指回到亮的那張'
+        const tOther = await page.evaluate(() => performance.now())
+        let backAt = -1
+        for (let i = 0; i < 10 && backAt < 0; i++) {
           await k.wait(400)
-          const b = await book()
-          back = b.hand && b.demoing > 0
+          if ((await book()).handOnGlow) backAt = (i + 1) * 400
         }
-        c.outcome('點了別張之後發呆：手指回來示範亮著的那一張', back, back ? '' : '12 秒內手指沒有回來')
-        if (!back) await c.once('demo-again', '困惑', '孩子沒照示範點、停下來之後，示範的手指沒有再來', '')
-        await k.wait(2500)
+        await k.wait(Math.max(0, 9000 - Math.max(backAt, 4000)))
+        const stay = await book()
+        const quiet = (await linesSince(page, tOther + 3000)).map((l) => l.text ?? '')
+        const led = backAt > 0 && stay.handOnGlow && !quiet.length
+        c.outcome('點了別張：4 秒內手指回到亮的那張、9 秒時還在等他、不說話', led, `回來 ${backAt} ms；9 秒時在亮的那張 ${stay.handOnGlow}；3 秒後說了「${quiet.join('／')}」`)
+        if (!led) await c.once('lead', '困惑', '孩子點了別張之後，示範的手指沒有很快回到亮的那一張等他（或回來時又念一次名字）', JSON.stringify({ backAt, stay, quiet }))
+        c.outcome('亮的那一張自己一直輕輕在動', stay.glowMoves, stay.glowMoves ? '' : '只有淡淡的光，沒有動')
+        if (!stay.glowMoves) await c.once('glow-move', '困惑', '亮的那一張貼紙只有淡淡的光，沒有動，孩子看不出來要點它', '')
 
         // 點一張：跳一下（波紋）、念名字
         k.behavior = '點一張貼紙'
@@ -520,9 +534,23 @@ test.describe('畫面', () => {
         if (!differ) await c.once('kind', '困惑', '不同種類的貼紙點了動作都一樣', `${move0} / ${moveB}`)
         await k.wait(2500)
 
+        // 點亮的那一張：特別的反應（data-pop），一顆星星飛進旁邊的星星盒
+        k.behavior = 'T-143：點亮的那張'
+        const g0 = await book()
+        const gp = g0.glow >= 0 ? await at(g0.glow) : null
+        if (gp) await k.tap(gp, '亮的那張貼紙')
+        await k.wait(1200)
+        const g1 = await book()
+        const popped = g1.pop > g0.pop && g1.tray > 0 && g1.trayOn > g0.trayOn
+        c.outcome('點亮的那張：特別的反應、星星盒多一顆星', popped, `反應 ${g0.pop} → ${g1.pop}；星星盒 ${g0.trayOn} → ${g1.trayOn}/${g1.tray}`)
+        if (!popped) await c.once('pop', '困惑', '照示範點了亮的那一張，跟點別張一樣，看不到累積（沒有星星盒）', JSON.stringify({ g0, g1 }))
+        await k.wait(2500)
+
         // T-141：一張一張點下去有累積（點過的有記號），全部點過一次：大家一起跳、豆豆說 Hooray
+        // T-143：每點一張新的，星星盒亮一格；5 格滿了就慶祝一次、星星盒清空再來一輪（14 張：5、10、14 各慶祝一次）
         k.behavior = 'T-141：每一張都點一次'
         const tAll = await page.evaluate(() => performance.now())
+        let rounds = 0
         for (let i = 0; i < N; i++) {
           if ((await live()) !== 'stickers') break
           if ((await book()).seen.includes(i)) continue
@@ -530,13 +558,15 @@ test.describe('畫面', () => {
           if (!p) continue
           await k.tap(p, `第 ${i + 1} 張貼紙`)
           await k.wait(900)
+          rounds = Math.max(rounds, (await book()).round)
         }
-        await k.wait(2500)
+        await k.wait(3000)
         const all = await book()
+        rounds = Math.max(rounds, all.round)
         const cheerSaid = (await linesSince(page, tAll)).map((l) => l.text ?? '')
-        const cheered = all.seen.length === N && all.cheer > 0 && cheerSaid.some((t) => /Hooray/i.test(t))
-        c.outcome('每一張都點過：都有記號、大家一起跳、豆豆說 Hooray', cheered, `記號 ${all.seen.length}/${N}；慶祝 ${all.cheer}；說了「${cheerSaid.slice(-3).join('／')}」`)
-        if (!cheered) await c.once('cheer', '困惑', '貼紙本一張張點完沒有累積感（沒有記號或點完沒有慶祝）', JSON.stringify(all))
+        const cheered = all.seen.length === N && all.cheer >= 3 && rounds >= 2 && cheerSaid.some((t) => /Hooray/i.test(t))
+        c.outcome('每一張都點過：都有記號；星星盒每滿一次就慶祝、清空再來（14 張慶祝 3 次）', cheered, `記號 ${all.seen.length}/${N}；慶祝 ${all.cheer} 次；到第 ${rounds + 1} 輪；說了「${cheerSaid.slice(-3).join('／')}」`)
+        if (!cheered) await c.once('cheer', '困惑', '貼紙本一張張點下去沒有累積感（星星盒沒有一輪一輪滿、沒有慶祝）', JSON.stringify(all))
         await page.evaluate(() => {
           const root = [...document.querySelectorAll<HTMLElement>('.scene')].filter((e) => !e.inert).pop()!
           root.querySelector('.sb-scroll')?.scrollTo({ top: 0 })
