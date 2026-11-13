@@ -33,11 +33,13 @@ const HINT_AFTER = 2
  * 沒有大人帶的時候（T-135，AI 小男生盲測 becf39a 中文 2：選圖一出來，大人還沒念題目，畫面上只有兔子、烏龜和一堆字，
  * 他不知道要做什麼，「好久喔」就按返回）：孩子還沒點任何一張時，
  * - 這一篇的第一題一出來，手就輪流在每一張上點一下（「點一張」，每一張都點，不洩露答案），點完就收走；
- * - 發呆 WAKE_MS：圖依序再輕輕跳一下；發呆 POINT_MS：手再輪流點一次。
+ * - 發呆 WAKE_MS：圖依序再輕輕跳一下；發呆 POINT_MS：手靜靜指著答案（T-144，PHASE-7：8 秒手靜態指著答案。
+ *   盲測 9231aa6、112cb8d：以前 6 秒手再輪流掃三張，截圖上停在錯的那張，孩子照著手點錯；故事、英文課的手都指著答案）。
+ *   第一題從手輪流點完開始算，其他題從題目出來開始算；新篇、舊篇、小複習都一樣。照著這隻手點對，記成一起練（跟 30 秒的提示一樣）。
  * 15 秒題目卡跳一下（提醒大人再問一次）、30 秒手點答案（useIdle）照舊。孩子點了任何一張就不再出來（他知道要點圖了）。
  */
 const WAKE_MS = 3000
-const POINT_MS = 6000
+const POINT_MS = 8000
 /** 手在一張上停多久（出現 → 點一下 → 換下一張） */
 const POINT_STAY_MS = 850
 
@@ -103,6 +105,8 @@ export function Quiz({
   const early = useRef<number[]>([])
   /** 手輪流點的這一輪（新的一輪、孩子點了就換號，舊的停下來） */
   const sweepId = useRef(0)
+  /** 發呆時手指過答案了（T-144）：照著點對記成一起練 */
+  const pointed = useRef(false)
 
   /** 孩子點了、標出答案、換題：早期的提醒都收掉 */
   const calm = () => {
@@ -127,13 +131,21 @@ export function Quiz({
     setPoint(null)
   }
 
-  /** 孩子還沒點過任何一張：排好早期的提醒（第一題一出來手就點；WAKE_MS 圖跳、POINT_MS 手再點） */
+  /** 發呆 POINT_MS：手靜靜停在答案上（不點、不換張；孩子點了才收走） */
+  const pointAnswer = () => {
+    sweepId.current++
+    pointed.current = true
+    setPointTap(0)
+    setPoint(opts.findIndex((o) => o.word === q.word))
+  }
+
+  /** 孩子還沒點過任何一張：排好早期的提醒（第一題一出來手就輪流點；WAKE_MS 圖跳、POINT_MS 手指著答案） */
   const plan = () => {
     calm()
     if (taps.current.length || hintUsed.current || locked.current) return
     if (first) void sweep()
     const at = first ? opts.length * POINT_STAY_MS : 0
-    early.current = [window.setTimeout(() => setWake((n) => n + 1), at + WAKE_MS), window.setTimeout(() => void sweep(), at + POINT_MS)]
+    early.current = [window.setTimeout(() => setWake((n) => n + 1), at + WAKE_MS), window.setTimeout(pointAnswer, at + POINT_MS)]
   }
 
   /** 再問一次：題目卡跳一下（大人看到就再念一次） */
@@ -186,8 +198,8 @@ export function Quiz({
     if (!acceptRef.current || locked.current || marks[id] === 'wrong') return
     idle.poke()
     calm()
-    // 第一次點的時候手正指著答案（發呆太久手出來示範了，T-111）：答案是看手的，記成一起練、不計入熟練
-    if (!taps.current.length) led.current = hintUsed.current
+    // 第一次點的時候手正指著答案（發呆太久手出來示範了，T-111；發呆 8 秒手指著答案，T-144）：答案是看手的，記成一起練、不計入熟練
+    if (!taps.current.length) led.current = hintUsed.current || pointed.current
     taps.current.push({ pick: id, ms: Math.round(performance.now() - shownAt.current) })
     if (id === q.word) {
       locked.current = true
