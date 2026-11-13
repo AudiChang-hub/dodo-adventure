@@ -87,6 +87,33 @@ async function tapBack(k: Toddler, c: Checker, ctx: string, ok: (l: string | nul
   return live
 }
 
+/** 返回之後多久不收下一次返回：跟 src/lib/nav.ts 的 BACK_LOCK_MS 一樣（nav.ts 載入時會讀 location，Node 裡 import 不了） */
+const BACK_LOCK_MS = 1000
+
+/**
+ * 剛按返回回到這一層，像孩子看到這一層之後再按返回：等這一層真的畫出來 BACK_LOCK_MS 以上（B01，main 2fbd705 tab1280 2/3 偶發）。
+ * App 照設計（lib/nav.ts，T-67）在返回後、下一層「看得到」滿 1 秒之前，同一個位置的返回都不收：連點返回只回一層，不會多跳一層。
+ * 「看得到」是一格一格算的，機器忙時卡住的那段不算；只等牆上的時鐘 1 秒，機器忙的時候第二下會落在鎖裡。
+ * 這裡也一格一格算，每一格最多算 50ms（App 每一格至少算 50ms），所以等到的一定不比 App 的鎖短。
+ */
+async function afterBackLock(page: Page) {
+  await page.evaluate(
+    (ms) =>
+      new Promise<void>((done) => {
+        let prev = 0
+        let shown = 0
+        const tick = (t: number) => {
+          if (prev) shown += Math.min(t - prev, 50)
+          prev = t
+          if (shown >= ms) done()
+          else requestAnimationFrame(tick)
+        }
+        requestAnimationFrame(tick)
+      }),
+    BACK_LOCK_MS + 200,
+  )
+}
+
 /** 今天的日期（App 的 chapters 用日期當 id） */
 const todayId = () => {
   const d = new Date()
@@ -797,7 +824,7 @@ test.describe('故事', () => {
       const st = await enKV(page)
       const today = todayId()
       c.outcome('舊篇記成今天聽完、新篇沒有；記下這一次的複習做過了', !!st?.heard?.[1]?.includes(today) && !st?.heard?.[4]?.includes(today) && st?.review?.day === 1 && st.review.for === 4, JSON.stringify({ heard: st?.heard, review: st?.review }))
-      await k.wait(1000)
+      await afterBackLock(page)
       const first = await page.evaluate(() => {
         const e = document.querySelector<HTMLElement>('.book-card')
         return e ? { en: e.dataset.enBook, book: e.dataset.book } : null
@@ -813,7 +840,7 @@ test.describe('故事', () => {
       // 新篇講到一半離開；隔天（舊篇聽完、複習的紀錄改成前一天）再進來：還是新篇，不再講同一篇舊篇
       live = await tapBack(k, c, '新篇講到一半', (l) => l === 'shelf')
       if (live !== 'shelf') return
-      await k.wait(1000)
+      await afterBackLock(page)
       live = await tapBack(k, c, '書架', (l) => l === 'home')
       const s2 = await enKV(page)
       if (s2) await seedStory(page, { kv: { storyEn: { ...s2, at: undefined, heard: { ...s2.heard, 1: ['2026-01-03'] }, review: s2.review ? { ...s2.review, date: '2026-01-03' } : undefined } } })
