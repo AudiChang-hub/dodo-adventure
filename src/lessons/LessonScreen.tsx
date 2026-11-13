@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
 import { StickerPicker } from '../ui/StickerPicker'
 import { overlay } from '../ui/motion'
-import { go, useBack } from '../lib/nav'
+import { currentRoute, go, useBack } from '../lib/nav'
 import { lessonDone } from '../lib/achievements'
 import { LESSONS } from '.'
 import type { Subject } from './types'
@@ -13,6 +13,7 @@ import { HomeIcon } from '../games/Shell'
 import { finishRun, startRun } from '../lib/lesson-log'
 import { holdBedtime, isTimeUp } from '../lib/session'
 import { takeResumeEnd } from './resume-end'
+import { isSpeaking, say, sfx, stopSpeech } from '../lib/audio'
 import '../ui/celebrate.css'
 import '../games/coplay.css'
 import './lessons.css'
@@ -37,7 +38,12 @@ import './lessons.css'
  * 不再算一堂（T-125：以前又算一次，貼紙的間隔剛好到了就變成挑貼紙）。貼紙沒挑完就離開的，貼紙照舊留著下次再挑。
  * 下課畫面的遮罩蓋住課自己左上角的房子（看起來變淡、點不到，AI 小男生盲測三次都碰到，T-99）：
  * 遮罩上同一個位置再放一顆房子，一出現就點得動（準則 NAV-1、NAV-7：看得到的返回鍵一定點得動、永遠在最上層）。
+ * 晚安道別還沒說完就按返回（T-143，盲測 9231aa6：像被丟回首頁）：照樣一步回首頁，回到首頁後這堂課的恐龍說一聲
+ * Bye-bye, 名字! See you soon!（莫莫不出聲，輕輕一聲音效）。同一天再進來照舊回到晚安道別（T-122）。
  */
+/** 回到首頁的再見說完，字幕再留多久才收（毫秒） */
+const BYE_CAPTION_HOLD_MS = 1500
+
 export function LessonScreen({ subject }: { subject: Subject }) {
   const { Lesson, host } = LESSONS[subject]
   /** 下課：挑貼紙（pick）或安靜的下課畫面（bye） */
@@ -50,6 +56,28 @@ export function LessonScreen({ subject }: { subject: Subject }) {
   const done = useRef(false)
   const run = useRef<Promise<number> | null>(null)
   const home = () => go({ name: 'home' })
+  /** 晚安道別還沒說完就離開：離開以後說再見（T-143） */
+  const unsaid = useRef(false)
+  const leave = () => {
+    if (end === 'bye' && !asleep) unsaid.current = true
+    home()
+  }
+
+  // 離開這一堂（整個畫面收掉）以後才說：換畫面時 App、課自己都會 stopSpeech，在這之前說會被切掉
+  useEffect(
+    () => () => {
+      if (!unsaid.current) return
+      window.setTimeout(async () => {
+        if (host === 'momo') return sfx.chime(2)
+        await say(`bye.leave.${host}`)
+        // 首頁不是上課，字幕不常駐：說完留一下再收（跟首頁介紹一樣，T-140⑤）；沒有別的話在說才收
+        await new Promise((r) => setTimeout(r, BYE_CAPTION_HOLD_MS))
+        if (currentRoute().name === 'home' && !isSpeaking()) stopSpeech()
+      }, 0)
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [],
+  )
 
   useEffect(() => {
     run.current = startRun(subject).catch(() => 0)
@@ -73,7 +101,7 @@ export function LessonScreen({ subject }: { subject: Subject }) {
 
   useBack(() => {
     if (!end) return false
-    home()
+    leave()
   })
 
   return (
@@ -95,7 +123,7 @@ export function LessonScreen({ subject }: { subject: Subject }) {
             )}
             {/* 左上角的房子：跟課裡的返回鍵同一個位置；挑貼紙時點它跟按返回一樣，貼紙留著下次再挑 */}
             <div className={`lesson-end-back${subject === 'english' ? ' is-en' : ''}`}>
-              <BackButton label="回首頁" onTap={home}>
+              <BackButton label="回首頁" onTap={leave}>
                 <HomeIcon />
               </BackButton>
             </div>

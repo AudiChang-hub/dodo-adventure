@@ -165,13 +165,17 @@ export function EnglishLesson({ onDone }: LessonProps) {
   }
   const pending = useNextPending()
 
-  /** 上完：馬上換成慶祝（大字母、星星、完成的音效），You did it! 念著的時候就出下課畫面（T-113：以前念完再等 0.5 秒，打勾到下課 4.5 秒） */
+  /**
+   * 上完：換成慶祝（大字母、星星、完成的音效），You did it! 一開口就出下課畫面（記好上完就出，不再等 1.1 秒）。
+   * T-113：以前念完再等 0.5 秒，打勾到下課 4.5 秒。T-143（盲測 9231aa6）：還要等 1.1 秒，答對到看得出要點恐龍約 2.6 秒，
+   * 孩子看到「恐龍笑笑、You did it」以為結束了就按返回（5 次 2 次）。You did it! 照樣說完（LessonBye 等它說完才請他點恐龍）
+   */
   const finish = async (rs: QuizResult[]) => {
     if (!plan) return
     setStage('end')
     sfx.done()
     void say('le.en.done')
-    await Promise.all([markDone(plan, lessonGood(rs)), wait(1100)])
+    await markDone(plan, lessonGood(rs))
     if (live.current) toBye()
   }
 

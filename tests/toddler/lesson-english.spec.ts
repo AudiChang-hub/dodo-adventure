@@ -5,6 +5,7 @@ import { attempts, boot, settle, snap } from './lib/app'
 import { Toddler, hashSeed, rng } from './lib/toddler'
 import { Checker, alive, audit, doorAt, ignoreNext, pressBack, toHome, toddlerStep, waitLive } from './lib/flows'
 import { homeButton } from './lib/app'
+import { pickOf, untilTurn } from './lib/english-play'
 
 /**
  * 英文字母課（src/lessons/english）的三歲模擬測試：
@@ -1298,6 +1299,113 @@ test.describe('英文字母課', () => {
     } finally {
       await c.flush().catch(() => {})
       finish(k, c, '下課馬上知道')
+    }
+  })
+
+  /** 英文進度直接放到今天的某一段（同一天中途離開又回來的樣子） */
+  const putProgress = (page: Page, p: Record<string, unknown>) =>
+    page.evaluate(
+      (p) =>
+        new Promise<void>((res) => {
+          const d = new Date()
+          const today = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+          const rq = indexedDB.open('dodo-adventure')
+          rq.onsuccess = () => {
+            const tx = rq.result.transaction('kv', 'readwrite')
+            tx.objectStore('kv').put({ key: 'lesson.english', value: { ...p, date: today } })
+            tx.oncomplete = () => (rq.result.close(), res())
+          }
+        }),
+      p,
+    )
+
+  test('最後一題答對：1.1 秒內就是下課畫面、手已經指著恐龍，You did it! 不被切掉（T-143）', async ({ page }, info) => {
+    // 盲測 9231aa6 英文 2、貼紙本 2 的英文：最後一題答對後看到「恐龍笑笑、You did it」就按返回（5 次裡 2 次）。
+    // 那時答對 → Yes!（0.6 秒）→ 慶祝畫面（1.1 秒，沒有下一步的提示）→ 下課畫面淡入 → 再 0.6 秒手才指恐龍：約 2.6 秒都看不出要點恐龍。
+    // AI 小男生點完 1.1 秒截圖，看到的就是「做完了」的慶祝畫面。
+    test.skip(!want('lesson-english') || info.project.name !== 'tab1200')
+    test.setTimeout(2 * 60_000)
+    const { k, c } = await setup(page, info, '下課一眼就知道')
+    try {
+      // 同一天回來，從最後一題接著問（round 超過題數＝最後一題）
+      await putProgress(page, { idx: 0, done: false, good: false, stage: 'quiz', round: 9 })
+      k.behavior = '最後一題答對'
+      if (!(await enter(k, c))) return
+      const q = await untilTurn(page, 30_000, true)
+      const right = q && pickOf(q).right
+      c.outcome('到最後一題', !!right, q ? `要找 ${q.want}` : `停在 ${await stageOf(page)}`)
+      if (!right) return void (await c.once('t143-quiz', '卡死', '回到選擇題沒有出現可以點的題目', `停在 ${await stageOf(page)}`))
+      const t0 = await page.evaluate(() => performance.now())
+      await k.tap(right, `答案 ${right.label}`)
+      // 點下去以後：下課畫面什麼時候出來、手什麼時候指著恐龍
+      const s = await page.evaluate(async (t0) => {
+        let bye: number | null = null
+        let hand: number | null = null
+        while (performance.now() - t0 < 6000 && hand == null) {
+          const t = Math.round(performance.now() - t0)
+          if (bye == null && document.querySelector('.cheer-scrim .lesson-bye')) bye = t
+          if (hand == null && document.querySelector('.cheer-scrim .lesson-bye .lb-hand-dino')) hand = t
+          await new Promise((r) => setTimeout(r, 40))
+        }
+        return { bye, hand }
+      }, t0)
+      await page.waitForTimeout(800)
+      await shot(page, '10-最後一題答對後1秒半', info)
+      c.outcome('答對 1.1 秒內：下課畫面、手指著恐龍', s.hand != null && s.hand <= 1100, `下課畫面 ${s.bye ?? '沒有'} ms、手 ${s.hand ?? '沒有'} ms`)
+      if (s.hand == null || s.hand > 1100) await c.once('t143-fast', '困惑', '最後一題答對後，太久才看得出要點恐龍說晚安', `下課畫面 ${s.bye ?? '沒有'} ms、手 ${s.hand ?? '6 秒內沒有'} ms`)
+      // You did it! 要說完，Tap me! 接在後面（不把它切掉）
+      await page.waitForTimeout(3500)
+      const vs = await page.evaluate(
+        (t0) => window.__toddler.voices.filter((v) => v.t >= t0).map((v) => ({ text: v.text ?? '', cut: v.stopped != null && v.stopped < v.end - 120 })),
+        t0,
+      )
+      const did = vs.find((v) => /You did it/i.test(v.text))
+      const ask = vs.findIndex((v) => /Tap me/i.test(v.text))
+      c.outcome('You did it! 說完、Tap me! 接在後面', !!did && !did.cut && ask > vs.indexOf(did), vs.map((v) => `${v.text}${v.cut ? '（被切）' : ''}`).join('／'))
+      if (!did || did.cut || ask < vs.indexOf(did)) await c.once('t143-voice', '小問題', '上完的 You did it! 被切掉或晚安提示沒有接在後面', vs.map((v) => `${v.text}${v.cut ? '（被切）' : ''}`).join('／'))
+      c.outcome('不碰：還停在晚安道別', (await page.evaluate(() => document.querySelector('.lesson-bye')?.getAttribute('data-bye'))) === 'awake')
+    } finally {
+      await c.flush().catch(() => {})
+      finish(k, c, '下課一眼就知道')
+    }
+  })
+
+  test('下課畫面還沒說晚安就按返回：回到首頁，豆豆溫和地說再見（T-143）', async ({ page }, info) => {
+    // 盲測 9231aa6：2 次在下課畫面按返回，回到首頁什麼都沒有（像被丟回首頁）
+    test.skip(!want('lesson-english') || info.project.name !== 'tab1200')
+    test.setTimeout(2 * 60_000)
+    const { k, c } = await setup(page, info, '下課按返回')
+    try {
+      await putProgress(page, { idx: 0, done: true, good: true, stage: 'end' })
+      k.behavior = '下課畫面按返回'
+      if (!(await enter(k, c))) return
+      const bye = await page.waitForSelector('.cheer-scrim .lesson-bye', { timeout: 6000 }).catch(() => null)
+      if (!bye) return void (await c.once('t143-bye', '卡死', '上完了回來沒有回到晚安道別', `停在 ${await stageOf(page)}`))
+      // 等請他點恐龍的那一句說完，再按返回
+      await page.waitForTimeout(4500)
+      const h = await homeButton(page)
+      const t0 = await page.evaluate(() => performance.now())
+      if (h) await pressBack(k, h, '下課畫面按返回')
+      const back = await waitLive(page, (l) => l === 'home', 4000)
+      c.outcome('下課畫面按返回 → 首頁（一步）', back === 'home', `到 ${back}`)
+      if (back !== 'home') return void (await c.once('t143-back', '無法返回', '下課畫面按返回沒有回首頁', `停在 ${back}`))
+      await page.waitForTimeout(3500)
+      await shot(page, '11-下課按返回後的首頁', info)
+      const vs = await page.evaluate((t0) => window.__toddler.voices.filter((v) => v.t >= t0).map((v) => v.text ?? ''), t0)
+      const bye2 = vs.filter((v) => !/Tap me/i.test(v))
+      c.outcome('回到首頁有一句再見', bye2.length > 0, vs.join('／') || '沒有聲音')
+      if (!bye2.length) await c.once('t143-farewell', '困惑', '下課畫面按返回，回到首頁什麼都沒有（像被丟回首頁）', vs.join('／') || '沒有聲音')
+      const ask = vs.some((v) => /Tap me/i.test(v))
+      c.outcome('首頁不會聽到 Tap me!（那裡沒有恐龍可以點）', !ask, vs.join('／'))
+      if (ask) await c.once('t143-ask-home', '困惑', '回到首頁還聽到 Tap me! Let\'s say good night!', vs.join('／'))
+      // 首頁不是上課：再見的字幕說完就收，不一直掛在首頁（T-140⑤ 首頁介紹同一條）
+      await page.waitForTimeout(3500)
+      const sub = await page.evaluate(() => [...document.querySelectorAll<HTMLElement>('.sub-pill')].some((e) => e.getBoundingClientRect().width > 2 && getComputedStyle(e).opacity !== '0'))
+      c.outcome('再見的字幕說完就收', !sub, sub ? '還掛在首頁' : '')
+      if (sub) await c.once('t143-caption', '小問題', '回到首頁的再見字幕說完還一直掛著', '')
+    } finally {
+      await c.flush().catch(() => {})
+      finish(k, c, '下課按返回')
     }
   })
 
