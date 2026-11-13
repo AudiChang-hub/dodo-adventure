@@ -60,10 +60,27 @@ export function reactionOf(cat: Cat | undefined, n: number): Reaction {
 }
 
 // ── 點下去有累積（T-141：AI 小男生盲測 c9bb003，第一張發光他點了別張；後來「點了好多次都一樣」就走了）──
-// 這一趟點過的貼紙記在畫面上（不寫資料）；亮光、示範的手指跟著「下一張還沒點過的」走，每點滿幾張豆豆跳一下。
+// 這一趟點過的貼紙記在畫面上（不寫資料）；亮光、示範的手指跟著「下一張還沒點過的」走。
+// T-143（盲測 9231aa6：點了 10 下說「一直點都不知道要幹嘛」）：每點一張新的，星星盒亮一格，滿了慶祝、清空再來一輪。
 
-/** 每點滿幾張不同的貼紙，豆豆跳一下 */
-export const CHEER_EVERY = 4
+/** 星星盒一輪幾格 */
+export const TRAY = 5
+
+/**
+ * 星星盒現在的樣子：seen 是這一趟點過幾張、total 是貼紙本有幾張、cleared 是上一次清空時點過幾張（還沒清空過是 -1）。
+ * 一輪 TRAY 格；最後一輪剩幾張就幾格（點完全部剛好滿）。滿了先留著慶祝，清空（cleared = seen）後換下一輪空的。
+ */
+export function trayOf(seen: number, total: number, cleared = -1): { round: number; size: number; filled: number; full: boolean } {
+  if (total <= 0) return { round: 0, size: 0, filled: 0, full: false }
+  let round = seen > 0 ? Math.floor((seen - 1) / TRAY) : 0
+  let filled = seen - round * TRAY
+  if (filled === Math.min(TRAY, total - round * TRAY) && seen === cleared && seen < total) {
+    round++
+    filled = 0
+  }
+  const size = Math.min(TRAY, total - round * TRAY)
+  return { round, size, filled, full: seen > 0 && filled === size }
+}
 
 /** 下一張要亮的貼紙：照畫面上的順序（最新的在前），第一張還沒點過的；都點過了是 null */
 export function nextToShow<T extends { key: string }>(list: readonly T[], seen: ReadonlySet<string>): string | null {

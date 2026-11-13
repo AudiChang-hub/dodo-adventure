@@ -4,7 +4,7 @@
 // 執行：npx tsx scripts/test-sticker-book.ts（失敗就 exit 1）
 import assert from 'node:assert/strict'
 import { existsSync, readFileSync } from 'node:fs'
-import { BOARD_PEEK, CAT_MOVE, nextToShow, newestFirst, reactionOf, tiltOf, type Cat } from '../src/screens/sticker-book'
+import { BOARD_PEEK, CAT_MOVE, TRAY, nextToShow, newestFirst, reactionOf, tiltOf, trayOf, type Cat } from '../src/screens/sticker-book'
 
 const { hasLine, line } = await import('../src/content/lines')
 const { STICKER_ART } = await import('../src/content/sticker-art')
@@ -131,6 +131,24 @@ if (existsSync('public/audio/zh/index.json')) {
   assert.equal(nextToShow(list, new Set(['d', 'c', 'b'])), null)
   assert.equal(nextToShow([], new Set()), null)
   ok('亮光在第一張還沒點過的；都點過了不亮')
+}
+
+// T-143：星星盒一輪 5 格，滿了先留著慶祝，清空後換下一輪；最後一輪剩幾張就幾格（點完全部剛好滿）
+{
+  assert.equal(TRAY, 5)
+  assert.deepEqual(trayOf(0, 14), { round: 0, size: 5, filled: 0, full: false })
+  assert.deepEqual(trayOf(3, 14), { round: 0, size: 5, filled: 3, full: false })
+  assert.deepEqual(trayOf(5, 14), { round: 0, size: 5, filled: 5, full: true })
+  assert.deepEqual(trayOf(5, 14, 5), { round: 1, size: 5, filled: 0, full: false })
+  assert.deepEqual(trayOf(6, 14, 5), { round: 1, size: 5, filled: 1, full: false })
+  assert.deepEqual(trayOf(10, 14, 10), { round: 2, size: 4, filled: 0, full: false })
+  assert.deepEqual(trayOf(14, 14, 10), { round: 2, size: 4, filled: 4, full: true })
+  // 全部點過了：不清空，留著滿滿的
+  assert.deepEqual(trayOf(14, 14, 14), { round: 2, size: 4, filled: 4, full: true })
+  // 只有 3 張：一輪 3 格
+  assert.deepEqual(trayOf(3, 3), { round: 0, size: 3, filled: 3, full: true })
+  assert.deepEqual(trayOf(0, 0), { round: 0, size: 0, filled: 0, full: false })
+  ok('星星盒一輪 5 格、滿了清空再來、最後一輪剛好滿')
 }
 
 // T-141：空的貼紙本不再叫他點小房子（返回鍵）；全部點過一次豆豆說 Hooray（溫和的感嘆詞）
