@@ -544,7 +544,13 @@ async function mom(): Promise<string> {
     if (momDone.has(key)) {
       await click(st.next)
       const after = await page.evaluate(() => document.querySelector('.zh-line.on .zh-text')?.textContent ?? '')
-      if (!after) return '媽媽念完了，按了「念完了」。'
+      if (!after) {
+        // 聊一聊卡片出來了：真人會馬上問，不會等他先點了才問（T-144C 乾跑：他先點了圖、媽媽接完話才問問題，順序倒過來）
+        const q = await page.evaluate(() => [...document.querySelectorAll('.zh-talk-q')].map((e) => e.textContent ?? '').join(''))
+        if (!q) return '媽媽念完了，按了「念完了」。'
+        momDone.add(`talk:${q}`)
+        return `媽媽念完了，按了「念完了」，問你：「${q}」，然後看著你等你回答。`
+      }
       momDone.add(`line:${await page.evaluate(() => document.querySelector<HTMLElement>('.zh-read')?.dataset.at ?? '')}:${after}`)
       const gap = await page.evaluate(() => document.querySelector('.zh-line.on .zh-red.gap')?.getAttribute('data-word') ?? null)
       return gap ? `媽媽按了「下一行」，念：「${after.split(gap)[0]}……」念到這裡停下來，看著你等你說。` : `媽媽按了「下一行」，念：「${after}」`
@@ -781,6 +787,8 @@ while (!fatal) {
   // 媽媽回應他這一下（中文課，T-144C）：下一步寫進他聽到的
   replied = momReply(zc, touch, tapMoves, tapSounds)
   if (replied) step.events.push(`（媽媽回應：${replied}）`)
+  // 他離開又回到中文課：App 從第一行重來，媽媽也從頭念、重新回應（不記著上一次念過哪幾行）
+  if (lesson.id === 'zh' && lesson.isIn(s2.live) && !lesson.isIn(before.live)) momDone.clear()
   history.push(`- 第 ${n} 步：${step.think || '（沒想什麼）'}（${FEEL[step.feeling] ?? step.feeling}）→ ${what}，${outcome || '沒什麼變'}`)
   console.log(`  [${pad(n)} ${el}s ${(a.ms / 1000).toFixed(0)}s] ${FEEL[step.feeling] ?? step.feeling}「${step.think}」→ ${action}${step.x != null ? ` ${step.x},${step.y}` : ''}｜${step.result}`)
 
