@@ -12,6 +12,10 @@ export interface Step {
   /** 探針看到的示範狀態（teach-card、demo、wait、hand；null 是沒在示範） */
   teaching: string | null
   heard: string[]
+  /** 上一步之後響過的音效（不是說話，T-144C） */
+  sounds?: string[]
+  /** 中文課：截圖前剛動過的東西、手是不是在一張一張掃（T-144C；截圖看不到的動作） */
+  screen?: string
   sub: string | null
   shot: string
   see: string
@@ -51,6 +55,8 @@ export interface Run {
   /** 中文課、故事：今天排到的課（--zh-run，./zh-run.ts 的 zhRunToday） */
   today?: string
   version: string
+  /** 盲測工具的版本（T-144C 起；沒有的是 v1）：不同版的報告不能直接比 */
+  tool?: string
   started: string
   ended?: string
   minutes: number
@@ -101,6 +107,8 @@ function timelineText(R: Run) {
       [
         `第 ${s.n} 步（${mmss(s.t)}）畫面=${s.live}${s.teaching ? `［${TEACH[s.teaching] ?? s.teaching}］` : ''}`,
         s.heard.length ? `聽到：${s.heard.map((h) => `「${h}」`).join('')}` : '',
+        s.sounds?.length ? `音效：${s.sounds.join('、')}` : '',
+        s.screen ? `截圖看不到的：${s.screen}` : '',
         `看到：${s.see}`,
         `心裡想：${s.think}（${FEEL[s.feeling] ?? s.feeling}${s.understood ? '，知道要做什麼' : '，不知道要做什麼'}）`,
         `動作：${actionText(s)}`,
@@ -133,6 +141,7 @@ export async function writeReport(R: Run, brain: Brain, analystFile: string) {
   if (S.length && R.analysis === undefined) {
     const analyst = fs.readFileSync(analystFile, 'utf8')
     const text = [
+      R.tool ? `盲測工具：${R.tool}` : '',
       `課：${R.lesson}（完成的意思：${R.doneMeans}）`,
       `結果：${R.completed ? `第 ${R.completed.step} 步完成（${R.completed.what}）` : '沒有完成'}；結束原因：${R.endReason}`,
       `按返回 ${backs.length} 次；不知道要做什麼的步數 ${confused.length}/${S.length}；示範中點了 ${R.tapsWhileTeaching} 下（全部 ${R.tapsTotal} 下）；大腦平均想 ${thinkAvg.toFixed(1)} 秒`,
@@ -170,6 +179,7 @@ export async function writeReport(R: Run, brain: Brain, analystFile: string) {
   const thumb = (n: number) => `[![第 ${n} 步](縮圖/${pad(n)}.jpg)](截圖/${pad(n)}.jpg)`
   const md: string[] = []
   md.push(`# AI 小男生測試：${R.lesson}（${R.started.slice(0, 10)}）`, '')
+  md.push(R.tool ? `**盲測工具 ${R.tool}**：跟沒有標版本（v1）的報告不能直接比。` : '**盲測工具 v1**（T-144C 以前：音效不算聽到、中文課媽媽不回應、截圖不等動畫）', '')
   md.push('> 3 歲 3 個月的小男生（由 Claude 扮演，角色設定 `tests/ai-toddler/persona.md`）自己玩，看截圖決定下一步，手指照三歲孩子的誤差偏開。', '> 這是探索測試：「真的孩子看得懂嗎」。固定腳本的回歸測試是 `npm run test:toddler`。', '')
   md.push('| 項目 | 結果 |', '|---|---|')
   if (R.today) md.push(`| 今天排的課 | ${cell(R.today)} |`)
@@ -184,7 +194,8 @@ export async function writeReport(R: Run, brain: Brain, analystFile: string) {
   md.push(`| 心情 | ${S.map((s) => FACE[s.feeling] ?? '·').join('')} |`)
   md.push(`| App 錯誤 | ${R.issues.length ? R.issues.map((i) => `${i.kind} ${i.steps.length} 處`).join('、') : '沒有發現'} |`)
   md.push(`| 大腦 | ${R.brain}（${R.model}），平均每步想 ${thinkAvg.toFixed(1)} 秒${totalCost ? `，約 US$${totalCost.toFixed(2)}` : ''}${R.brainNote ? `；${cell(R.brainNote)}` : ''} |`)
-  md.push(`| 版本、seed | ${cell(R.version)}；seed ${R.seed} |`, '')
+  md.push(`| 版本、seed | ${cell(R.version)}；seed ${R.seed} |`)
+  md.push(`| 盲測工具 | ${cell(R.tool ?? 'v1')} |`, '')
 
   md.push('## 一句話', '', A.summary ?? `（沒有分析：${R.analysisError ?? '沒有步驟'}）`, '')
 
@@ -220,7 +231,7 @@ export async function writeReport(R: Run, brain: Brain, analystFile: string) {
   md.push('## 時間軸', '', '| 步 | 時間 | 畫面 | 聽到 | 看到／心裡想 | 心情 | 動作 | 結果 |', '|---|---|---|---|---|---|---|---|')
   for (const s of S) {
     md.push(
-      `| <a id="s${s.n}"></a>${s.n} | ${mmss(s.t)} | ${thumb(s.n)}<br>${cell(s.live)}${s.teaching ? `［${TEACH[s.teaching] ?? s.teaching}］` : ''} | ${cell(s.heard.join(' / '))} | ${cell(s.see)}<br>💭「${cell(s.think)}」 | ${FEEL[s.feeling] ?? cell(s.feeling)}${s.understood ? '' : '<br>（不知道要做什麼）'} | ${cell(actionText(s))} | ${cell(s.result)}${s.events.length ? `<br>⚠ ${cell(s.events.join('；'))}` : ''} |`,
+      `| <a id="s${s.n}"></a>${s.n} | ${mmss(s.t)} | ${thumb(s.n)}<br>${cell(s.live)}${s.teaching ? `［${TEACH[s.teaching] ?? s.teaching}］` : ''} | ${cell(s.heard.join(' / '))}${s.sounds?.length ? `${s.heard.length ? '<br>' : ''}🔔${cell(s.sounds.join('、'))}` : ''} | ${s.screen ? `（${cell(s.screen)}）<br>` : ''}${cell(s.see)}<br>💭「${cell(s.think)}」 | ${FEEL[s.feeling] ?? cell(s.feeling)}${s.understood ? '' : '<br>（不知道要做什麼）'} | ${cell(actionText(s))} | ${cell(s.result)}${s.events.length ? `<br>⚠ ${cell(s.events.join('；'))}` : ''} |`,
     )
   }
   md.push('', `<sub>想一步的時間：${S.map((s) => (s.thinkMs / 1000).toFixed(0)).join(' ')} 秒。大腦想的時候 App 照常在跑，「錯過了」「示範已經結束才點」這類跟時間有關的現象可能是測試造成的。</sub>`, '')
