@@ -3,9 +3,47 @@
  * 動作只用位移、縮放一下就停（紙感螢幕，MOTION-1、2）。
  */
 
-/* 選擇畫面：手也會來指回家（./EnNext.tsx） */
-.en-choice-home {
-  position: relative;
+/*
+ * 複習講完的「再一篇」（T-142，./EnNext.tsx 的 EnOffer）：讀完了的圓形封面右下角旁邊，一本小小的新書。
+ * 淡淡的紙、沒有黃框、沒有 New!、沒有手、不會跳——看得到但不搶眼（再聽一次、回書架照常在右下角）
+ */
+.en-offer {
+  position: absolute;
+  left: calc(50% + clamp(100px, 20vh, 170px) + 2vw);
+  top: calc(18vh + clamp(200px, 40vh, 340px) * 0.62);
+  width: clamp(72px, 12vh, 100px);
+  aspect-ratio: 0.8;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: 14px;
+  background: var(--card, #fbf8f2);
+  box-shadow:
+    0 5px 0 rgba(46, 42, 37, 0.06),
+    0 0 0 2px rgba(46, 42, 37, 0.05) inset;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+.en-offer-pic {
+  width: 70%;
+  aspect-ratio: 1;
+  opacity: 0.7;
+}
+@media (orientation: portrait) {
+  .en-offer {
+    left: auto;
+    right: 8vw;
+    top: calc(18vh + clamp(200px, 40vh, 340px) + 4vh);
+  }
+}
+
+/* 點了書：喘口氣的那一層蓋住整個讀完了 */
+.en-breath-cover {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  background: linear-gradient(#f2eadb, var(--paper) 60%);
 }
 
 /* 喘口氣（./EnNext.tsx）：選了再一篇，新的書在中間，後面一圈暖光吸一口氣、吐一口氣一次，約 3 秒後開始講 */

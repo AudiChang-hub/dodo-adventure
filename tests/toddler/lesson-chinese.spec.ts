@@ -270,6 +270,36 @@ const arrowAt = (page: Page) =>
     return r ? { x: r.left + r.width / 2, y: r.top + r.height / 2, w: r.width, h: r.height } : null
   })
 
+/** 有沒有一隻手指在下課（下一步）箭頭附近（T-142：預設提示指向下課） */
+const handNearArrow = () => {
+  const a = document.querySelector('.next-step')?.getBoundingClientRect()
+  if (!a) return false
+  return [...document.querySelectorAll('.demo-hand')].some((h) => {
+    const r = h.getBoundingClientRect()
+    return Math.hypot(r.left + r.width / 2 - (a.left + a.width / 2), r.top + r.height / 2 - (a.top + a.height / 2)) < 170
+  })
+}
+
+/** 一直上到晚安道別（大箭頭、選圖、找字都自己點；autoNext 關著也可以） */
+async function toBye(k: Toddler) {
+  for (const end = Date.now() + 150_000; Date.now() < end; ) {
+    if (await k.page.$('.lesson-bye')) return true
+    const s = await state(k.page)
+    const n = await arrowAt(k.page)
+    if (n) {
+      await k.wait(700)
+      const m = await arrowAt(k.page)
+      if (m) await k.tap(m, '大箭頭')
+      await k.wait(900)
+    } else if (s.quiz && s.accepting && !s.dim) {
+      const a = (await points(k.page, '.tile[data-answer]'))[0]
+      if (a) await k.tap(a, '答案')
+      await k.wait(900)
+    } else await k.wait(400)
+  }
+  return false
+}
+
 /** 一天兩篇（seedTwo）：進課、把舊篇上完（大箭頭自己點），停在選擇畫面（T-140）；到了回傳 true */
 async function toChoice(k: Toddler, c: Checker) {
   await seedTwo(k.page)
@@ -299,16 +329,17 @@ async function answerUntil(k: Toddler, done: (s: Awaited<ReturnType<typeof state
   for (const end = Date.now() + ms; Date.now() < end; ) {
     const s = await state(k.page)
     if (done(s)) return { ok: true, kinds }
-    if (await k.page.$('.next-step')) {
-      await k.wait(800)
+    // 複習上完（T-142）：孩子主動點旁邊的書「再一篇」——書 1.1 秒後才出現（之前點了不算），
+    // 下課的大箭頭 1.2 秒出來、autoNext 再過 1.5 秒會點它，所以 1.4 秒時點書
+    const more = (await points(k.page, '.zh-between .zh-offer'))[0]
+    if (more) {
+      await k.wait(1400)
+      await k.tap(more, '再一篇（書）')
+      await k.wait(1200)
       continue
     }
-    // 舊篇上完的選擇畫面（T-140）：點「再一篇」
-    const more = (await points(k.page, '.zh-choice-more'))[0]
-    if (more) {
+    if (await k.page.$('.next-step')) {
       await k.wait(800)
-      await k.tap(more, '再一篇')
-      await k.wait(1200)
       continue
     }
     if (s.quiz && s.accepting && !s.dim) {
@@ -536,91 +567,136 @@ test.describe('中文課', () => {
     }
   })
 
-  test('舊篇上完的選擇畫面（T-140）：慶祝、「再一篇」（手指著）和「回家」；亂點、連點、發呆不自己走、不出聲；選再一篇 → 新篇', async ({ page }, info) => {
-    test.skip(!want('lesson-chinese-between'))
-    test.setTimeout(6 * 60_000)
-    // 記下開始播的音檔（要在 boot 之前注入）
+  /*
+   * T-142（家長 2026-11-12，盲測 9231aa6：孩子舊篇撐得完，接著上新篇就離開，連兩版都這樣）：一天兩篇的第二篇改成「提議」。
+   * 舊篇（複習）上完 → 慶祝 → 下課的大箭頭（手指著它）→ 晚安，這就算今天上完；旁邊一本小小的「再一篇」，不搶眼、沒有手，孩子主動點才上新篇。
+   * 沒上新篇：新篇不消耗，下次進來直接上那篇新篇（不再複習同一篇），上完照常下課；再下一次才是下一次的複習。
+   */
+  test('T-142 複習上完：慶祝 → 手指著下課箭頭、旁邊一本不搶眼的書（沒有手）→ 下課、晚安；新篇不消耗；再進來直接上新篇、上完下課；隔天是下一次的複習', async ({ page }, info) => {
+    test.skip(!want('lesson-chinese-offer'))
+    test.setTimeout(8 * 60_000)
     await page.addInitScript({ path: path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'ai-toddler', 'heard.js') })
-    // 不自動點大箭頭：看選擇畫面會不會自己走掉
-    const { k, c } = await setup(page, info, '選再一篇', false, false)
+    const { k, c } = await setup(page, info, 'T142複習上完下課', false, false)
     try {
       if (!(await toChoice(k, c))) return
-      // 先慶祝一拍、選項 1.1 秒後才進來，手 2 秒後來指再一篇（T-141）
-      await k.wait(2400)
-      const b = await page.evaluate(() => ({
-        done: !!document.querySelector('.zh-between .zh-book.is-done[data-day="1"] .zh-book-check'),
-        more: !!document.querySelector('.zh-between .zh-choice-more[data-day="4"] .zh-book-new'),
-        home: !!document.querySelector('.zh-between .zh-choice-home'),
-        hand: !!document.querySelector('.zh-choice-more .demo-hand'),
-        arrow: !!document.querySelector('.next-step'),
-      }))
-      c.outcome('舊的書打勾；「再一篇」有「新」、手指著；有「回家」；沒有大箭頭', b.done && b.more && b.home && b.hand && !b.arrow, JSON.stringify(b))
-      if (!(b.done && b.more && b.home && b.hand)) await c.once('choice-look', '困惑', '選擇畫面少了打勾、「再一篇」、「回家」或手', JSON.stringify(b))
-      await shot(page, info, '中文課-舊篇上完的選擇')
-      // 亂點空白、莫莫，發呆 9 秒：不會自己走（手再指一次）。舊的書旁邊就是「再一篇」，點偏了選到再一篇是對的，所以不點它
-      k.behavior = '選擇畫面亂點、發呆'
-      await k.spam({ x: 640, y: 120 }, 3, '空白')
-      const momo = (await points(page, '.stage-host'))[0]
-      if (momo) await k.tap(momo, '莫莫')
-      await k.wait(9000)
-      const still = !!(await page.$('.zh-between'))
-      c.outcome('亂點、發呆 9 秒不會自己走', still, still ? '還在等他選' : '自己走了')
-      if (!still) await c.once('choice-auto', '困惑', '選擇畫面發呆時自己往下走了', '')
-      const heard = await page.evaluate(() => ((window as unknown as { __heard?: { name: string }[] }).__heard ?? []).filter((h) => /^zh/.test(h.name)).length)
-      c.outcome('不出聲（沒有中文音檔）', heard === 0, `${heard} 個`)
-      // 連點「再一篇」：只算一下，新篇從第一行
-      k.behavior = '連點再一篇'
-      const more = (await points(page, '.zh-choice-more'))[0]
-      if (more) await k.spam(more, 3, '再一篇')
-      const fresh = await waitFor(k, (s) => s.title === NEW_TITLE, 6000)
-      await k.wait(800)
-      const s = await state(page)
-      c.outcome('選再一篇 → 新篇從第一行', !!fresh && s.at === '0', `〈${s.title}〉第 ${s.at} 行`)
-      if (!fresh) await c.once('choice-more', '卡死', '選擇畫面點了再一篇沒有開始新篇', '')
+      // 慶祝：舊的書打勾；手來指右下角的下課箭頭（4.5 秒內），書沒有手、比舊的書小
+      let handOnArrow = false
+      for (const end = Date.now() + 4500; Date.now() < end && !handOnArrow; await page.waitForTimeout(150)) handOnArrow = await page.evaluate(handNearArrow)
+      const b = await page.evaluate(() => {
+        const r = (s: string) => document.querySelector(s)?.getBoundingClientRect() ?? null
+        return {
+          done: !!document.querySelector('.zh-between .zh-book.is-done[data-day="1"] .zh-book-check'),
+          offer: !!document.querySelector('.zh-between .zh-offer[data-day="4"]'),
+          offerHand: !!document.querySelector('.zh-offer .demo-hand'),
+          small: (r('.zh-offer')?.width ?? 999) < (r('.zh-between .zh-book.is-done')?.width ?? 0),
+          oldChoice: !!document.querySelector('.zh-choice-more, .zh-choice-home'),
+          arrow: !!document.querySelector('.next-step'),
+          hint: document.querySelector('.coplay-hint')?.textContent ?? '',
+        }
+      })
+      const ok = b.done && b.offer && !b.offerHand && b.small && !b.oldChoice && b.arrow && handOnArrow
+      c.outcome('慶祝：舊的書打勾、手指著下課箭頭；「再一篇」是一本小書、沒有手', ok, JSON.stringify({ ...b, handOnArrow, hint: undefined }))
+      if (!ok) await c.once('t142-look', '困惑', '複習上完的畫面不是「手指下課、旁邊一本不搶眼的書」', JSON.stringify({ ...b, handOnArrow }))
+      const hinted = /再點.*書/.test(b.hint)
+      c.outcome('給大人的小字寫「他想聽再點書」', hinted, b.hint)
+      if (!hinted) await c.once('t142-hint', '困惑', '複習上完的陪玩小字沒寫「他想聽再點書」', b.hint)
+      await shot(page, info, 'T142-中文-複習上完')
+      // 亂點空白、發呆：不會自己下課、不會自己上新篇
+      k.behavior = '複習上完亂點、發呆'
+      await k.spam({ x: 640, y: 150 }, 2, '空白')
+      await k.wait(5000)
+      const still = !!(await page.$('.zh-between')) && !(await page.$('.lesson-bye'))
+      c.outcome('亂點、發呆不自己走', still, still ? '還在等' : '自己走了')
+      if (!still) await c.once('t142-auto', '困惑', '複習上完的畫面自己走了', '')
+      // 孩子跟著手點下課箭頭 → 晚安道別
+      k.behavior = '點下課'
+      const n = await arrowAt(page)
+      if (n) await k.tap(n, '下課箭頭')
+      const bye = await page.waitForSelector('.lesson-bye', { timeout: 8000 }).catch(() => null)
+      c.outcome('點下課箭頭 → 晚安道別（今天上完）', !!bye, bye ? '' : '沒有晚安道別')
+      if (!bye) return void (await c.once('t142-bye', '卡死', '複習上完點下課箭頭沒有到晚安道別', ''))
+      await shot(page, info, 'T142-中文-下課')
+      const kv = {
+        log: await getKV<{ day: number }[]>(page, 'zhLesson:log'),
+        course: await getKV<{ day: number }>(page, 'zhLesson:course'),
+        done: await getKV<number[]>(page, 'zhLesson:done'),
+        old: await getKV<{ day: number; skipped: boolean; for?: number }>(page, 'zhLesson:old'),
+      }
+      const kept = kv.log?.length === 3 && kv.course?.day === 3 && !kv.done?.includes(4) && kv.old?.day === 1 && kv.old.skipped === false && kv.old.for === 4
+      c.outcome('新篇不消耗；複習記成這一次課做過了', kept, JSON.stringify({ log: kv.log?.map((x) => x.day), course: kv.course?.day, old: kv.old }))
+      if (!kept) await c.once('t142-kept', '誤記作答', '只上複習，新篇被記成上過了（或複習沒記下來）', JSON.stringify(kv))
+      const zh = await page.evaluate(() => ((window as unknown as { __heard?: { name: string }[] }).__heard ?? []).filter((h) => /^zh/.test(h.name)).length)
+      c.outcome('不出聲', zh === 0, `${zh} 個`)
+
+      // 同一天再進來：直接上新篇（不再複習）、上完下課
+      k.behavior = '同一天再進來'
+      if (!(await toHome(k, c))) return
+      if (!(await enter(k, c))) return
+      let s = await state(page)
+      c.outcome('再進來直接上新篇、從第一行，沒有「跳過舊篇」', s.title === NEW_TITLE && s.at === '0' && !(await page.$('.zh-skip-old')), `〈${s.title}〉第 ${s.at} 行`)
+      if (s.title !== NEW_TITLE) return void (await c.once('t142-again', '困惑', '複習上完再進來，又是複習', `〈${s.title}〉`))
+      if (!(await readAll(k, c))) return
+      const fin = await toBye(k)
+      c.outcome('新篇上完 → 下課', fin, fin ? '' : '沒有下課')
+      if (!fin) return void (await c.once('t142-new-done', '卡死', '複習之後的新篇上不完', ''))
+      const log = await getKV<{ date: string; day: number }[]>(page, 'zhLesson:log')
+      c.outcome('新篇上完才記一筆', log?.length === 4 && log[3].day === 4, JSON.stringify(log?.map((x) => x.day)))
+
+      // 隔天（把今天的紀錄改成前一天）：是下一次課的複習（第 2 篇），不是又複習第 1 篇、也不是又上第 4 篇
+      k.behavior = '隔天再進來'
+      if (!(await toHome(k, c))) return
+      if (log?.length === 4) await putKV(page, 'zhLesson:log', log.map((x, i) => (i === 3 ? { ...x, date: '2026-01-04' } : x)))
+      await putKV(page, 'zhLesson:course', { day: 4, runs: ['2026-01-04'] })
+      const o = await getKV<Record<string, unknown>>(page, 'zhLesson:old')
+      if (o) await putKV(page, 'zhLesson:old', { ...o, date: '2026-01-04' })
+      if (!(await enter(k, c))) return
+      s = await state(page)
+      const next = s.title !== OLD_TITLE && s.title !== NEW_TITLE && !!(await page.$('.zh-skip-old'))
+      c.outcome('隔天：下一次課的複習（第 2 篇）', next, `〈${s.title}〉`)
+      if (!next) await c.once('t142-next-day', '困惑', '隔天不是下一次課的複習（跳篇或重複）', `〈${s.title}〉`)
       await c.flush()
     } finally {
-      finish(k, c, '選再一篇')
+      finish(k, c, 'T142複習上完下課')
     }
   })
 
-  for (const how of ['回家', '返回鍵'] as const)
-    test(`舊篇上完的選擇畫面按${how}（T-140）：回首頁，這次只算上完舊篇，新篇不消耗；再進來是同一篇新篇`, async ({ page }, info) => {
-      test.skip(!want('lesson-chinese-home'))
-      test.setTimeout(6 * 60_000)
-      const { k, c } = await setup(page, info, `選擇畫面${how}`, false, false)
-      try {
-        if (!(await toChoice(k, c))) return
-        // 選項 1.1 秒後才進來（T-141：先慶祝一拍），之前點了不算
-        await k.wait(1800)
-        k.behavior = `選擇畫面按${how}`
-        if (how === '回家') {
-          const h = (await points(page, '.zh-choice-home'))[0]
-          if (h) await k.spam(h, 2, '回家')
-        } else {
-          const h = await homeButton(page)
-          if (h) await pressBack(k, h, `選擇畫面：${h.label}`)
-        }
-        const live = await waitLive(page, (l) => l === 'home', 6000)
-        c.outcome(`按${how} → 首頁`, live === 'home', `到 ${live}`)
-        if (live !== 'home') return void (await c.once(`choice-${how}`, '無法返回', `選擇畫面按${how}沒有回首頁`, `停在 ${live}`))
-        // 新篇不消耗：上課紀錄、排課、上過的篇都沒有多新篇；舊篇記成上完
-        const log = await getKV<{ day: number }[]>(page, 'zhLesson:log')
-        const course = await getKV<{ day: number; runs: string[] }>(page, 'zhLesson:course')
-        const done = await getKV<number[]>(page, 'zhLesson:done')
-        const old = await getKV<{ day: number; skipped: boolean }>(page, 'zhLesson:old')
-        const kept = log?.length === 3 && course?.day === 3 && !done?.includes(4) && old?.day === 1 && old.skipped === false
-        c.outcome('新篇不消耗（紀錄沒有多一筆、排課沒有往前），舊篇記成上完', kept, JSON.stringify({ log: log?.map((x) => x.day), course, done, old }))
-        if (!kept) await c.once(`choice-${how}-kept`, '誤記作答', `選擇畫面按${how}，新篇被記成上過了`, JSON.stringify({ log: log?.map((x) => x.day), course, done }))
-        // 再進來：舊篇今天上完了，直接是同一篇新篇（從第一行）
-        if (!(await enter(k, c))) return
-        const s = await state(page)
-        c.outcome('再進來：還是同一篇新篇', s.title === NEW_TITLE && s.at === '0', `〈${s.title}〉第 ${s.at} 行`)
-        if (s.title !== NEW_TITLE) await c.once(`choice-${how}-again`, '困惑', `選擇畫面按${how}之後再進來，不是同一篇新篇`, `〈${s.title}〉`)
-        await c.flush()
-      } finally {
-        finish(k, c, `選擇畫面${how}`)
-      }
-    })
+  test('T-142 進度不卡住：複習上完按返回再進來是新篇；新篇上到一半離開，隔天再進來還是那篇新篇（不再複習、不跳篇）', async ({ page }, info) => {
+    test.skip(!want('lesson-chinese-home'))
+    test.setTimeout(7 * 60_000)
+    const { k, c } = await setup(page, info, 'T142進度不卡住', false, false)
+    try {
+      if (!(await toChoice(k, c))) return
+      await k.wait(1500)
+      // 複習上完的畫面按返回 → 首頁；再進來直接上新篇
+      k.behavior = '複習上完按返回'
+      const h = await homeButton(page)
+      if (h) await pressBack(k, h, `複習上完：${h.label}`)
+      const live = await waitLive(page, (l) => l === 'home', 6000)
+      c.outcome('按返回 → 首頁', live === 'home', `到 ${live}`)
+      if (live !== 'home') return void (await c.once('t142-back', '無法返回', '複習上完按返回沒有回首頁', `停在 ${live}`))
+      const old = await getKV<{ day: number; for?: number }>(page, 'zhLesson:old')
+      c.outcome('複習記下來了（新篇第 4 篇的這一次）', old?.day === 1 && old.for === 4, JSON.stringify(old))
+      if (!(await enter(k, c))) return
+      let s = await state(page)
+      c.outcome('再進來：新篇', s.title === NEW_TITLE && s.at === '0', `〈${s.title}〉第 ${s.at} 行`)
+      if (s.title !== NEW_TITLE) await c.once('t142-back-again', '困惑', '複習上完按返回再進來，又是複習', `〈${s.title}〉`)
+      // 新篇上到一半離開 → 隔天（複習的紀錄改成前一天）再進來：還是那篇新篇，從第一行
+      k.behavior = '新篇上到一半離開、隔天再進來'
+      await adult(k, '.zh-next', '下一行（大人）')
+      if (!(await toHome(k, c))) return
+      const o = await getKV<Record<string, unknown>>(page, 'zhLesson:old')
+      if (o) await putKV(page, 'zhLesson:old', { ...o, date: '2026-01-03' })
+      if (!(await enter(k, c))) return
+      s = await state(page)
+      c.outcome('隔天再進來：還是那篇新篇（不再複習同一篇）', s.title === NEW_TITLE && s.at === '0' && !(await page.$('.zh-skip-old')), `〈${s.title}〉第 ${s.at} 行`)
+      if (s.title !== NEW_TITLE) await c.once('t142-next-day-new', '困惑', '沒上新篇，隔天又先複習同一篇', `〈${s.title}〉`)
+      const log = await getKV<{ day: number }[]>(page, 'zhLesson:log')
+      c.outcome('還沒上完新篇：紀錄沒有多', log?.length === 3, JSON.stringify(log?.map((x) => x.day)))
+      await c.flush()
+    } finally {
+      finish(k, c, 'T142進度不卡住')
+    }
+  })
 
   test('親子共讀走完一堂：說明卡、大人還沒按下一行時亂點、連點下一行、聊一聊、連點選項，下課', async ({ page }, info) => {
     test.skip(!want('lesson-chinese-play'))
@@ -1114,30 +1190,17 @@ test.describe('中文課', () => {
    * 舊篇上完 → 選擇畫面（手要兩邊都指，不只指再一篇）→ 點再一篇 → 先喘口氣（新的書打開來）→ 新篇念故事：
    * 上面的進度從空的開始，每一行他點了亮的圖，就有一顆星飛上去（看得到進度）。全程不出聲。
    */
-  test('T-141 一天兩篇：選擇畫面手兩邊都指、點再一篇先喘口氣、新篇念故事時點亮的圖會換到進度的星星（進度從空的開始）、不出聲', async ({ page }, info) => {
+  test('T-141 一天兩篇：點再一篇先喘口氣、新篇念故事時點亮的圖會換到進度的星星（進度從空的開始）、不出聲', async ({ page }, info) => {
     test.skip(!want('lesson-chinese-t141'))
     test.setTimeout(7 * 60_000)
     await page.addInitScript({ path: path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'ai-toddler', 'heard.js') })
     const { k, c } = await setup(page, info, 'T141新篇有事做', false, false)
     try {
       if (!(await toChoice(k, c))) return
-      // 選擇畫面：手輪流指「再一篇」和「回家」（盲測兩輪都只看到手指著再一篇）
-      const t0 = Date.now()
-      let more = 0
-      let home = 0
-      while (Date.now() - t0 < 10_000 && !(more && home)) {
-        const h = await page.evaluate(() => ({ more: !!document.querySelector('.zh-choice-more .demo-hand'), home: !!document.querySelector('.zh-choice-home .demo-hand') }))
-        if (h.more && !more) more = Date.now() - t0
-        if (h.home && !home) home = Date.now() - t0
-        await page.waitForTimeout(120)
-      }
-      c.outcome('選擇畫面：手兩邊都指（再一篇、回家）', more > 0 && home > 0, `再一篇 ${(more / 1000).toFixed(1)} 秒、回家 ${(home / 1000).toFixed(1)} 秒`)
-      if (!(more && home)) await c.once('t141-hand-both', '困惑', '選擇畫面的手只指一邊（孩子只會跟著手點）', `再一篇 ${more}ms、回家 ${home}ms`)
-      await shot(page, info, 'T141-中文-選擇畫面')
-
-      // 孩子跟著手點「再一篇」（盲測兩輪都是）→ 先喘口氣：新的書打開來，一下下才開始念；這時候亂點不會跳過、不會卡住
+      await k.wait(1500)
+      // 孩子主動點旁邊的書「再一篇」（T-142 起是提議）→ 先喘口氣：新的書打開來，一下下才開始念；這時候亂點不會跳過、不會卡住
       k.behavior = '點再一篇'
-      const m = (await points(page, '.zh-choice-more'))[0]
+      const m = (await points(page, '.zh-between .zh-offer'))[0]
       if (m) await k.tap(m, '再一篇')
       let breath = false
       for (let i = 0; i < 25 && !breath; i++) {

@@ -2,7 +2,7 @@
 // 排課規則（一天兩篇：一舊一新、照上過幾次走，T-136）在 ./course.ts。
 import { getKV, setKV, today } from '../../lib/db'
 import { ZH_TEXTS, type ZhText } from './data'
-import { applyPick, current, finishRun, logSession, migrate, planOf, seedLog, undoPick, type Course, type Plan, type Session } from './course'
+import { applyPick, current, finishRun, logSession, migrate, planOf, reviewDone, seedLog, undoPick, type Course, type OldMark, type Plan, type Session } from './course'
 import { GLYPH_START, afterGlyph, type GlyphState } from './match'
 
 /** 上過至少一次的篇（day 的陣列）：紅字算教過了（data.ts 的 questionsOf），家長區的「上過幾篇」 */
@@ -21,7 +21,7 @@ const PICK_KEY = 'zhLesson:pick'
  * 新加的 key，舊版不讀；沒有的話從 zhLesson:done 推算（seedLog）。
  */
 const LOG_KEY = 'zhLesson:log'
-/** 今天的舊篇上完或跳過了：{ date, day, skipped }（離開再回來直接上新篇） */
+/** 這一次課的舊篇（複習）上完或跳過了：{ date, day, skipped, for: 那時的新篇 }（course.ts 的 OldMark；下次進來直接上新篇，T-142） */
 const OLD_KEY = 'zhLesson:old'
 
 type Pick = { date: string; day: number } | null
@@ -62,17 +62,17 @@ export async function lessonToday(): Promise<{ t: ZhText; n: number }> {
 /** 中文課這一堂：新篇、舊篇（今天上完或跳過了的話 oldDone）、結尾小複習的篇 */
 export async function lessonPlan(): Promise<{ t: ZhText; n: number; old: ZhText | null; oldDone: boolean; review: ZhText[] }> {
   const date = today()
-  const [r, o] = await Promise.all([plan(date), getKV<{ date: string; day: number } | null>(OLD_KEY, null)])
+  const [r, o] = await Promise.all([plan(date), getKV<OldMark | null>(OLD_KEY, null)])
   const old = r.old == null ? null : textOf(r.old)
-  return { t: textOf(r.day), n: r.n, old, oldDone: !!old && o?.date === date && o.day === old.day, review: r.review.map(textOf) }
+  return { t: textOf(r.day), n: r.n, old, oldDone: reviewDone(o, r, date), review: r.review.map(textOf) }
 }
 
-/** 舊篇上完（或大人跳過）：今天再進來直接上新篇；上完的算這一篇多上一次（家長區） */
+/** 舊篇上完（或大人跳過）：這一次課的複習做過了，再進來（同一天或隔天）直接上新篇（T-142）；上完的算這一篇多上一次（家長區） */
 export async function markOld(day: number, skipped: boolean) {
   const date = today()
-  const o = await getKV<{ date: string; day: number } | null>(OLD_KEY, null)
-  if (o?.date === date && o.day === day) return
-  await setKV(OLD_KEY, { date, day, skipped })
+  const [o, r] = await Promise.all([getKV<OldMark | null>(OLD_KEY, null), plan(date)])
+  if (o?.day === day && reviewDone(o, r, date)) return
+  await setKV(OLD_KEY, { date, day, skipped, for: r.day } satisfies OldMark)
   if (skipped) return
   const times = Object.fromEntries(await timesByDay())
   times[day] = (times[day] ?? 0) + 1
@@ -82,11 +82,16 @@ export async function markOld(day: number, skipped: boolean) {
 /** 今天上的那一篇（下課後的「現在去做」用） */
 export const todays = async () => (await lessonToday()).t
 
-/** 家長區：今天的新篇、舊篇、結尾小複習，新篇是不是家長今天挑的 */
-export async function todayRun(): Promise<Plan & { picked: boolean }> {
+/**
+ * 家長區：今天的新篇、舊篇、結尾小複習，新篇是不是家長今天挑的；
+ * 今天上的是複習還是新篇（T-142）：oldDone 這一次課的複習做過了（oldToday：今天做的）、newToday 新篇今天上完了
+ */
+export async function todayRun(): Promise<Plan & { picked: boolean; oldDone: boolean; oldToday: boolean; newToday: boolean }> {
   const date = today()
-  const r = await plan(date)
-  return { ...r, picked: r.course.picked === date }
+  const [r, o] = await Promise.all([plan(date), getKV<OldMark | null>(OLD_KEY, null)])
+  const oldDone = reviewDone(o, r, date)
+  const log = await sessions(r.course, date)
+  return { ...r, picked: r.course.picked === date, oldDone, oldToday: oldDone && o?.date === date, newToday: log.some((s) => s.date === date && s.day === r.day) }
 }
 
 /** 家長挑「今天上這篇」；null 是改回原本那篇（只有今天挑的才改得回去） */

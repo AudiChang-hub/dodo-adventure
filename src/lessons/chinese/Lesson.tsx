@@ -12,7 +12,7 @@ import type { LessonProps } from '../types'
 import { type ZhText } from './data'
 import { stepsOf, weight, type Part, type Step } from './steps'
 import { doneDays, glyphState, lessonPlan, markDone, markOld, saveGlyph } from './progress'
-import { NEXT_HINT, nextStep, useNextPending } from '../../ui/NextStep'
+import { NEXT_HINT, cancelNextStep, nextStep, useNextPending } from '../../ui/NextStep'
 import { Reader } from './Reader'
 import { Between, Breath } from './Between'
 import { Quiz } from './Quiz'
@@ -33,8 +33,10 @@ export type HostTap = { current: (() => void) | null }
 /** 選圖的張數寫成國字（畫面上有幾張就寫幾張：教過的字詞不夠時只有兩張） */
 const COUNT = ['零', '一', '兩', '三', '四']
 
-/** 舊篇上完、新篇開始之前（Between）的陪玩小字 */
-const BETWEEN_HINT = '舊篇上完了！問他「要不要再聽一個新的故事？」讓他自己選：點書是再一篇，點房子是回家（新篇留到下次）。'
+/** 複習上完（Between，T-142）的陪玩小字 */
+const BETWEEN_HINT = '複習上完了，今天這樣就算上完！請他點右下角的大箭頭下課。他想聽新的故事，再點旁邊的書；不點也沒關係，新的一篇留到下次，下次直接上。'
+/** 複習上完：慶祝這麼久，下課的大箭頭才出來（手指著它） */
+const CHEER_BEAT_MS = 1200
 /** 喘口氣（T-141）的陪玩小字 */
 const BREATH_HINT = '新的一篇要開始了，先跟他一起深呼吸一下，書打開就開始念。'
 
@@ -57,16 +59,16 @@ function hintOf(s: Step | 'intro', talk: boolean, demo: boolean, hadOld: boolean
     )
   if (s.k === 'quiz') return `${tag}念題目給他聽：「哪個是〇〇？」再指著${COUNT[s.q.options.length] ?? s.q.options.length}張有黃框的圖說「點一下」。點錯會有提示，不用幫他點。`
   if (talk) return `${tag}照下面的小字條問他，指著圖等他回答；答不出來就照字條說一次給他聽。右下角的「${s.go}」過幾秒才按得動。`
-  if (s.part === 'old') return '複習舊篇：念到這行時，請他點亮起來的圖；一行一行念，念完按右下「下一行」。他累了可以按右邊的「跳過舊篇」。'
+  if (s.part === 'old') return '複習舊篇：念到這行時，請他點亮起來的圖；一行一行念，念完按右下「下一行」。上完就下課，他想聽新的再點書。'
   return `${hadOld ? '新的一篇：' : ''}念到這行時，請他點亮起來的圖（點了圖會動、不出聲）。指著字一行一行念，念完一行按右下「下一行」。`
 }
 
 /**
- * 中文課的一堂（親子共讀，2026-11-03：App 不出聲，大人念給孩子聽）。家長 2026-11-11 定案（T-136）：一天兩篇，一舊一新：
- * 第一次進來先給大人一張說明 → 舊篇（3 次前上的那篇，跟原本的課一樣完整；右上角大人可以跳過）
+ * 中文課的一堂（親子共讀，2026-11-03：App 不出聲，大人念給孩子聽）。先複習、新篇是提議（T-136、T-142，規則在 course.ts）：
+ * 第一次進來先給大人一張說明 → 舊篇（複習：3 次前上的那篇，跟原本的課一樣完整；右上角大人可以跳過）
+ * → 複習上完：慶祝、下課的大箭頭（點了就 onDone，今天上完），旁邊一本不搶眼的書，孩子主動點了才上新篇
  * → 新篇（念課文 → 聊一聊 → 選圖每個紅字一題 → 找一樣的字）→ 結尾小複習（前 1 次、前 7 次上的各一題）→ 上完叫 onDone。
- * 英文故事（screens/story/en-book.ts）用同一份排課（course.ts 的 planOf），先舊後新也一樣。
- * 排課在 course.ts；前 3 次沒有舊篇、小複習那一次還沒有就略過。舊篇上完或跳過了，今天離開再回來直接上新篇（progress.ts 的 markOld）。
+ * 前 3 次沒有舊篇、小複習那一次還沒有就略過。這一次課的複習做過了（progress.ts 的 markOld），再進來直接上新篇。
  * 兩段之間、每一題之間都是原地淡入淡出（ui/Scenes 的 Swap），沒有打斷課程的整頁卡片。
  */
 export function ChineseLessonBody({ onDone }: LessonProps) {
@@ -85,8 +87,10 @@ export function ChineseLessonBody({ onDone }: LessonProps) {
   const host: HostTap = useRef(null)
   const taught = useRef(false)
   const skipLock = useRef(0)
-  /** 舊篇上完、讓他選「再一篇」還是「回家」的畫面（T-140）；選再一篇要去的那一步 */
+  /** 複習上完的畫面（T-142：下課的大箭頭、旁邊一本「再一篇」的書）；點書要去的那一步 */
   const [between, setBetween] = useState<number | null>(null)
+  /** 孩子點了「再一篇」的書（下課的大箭頭不再算） */
+  const offered = useRef(false)
   /** 新的一篇開始前喘口氣（T-141）：喘完要去的那一步、是不是大人跳過舊篇來的 */
   const [breath, setBreath] = useState<{ i: number; skipped: boolean } | null>(null)
 
@@ -171,18 +175,26 @@ export function ChineseLessonBody({ onDone }: LessonProps) {
     enter(i)
   }
   /**
-   * 舊篇上完（T-140，盲測 73d57c7：兩篇中間沒有停頓，孩子第 2 篇一半就走了；家長：「一天兩篇的用意是在複習，如果可以取得平衡也可以」）：
-   * 莫莫歡呼、完成的音效，換到選擇畫面（./Between.tsx）：「再一篇」（新篇的書，手指著，預設）或「回家」（小房子）。
-   * 再一篇：上新篇。回家（返回鍵也一樣）：這次只算上完舊篇，新篇不消耗、不記上完（markDone 不叫），下次進來還是這一篇（course.ts）。
+   * 複習（舊篇）上完（T-142，家長 2026-11-12：第二篇改成提議；盲測 9231aa6：孩子舊篇撐得完，接著上新篇就離開，連兩版都這樣）：
+   * 莫莫歡呼、完成的音效，換到複習上完的畫面（./Between.tsx：舊篇的書打勾）；慶祝一拍後右下角出現下課的大箭頭（手指著它），
+   * 點了就下課、晚安，今天就算上完——新篇不消耗（markDone 不叫），這一次課的複習記下來，下次進來直接上新篇（course.ts 的 reviewDone）。
+   * 旁邊一本不搶眼的書：孩子主動點了才上新篇（more）。
    */
-  const toNew = (i: number) => {
+  const toNew = async (i: number) => {
     if (old) void markOld(old.day, false)
     setMood('cheer')
     sfx.done()
     setBetween(i)
+    await new Promise((r) => window.setTimeout(r, CHEER_BEAT_MS))
+    if (!live.current || offered.current) return
+    if (!(await nextStep({ cue: true })) || !live.current || offered.current) return
+    setMood('idle')
+    onDone()
   }
   const more = () => {
-    if (between == null) return
+    if (between == null || offered.current) return
+    offered.current = true
+    cancelNextStep()
     setMood('happy')
     const i = between
     setBetween(null)
@@ -228,7 +240,7 @@ export function ChineseLessonBody({ onDone }: LessonProps) {
           {breath ? (
             <Breath t={t} onDone={breathed} />
           ) : between != null && old ? (
-            <Between old={old} t={t} onMore={more} onHome={leaveLesson} />
+            <Between old={old} t={t} onMore={more} />
           ) : at === 'intro' || !s ? (
             <Intro onStart={start} />
           ) : s.k === 'read' ? (
@@ -271,7 +283,7 @@ function Intro({ onStart }: { onStart: () => void }) {
             <b>一行一行念</b>：畫面一次亮一行，你指著字念，念完按右下「下一行」。念到的那一行，圖會放大、亮起來，請他點；點了圖會動。
           </li>
           <li>
-            <b>一天兩篇，一舊一新</b>：先複習 3 次前上的那篇（跟第一次上的一樣），再上新的一篇。他累了，右上角可以跳過舊篇。
+            <b>先複習，新的看他要不要</b>：先複習 3 次前上的那篇（跟第一次上的一樣），上完就下課。他還想聽，再點旁邊的書上新的一篇；不點的話，下次直接上新的。
           </li>
           <li>
             <b>念完聊一聊</b>：卡片上有一個問題（誰、什麼、哪裡），問他、等他回答；答不出來，卡片上有一句你可以說給他聽。

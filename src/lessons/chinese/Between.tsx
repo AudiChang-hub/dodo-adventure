@@ -1,7 +1,5 @@
-import { useEffect, useRef, useState } from 'react'
-import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
-import { HomeIcon } from '../../games/Shell'
-import { Hand } from '../../games/Demo'
+import { useEffect, useRef } from 'react'
+import { motion, useReducedMotion } from 'motion/react'
 import { sfx } from '../../lib/audio'
 import { useTaps } from '../../ui/tap'
 import { Sparkles } from '../../ui/Sparkles'
@@ -12,61 +10,40 @@ import { Pic } from './Pic'
 /** 一篇的封面圖：第一行的第一張圖 */
 const coverOf = (t: ZhText) => t.emoji[linePics(t)[0]?.[0]?.word ?? t.redWords[0]] ?? null
 
-/**
- * 慶祝先自己一拍（T-141，AI 小男生盲測 c9bb003：舊篇上完、選擇一起跳出來，孩子跟著手就點了再一篇，沒有停一下）：
- * 舊篇的書打勾、撒星星、莫莫歡呼，這麼久之後兩個選項才進來
- */
-const CHOICE_IN_S = 1.1
-/**
- * 手：先指「再一篇」，再指「回家」（T-141：以前只指再一篇，兩輪孩子都跟著手點了再一篇、新篇一半就走了。
- * 兩個都是可以選的，手兩邊都指，讓他自己選），之後每 8 秒（PHASE-7 小班段）再輪一次；絕不自己往下（T-118）
- */
-const HAND_MS = 2000
-const HAND_SWAP_MS = 2400
-const HAND_AGAIN_MS = 8000
-/** 選項進來之前點了不算（舊篇最後一題連點的手指、慶祝時亂點，不會一下就選掉） */
+/** 「再一篇」的書多久之後才淡淡地出現（先慶祝，T-141）；出現之前點了不算（舊篇最後一題連點的手指不會一下就點到） */
+const OFFER_IN_S = 1.1
 const ARM_MS = 1300
-type HandAt = { at: 'more' | 'home'; n: number }
 
 /**
- * 舊篇上完（T-140，AI 小男生盲測 73d57c7：兩篇中間沒有停頓，孩子第 2 篇一半就走了。家長：「一天兩篇的用意是在複習，如果可以取得平衡也可以」）：
- * 先慶祝（舊篇的書打勾、撒星星，莫莫歡呼），停一拍，再讓他自己選——
- * - 大的「再一篇」：新的一篇的書（亮黃框、角上「新」）；
- * - 「回家」：小房子（跟返回鍵一樣：這次只算上完舊篇，新篇不消耗，下次還是這一篇，course.ts）。
- * 手兩邊輪流指（T-141）。沒有字、不出聲（中文課不出聲）。他不選就一直等，手每 8 秒再輪一次，不自己往下。
+ * 複習（舊篇）上完（T-142，家長 2026-11-12：第二篇改成提議；盲測 9231aa6：孩子舊篇撐得完，接著上新篇就離開，連兩版都這樣）：
+ * 慶祝——舊篇的書在中間打勾、撒星星，莫莫歡呼——接著右下角出現下課的大箭頭（ui/NextStep，手指著它，Lesson 叫的），點了就下課、晚安，今天就算上完。
+ * 旁邊一本小小的新書（「再一篇」）：淡淡的、沒有黃框、沒有「新」、沒有手、不會跳，看得到但不搶眼；孩子主動點了才上新篇（先喘口氣）。
+ * 沒有字、不出聲（中文課不出聲）。他不點就一直等，不自己下課、不自己上新篇。
  */
-export function Between({ old, t, onMore, onHome }: { old: ZhText; t: ZhText; onMore: () => void; onHome: () => void }) {
+export function Between({ old, t, onMore }: { old: ZhText; t: ZhText; onMore: () => void }) {
   const still = useReducedMotion()
   const tap = useTaps()
-  const [hand, setHand] = useState<HandAt | null>(null)
   const at = useRef(performance.now())
   const chosen = useRef(false)
   const a = coverOf(old)
   const b = coverOf(t)
-  useEffect(() => {
-    const ts: number[] = []
-    const round = (first: number) => {
-      ts.push(window.setTimeout(() => setHand((h) => ({ at: 'more', n: (h?.n ?? 0) + 1 })), first))
-      ts.push(window.setTimeout(() => setHand((h) => ({ at: 'home', n: (h?.n ?? 0) + 1 })), first + HAND_SWAP_MS))
-    }
-    round(HAND_MS)
-    const again = window.setInterval(() => round(0), HAND_AGAIN_MS)
-    return () => (ts.forEach(clearTimeout), clearInterval(again))
-  }, [])
-  /** 選了：只算一次（連點、兩根手指）；選項還沒進來的那一下不算 */
-  const choose = (f: () => void) => () => {
+  const more = () => {
     if (chosen.current || performance.now() - at.current < ARM_MS) return
     chosen.current = true
-    setHand(null)
     sfx.tap()
-    f()
+    onMore()
   }
-  const inAt = still ? 0 : CHOICE_IN_S
   return (
-    <div className="zh-between" data-between="">
+    <div className="zh-between" data-between="" data-old-done="">
       <div className="zh-between-row">
         {/* 上完了：舊篇的書打勾、撒星星（看的，不是按鈕） */}
-        <div className="zh-book is-done" data-day={old.day}>
+        <motion.div
+          className="zh-book is-done"
+          data-day={old.day}
+          initial={still ? false : { scale: 0.9 }}
+          animate={still ? {} : { scale: [0.9, 1.06, 1] }}
+          transition={{ duration: 0.7, ease: EASE.out }}
+        >
           <span className="zh-book-pic">{a && <Pic name={a} />}</span>
           <span className="zh-book-title">{old.title}</span>
           <motion.span
@@ -81,37 +58,19 @@ export function Between({ old, t, onMore, onHome }: { old: ZhText; t: ZhText; on
             </svg>
           </motion.span>
           <Sparkles count={16} />
-        </div>
-        {/* 再一篇：新的一篇的書 */}
+        </motion.div>
+        {/* 再一篇（提議）：一本小小的新書，淡淡的，孩子主動點才上 */}
         <motion.button
           type="button"
-          className="zh-book is-new zh-choice-more"
+          className="zh-offer"
           data-day={t.day}
           aria-label="再一篇"
-          initial={still ? false : { x: 60, opacity: 0 }}
-          animate={{ x: 0, opacity: 1 }}
-          transition={{ duration: 0.6, ease: EASE.out, delay: inAt }}
-          {...tap('more', choose(onMore))}
+          initial={still ? false : { opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ duration: 0.8, ease: EASE.out, delay: still ? 0 : OFFER_IN_S }}
+          {...tap('more', more)}
         >
-          <span className="zh-book-pic">{b && <Pic name={b} />}</span>
-          <span className="zh-book-title">{t.title}</span>
-          <span className="zh-book-new" aria-hidden="true">
-            新
-          </span>
-          <AnimatePresence>{hand?.at === 'more' && <Hand key="hand" x={60} y={60} tap={hand.n} size="38%" />}</AnimatePresence>
-        </motion.button>
-        {/* 回家：小房子（跟返回鍵一樣） */}
-        <motion.button
-          type="button"
-          className="zh-choice-home"
-          aria-label="回家"
-          initial={still ? false : { scale: 0.6, opacity: 0 }}
-          animate={{ scale: 1, opacity: 1 }}
-          transition={{ type: 'spring', stiffness: 260, damping: 20, delay: inAt + 0.3 }}
-          {...tap('home', choose(onHome))}
-        >
-          <HomeIcon />
-          <AnimatePresence>{hand?.at === 'home' && <Hand key="hand" x={62} y={62} tap={hand.n} size="70%" />}</AnimatePresence>
+          <span className="zh-offer-pic">{b && <Pic name={b} />}</span>
         </motion.button>
       </div>
     </div>

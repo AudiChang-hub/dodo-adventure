@@ -1,4 +1,4 @@
-import { Suspense, lazy, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
+import { Suspense, lazy, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react'
 import { Dino } from '../art/Dino'
 import { BackButton } from '../ui/Back'
 import { StoryPic } from '../ui/StoryPic'
@@ -31,8 +31,8 @@ import './story.css'
 
 // 故事時間的英文版課文（T-129）：跟著中文課文 180 篇分開載入
 const EnBook = lazy(() => import('./story/EnBook'))
-/** 舊篇講完、換新篇的畫面（T-140） */
-const EnNext = lazy(() => import('./story/EnNext').then((m) => ({ default: m.EnNext })))
+/** 複習（舊篇）講完的「再一篇」：讀完了旁邊一本不搶眼的新書（T-142） */
+const EnOffer = lazy(() => import('./story/EnNext').then((m) => ({ default: m.EnOffer })))
 type EnShelf = { today: EnBookRow | null; heard: EnBookRow[]; from: number }
 /** 載入失敗（離線又沒有快取）：書架照樣出來，只是沒有英文版 */
 const loadEnShelf = (): Promise<EnShelf> =>
@@ -103,7 +103,8 @@ interface Motion {
 /**
  * 我的故事書（T-77：像學校的故事時間）：
  * - 故事時間先講今天中文課那一篇的英文版（T-129，家長選 A；./story/EnBook.tsx）：一篇 4 句、一句一頁，每句講完等他點一下才講下一句。
- *   一天兩篇、一舊一新（T-136，跟中文課同一份排課）：先講 3 次前那篇的英文版、講完直接接新篇（大人可以跳過舊篇），兩篇聽完都收進書架。
+ *   先複習、新篇是提議（T-136、T-142，跟中文課同一份排課，規則在 lessons/chinese/course.ts）：先講 3 次前那篇的英文版，講完照常「讀完了」，
+ *   旁邊一本不搶眼的新書，孩子主動點了才講新篇（大人可以跳過舊篇，直接講新篇）；聽完的都收進書架。
  *   今天還沒聽完就自動開始；聽完了進來是書架。以前的故事（會動的繪本、每週新故事）照樣在書架上，點了才講。
  * - 以前的故事：今天有還沒講完的新章節，書架上那一本亮著（lib/story.ts 的 todaysStory）；講完有「讀完了」，可以再聽一次或回書架，這一本收進書架。
  * - 中途按返回：回書架，新章節的書在最前面亮著；下次進來（或點那本書）從離開的那一句接著講，講到最後才算講完。
@@ -129,7 +130,7 @@ export function StoryBook() {
   const [en, setEn] = useState<EnShelf | null>(null)
   const [enOpen, setEnOpen] = useState<EnOpen | null>(null)
   const [enDone, setEnDone] = useState<EnBookRow | null>(null)
-  /** 今天的舊篇講完了、等他點新的書（T-140） */
+  /** 今天的舊篇（複習）講完了：照常讀完了，旁邊一本不搶眼的新書，他主動點才講（T-142） */
   const [enNext, setEnNext] = useState<{ old: EnBookRow; o: EnOpen } | null>(null)
   const backing = useRef(false)
   const run = useRef(0)
@@ -207,7 +208,7 @@ export function StoryBook() {
       if (run.current !== me) return
       setEn(e)
       if (e.today?.isNew && e.today.day !== row.day) {
-        // 大人跳過：直接講新篇；講完舊篇：先慶祝、出「新的故事」的畫面，點新的書才講（T-140，盲測 73d57c7：中間沒有停頓）
+        // 大人跳過：直接講新篇；講完舊篇（T-142，第二篇是提議）：照常「讀完了」，旁邊一本不搶眼的新書，他主動點才講
         if (skipped) return startEn({ row: e.today, from: e.from })
         setEnOpen(null)
         return setEnNext({ old: row, o: { row: e.today, from: e.from } })
@@ -351,7 +352,7 @@ export function StoryBook() {
   }
 
   const move = (): SceneMove => ({ back: backing.current })
-  const id = enOpen ? `en-${enOpen.row.day}` : enNext ? `ennext-${enNext.o.row.day}` : enDone ? `endone-${enDone.day}` : !open ? 'shelf' : done ? `done-${open.r.id}` : `replay-${open.r.id}`
+  const id = enOpen ? `en-${enOpen.row.day}` : enNext ? `endone-${enNext.old.day}` : enDone ? `endone-${enDone.day}` : !open ? 'shelf' : done ? `done-${open.r.id}` : `replay-${open.r.id}`
 
   return (
     <div className="screen book-screen" data-world={world?.id ?? undefined}>
@@ -374,9 +375,18 @@ export function StoryBook() {
             />
           </Suspense>
         ) : enNext ? (
-          <Suspense fallback={<BookBack onClose={toShelf} />}>
-            <EnNext old={enNext.old} next={enNext.o.row} back={<BookBack onClose={toShelf} />} onGo={() => startEn(enNext.o)} />
-          </Suspense>
+          <DoneView
+            pic={enNext.old.pic as Pic}
+            host="momo"
+            plain={!!world}
+            onAgain={() => pickEn({ ...enNext.old, isNew: false })}
+            onShelf={toShelf}
+            offer={
+              <Suspense fallback={null}>
+                <EnOffer next={enNext.o.row} onGo={() => startEn(enNext.o)} />
+              </Suspense>
+            }
+          />
         ) : enDone ? (
           <DoneView pic={enDone.pic as Pic} host="momo" plain={!!world} onAgain={() => pickEn({ ...enDone, isNew: false })} onShelf={toShelf} />
         ) : open && done ? (
@@ -534,6 +544,7 @@ function DoneView({
   plain,
   onAgain,
   onShelf,
+  offer,
 }: {
   pic: Pic
   tint?: string
@@ -542,6 +553,8 @@ function DoneView({
   plain?: boolean
   onAgain: () => void
   onShelf: () => void
+  /** 複習講完的「再一篇」（T-142，./story/EnNext.tsx 的 EnOffer）：一本不搶眼的新書 */
+  offer?: ReactNode
 }) {
   const [badge, bounce] = useAnimate<HTMLSpanElement>()
   const [again, spin] = useAnimate<HTMLSpanElement>()
@@ -610,6 +623,7 @@ function DoneView({
           <ShelfIcon />
         </button>
       </div>
+      {offer}
     </div>
   )
 }
