@@ -185,9 +185,10 @@ async function answer(k: Toddler, wrongFirst: boolean) {
   })
   if (!opts.length) return false
   const L = await page.evaluate(() => (window as unknown as { __enL?: string }).__enL ?? null)
-  const words = await page.evaluate(() => (window as unknown as { __enWords?: string[] }).__enWords ?? [])
+  // 聽字找圖（T-147）：要找的字在豆豆頭上泡泡的 data-word
+  const word = await page.evaluate(() => document.querySelector('.en-ask-in[data-word]')?.getAttribute('data-word') ?? null)
   // 大寫題的陪襯可能是同一個字母的小寫（教過的才當陪襯）：照題型比對
-  const right = opts.find((o) => (kind === 'big' ? o.label === L : kind === 'little' ? o.label === L?.toLowerCase() : words.includes(o.label)))
+  const right = opts.find((o) => (kind === 'big' ? o.label === L : kind === 'little' ? o.label === L?.toLowerCase() : o.label === word))
   if (wrongFirst || !right) {
     const wrong = opts.find((o) => o !== right)!
     await k.tap(wrong, `選錯 ${wrong.label}`)
@@ -920,15 +921,26 @@ test.describe('英文字母課', () => {
       }
       const toWords = await waitStage(page, 'words', 30_000)
       c.outcome('描完大小寫到單字', toWords, toWords ? '' : `停在 ${await stageOf(page)}`)
+      // T-149 E1：描好了，慶祝之前念一次字母名（S…）。只看有沒有念到（筆帶著描完的那一種念的是 Big S.）
+      const named = await page.evaluate((L) => window.__toddler.voices.some((v) => (v.text ?? '').trim() === `${L}…`), L)
+      c.outcome('描好了念一次字母名（E1）', named, `${L}…`)
       await c.flush()
 
       // 3. 單字：一直點圖
       k.behavior = '單字亂點'
       await page.waitForTimeout(2500)
       await shot(page, '5-單字', info)
+      // T-149 E3：陪玩小字是代表字的生活連結（不是只有「跟他一起說」）
+      const tip = await page.evaluate(() => document.querySelector('.en-coplay')?.textContent ?? '')
+      c.outcome('單字的陪玩小字是生活連結（E3）', tip.length > 6 && !/跟他一起說：/.test(tip), tip.slice(0, 40))
+      if (!tip) await c.once('words-tip', '小問題', '單字那一段沒有陪玩小字', '')
       await page.evaluate(() => {
         ;(window as unknown as { __enWords?: string[] }).__enWords = [...document.querySelectorAll('.en-word-card')].map((e) => (e.getAttribute('aria-label') ?? '').toLowerCase().replace(/[^a-z0-9]+/g, '-'))
       })
+      // T-147：一個字母教 2 個代表字
+      const nWords = await page.evaluate(() => document.querySelectorAll('.en-word-card').length)
+      c.outcome('單字 2 張（T-147）', nWords === 2, `${nWords} 張`)
+      if (nWords !== 2) await c.once('words-2', '小問題', '單字範例不是 2 張', `${nWords} 張`)
       for (let i = 0; i < 5; i++) {
         const cards = await page.$$('.en-word-card')
         const b = await cards[k.r.int(cards.length)]?.boundingBox()
@@ -951,6 +963,43 @@ test.describe('英文字母課', () => {
         await answer(k, q === 0)
         await k.wait(2500)
       }
+      // 5. 泡泡派對（T-147）：連點同一顆、兩根手指一起點、點空白，都不會壞、不記作答；10 秒左右自己到下課
+      const party = await waitStage(page, 'party', 15_000)
+      c.outcome('遊戲回合做完 → 泡泡派對', party, party ? '' : `停在 ${await stageOf(page)}`)
+      if (!party) await c.once('party', '卡死', '遊戲回合做完沒有出現泡泡派對', `停在 ${await stageOf(page)}`)
+      if (party) {
+        k.behavior = '泡泡派對亂點'
+        const tParty = Date.now()
+        await page.waitForTimeout(800)
+        await shot(page, '6b-泡泡派對', info)
+        const bubbles = () =>
+          page.evaluate(() =>
+            [...document.querySelectorAll<HTMLElement>('.en-party-bubble')].map((e) => {
+              const r = e.getBoundingClientRect()
+              return { x: r.left + r.width / 2, y: r.top + r.height / 2 }
+            }),
+          )
+        const n0 = (await attempts(page)).filter((a) => a.phase !== 'teach').length
+        const b0 = await bubbles()
+        c.outcome('泡泡派對：滿畫面都是泡泡', b0.length >= 6, `${b0.length} 顆`)
+        if (b0[0]) await k.spam(b0[0], 4, '連點同一顆泡泡')
+        // 點破的那顆還在淡出（AnimatePresence 留在畫面上一下）：等它消失再找下一顆，不然兩根手指可能點到正在消失的那顆
+        await page.waitForTimeout(700)
+        const b1 = await bubbles()
+        if (b1.length >= 2) await k.twoFinger([b1[0]], b1[1], 150)
+        await k.tap({ x: 600, y: 140 }, '派對時點空白')
+        await page.waitForTimeout(700)
+        const left = (await bubbles()).length
+        c.outcome('點破的泡泡不見了（連點、多指都有反應）', left <= b0.length - 2, `${b0.length} → ${left} 顆`)
+        if (left > b0.length - 2) await c.once('party-pop', '困惑', '泡泡派對點了泡泡沒有破', `${b0.length} → ${left} 顆`)
+        const n1 = (await attempts(page)).filter((a) => a.phase !== 'teach').length
+        c.outcome('泡泡派對不記作答', n1 === n0, `多了 ${n1 - n0} 筆`)
+        if (n1 !== n0) await c.once('party-rec', '誤記作答', '泡泡派對點泡泡被記成作答', `多了 ${n1 - n0} 筆`)
+        const gone = await waitStage(page, 'end', 15_000)
+        const secs = Math.round((Date.now() - tParty) / 100) / 10
+        c.outcome('泡泡派對自己結束（約 10 秒）', gone && secs <= 13, `${secs} 秒`)
+        if (!gone) await c.once('party-end', '卡死', '泡泡派對一直不結束', `停在 ${await stageOf(page)}`)
+      }
       const toEnd = await waitStage(page, 'end', 20_000)
       c.outcome('選完到上完', toEnd || (await snap(page)).cheer, `停在 ${await stageOf(page)}`)
       await page.waitForTimeout(1500)
@@ -967,6 +1016,19 @@ test.describe('英文字母課', () => {
       const picker = await page.evaluate(() => !!document.querySelector('.picker'))
       c.outcome('沒有貼紙的那堂：下課畫面', !!bye && !picker, bye ? (picker ? '卻出現挑貼紙' : '') : '沒有出現下課畫面')
       if (!bye) await c.once('bye', '卡死', '上完一堂沒有出現下課畫面', `停在 ${await stageOf(page)}`)
+      // T-149 C1：下課時給大人一句「今天在家可以做的事」，看得到、不擋恐龍和房子
+      const home = await page.evaluate(() => {
+        const e = document.querySelector('.en-bye-tip')
+        if (!e) return null
+        const r = e.getBoundingClientRect()
+        const hit = [...document.querySelectorAll('.lb-host, .lb-home, .lesson-next')].some((x) => {
+          const q = x.getBoundingClientRect()
+          return q.width && !(q.right < r.left || q.left > r.right || q.bottom < r.top || q.top > r.bottom)
+        })
+        return { text: e.textContent ?? '', visible: r.width > 0 && getComputedStyle(e).display !== 'none', hit }
+      })
+      c.outcome('下課：今天在家可以做的事（C1）', !!home?.visible && !home.hit && /開頭/.test(home.text), home ? `${home.text.slice(0, 40)}${home.hit ? '（疊到恐龍或房子）' : ''}` : '沒有')
+      if (!home?.visible || home.hit) await c.once('bye-tip', '小問題', '下課沒有「今天在家可以做的事」，或疊到恐龍、房子', JSON.stringify(home))
       await page.waitForTimeout(1500)
       await shot(page, '8-下課', info)
       const prog = await page.evaluate(
@@ -1091,7 +1153,8 @@ test.describe('英文字母課', () => {
         { name: '昨天上完、答得好 → 下一個字母', p: { idx: 0, date: yesterday, done: true, good: true }, want: 'B', again: false },
         { name: '昨天錯很多 → 重上同一個字母', p: { idx: 1, date: yesterday, done: true, good: false }, want: 'B', again: false },
         { name: '昨天沒上完 → 重上同一個字母', p: { idx: 2, date: yesterday, done: false, good: false }, want: 'C', again: false },
-        { name: '今天上完了又進來 → 複習今天的字母', p: { idx: 3, date: today, done: true, good: true }, want: 'D', again: true },
+        // T-147：今天上完了又進來是字母遊戲時間（字母牆第一塊是今天的字母），不再從頭複習
+        { name: '今天上完了又進來 → 字母遊戲時間（牆上第一塊是今天的字母）', p: { idx: 3, date: today, done: true, good: true }, want: 'D', again: true },
         { name: 'Z 上完 → 從 A 再來', p: { idx: 25, date: yesterday, done: true, good: true }, want: 'A', again: false },
       ]
       for (const cs of cases) {
@@ -1110,8 +1173,8 @@ test.describe('英文字母課', () => {
           cs.p,
         )
         if (!(await enter(k, c))) break
-        await page.waitForSelector('.en-meet .en-letter.is-big', { timeout: 10_000 }).catch(() => null)
-        const L = await letterOf(page)
+        await page.waitForSelector(cs.again ? '.en-wall .en-block' : '.en-meet .en-letter.is-big', { timeout: 10_000 }).catch(() => null)
+        const L = cs.again ? await page.evaluate(() => document.querySelector('.en-wall .en-block')?.getAttribute('aria-label') ?? null) : await letterOf(page)
         c.outcome(cs.name, L === cs.want, `今天的字母 ${L}（應為 ${cs.want}）`)
         if (L !== cs.want) await c.once(`plan:${cs.name}`, '誤記作答', `進度規則不對：${cs.name}`, `今天的字母 ${L}，應為 ${cs.want}`)
         const h = await homeButton(page)
@@ -1149,7 +1212,7 @@ test.describe('英文字母課', () => {
       const meet = await page.evaluate(() => !!document.querySelector('.en-meet'))
       c.outcome('回到晚安道別', !!bye && !meet, bye ? (meet ? '又從認識字母開始' : '') : `停在 ${await stageOf(page)}`)
       if (!bye || meet) await c.once('end-resume', '誤記作答', '上完了還沒說完晚安就離開，回來沒有回到晚安道別', `停在 ${await stageOf(page)}`)
-      // 返回鍵點得到：回首頁；再進來是從頭複習（回去過一次就清掉）
+      // 返回鍵點得到：回首頁；再進來是字母遊戲時間（回去過一次就清掉；T-147 以前是從頭複習）
       k.behavior = '晚安道別按返回'
       const h = await homeButton(page)
       if (h) await pressBack(k, h, '晚安道別按返回')
@@ -1158,9 +1221,9 @@ test.describe('英文字母課', () => {
       if (back !== 'home') await c.once('end-back', '無法返回', '回到晚安道別時按返回沒有回首頁', `停在 ${back}`)
       k.behavior = '再進來'
       if (!(await enter(k, c))) return
-      const meet2 = await page.waitForSelector('.en-meet', { timeout: 8000 }).catch(() => null)
-      c.outcome('再進來：從頭複習', !!meet2, `停在 ${await stageOf(page)}`)
-      if (!meet2) await c.once('end-review', '誤記作答', '回過晚安道別以後再進來，沒有從頭複習', `停在 ${await stageOf(page)}`)
+      const wall2 = await page.waitForSelector('.en-wall', { timeout: 8000 }).catch(() => null)
+      c.outcome('再進來：字母遊戲時間（字母牆）', !!wall2, `停在 ${await stageOf(page)}`)
+      if (!wall2) await c.once('end-review', '誤記作答', '回過晚安道別以後再進來，沒有到字母遊戲時間', `停在 ${await stageOf(page)}`)
     } finally {
       await c.flush().catch(() => {})
       finish(k, c, '上完回來')
@@ -1319,7 +1382,7 @@ test.describe('英文字母課', () => {
       p,
     )
 
-  test('最後一題答對：1.1 秒內就是下課畫面、手已經指著恐龍，You did it! 不被切掉（T-143）', async ({ page }, info) => {
+  test('最後一題答對：馬上是泡泡派對，派對完 1.1 秒內就是下課畫面、手已經指著恐龍，You did it! 不被切掉（T-143、T-147）', async ({ page }, info) => {
     // 盲測 9231aa6 英文 2、貼紙本 2 的英文：最後一題答對後看到「恐龍笑笑、You did it」就按返回（5 次裡 2 次）。
     // 那時答對 → Yes!（0.6 秒）→ 慶祝畫面（1.1 秒，沒有下一步的提示）→ 下課畫面淡入 → 再 0.6 秒手才指恐龍：約 2.6 秒都看不出要點恐龍。
     // AI 小男生點完 1.1 秒截圖，看到的就是「做完了」的慶祝畫面。
@@ -1337,22 +1400,30 @@ test.describe('英文字母課', () => {
       if (!right) return void (await c.once('t143-quiz', '卡死', '回到選擇題沒有出現可以點的題目', `停在 ${await stageOf(page)}`))
       const t0 = await page.evaluate(() => performance.now())
       await k.tap(right, `答案 ${right.label}`)
-      // 點下去以後：下課畫面什麼時候出來、手什麼時候指著恐龍
+      // 點下去以後：泡泡派對什麼時候出來、派對什麼時候結束、下課畫面什麼時候出來、手什麼時候指著恐龍（T-147：派對約 10 秒，中間不點）
       const s = await page.evaluate(async (t0) => {
+        let party: number | null = null
+        let over: number | null = null
         let bye: number | null = null
         let hand: number | null = null
-        while (performance.now() - t0 < 6000 && hand == null) {
+        while (performance.now() - t0 < 20_000 && hand == null) {
           const t = Math.round(performance.now() - t0)
+          const ph = document.querySelector('.en-lesson')?.getAttribute('data-phase')
+          if (party == null && ph === 'party') party = t
+          if (party != null && over == null && ph !== 'party') over = t
           if (bye == null && document.querySelector('.cheer-scrim .lesson-bye')) bye = t
           if (hand == null && document.querySelector('.cheer-scrim .lesson-bye .lb-hand-dino')) hand = t
           await new Promise((r) => setTimeout(r, 40))
         }
-        return { bye, hand }
+        return { party, over, bye, hand }
       }, t0)
       await page.waitForTimeout(800)
-      await shot(page, '10-最後一題答對後1秒半', info)
-      c.outcome('答對 1.1 秒內：下課畫面、手指著恐龍', s.hand != null && s.hand <= 1100, `下課畫面 ${s.bye ?? '沒有'} ms、手 ${s.hand ?? '沒有'} ms`)
-      if (s.hand == null || s.hand > 1100) await c.once('t143-fast', '困惑', '最後一題答對後，太久才看得出要點恐龍說晚安', `下課畫面 ${s.bye ?? '沒有'} ms、手 ${s.hand ?? '6 秒內沒有'} ms`)
+      await shot(page, '10-派對完1秒半', info)
+      c.outcome('答對 1.5 秒內：泡泡派對', s.party != null && s.party <= 1500, `派對 ${s.party ?? '沒有'} ms`)
+      if (s.party == null || s.party > 1500) await c.once('t147-party', '困惑', '最後一題答對後，太久才出現泡泡派對', `派對 ${s.party ?? '沒有'} ms`)
+      const after = s.hand != null && s.over != null ? s.hand - s.over : null
+      c.outcome('派對完 1.1 秒內：下課畫面、手指著恐龍', after != null && after <= 1100, `派對 ${s.party}～${s.over} ms、下課畫面 ${s.bye ?? '沒有'} ms、手 ${s.hand ?? '沒有'} ms`)
+      if (after == null || after > 1100) await c.once('t143-fast', '困惑', '泡泡派對完，太久才看得出要點恐龍說晚安', `派對 ${s.party}～${s.over} ms、下課畫面 ${s.bye ?? '沒有'} ms、手 ${s.hand ?? '20 秒內沒有'} ms`)
       // You did it! 要說完，Tap me! 接在後面（不把它切掉）
       await page.waitForTimeout(3500)
       const vs = await page.evaluate(
@@ -1525,7 +1596,7 @@ test.describe('英文字母課', () => {
     const result = (secs: number | null) => ({ secs, seen, total, taps, fills, cards })
     while (Date.now() - t0 < limit) {
       const st = await stageOf(page)
-      if (st !== 'quiz') return result(st === 'end' || st === null ? Math.round((Date.now() - t0) / 1000) : null)
+      if (st !== 'quiz') return result(st === 'end' || st === 'party' || st === null ? Math.round((Date.now() - t0) / 1000) : null)
       const d = await quizDots(page)
       if (d) total = d.total
       if (d && seen[seen.length - 1] !== d.done) {
@@ -1660,6 +1731,439 @@ test.describe('英文字母課', () => {
       }
     } finally {
       finish(k, c, '描到一半')
+    }
+  })
+})
+
+// ── T-147 英文門案 A：今天上完再進英文門 → 字母遊戲時間（字母牆＋放進籃子或翻翻卡） ──────────────
+
+type Raw = { ts: number; game: string; skill: string; itemId: string; phase: string; ok: boolean }
+/** 作答紀錄（要 skill，lib/app 的 attempts 沒有） */
+const rawAttempts = (page: Page) =>
+  page.evaluate(
+    () =>
+      new Promise<Raw[]>((res) => {
+        const rq = indexedDB.open('dodo-adventure')
+        rq.onsuccess = () => {
+          const g = rq.result.transaction('attempts').objectStore('attempts').getAll()
+          g.onsuccess = () => {
+            rq.result.close()
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            res((g.result as any[]).map((a) => ({ ts: a.ts, game: a.game, skill: a.skill, itemId: a.itemId, phase: a.phase ?? 'quiz', ok: a.firstTryCorrect })))
+          }
+          g.onerror = () => res([])
+        }
+        rq.onerror = () => res([])
+      }),
+  )
+const kvOf = (page: Page, key: string) =>
+  page.evaluate(
+    (key) =>
+      new Promise<unknown>((res) => {
+        const rq = indexedDB.open('dodo-adventure')
+        rq.onsuccess = () => {
+          const g = rq.result.transaction('kv').objectStore('kv').get(key)
+          g.onsuccess = () => {
+            rq.result.close()
+            res(g.result?.value ?? null)
+          }
+        }
+      }),
+    key,
+  )
+
+/** 今天的課上完了：學過 seq 的前 idx+1 個字母；game 固定今天的配對遊戲（lib/variety 的 dodo:variety:english.abc） */
+async function seedPlay(page: Page, idx: number, game: 'pair' | 'flip' | null) {
+  await page.evaluate(
+    ({ idx, game }) =>
+      new Promise<void>((res) => {
+        if (game) localStorage.setItem('dodo:variety:english.abc', game)
+        const d = new Date()
+        const today = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+        const rq = indexedDB.open('dodo-adventure')
+        rq.onsuccess = () => {
+          const tx = rq.result.transaction('kv', 'readwrite')
+          const st = tx.objectStore('kv')
+          st.put({ key: 'lesson.english', value: { idx, seq: 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', date: today, done: true, good: true } })
+          st.delete('lesson.english.play')
+          tx.oncomplete = () => {
+            rq.result.close()
+            res()
+          }
+        }
+      }),
+    { idx, game },
+  )
+}
+
+const center = (r: DOMRect) => ({ x: r.left + r.width / 2, y: r.top + r.height / 2 })
+const wallNow = (page: Page) =>
+  page.evaluate(() =>
+    [...document.querySelectorAll<HTMLElement>('.en-wall .en-block')].map((e) => {
+      const r = e.getBoundingClientRect()
+      return { x: r.left + r.width / 2, y: r.top + r.height / 2, L: e.getAttribute('aria-label') ?? '' }
+    }),
+  )
+const pairNow = (page: Page) =>
+  page.evaluate(() => {
+    const root = document.querySelector('.en-pair')
+    if (!root) return null
+    const b = root.querySelector('.en-basket')!.getBoundingClientRect()
+    const L = root.querySelector('.en-basket-letter')?.getAttribute('aria-label') ?? ''
+    const opts = [...root.querySelectorAll<HTMLElement>('.en-findpic')].map((e) => {
+      const r = e.getBoundingClientRect()
+      return { x: r.left + r.width / 2, y: r.top + r.height / 2, key: e.dataset.id ?? '', w: e.getAttribute('aria-label') ?? '', no: e.classList.contains('is-no'), yes: e.classList.contains('is-yes') }
+    })
+    return { L, answer: root.getAttribute('data-answer') ?? '', round: Number(root.getAttribute('data-round')), accepting: root.getAttribute('data-accepting') !== 'false', demo: !!root.querySelector('.demo-hand'), basket: { x: b.left + b.width / 2, y: b.top + b.height / 2 }, opts }
+  })
+/** 放進籃子（聽字找圖，T-147）：要找的字在 .en-pair 的 data-answer */
+const rightOf = (p: NonNullable<Awaited<ReturnType<typeof pairNow>>>) => p.opts.find((o) => o.key === p.answer) ?? null
+const wrongOf = (p: NonNullable<Awaited<ReturnType<typeof pairNow>>>) => p.opts.find((o) => o.key !== p.answer && !o.no) ?? null
+/** 等放進籃子第 r 回合可以玩（收作答、圖停好） */
+async function untilPair(page: Page, r: number, ms = 25_000) {
+  const end = Date.now() + ms
+  let last = ''
+  while (Date.now() < end) {
+    const p = await pairNow(page)
+    if (p && p.round === r && p.accepting && !p.demo && !p.opts.some((o) => o.yes)) {
+      const sig = p.opts.map((o) => `${Math.round(o.x)},${Math.round(o.y)}`).join('|')
+      if (sig === last) return p
+      last = sig
+    }
+    await page.waitForTimeout(200)
+  }
+  return null
+}
+const flipNow = (page: Page) =>
+  page.evaluate(() => {
+    const root = document.querySelector('.en-flip')
+    if (!root) return null
+    const cards = [...root.querySelectorAll<HTMLElement>('.en-flipcard')].map((e) => {
+      const r = e.getBoundingClientRect()
+      return { x: r.left + r.width / 2, y: r.top + r.height / 2, key: e.dataset.id ?? '', pair: e.dataset.pair ?? '', up: e.classList.contains('is-up'), matched: e.classList.contains('is-matched') }
+    })
+    return { board: Number(root.getAttribute('data-board')), accepting: root.getAttribute('data-accepting') !== 'false', demo: !!root.querySelector('.demo-hand'), cards }
+  })
+
+test.describe('英文課：字母遊戲時間（T-147）', () => {
+  test('字母牆亂點連點、放進籃子示範時搶著拖、拖到一半放手、放錯、連點、多指：玩得完、只出學過的、記 enword', async ({ page }, info) => {
+    test.skip(!want('lesson-english'))
+    test.setTimeout(5 * 60_000)
+    const { k, c } = await setup(page, info, '字母遊戲-放進籃子')
+    try {
+      await seedPlay(page, 4, 'pair')
+      const t0 = await page.evaluate(() => Date.now())
+      k.behavior = '今天上完再進英文門'
+      if (!(await enter(k, c))) return
+      const wall = await page.waitForSelector('.en-wall .en-block', { timeout: 10_000 }).catch(() => null)
+      c.outcome('今天上完再進來：字母遊戲時間（字母牆）', !!wall, wall ? '' : `停在 ${await stageOf(page)}`)
+      if (!wall) return void (await c.once('abc-wall', '卡死', '今天上完再進英文門，沒有出現字母牆', `停在 ${await stageOf(page)}`))
+      await page.waitForTimeout(900)
+      await shot(page, 'abc-1-字母牆', info)
+      const blocks = await wallNow(page)
+      const labels = blocks.map((b) => b.L)
+      // T-149 E5：今天新學的 E 第一次放上牆，只有它有放上去的動畫
+      const fresh = await page.evaluate(() => [...document.querySelectorAll('.en-wall .en-block[data-new]')].map((e) => e.getAttribute('aria-label')))
+      c.outcome('今天新學的那一塊有放上牆的動畫，只有它（E5）', fresh.join('') === 'E', fresh.join('') || '沒有')
+      if (fresh.join('') !== 'E') await c.once('abc-fresh', '小問題', '字母牆今天新學的那一塊沒有放上去的動畫（或不只一塊在動）', fresh.join(''))
+      const onlyLearned = labels.every((L) => 'ABCDE'.includes(L)) && labels[0] === 'E' && labels.length === 5
+      c.outcome('牆上只有學過的字母（A～E），今天的 E 在第一塊', onlyLearned, labels.join(''))
+      if (!onlyLearned) await c.once('abc-wall-letters', '誤記作答', '字母牆出現沒學過的字母，或今天的字母不在第一塊', labels.join(''))
+
+      // 字母牆：連點同一塊、很快點不同塊（搶掉上一塊）、兩根手指
+      k.behavior = '字母牆亂點連點'
+      await k.spam(blocks[0], 4, `連點 ${blocks[0].L}`)
+      await page.waitForTimeout(500)
+      const peek = await page.evaluate(() => !!document.querySelector('.en-wall .en-block-peek'))
+      c.outcome('點積木：代表字的圖探出來', peek)
+      if (!peek) await c.once('abc-peek', '困惑', '點字母牆的積木，沒有看到代表字的圖', '')
+      for (const b of blocks.slice(1, 4)) {
+        await k.tap(b, `點 ${b.L}`)
+        await k.wait(200)
+      }
+      if (blocks[4]) await k.twoFinger([blocks[4]], blocks[0], 150)
+      await k.tap(blocks[1], `點 ${blocks[1].L}`)
+      await shot(page, 'abc-2-字母牆點了', info)
+
+      // 放進籃子第一回合：示範的手在動的時候搶著拖，拖到一半在別的地方放手
+      const shown = await page.waitForSelector('.en-pair .demo-hand', { timeout: 30_000 }).catch(() => null)
+      c.outcome('字母牆點夠了 → 大箭頭 → 放進籃子（第一次有手示範）', !!shown, shown ? '' : `停在 ${await page.evaluate(() => document.querySelector('.en-lesson')?.getAttribute('data-abc'))}`)
+      if (!shown) return void (await c.once('abc-pair-demo', '卡死', '字母牆之後沒有出現放進籃子的示範', ''))
+      await shot(page, 'abc-3-放進籃子示範', info)
+      await page.waitForTimeout(1200)
+      const p0 = await pairNow(page)
+      const r0 = p0 && rightOf(p0)
+      if (p0 && r0) {
+        k.behavior = '示範時搶著拖、拖到一半放手'
+        await k.drag([r0, { x: r0.x + 60, y: r0.y - 40 }, { x: r0.x + 140, y: r0.y - 60 }], { label: `拖 ${r0.w} 到一半放手` })
+        await page.waitForTimeout(700)
+        const after = await pairNow(page)
+        const still = !!after && after.round === 0 && !after.opts.some((o) => o.yes)
+        const recs = (await rawAttempts(page)).filter((a) => a.game === 'abc-find')
+        c.outcome('拖到一半放手：回原位、不算答', still && recs.length === 0, `${recs.length} 筆`)
+        if (!still || recs.length) await c.once('abc-half', '誤記作答', '放進籃子拖到一半放手，被當成放進籃子', `${recs.length} 筆`)
+        // 放錯一次，再把對的拖進籃子
+        const now = await untilPair(page, 0, 10_000)
+        const w = now && wrongOf(now)
+        if (w) {
+          k.behavior = '放錯'
+          await k.tap(w, `錯的 ${w.w}`)
+          await page.waitForTimeout(600)
+          const dim = (await pairNow(page))?.opts.find((o) => o.key === w.key)?.no
+          c.outcome('放錯：那張淡掉、不打叉', !!dim)
+          await page.waitForTimeout(1800)
+        }
+        const p1 = await pairNow(page)
+        const r1 = p1 && rightOf(p1)
+        if (p1 && r1) {
+          k.behavior = '拖進籃子'
+          await k.drag([r1, { x: (r1.x + p1.basket.x) / 2, y: (r1.y + p1.basket.y) / 2 }, p1.basket], { label: `把 ${r1.w} 拖進籃子` })
+          await page.waitForTimeout(800)
+          const yes = (await pairNow(page))?.opts.some((o) => o.yes)
+          c.outcome('拖進籃子：放對了', !!yes)
+          if (!yes) await c.once('abc-drag', '卡死', '放進籃子把對的圖拖進籃子，沒有算放對', '')
+          await shot(page, 'abc-4-放進籃子放對', info)
+        }
+      } else await c.once('abc-pair0', '卡死', '放進籃子第一回合讀不到題目', '')
+
+      // 第 2～4 回合：連點對的、兩根手指一起點
+      for (let r = 1; r < 4; r++) {
+        const p = await untilPair(page, r, 30_000)
+        if (!p) {
+          await c.once(`abc-pair-${r}`, '卡死', `放進籃子第 ${r + 1} 回合沒有出來`, `停在 ${await page.evaluate(() => document.querySelector('.en-lesson')?.getAttribute('data-abc'))}`)
+          break
+        }
+        const right = rightOf(p)
+        const wrong = wrongOf(p)
+        if (!right) break
+        k.behavior = r === 2 && wrong ? '兩根手指一起點' : '連點對的'
+        if (r === 2 && wrong) await k.twoFinger([right], wrong, 150)
+        else await k.spam(right, 3, `連點 ${right.w}`)
+        await page.waitForTimeout(400)
+      }
+      const ended = await page.waitForSelector('.cheer-scrim', { timeout: 40_000 }).catch(() => null)
+      const secs = Math.round(((await page.evaluate(() => Date.now())) - t0) / 1000)
+      c.outcome('字母遊戲時間玩得完（到下課）', !!ended, `${secs} 秒`)
+      if (!ended) await c.once('abc-end', '卡死', '字母遊戲時間玩不完、到不了下課', '')
+      const rs = (await rawAttempts(page)).filter((a) => a.ts >= t0 && a.phase !== 'teach')
+      // 學過 A～E 教過的字（每個字母 2 個）
+      const taught = /^enword:(apple|ant|bus|ball|car|cat|dinosaur|dog|egg|elephant)$/
+      const pair = rs.filter((a) => a.game === 'abc-find')
+      const skills = pair.every((a) => taught.test(a.skill))
+      c.outcome('作答紀錄：4 回合各一筆、都記 enword:（只有教過的字）', pair.length === 4 && skills, pair.map((a) => `${a.skill}${a.ok ? '' : '✗'}`).join('、'))
+      if (pair.length !== 4 || !skills) await c.once('abc-rec', '誤記作答', '放進籃子的作答紀錄不對（要 4 筆、skill 是 enword:教過的字）', pair.map((a) => a.skill).join('、'))
+      const other = rs.filter((a) => a.game !== 'abc-find')
+      c.outcome('沒有記到 letter:／phonics:（不改家長區準備度）', !other.length, other.map((a) => `${a.game}/${a.skill}`).join('、'))
+      if (other.length) await c.once('abc-rec-other', '誤記作答', '字母遊戲時間記了別的作答', other.map((a) => `${a.game}/${a.skill}`).join('、'))
+      const en = (await kvOf(page, 'lesson.english')) as { idx: number; done: boolean; stage?: string } | null
+      c.outcome('英文課的進度沒動（今天上完了、不寫 stage）', !!en && en.idx === 4 && en.done && !en.stage, JSON.stringify(en))
+      if (!en || en.idx !== 4 || !en.done || en.stage) await c.once('abc-kv', '誤記作答', '字母遊戲時間改到英文課的進度', JSON.stringify(en))
+      const pl = (await kvOf(page, 'lesson.english.play')) as { sessions?: number; cur?: unknown } | null
+      c.outcome('玩完：記一次（sessions 1、cur 清掉）', pl?.sessions === 1 && !pl?.cur, JSON.stringify(pl))
+      await page.waitForTimeout(1200)
+      await shot(page, 'abc-5-下課', info)
+    } finally {
+      await c.flush().catch(() => {})
+      finish(k, c, '字母遊戲-放進籃子')
+    }
+  })
+
+  test('字母牆發呆有手、翻翻卡示範時搶點、翻錯、翻錯時又點、連點翻開的：配得完、記 enword', async ({ page }, info) => {
+    test.skip(!want('lesson-english'))
+    test.setTimeout(5 * 60_000)
+    const { k, c } = await setup(page, info, '字母遊戲-翻翻卡')
+    try {
+      await seedPlay(page, 4, 'flip')
+      const t0 = await page.evaluate(() => Date.now())
+      if (!(await enter(k, c))) return
+      await page.waitForSelector('.en-wall .en-block', { timeout: 10_000 }).catch(() => null)
+      k.behavior = '字母牆發呆'
+      const hand = await page.waitForSelector('.en-wall .demo-hand', { timeout: 8000 }).catch(() => null)
+      c.outcome('字母牆發呆 4 秒：手出來點今天的字母', !!hand)
+      if (!hand) await c.once('abc-wall-idle', '困惑', '字母牆發呆，沒有手提示要點積木', '')
+      // 一直不點：20 秒後大箭頭（autoNext 會點）→ 翻翻卡
+      const demo = await page.waitForSelector('.en-flip .demo-hand', { timeout: 40_000 }).catch(() => null)
+      c.outcome('字母牆 20 秒 → 翻翻卡（第一次有手示範）', !!demo)
+      if (!demo) return void (await c.once('abc-flip-demo', '卡死', '字母牆之後沒有出現翻翻卡的示範', ''))
+      await shot(page, 'abc-6-翻翻卡示範', info)
+      await page.waitForTimeout(700)
+      // 示範時搶點一張：示範停下、蓋回去，直接輪到他
+      k.behavior = '示範時搶點'
+      const f0 = await flipNow(page)
+      const any = f0?.cards.find((x) => !x.up)
+      if (any) await k.tap(any, '示範時點一張卡')
+      await page.waitForTimeout(800)
+      const f1 = await flipNow(page)
+      c.outcome('示範時搶點：手收起來、輪到他', !!f1 && !f1.demo)
+      for (let board = 0; board < 2; board++) {
+        // 等這一盤可以翻（沒有翻開的、還沒配的）
+        const end = Date.now() + 30_000
+        let f = await flipNow(page)
+        while (Date.now() < end && !(f && f.board === board && f.accepting && !f.demo && f.cards.some((x) => !x.matched))) {
+          await page.waitForTimeout(250)
+          f = await flipNow(page)
+        }
+        if (!f || f.board !== board) {
+          await c.once(`abc-board-${board}`, '卡死', `翻翻卡第 ${board + 1} 盤沒有出來`, '')
+          break
+        }
+        // 先蓋回去還開著的那一張（搶點時翻開的）
+        await page.waitForTimeout(400)
+        f = (await flipNow(page))!
+        const open = f.cards.filter((x) => x.up && !x.matched)
+        if (open.length === 1) {
+          const mate = f.cards.find((x) => x.pair === open[0].pair && x.key !== open[0].key)!
+          await k.tap(mate, `翻 ${mate.key}`)
+          await k.wait(2600)
+        }
+        if (board === 0) {
+          // 翻錯：兩張不同對；蓋回去之前又點第三張（不能翻開）
+          k.behavior = '翻錯、翻錯時又點'
+          f = (await flipNow(page))!
+          const rest = f.cards.filter((x) => !x.matched)
+          const a = rest[0]
+          const b = rest.find((x) => x.pair !== a.pair)
+          if (b) {
+            await k.tap(a, `翻 ${a.key}`)
+            await k.wait(500)
+            await k.tap(b, `翻 ${b.key}`)
+            await k.wait(250)
+            const third = rest.find((x) => x.key !== a.key && x.key !== b.key)
+            if (third) await k.tap(third, `翻錯時又點 ${third.key}`)
+            await page.waitForTimeout(300)
+            const ups = (await flipNow(page))!.cards.filter((x) => x.up && !x.matched).length
+            c.outcome('翻錯時又點：第三張不會翻開', ups <= 2, `開著 ${ups} 張`)
+            await shot(page, 'abc-7-翻翻卡翻錯', info)
+            await page.waitForTimeout(1600)
+            const back = (await flipNow(page))!.cards.filter((x) => x.up && !x.matched).length
+            c.outcome('翻錯：停一下就蓋回去', back === 0, `開著 ${back} 張`)
+            if (back) await c.once('abc-miss', '卡死', '翻翻卡翻錯以後沒有蓋回去', `開著 ${back} 張`)
+          }
+        }
+        // 一對一對翻；配好的再連點一下（不能壞）
+        k.behavior = '配對'
+        for (let n = 0; n < 4; n++) {
+          f = (await flipNow(page))!
+          if (!f || f.board !== board) break
+          const left = f.cards.filter((x) => !x.matched)
+          if (!left.length) break
+          const a = left[0]
+          const b = left.find((x) => x.pair === a.pair && x.key !== a.key)!
+          await k.tap(a, `翻 ${a.key}`)
+          await k.wait(600)
+          await k.tap(b, `翻 ${b.key}`)
+          await k.wait(400)
+          await k.spam(b, 2, '連點配好的')
+          await k.wait(2600)
+        }
+        if (board === 0) await shot(page, 'abc-8-翻翻卡配完一盤', info)
+      }
+      const ended = await page.waitForSelector('.cheer-scrim', { timeout: 40_000 }).catch(() => null)
+      c.outcome('翻翻卡配得完（到下課）', !!ended, ended ? `${Math.round(((await page.evaluate(() => Date.now())) - t0) / 1000)} 秒` : '')
+      if (!ended) await c.once('abc-flip-end', '卡死', '翻翻卡配不完、到不了下課', '')
+      const rs = (await rawAttempts(page)).filter((a) => a.ts >= t0 && a.game === 'abc-flip' && a.phase !== 'teach')
+      const ok = rs.length >= 4 && rs.length <= 5 && rs.every((a) => /^enword:(apple|ant|bus|ball|car|cat|dinosaur|dog|egg|elephant)$/.test(a.skill))
+      c.outcome('作答紀錄：配好一對一筆、記 enword:（4～5 對）', ok, rs.map((a) => `${a.skill}${a.ok ? '' : '✗'}`).join('、'))
+      if (!ok) await c.once('abc-flip-rec', '誤記作答', '翻翻卡的作答紀錄不對', rs.map((a) => a.skill).join('、'))
+    } finally {
+      await c.flush().catch(() => {})
+      finish(k, c, '字母遊戲-翻翻卡')
+    }
+  })
+
+  test('中途離開接著玩、每一段 1 步回首頁、玩完再進來換另一種配對遊戲', async ({ page }, info) => {
+    test.skip(!want('lesson-english') || info.project.name !== 'tab1200')
+    test.setTimeout(5 * 60_000)
+    const { k, c } = await setup(page, info, '字母遊戲-接著玩')
+    try {
+      await seedPlay(page, 2, 'pair')
+      const back = async (where: string) => {
+        const h = await homeButton(page)
+        if (h) await pressBack(k, h, `${where}按返回`)
+        const to = await waitLive(page, (l) => l === 'home', 4000)
+        c.outcome(`${where}按返回 → 首頁（1 步）`, to === 'home', `到 ${to}`)
+        if (to !== 'home') await c.once(`back-${where}`, '無法返回', `字母遊戲時間：${where}按返回沒有回首頁`, `停在 ${to}`)
+      }
+      if (!(await enter(k, c))) return
+      await page.waitForSelector('.en-wall .en-block', { timeout: 10_000 })
+      await back('字母牆')
+      // 再進來：還是字母牆（還沒看完）；點 6 下到放進籃子
+      if (!(await enter(k, c))) return
+      await page.waitForSelector('.en-wall .en-block', { timeout: 10_000 })
+      const again = await page.evaluate(() => document.querySelectorAll('.en-wall .en-block[data-new]').length)
+      c.outcome('同一個字母第二次看到牆：不再播放上去的動畫（E5）', again === 0, `${again} 塊`)
+      await page.waitForTimeout(700)
+      for (let i = 0; i < 7; i++) {
+        const bs = await wallNow(page)
+        if (!bs.length) break
+        await k.tap(bs[i % bs.length], '點積木')
+        await k.wait(300)
+      }
+      // 第一回合（示範完）照常放對
+      let p = await untilPair(page, 0, 40_000)
+      if (p && rightOf(p)) await k.tap(rightOf(p)!, '放對')
+      p = await untilPair(page, 1, 30_000)
+      c.outcome('到放進籃子第 2 回合', !!p)
+      if (!p) return void (await c.once('abc-r2', '卡死', '放進籃子第 2 回合沒有出來', ''))
+      await back('放進籃子')
+      if (!(await enter(k, c))) return
+      const resumed = await untilPair(page, 1, 20_000)
+      const wall = await page.evaluate(() => !!document.querySelector('.en-wall'))
+      c.outcome('同一天回來：從放進籃子第 2 回合接著玩（不再看字母牆）', !!resumed && !wall, resumed ? '' : `停在 ${await page.evaluate(() => document.querySelector('.en-lesson')?.getAttribute('data-abc'))}`)
+      if (!resumed) await c.once('abc-resume', '誤記作答', '放進籃子玩到一半離開，同一天回來沒有接著玩', '')
+      for (let r = 1; r < 4; r++) {
+        const q = await untilPair(page, r, 30_000)
+        if (!q || !rightOf(q)) break
+        await k.tap(rightOf(q)!, '放對')
+      }
+      const ended = await page.waitForSelector('.cheer-scrim', { timeout: 40_000 }).catch(() => null)
+      c.outcome('玩完到下課', !!ended)
+      // 第二次進來：字母牆 → 換成翻翻卡
+      if (!(await enter(k, c))) return
+      await page.waitForSelector('.en-wall .en-block', { timeout: 10_000 }).catch(() => null)
+      await page.waitForTimeout(700)
+      for (let i = 0; i < 7; i++) {
+        const bs = await wallNow(page)
+        if (!bs.length) break
+        await k.tap(bs[i % bs.length], '點積木')
+        await k.wait(300)
+      }
+      const flip = await page.waitForSelector('.en-flip', { timeout: 30_000 }).catch(() => null)
+      c.outcome('今天第二次玩：換成翻翻卡', !!flip)
+      if (!flip) await c.once('abc-swap', '困惑', '同一天第二次進來，配對遊戲沒有換', `停在 ${await page.evaluate(() => document.querySelector('.en-lesson')?.getAttribute('data-abc'))}`)
+      await page.waitForTimeout(1500)
+      await back('翻翻卡')
+    } finally {
+      await c.flush().catch(() => {})
+      finish(k, c, '字母遊戲-接著玩')
+    }
+  })
+
+  test('新帳號第一天上完再進來：只有字母牆（只學過 1 個字母），點夠了就下課', async ({ page }, info) => {
+    test.skip(!want('lesson-english') || info.project.name !== 'tab1200')
+    test.setTimeout(2 * 60_000)
+    const { k, c } = await setup(page, info, '字母遊戲-第一天')
+    try {
+      await seedPlay(page, 0, null)
+      if (!(await enter(k, c))) return
+      await page.waitForSelector('.en-wall .en-block', { timeout: 10_000 }).catch(() => null)
+      const labels = (await wallNow(page)).map((b) => b.L)
+      c.outcome('牆上只有 A', labels.join('') === 'A', labels.join(''))
+      if (labels.join('') !== 'A') await c.once('abc-day1', '誤記作答', '第一天的字母牆出現沒學過的字母', labels.join(''))
+      await page.waitForTimeout(700)
+      for (let i = 0; i < 6; i++) {
+        const bs = await wallNow(page)
+        if (!bs.length) break
+        await k.tap(bs[0], '點 A')
+        await k.wait(1800)
+      }
+      const ended = await page.waitForSelector('.cheer-scrim', { timeout: 30_000 }).catch(() => null)
+      const game = await page.evaluate(() => !!document.querySelector('.en-pair, .en-flip'))
+      c.outcome('只有字母牆就下課（沒有配對遊戲）', !!ended && !game)
+      if (!ended || game) await c.once('abc-day1-end', '卡死', '第一天的字母遊戲時間沒有在字母牆之後下課', '')
+    } finally {
+      await c.flush().catch(() => {})
+      finish(k, c, '字母遊戲-第一天')
     }
   })
 })

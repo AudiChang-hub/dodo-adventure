@@ -2,7 +2,8 @@
 // 不教不考（家長 2026-11-02）：答案和干擾選項都只能是今天這一課，或之前上過的字母、單字。
 import { pick, shuffle } from '../../lib/random'
 import { LOOKALIKE, LOOKALIKE_LOWER } from '../../content/letters'
-import { LESSON_LETTERS, ORDER, wordId, type LessonLetter } from './data'
+import { ORDER, wordId, type LessonLetter } from './data'
+import { distractors, findable, sandwich } from './abc'
 
 export interface Opt {
   id: string
@@ -17,15 +18,17 @@ export interface Question {
   /** 這一題問的字母（複習題是以前學的字母） */
   L: string
   /**
-   * 題目（T-109：關鍵字放最前面，Big S!；找開頭音的圖先念 S… s, s… 再問 Which one starts with S?）。
+   * 題目（T-109：關鍵字放最前面，Big S!；聽字找圖是 Where's the apple?，整句念完才算聽完）。
    * 第一句就是關鍵字：孩子點下去的時候這一句念完了沒，記成作答紀錄的 heard
    */
   prompt: string[]
   answer: string
   options: Opt[]
   skill: string
-  /** 答對之後念的那一句 */
-  yes: string
+  /** 答對之後念的那幾句（找圖：三明治 Apple. A… Apple.） */
+  yes: string[]
+  /** 找圖：要找的字（英文，陪玩小字用） */
+  word?: string
   /** 沒聽完就點、猜對了：稱讚之後把關鍵字和答案再念一次（Yes! Big S!、Yes! Sun. S… s, s…） */
   echo: string[]
 }
@@ -62,9 +65,10 @@ function letterOptions(X: string, big: boolean, taught: string[], learned: strin
  * 出今天的選擇題（最多 3 題，T-112）。問的都是今天剛教過的字母、單字，或以前上過的字母（複習）；干擾選項也一樣只用教過的。
  * seq：這一輪的字母順序（plan.ts；名字的字母先上時不是 A→Z），「以前上過」照它算。
  * 1. Big A!（大寫）  2. Little a!（小寫）
- * 3. 單日（第 2、4…天）A… a, a… Which one starts with A?（圖）（T-109：關鍵字放最前面、句子最短）；
+ * 3. 單日（第 2、4…天）聽字找圖：Where's the apple?（今天教的代表字，2 選 1，干擾圖是不同類、以前教過的字；答對念三明治 Apple. A… Apple.）；
  *    雙日（第 3、5…天）以前學過的字母複習一題。做不出來就換另一種。
- * 第一天沒有以前學過的字母：圖的題目沒有陪襯、也沒有複習，只問大寫、小寫 2 題。
+ *    T-147（家長 2026-11-14）：拿掉「Which one starts with A?」——孩子沒記得單字，找開頭音只能用猜的（指引 A6：音素要 4～5 歲才穩）。
+ * 第一天：只問大寫、小寫 2 題。
  * 以前是 4 題，第一天做不出來的兩題都退回成同樣的大 S、小 s，一堂問 4 次 S／s（盲測 b637ff7：「好久喔，一直點都不知道要幹嘛」，
  * 準則 LOAD-3 一回合 3～5 題——英文課前面還有認識、描字、單字三段，選擇題這一段再短一點）。
  * 選項數：前三個字母 2 選 1，之後 3 選 1（教過的不夠就少一個）。
@@ -75,7 +79,7 @@ export function makeQuiz(letter: LessonLetter, idx: number, seq = ORDER): Questi
   const learned = [...seq.slice(0, idx)]
   const taught = [...seq.slice(0, idx + 1)]
   const n = idx < 3 ? 1 : 2
-  const { L, l } = letter
+  const { L } = letter
   const qs: Question[] = []
   const letterQ = (X: string, big: boolean): Question => ({
     kind: big ? 'big' : 'little',
@@ -84,32 +88,33 @@ export function makeQuiz(letter: LessonLetter, idx: number, seq = ORDER): Questi
     answer: X,
     options: letterOptions(X, big, taught, learned, n),
     skill: `letter:${big ? X : X.toLowerCase()}`,
-    yes: `ph.${X.toLowerCase()}.sound`,
+    yes: [`ph.${X.toLowerCase()}.sound`],
     echo: [big ? `ph.${X.toLowerCase()}.big` : `ph.${X.toLowerCase()}.little`],
   })
-  const wordQ = (ans: string): Question | null => {
-    // 干擾的圖：以前學過的字母的字，不是今天字母開頭、圖也不一樣
-    const prefer = LESSON_LETTERS.filter((x) => x.L !== L && learned.includes(x.L))
-    const cands = prefer.flatMap((x) => x.starts).filter((w) => w.w[0].toLowerCase() !== l && w.alt !== l)
-    const others = shuffle(cands)
-      .filter((w, i, a) => a.findIndex((v) => v.icon === w.icon) === i)
-      .slice(0, n)
-    if (!others.length) return null
-    const a = letter.words.find((w) => w.w === ans)!
-    return {
-      kind: 'word',
-      L,
-      prompt: [`ph.${l}.ask`, `ph.${l}.q.word`],
-      answer: wordId(ans),
-      options: shuffle([a, ...others]).map((w) => ({ id: wordId(w.w), icon: w.icon })),
-      skill: `phonics:${l}`,
-      yes: `ph.word.${wordId(ans)}`,
-      echo: [`ph.word.${wordId(ans)}`, `ph.${l}.sound`],
+  /** 聽字找圖：今天教的代表字（看圖認得出來的），2 選 1；干擾圖是以前（或今天另一個）教過、不同類的字 */
+  const wordQ = (): Question | null => {
+    for (const a of shuffle(findable(letter))) {
+      const others = distractors({ L, w: a }, taught, 1)
+      if (!others.length) continue
+      const id = wordId(a.w)
+      return {
+        kind: 'word',
+        L,
+        prompt: [`en.where.word.${id}`],
+        answer: id,
+        options: shuffle([a, ...others]).map((w) => ({ id: wordId(w.w), icon: w.icon })),
+        skill: `enword:${id}`,
+        yes: sandwich(L, a.w),
+        echo: sandwich(L, a.w),
+        word: a.w,
+      }
     }
+    return null
   }
   qs.push(letterQ(L, true), letterQ(L, false))
-  const starts = shuffle(letter.starts.map((w) => w.w))
-  const word = (starts.length && wordQ(starts[0])) || null
+  // 第一天只問大寫、小寫（新帳號第一天 2 回合）
+  if (idx === 0) return qs
+  const word = wordQ()
   const review = learned.length ? letterQ(pick(learned.slice(-3)), true) : null
   const third = idx % 2 ? (word ?? review) : (review ?? word)
   if (third) qs.push(third)
@@ -121,6 +126,7 @@ export function makeQuiz(letter: LessonLetter, idx: number, seq = ORDER): Questi
  * 字母選項的 id 是大寫字母；「同一個字母的另一種寫法」是 A:little／A:big（flipId），照畫面上看到的大小寫念。台詞在 lines.ts。
  */
 export function wrongKeys(q: Question, o: Opt): string[] {
+  // 找圖：That's a bus. → Find the apple!
   if (q.kind === 'word') return [`en.that.word.${o.id}`, `en.find.word.${q.answer}`]
   const [c, shown] = o.id.split(':')
   const big = shown ? shown === 'big' : q.kind === 'big'

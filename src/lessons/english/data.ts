@@ -13,7 +13,7 @@ export interface LessonLetter {
   unit: SoundUnit
   /** 三個這個字母開頭的單字（X 只有 x-ray 是開頭，另外兩個是字尾有 x 的字：選擇題不問 X 開頭） */
   words: [PhonicsWord, PhonicsWord, PhonicsWord]
-  /** 單字真的是這個字母開頭的（「Which one starts with …?」只問這些） */
+  /** 單字真的是這個字母開頭的（T-147 起不再問「Which one starts with …?」；下課的陪玩小字用） */
   starts: PhonicsWord[]
   /** 大寫的筆順（20～120，塗字母的泡泡字用） */
   upper: string[]

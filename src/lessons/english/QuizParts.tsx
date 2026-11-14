@@ -7,18 +7,22 @@ import { Hand } from '../../games/Demo'
 import { Sparkles } from '../../ui/Sparkles'
 import type { Opt, Question } from './quiz-plan'
 
-/** 選擇題這一段今天用哪一種玩法（每天輪流，連續兩天不一樣：lib/variety.ts） */
+/**
+ * 選擇題這一段今天用哪一種玩法（每天輪流，連續兩天不一樣：lib/variety.ts）。
+ * T-147：拿掉找卡片（最像考試），只輪泡泡、餵豆豆；cards 留著給測試用（forcedLook）。
+ */
 export type QuizLook = 'cards' | 'bubbles' | 'feed'
-export const QUIZ_LOOKS: readonly QuizLook[] = ['cards', 'bubbles', 'feed']
+export const QUIZ_LOOKS: readonly QuizLook[] = ['bubbles', 'feed']
+const ALL_LOOKS: readonly QuizLook[] = ['cards', 'bubbles', 'feed']
 
-/** 作答紀錄的 game：家長區看得出是哪一種玩法；skill 三種都一樣（letter:S、phonics:s） */
+/** 作答紀錄的 game：家長區看得出是哪一種玩法；skill 三種都一樣（letter:S；聽字找圖 enword:apple） */
 export const QUIZ_GAME: Record<QuizLook, string> = { cards: 'lesson-en', bubbles: 'lesson-en-bubbles', feed: 'lesson-en-feed' }
 
 /** 測試、家長除錯用：localStorage 的 `dodo:en-quiz` 設成 cards／bubbles／feed 就固定用那一種 */
 export function forcedLook(): QuizLook | null {
   try {
     const v = globalThis.localStorage?.getItem('dodo:en-quiz')
-    return (QUIZ_LOOKS as readonly string[]).includes(v ?? '') ? (v as QuizLook) : null
+    return (ALL_LOOKS as readonly string[]).includes(v ?? '') ? (v as QuizLook) : null
   } catch {
     return null
   }

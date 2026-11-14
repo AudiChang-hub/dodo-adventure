@@ -570,6 +570,10 @@ export function Trace({
     const tidy = off < NEAT_OFF && !helped.current
     setNeat(tidy)
     if (tidy) {
+      // T-149 E1（家長 2026-11-14 選字母名）：描好了，慶祝之前念一次字母名（A…），把手描的形狀和名字連在一起。
+      // 這時候碰畫面只有輕輕一聲（不念東西），聲音不會疊；筆帶著描完的那一種，drewIt 最後本來就會念 Big A.
+      await say(`en.pop.${letter.l}`)
+      if (!live.current) return
       sfx.done()
       await say('d.glyph.done')
     } else {

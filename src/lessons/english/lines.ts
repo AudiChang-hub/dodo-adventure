@@ -33,8 +33,19 @@ def('le.en.play', 'dodo', "Let's play!")
 // 上完只說 You did it!（T-141：以前接著說 See you tomorrow!，孩子聽了以為結束了，先按返回；道別留給下課畫面的 Good night）
 def('le.en.done', 'dodo', 'You did it!')
 
+// T-147 英文門案 A：泡泡派對（上完一堂的慶祝）、字母遊戲時間（字母牆、放進籃子、翻翻卡）
+def('en.party', 'dodo', 'Pop the bubbles!')
+def('en.abc.go', 'dodo', "Let's play ABC!")
+def('en.abc.flip', 'dodo', 'Find a match!')
+
 for (const x of LESSON_LETTERS) {
   const { L, l } = x
+  // 泡泡派對點破一顆、翻翻卡翻到字母卡：只念字母名（A…），跟認字母同一種念法。
+  // 沒有字母音的字母（q、v、x）ph.<x>.sound 已經是同一句 Q…：照它的寫法登記（cueText 同一句只能有一種寫法）
+  def(`en.pop.${l}`, 'dodo', cueText({ unit: x.unit, names: 1, sound: x.unit.sound.kind === 'none' }))
+  // 聽字找圖（家長 2026-11-14：拿掉「哪個是 A 開頭」）：Where's the apple?，只用教過的 2 個代表字。
+  // 冠詞照 findWord：沒有冠詞的字（up、zero…）不加 the
+  for (const { w } of x.words.slice(0, 2)) def(`en.where.word.${wordId(w)}`, 'dodo', BARE.has(w) && w !== 'ice cream' ? `Where is | ${w}?` : `Where's the | ${w}?`)
   // 答對時念的「A… a, a…」：字母森林延後的 o、j、v、y 沒有這一句
   if (!hasLine(`ph.${l}.sound`)) def(`ph.${l}.sound`, 'dodo', cueText({ unit: x.unit, names: 1, sound: true }))
   def(`ph.${l}.today`, 'dodo', `Today's letter is | ${L}!`)
@@ -45,7 +56,7 @@ for (const x of LESSON_LETTERS) {
   def(`ph.${l}.little`, 'dodo', `Little | ${l}!`)
   def(`ph.${l}.words`, 'dodo', x.starts.length === 3 ? `These words start with | ${L}!` : `Find ${L} in these words!`)
   def(`ph.${l}.q.word`, 'dodo', `Which one starts with | ${L}?`)
-  // 找開頭音的圖（T-109 關鍵字放最前面）：先念字母和它的音（S… s, s…，跟答對時那一句同一段音檔），再問 Which one starts with S?。
+  // 找開頭音的圖（T-109；T-147 家長 2026-11-14 拿掉了這種題目，台詞先留著、下一版再刪）：先念字母和它的音（S… s, s…，跟答對時那一句同一段音檔），再問 Which one starts with S?。
   // 另外取一個名字，免得答對後念的那一句也被當成「題目念完了」
   def(`ph.${l}.ask`, 'dodo', line(`ph.${l}.sound`).text)
   // 關鍵字是字母名和第一個音（S… s,），不用等 s, s… 全部念完（content/keywords.ts）

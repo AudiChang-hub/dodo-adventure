@@ -1,0 +1,374 @@
+/* T-147 英文門案 A：泡泡派對、字母遊戲時間（字母牆、放進籃子、翻翻卡）。
+   跟英文課同一組綠（english.css 的 --en-*）；紙感螢幕：色塊淡、對比夠，只有點的那一下會動（MOTION-2、DISPLAY-1）。 */
+
+/* ── 泡泡派對 ─────────────────────────────────────────────── */
+.en-party {
+  position: relative;
+  width: 100%;
+  height: 100%;
+}
+.en-party-bubble {
+  --bub: min(170px, 20vmin);
+  position: absolute;
+  width: var(--bub);
+  aspect-ratio: 1;
+  margin: calc(var(--bub) / -2) 0 0 calc(var(--bub) / -2);
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: radial-gradient(circle at 36% 30%, #ffffff 0%, rgba(255, 255, 255, 0.94) 38%, rgba(210, 234, 245, 0.92) 100%);
+  box-shadow:
+    0 0 0 5px rgba(146, 194, 222, 0.8),
+    0 10px 0 -3px rgba(146, 194, 222, 0.35);
+  touch-action: manipulation;
+}
+.en-party-bubble.is-lower {
+  --bub: min(124px, 15vmin);
+}
+.en-party-bubble .en-opt-letter {
+  font-size: calc(var(--bub) * 0.62);
+  color: var(--en-ink);
+}
+
+/* ── 字母遊戲時間 ─────────────────────────────────────────── */
+.en-abc {
+  position: absolute;
+  inset: 0;
+}
+
+/* 字母牆：學過的字母當大積木（最多 6 塊，3 塊一排） */
+.en-wall {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  padding-left: min(14vw, 180px);
+  display: flex;
+  flex-wrap: wrap;
+  align-content: center;
+  justify-content: center;
+  gap: min(64px, 7vmin) min(40px, 4vmin);
+}
+.en-wall.n4 {
+  padding-inline: min(14vw, 180px) 10%;
+}
+.en-block {
+  --blk: #fdf0d8;
+  --blk-edge: #e8d3ad;
+  position: relative;
+  width: min(180px, 21vmin);
+  aspect-ratio: 1;
+  flex: none;
+  border-radius: 28px;
+  background: var(--blk);
+  box-shadow: 0 9px 0 var(--blk-edge);
+  touch-action: manipulation;
+  transition: box-shadow 0.35s ease, background 0.35s ease;
+}
+.en-block.c1 {
+  --blk: #e3eef6;
+  --blk-edge: #c3d4e2;
+}
+.en-block.c2 {
+  --blk: #e3f2e9;
+  --blk-edge: #bcdcc9;
+}
+.en-block.c3 {
+  --blk: #f6e4e4;
+  --blk-edge: #e2c4c4;
+}
+.en-block.c4 {
+  --blk: #ece6f5;
+  --blk-edge: #d3c9e4;
+}
+.en-block.c5 {
+  --blk: #f3eedc;
+  --blk-edge: #ddd3b4;
+}
+.en-block.is-lit {
+  background: #f2faf5;
+  box-shadow: 0 9px 0 color-mix(in srgb, var(--en-deep) 70%, var(--paper-edge)), 0 0 0 10px color-mix(in srgb, var(--en-deep) 35%, transparent);
+}
+.en-block-face {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 4%;
+  width: 100%;
+  height: 100%;
+  padding-top: 14%;
+  font-family: 'Fredoka', sans-serif;
+  font-weight: 600;
+  line-height: 1;
+  color: var(--ink);
+}
+.en-block-face b {
+  font-size: min(112px, 13vmin);
+  font-weight: 600;
+}
+.en-block-face i {
+  font-style: normal;
+  font-size: min(72px, 8.4vmin);
+  color: var(--ink-soft);
+}
+.en-block.is-lit .en-block-face b,
+.en-block.is-lit .en-block-face i {
+  color: var(--en-ink);
+}
+/* 代表字的圖：從積木後面（上面）探出來 */
+.en-block-peek {
+  position: absolute;
+  left: 50%;
+  bottom: 78%;
+  width: 62%;
+  margin-left: -31%;
+  z-index: 0;
+  pointer-events: none;
+}
+.en-block-peek svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+/* 放進籃子（聽字找圖）：上面籃子（放對了才寫上字母），下面 2～3 張圖 */
+.en-pair {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  padding-left: min(14vw, 180px);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: space-evenly;
+}
+.en-basket {
+  position: relative;
+  width: min(300px, 34vmin);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+.en-basket-letter {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  padding: 6px 26px 2px;
+  border-radius: 24px;
+  background: var(--card);
+  box-shadow: 0 6px 0 var(--paper-edge);
+  font: 600 min(104px, 12vmin) / 1 'Fredoka', sans-serif;
+  color: var(--en-ink);
+  margin-bottom: -10px;
+  z-index: 1;
+}
+.en-basket-letter b {
+  font-weight: 600;
+}
+.en-basket-letter i {
+  font-style: normal;
+  font-size: 0.66em;
+  color: var(--ink-soft);
+}
+.en-basket-art {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+.en-basket.is-full .en-basket-letter {
+  background: #f2faf5;
+  box-shadow: 0 6px 0 color-mix(in srgb, var(--en-deep) 70%, var(--paper-edge)), 0 0 0 9px color-mix(in srgb, var(--en-deep) 35%, transparent);
+}
+.en-pair-opts {
+  display: flex;
+  justify-content: center;
+  gap: min(56px, 6vmin);
+}
+.en-findpic {
+  position: relative;
+  width: min(190px, 22vmin);
+  aspect-ratio: 1;
+  display: grid;
+  place-items: center;
+  border-radius: 30px;
+  background: var(--card);
+  box-shadow: 0 8px 0 var(--paper-edge);
+  touch-action: none;
+  transition: opacity 0.35s ease, box-shadow 0.35s ease;
+}
+.en-findpic svg {
+  width: 68%;
+  height: auto;
+  pointer-events: none;
+}
+.en-findpic.is-drag {
+  z-index: 6;
+  box-shadow: 0 16px 0 var(--paper-edge), 0 18px 30px rgba(60, 50, 30, 0.18);
+}
+.en-findpic.is-no {
+  opacity: 0.32;
+}
+.en-findpic.is-yes {
+  z-index: 5;
+}
+.en-findpic.is-beckon {
+  background: #fffaf0;
+  box-shadow: 0 8px 0 var(--paper-edge), 0 0 0 10px rgba(241, 210, 124, 0.9);
+}
+
+/* 翻翻卡：2 對一排 4 張；3 對 2 排 */
+.en-flip {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  padding-left: min(14vw, 180px);
+  display: grid;
+  place-items: center;
+}
+.en-flip-grid {
+  display: grid;
+  grid-template-columns: repeat(4, auto);
+  gap: min(36px, 4vmin);
+}
+.en-flip-grid.n6 {
+  grid-template-columns: repeat(3, auto);
+}
+.en-flipcard {
+  position: relative;
+  width: min(180px, 21vmin);
+  aspect-ratio: 4 / 5;
+  perspective: 900px;
+  touch-action: manipulation;
+}
+.en-flip-grid.n6 .en-flipcard {
+  width: min(156px, 18vmin);
+}
+.en-flipcard-in {
+  position: absolute;
+  inset: 0;
+  transform-style: preserve-3d;
+  transition: transform 0.45s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.en-flipcard.is-up .en-flipcard-in {
+  transform: rotateY(180deg);
+}
+.en-flipcard-back,
+.en-flipcard-face {
+  position: absolute;
+  inset: 0;
+  border-radius: 24px;
+  backface-visibility: hidden;
+  display: grid;
+  place-items: center;
+}
+/* 背面：淡綠底、圓點花紋（看得出是同一副卡，不像字也不像圖） */
+.en-flipcard-back {
+  background:
+    radial-gradient(circle, color-mix(in srgb, var(--en-deep) 60%, #fff) 18%, transparent 20%) 0 0 / 34px 34px,
+    var(--en-soft);
+  box-shadow: 0 8px 0 color-mix(in srgb, var(--en-deep) 70%, var(--paper-edge));
+}
+.en-flipcard-face {
+  transform: rotateY(180deg);
+  background: var(--card);
+  box-shadow: 0 8px 0 var(--paper-edge);
+}
+.en-flipcard-face svg {
+  width: 70%;
+  height: auto;
+}
+.en-flipcard-letter {
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+  font: 600 min(100px, 12vmin) / 1 'Fredoka', sans-serif;
+  color: var(--ink);
+}
+.en-flipcard-letter b {
+  font-weight: 600;
+}
+.en-flipcard-letter i {
+  font-style: normal;
+  font-size: 0.64em;
+  color: var(--ink-soft);
+}
+.en-flipcard.is-matched .en-flipcard-face {
+  background: #f2faf5;
+  box-shadow: 0 8px 0 color-mix(in srgb, var(--en-deep) 70%, var(--paper-edge));
+}
+.en-flipcard.is-glow .en-flipcard-face {
+  box-shadow: 0 8px 0 color-mix(in srgb, var(--en-deep) 70%, var(--paper-edge)), 0 0 0 10px color-mix(in srgb, var(--en-deep) 35%, transparent);
+}
+.en-flipcard.is-matched .en-flipcard-letter b,
+.en-flipcard.is-matched .en-flipcard-letter i {
+  color: var(--en-ink);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .en-flipcard-in {
+    transition: none;
+  }
+}
+
+/* 手機直式（家長遠端看）：只要求不跑版 */
+@media (orientation: portrait) {
+  .en-wall,
+  .en-pair,
+  .en-flip {
+    padding-left: 0;
+  }
+  .en-wall.n4 {
+    padding-inline: 0;
+  }
+  .en-flip-grid {
+    grid-template-columns: repeat(2, auto);
+  }
+  .en-flip-grid.n6 {
+    grid-template-columns: repeat(3, auto);
+  }
+  .en-pair-opts {
+    flex-wrap: wrap;
+  }
+}
+
+/* 下課時給大人的「今天在家可以做的事」（T-149 C1）：下課畫面（.cheer-scrim z 40、挑貼紙 .picker z 60）上面，
+   左上角返回鍵下面（右上角是挑貼紙自己的陪玩小字、下方中間是「現在去做」）。手機直式太窄，跟陪玩小字一樣不顯示 */
+.en-bye-tip {
+  position: fixed;
+  z-index: 62;
+  top: 112px;
+  left: 28px;
+  right: auto;
+  max-width: min(300px, 26vw);
+  text-align: left;
+}
+@media (orientation: portrait) {
+  .en-bye-tip {
+    display: none;
+  }
+}
+
+/* 今天新學的那一塊第一次放上字母牆（T-149 E5）：別的積木不動，只有它從上面落下來、輕輕彈一下（約 1 秒） */
+.en-block.is-new {
+  z-index: 2;
+}
+
+/* 放進籃子（聽字找圖）：籃子上的字母放對了才出現；還沒放之前位置留著（不跳版） */
+.en-basket-letter {
+  min-height: 1.1em;
+  min-width: 2.4em;
+  justify-content: center;
+}
+.en-basket-letter.is-empty {
+  visibility: hidden;
+}
+
+/* 翻翻卡（兩張一樣的圖）：配好了卡角出現這個字是哪個字母 */
+.en-flipcard-face .en-flipcard-letter {
+  position: absolute;
+  top: 6px;
+  left: 10px;
+  font-size: min(40px, 5vmin);
+  color: var(--en-ink);
+}

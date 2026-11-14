@@ -5,7 +5,8 @@
 //   題目都做完了、還沒跟恐龍說完晚安就離開（慶祝、晚安道別的時候按返回）：同一天回來直接回到晚安道別（T-122），
 //   回去過一次就清掉，再進來才是從頭複習。
 // - 上完、而且字母題沒有錯很多：隔天換下一個字母；錯很多、或沒上完就離開：隔天重上同一個字母。
-//   「哪個字是 A 開頭」（聽開頭的音）是練習，不算進錯很多（A6：音素要到 4～5 歲才穩）；描字也不算（A5）。
+//   找圖的題目（kind word）是練習，不算進錯很多；描字也不算（A5）。T-147 以前是「哪個字是 A 開頭」（A6：音素要到 4～5 歲才穩），
+//   家長 2026-11-14 改成聽字找圖（Where's the apple?，skill enword:apple）。舊進度 answers 裡的 word 題照樣讀得進來、一樣不算。
 // - 一輪上完之後從頭再來一輪（複習）。
 // 存在 IndexedDB 的 kv（key: lesson.english），跟其他進度一樣會備份；作答紀錄另外照常寫（lib/record.ts）。
 import { getKV, setKV, today } from '../../lib/db'
@@ -46,6 +47,7 @@ export const goodEnough = (right: number, total: number) => total === 0 || right
 
 /** 一題的結果（Quiz 回傳） */
 export interface QuizResult {
+  /** word：聽字找圖（T-147 以前是找開頭音的圖；兩種都不算進隔天重不重上） */
   kind: 'big' | 'little' | 'word'
   first: boolean
   /** 點下去的時候題目的關鍵字念完了沒（T-109）；false 是用猜的。舊的進度沒有這一欄，當作聽完了 */
@@ -53,7 +55,7 @@ export interface QuizResult {
 }
 
 /**
- * 決定隔天重不重上：只算字母題（大寫、小寫、複習的字母），開頭音的題目不算（A6）；
+ * 決定隔天重不重上：只算字母題（大寫、小寫、複習的字母），找圖的題目不算（聽字找圖、舊進度的開頭音題）；
  * 沒聽完就點的（猜的，T-109）不算對、也不算錯
  */
 export function lessonGood(rs: QuizResult[]) {

@@ -69,7 +69,8 @@ export const quizNow = (page: Page) =>
   page.evaluate(() => {
     const box = document.querySelector('.en-options:not([data-accepting="false"])') ?? document.querySelector('.en-options')
     if (!box) return null
-    const want = document.querySelector('.en-ask-in b.on')?.textContent?.trim() ?? null
+    // 字母題：泡泡裡亮的那個字母；聽字找圖（T-147）：泡泡上的 data-word（選項的 aria-label 是字的 id）
+    const want = document.querySelector('.en-ask-in[data-word]')?.getAttribute('data-word') ?? document.querySelector('.en-ask-in b.on')?.textContent?.trim() ?? null
     const opts = [...box.querySelectorAll<HTMLElement>('.en-opt')].map((el) => {
       const r = el.getBoundingClientRect()
       return { label: el.getAttribute('aria-label') ?? '', x: r.left + r.width / 2, y: r.top + r.height / 2, cls: el.className, wait: el.classList.contains('is-wait') }

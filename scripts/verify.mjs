@@ -61,6 +61,7 @@ const CHECKS = [
     check: (s) => ({ ok: /缺漏 0/.test(s), key: (/(教學卡上的字 \d+ 個.*缺漏 \d+)/.exec(s)?.[1] ?? '沒有結果').replace(/（[^）]*）/, '') }),
   },
   { id: 'test-english', name: '單元：英文課（開頭音不算重上、名字的字母先、答錯的說明）', cmd: ['npx', 'tsx', 'scripts/test-english.ts'], check: unit },
+  { id: 'test-abc', name: '單元：字母遊戲時間（只用學過的字母和教過的字、選項 2～3 個、接著玩、換遊戲）', cmd: ['npx', 'tsx', 'scripts/test-abc.ts'], check: unit },
   { id: 'test-heard', name: '單元：聽完才答（關鍵字念完了沒、熟練只看聽完才答、家長區統計、答案位置隨機）', cmd: ['npx', 'tsx', 'scripts/test-heard.ts'], check: unit },
   { id: 'test-story-flow', name: '單元：會動的繪本（一章最多 6 頁、一句一個動作、第 2 天停頓點、第 3 天選圖、單字三明治）', cmd: ['npx', 'tsx', 'scripts/test-story-flow.ts'], check: unit },
   { id: 'test-story-en', name: '單元：故事時間英文版課文（180 篇 4 句短句、三明治、每頁有圖、故事題、認角色、找一樣的英文字）', cmd: ['npx', 'tsx', 'scripts/test-story-en.ts'], check: unit },

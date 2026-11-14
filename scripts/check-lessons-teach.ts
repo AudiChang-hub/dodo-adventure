@@ -1,6 +1,6 @@
 // 三堂課的「不教不考」自動檢查（家長 2026-11-02：「每一題的答案和干擾選項，都必須是這一課，或之前已經教過的內容」）。
 // 用三堂課真正的出題程式，照課表一天一天出題（有亂數的每天出 40 次），檢查每一題的答案和每一個選項：
-// - 英文字母（lessons/english/quiz-plan.ts 的 makeQuiz）：字母要是今天或之前的字母；圖要是今天或之前的字母的單字。
+// - 英文字母（lessons/english/quiz-plan.ts 的 makeQuiz）：字母要是今天或之前的字母；圖要是今天或之前的字母教過的單字（T-147 起每個字母 2 個）。
 // - 數學數字（lessons/math/plan.ts）：小複習的答案和選項不超過教過的最大數字；數數不數沒教過的數量；
 //   比多少第一次問「多」之前先上教學卡（數量本身不念、不考，只比哪邊多）。
 // - 中文課文（lessons/chinese/data.ts 的 questionsOf）：答案是這一篇的紅字；選項是這一篇或之前上過的篇的紅字。
@@ -29,7 +29,8 @@ function checkEnglish(make: EnglishMaker): Report {
   const r = report()
   for (let idx = 0; idx < ORDER.length; idx++) {
     const letters = new Set(ORDER.slice(0, idx + 1))
-    const words = new Set(LESSON_LETTERS.slice(0, idx + 1).flatMap((x) => x.words.map((w) => wordId(w.w))))
+    // T-147：一個字母只教 2 個代表字（words 的前 2 個）
+    const words = new Set(LESSON_LETTERS.slice(0, idx + 1).flatMap((x) => x.words.slice(0, 2).map((w) => wordId(w.w))))
     const ok = (q: Question, id: string) => (q.kind === 'word' ? words.has(id) : letters.has(id.split(':')[0]))
     for (let run = 0; run < RUNS; run++)
       for (const q of make(idx)) {
