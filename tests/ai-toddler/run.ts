@@ -601,7 +601,8 @@ const zhCtx = () => page.evaluate(() => (window as unknown as { __zh: { ctx: () 
  * T-145：都縮成 3～6 個字的短句（盲測 fb621aa：「這是小豬，我們找房子。」太長）；聊一聊照字條那一句只說第一小句（「是三隻小豬！」）
  */
 function momReply(zc: ZhCtx | null, touch: Touch | null, moved: Move[], sounds: string[]): string {
-  if (!zc || !touch || touch.kind !== 'tap') return ''
+  // 拖曳也算：手指按下去那一下 App 就收了（T-145 乾跑：他用拖的選對字，媽媽沒說話）
+  if (!zc || !touch || touch.kind === 'back') return ''
   const label = /^按鈕「(.+)」$/.exec(touch.hit)?.[1] ?? null
   const once = (key: string, say: string) => {
     if (momDone.has(key)) return ''
@@ -627,7 +628,12 @@ function momReply(zc: ZhCtx | null, touch: Touch | null, moved: Move[], sounds: 
   // 找一樣的字：不念那是什麼字。對了照陪玩小字「一模一樣！」，錯了「不一樣喔！」（T-145）
   if (zc.mode === 'glyph' && zc.glyph && !zc.demo && tile?.word) {
     if (tile.word === zc.glyph && sounds.some((s) => s.startsWith('好聽的「叮叮噹」'))) return once(`glyph-ok:${zc.glyph}`, '媽媽說：「一模一樣！」')
-    if (tile.word !== zc.glyph && wrong) return once(`glyph-no:${zc.glyph}:${tile.word}`, '媽媽說：「不一樣喔！」')
+    if (tile.word !== zc.glyph && wrong) {
+      // 示範一結束他就搶著點了，媽媽還沒問：這時候一起問，不要等下一步才問（順序會倒過來）
+      const ask = momDone.has(`glyph:${zc.glyph}`) ? '' : '哪個一樣？'
+      momDone.add(`glyph:${zc.glyph}`)
+      return once(`glyph-no:${zc.glyph}:${tile.word}`, `媽媽說：「不一樣喔！${ask}」`)
+    }
   }
   return ''
 }
@@ -745,7 +751,7 @@ while (!fatal) {
   // ── 做動作 ──
   const before = { live: s.live, resp: p.resp, sfx: p.sfx, voices: p.voices.length, heard: p.heard, mut: p.mut, ink: action === 'drag' ? await ink() : 0 }
   // 中文課：點之前現在是念課文、聊一聊還是選圖（媽媽回應用；點下去以後畫面會變）
-  const zc = lesson.id === 'zh' && action === 'tap' ? await zhCtx() : null
+  const zc = lesson.id === 'zh' && (action === 'tap' || action === 'drag') ? await zhCtx() : null
   let touch: Touch | null = null
   try {
     if (action === 'tap' && step.x != null && step.y != null) touch = await finger.tap({ x: step.x, y: step.y }, step.times)
