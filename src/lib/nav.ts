@@ -27,7 +27,8 @@ function initialRoute(): Route {
   try {
     const r = sessionStorage.getItem(RESUME_KEY)
     sessionStorage.removeItem(RESUME_KEY)
-    if (r === 'home' || r === 'storybook' || r === 'stickers' || r === 'parent' || r === 'draw' || r === 'coloring') return { name: r }
+    // T-147：首頁拿掉故事門，更新前停在故事書的（舊的平板）回首頁，不再打開故事書
+    if (r === 'home' || r === 'storybook' || r === 'stickers' || r === 'parent' || r === 'draw' || r === 'coloring') return { name: r === 'storybook' ? 'home' : r }
   } catch {
     /* 讀不到就照網址 */
   }

@@ -1,5 +1,5 @@
 import { test, expect, type Page } from '@playwright/test'
-import { boot, homeButton, settle, snap, storyToldToday } from './lib/app'
+import { boot, homeButton, settle, snap } from './lib/app'
 import { Toddler, hashSeed } from './lib/toddler'
 import { Checker, alive, doorAt, enterGame, holdHome, linesSince, pressBack, toHome, toddlerStep, waitLive } from './lib/flows'
 import fs from 'node:fs'
@@ -660,8 +660,6 @@ test.describe('畫面', () => {
     test.skip(!want('layers'))
     test.setTimeout(25 * 60_000)
     const { k, c } = await setup(page, info, '來回換畫面', { to: 'home' })
-    // 故事門照舊直接進書架（新章節的流程在 story.spec.ts）
-    await storyToldToday(page)
     /** 量一次：最高的整頁圖層 z-index、字幕（點恐龍讓它說話）和家長角落是不是在最上面 */
     const measure = async () => {
       const host = await page.evaluate(() => {
@@ -690,8 +688,8 @@ test.describe('畫面', () => {
       let n = 0
       let bad = ''
       const checks: string[] = []
-      // 學校的首頁：首頁 → 一扇門（三堂課、故事、畫畫輪流）→ 返回首頁；在課裡點恐龍量字幕
-      const DOORS = ['english', 'chinese', 'math', 'story', 'draw']
+      // 學校的首頁：首頁 → 一扇門（三堂課、畫畫輪流；T-147 拿掉了故事門）→ 返回首頁；在課裡點恐龍量字幕
+      const DOORS = ['english', 'chinese', 'math', 'draw']
       for (let i = 0; n < 200 && i < 140; i++) {
         if (!(await toHome(k, c))) break
         const door = DOORS[i % DOORS.length]

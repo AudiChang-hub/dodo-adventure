@@ -41,7 +41,8 @@ export const NONE = [
 
 /**
  * 每一項畫面測試會用到的畫面檔（src/screens 底下，不含上面 CORE 的首頁）和遊戲。
- * token 是傳給 TODDLER_GAMES 的名稱（screens.spec、story.spec、home.spec 和各課 spec 的 want()）。
+ * token 是傳給 TODDLER_GAMES 的名稱（screens.spec、home.spec 和各課 spec 的 want()）。
+ * T-147：首頁拿掉故事門，story.spec 不跑了（playwright.config.ts 的 testMatch），故事書的檔不再對到任何一項。
  */
 export const SCREEN_TESTS = [
   { token: 'parent', spec: 'screens', files: ['src/screens/parent/Parent.tsx'], games: [] },
@@ -50,11 +51,10 @@ export const SCREEN_TESTS = [
   { token: 'bedtime', spec: 'screens', files: ['src/screens/Bedtime.tsx'], games: [] },
   { token: 'motion', spec: 'screens', files: [], games: ['d-free'] },
   { token: 'settings', spec: 'screens', files: [], games: [] },
-  // 來回換畫面：首頁 ↔ 三堂課、故事、畫畫
-  { token: 'layers', spec: 'screens', files: ['src/screens/StoryBook.tsx'], games: ['d-free'] },
-  { token: 'story', spec: 'story', files: ['src/screens/StoryBook.tsx', 'src/screens/story/', 'src/content/story/', 'src/content/lines-story.ts', 'src/content/lines-story-en.ts'], games: [] },
+  // 來回換畫面：首頁 ↔ 三堂課、畫畫
+  { token: 'layers', spec: 'screens', files: [], games: ['d-free'] },
   // 學校的首頁（home.spec）：三大門會進每一堂課（各課資料夾的 index.tsx 是入口；登記表、LessonScreen 被 App、首頁 import，改了跑完整版）
-  { token: 'home-doors', spec: 'home', files: ['src/lessons/english/index.tsx', 'src/lessons/chinese/index.tsx', 'src/lessons/math/index.tsx', 'src/screens/StoryBook.tsx'], games: ['d-free'] },
+  { token: 'home-doors', spec: 'home', files: ['src/lessons/english/index.tsx', 'src/lessons/chinese/index.tsx', 'src/lessons/math/index.tsx'], games: ['d-free'] },
   // 英文字母課自己的測試（tests/toddler/lesson-english.spec.ts）：英文課資料夾裡的檔都從 index.tsx 走得到
   { token: 'lesson-english', spec: 'lesson-english', files: ['src/lessons/english/index.tsx'], games: [] },
   { token: 'home-draw', spec: 'home', files: [], games: ['d-free'] },
@@ -74,7 +74,6 @@ export const SCREEN_TESTS = [
 const SPEC_TOKENS = {
   'games.spec.ts': 'GAMES',
   'screens.spec.ts': SCREEN_TESTS.filter((t) => t.spec === 'screens').map((t) => t.token),
-  'story.spec.ts': ['story'],
   'lesson-english.spec.ts': ['lesson-english'],
   // T-127：英文課選擇題的新玩法各一個 spec（泡泡、餵豆豆），都用 lesson-english 這個名稱
   'lesson-english-bubbles.spec.ts': ['lesson-english'],
