@@ -36,7 +36,7 @@ export function NextStep({ d }: { d: ParentData }) {
   }
 
   return (
-    <div className={`card next-step${r.ready ? ' is-ready' : ''}`}>
+    <div className={`card ready-card${r.ready ? ' is-ready' : ''}`}>
       <h3>下一步準備度</h3>
       <p className="sub next-sub">什麼時候可以開始 4 歲的內容：每一條都做到，才建議往下走。熟練的意思是三選一以上、第一次就答對，最近 10 題至少對 8 題，分在 3 天以上，而且隔兩天再考還記得（用猜的過不了）。</p>
       <ul className="next-list">

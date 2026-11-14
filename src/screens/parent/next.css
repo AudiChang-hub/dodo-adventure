@@ -1,8 +1,8 @@
 /* ── 下一步準備度（NextStep.tsx）──────────────────────────────── */
-.parent .next-step {
+.parent .ready-card {
   border-left: 5px solid var(--paper-edge);
 }
-.parent .next-step.is-ready {
+.parent .ready-card.is-ready {
   border-left-color: var(--dodo-deep);
 }
 .parent .next-sub {
