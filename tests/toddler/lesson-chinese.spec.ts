@@ -1123,6 +1123,90 @@ test.describe('中文課', () => {
     }
   })
 
+  /**
+   * T-145（盲測 fb621aa 中文 zh-run 7 第 12 步、zh-run 8 第 11 步）：學會以後不示範的「找一樣的字」，手點完一輪字卡就收走，
+   * 下一輪要等發呆 6 秒，中間畫面上沒有手，孩子「不知道要點哪個」。現在一出現就有手，一直到他點下去或提示出來，手都在畫面上；
+   * 手可以停在上面的字（看這個），不能停在答案上（不洩題）。孩子照著手點上面的字，手就帶他去點下面的字卡。
+   */
+  test('T-145 找一樣的字一出現就有手：發呆時手一直在、不停在答案上；照手點上面的字，手去點下面的字卡', async ({ page }, info) => {
+    test.skip(!want('lesson-chinese-glyph-hand'))
+    test.setTimeout(5 * 60_000)
+    const { k, c } = await setup(page, info, '找一樣的字有手')
+    /** 手的指尖在哪裡：上面的字 top、下面的字卡（答案 ans、別的 tile）、都不是 air；沒有手 null */
+    const handOn = () =>
+      page.evaluate(() => {
+        const root = [...document.querySelectorAll<HTMLElement>('.scene')].filter((e) => !e.inert).pop() ?? document
+        const g = root.querySelector('.zh-glyph')
+        const h = g?.querySelector(':scope > .demo-hand')
+        if (!g || !h) return null
+        const r = h.getBoundingClientRect()
+        const x = r.left + r.width * 0.34
+        const y = r.top + r.height * 0.07
+        const inside = (e: Element | null) => {
+          if (!e) return false
+          const b = e.getBoundingClientRect()
+          return x >= b.left && x <= b.right && y >= b.top && y <= b.bottom
+        }
+        if (inside(g.querySelector('.zh-glyph-target'))) return 'top'
+        for (const t of g.querySelectorAll('.zh-glyph-options .tile')) if (inside(t)) return t.hasAttribute('data-answer') ? 'ans' : 'tile'
+        return 'air'
+      })
+    try {
+      await putKV(page, 'zhLesson:introSeen', true)
+      await putKV(page, 'zhLesson:glyph', { level: 1, recent: [], demos: 1, learned: true })
+      if (!(await enter(k, c))) return
+      if (!(await readAll(k, c))) return
+      if (!(await toGlyph(k, c))) return
+      const on = await waitFor(k, (s) => s.glyph && s.accepting, 5000)
+      c.outcome('找一樣的字出來、可以點（不示範）', !!on && !on.dim, on ? (on.dim ? '在示範' : '可以點') : '沒有收作答')
+      if (!on || on.dim) return
+      // 發呆 11 秒（12 秒手才指答案）：每 0.2 秒看一次手
+      k.behavior = '發呆，看手在哪'
+      const t0 = Date.now()
+      let none = 0
+      let firstNone = -1
+      /** 手連續停在答案上多久（毫秒） */
+      let ansFrom = -1
+      let ansMax = 0
+      while (Date.now() - t0 < 11_000) {
+        const at = await handOn()
+        const t = (Date.now() - t0) / 1000
+        if (!at && t > 1.2) {
+          none++
+          if (firstNone < 0) firstNone = t
+        }
+        const now = Date.now()
+        if (at !== 'ans') ansFrom = -1
+        else if (ansFrom < 0) ansFrom = now
+        else ansMax = Math.max(ansMax, now - ansFrom)
+        await page.waitForTimeout(200)
+      }
+      c.outcome('一出現到 11 秒，手一直在畫面上', none === 0, none ? `${firstNone.toFixed(1)} 秒起沒有手（${none} 次看不到）` : '一直有手')
+      if (none) await c.once('glyph-nohand', '困惑', '「找一樣的字」出來以後有一段時間畫面上沒有手', `${firstNone.toFixed(1)} 秒起`)
+      // 輪流點的時候每張停 1 秒左右（最後一張 1.35 秒）；連續停 2 秒以上就是停在答案上了
+      c.outcome('手不會停在答案上（12 秒提示前）', ansMax < 2000, `在答案上最久連續 ${(ansMax / 1000).toFixed(1)} 秒`)
+      if (ansMax >= 2000) await c.once('glyph-handans', '困惑', '「找一樣的字」發呆時手停在答案上', `${(ansMax / 1000).toFixed(1)} 秒`)
+      // 照著手點上面的字：手去點下面的字卡
+      k.behavior = '照著手點上面的字'
+      const top = (await points(page, '.zh-glyph-target'))[0]
+      if (top) await k.tap(top, '上面的字')
+      let toTiles = false
+      for (const end = Date.now() + 4000; Date.now() < end && !toTiles; ) {
+        const at = await handOn()
+        toTiles = at === 'tile' || at === 'ans'
+        await page.waitForTimeout(150)
+      }
+      c.outcome('點上面的字：手去點下面的字卡', toTiles, toTiles ? '有' : '4 秒內手沒去字卡')
+      if (!toTiles) await c.once('glyph-toptap', '困惑', '照著手點上面的字，手沒有帶他去點下面的字卡', '')
+      const rows = await glyphRows(page)
+      c.outcome('看手、點上面的字都不記作答', rows.length === 0, `${rows.length} 筆`)
+      if (rows.length) await c.once('glyph-hand-rows', '誤記作答', '點上面的字記了找一樣的字的作答', `${rows.length} 筆`)
+      await c.flush()
+    } finally {
+      finish(k, c, '找一樣的字有手')
+    }
+  })
+
   test('下課挑貼紙（T-90）：點一下手馬上示範「再點一下」；收進貼紙本後停在那一頁，點大箭頭去晚安道別、點房子才回首頁', async ({ page }, info) => {
     test.skip(!want('lesson-chinese-sticker'))
     test.setTimeout(6 * 60_000)
