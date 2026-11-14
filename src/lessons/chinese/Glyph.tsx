@@ -37,9 +37,10 @@ const HINT_AFTER = 2
  *   搖一搖、輕輕一聲，飛回原位、變淡；飛的時候就可以點別的。
  * - 最初幾次（progress 的 needsDemo）：下面的字先變淡，手點上面的字、再點下面一樣的那個，示範飛上去配成一對；
  *   做完字飛回去、選項換位置（不能靠記位置），才輪到他。示範中孩子搶著點（T-108）：示範收掉，照常判對錯（記成一起練）。
- * - 不示範的時候（T-124）：一進來手先點上面的字、再依序輕點下面每一張字卡（看這個、點這些），不停在答案上。
- *   點完手回到上面的字、靜靜停著（T-145，盲測 fb621aa 中文 zh-run 7、8：以前點完就收走，到 6 秒才再來，中間畫面上沒有手，
- *   孩子「不知道要點哪個」）。手一直在畫面上，直到他點了下面的字卡、或 12 秒的提示出來；照著手點上面的字，手就再去點一次下面的字卡。
+ * - 不示範的時候（T-124）：一進來手先點上面的字、再依序輕點下面每一張字卡（看這個、點這些），點完就收掉，不停在任何一張上。
+ *   T-146（盲測 dbc602c：T-145 讓手點完回到上面的字停著，孩子照著手停的位置點，4/4 第一下都點錯）：手不停在上面的字、也不停在字卡上。
+ *   不停在答案上：學會以後的題目要讓他自己找（停在答案上每一題都變成一起練，升級永遠算不到）；真的找不到，12 秒手會指答案。
+ *   照著手點上面的字，手就再去點一次下面的字卡。
  * - 一直沒點：6 秒手再指一次字卡；12 秒手指著答案點一下（記成一起練）。點空白、點恐龍也會讓手再指一次。
  * - 配對成功：下面整排淡出收掉，只留上面一對、打勾和「下一步」大箭頭（T-124）。
  */
@@ -132,22 +133,8 @@ export function Glyph({
   }
 
   const ask = () => setNudge((n) => n + 1)
-  /** 手點完一輪字卡，回到上面的字靜靜停著（T-145）：不是在答案上，不洩題 */
-  const parked = useRef(false)
-  const park = () => {
-    const top = pctOf(target.current, 0.5, 0.62)
-    parked.current = !!top
-    setHand(top)
-  }
-  /** 孩子點了字卡、提示出來：停著的手收掉 */
-  const unpark = () => {
-    if (!parked.current) return
-    parked.current = false
-    setHand(null)
-  }
   const showHint = () => {
     stopSweep()
-    unpark()
     hintUsed.current = true
     setMarks((m) => ({ ...m, [q.char]: m[q.char] ?? 'hint' }))
     setHintTap((n) => n + 1)
@@ -164,14 +151,11 @@ export function Glyph({
   const sweep = async () => {
     if (sweeping.current || locked.current || demoingRef.current || !acceptRef.current) return
     sweeping.current = true
-    parked.current = false
     const ok = flow.begin(live)
     const end = () => {
       sweeping.current = false
-      if (!ok()) return
-      // 點完回到上面的字停著（T-145）；他已經答對、或答案的提示出來了就收掉
-      if (locked.current || hintUsed.current) setHand(null)
-      else park()
+      // 點完就收掉（T-146）：不停在上面的字、也不停在任何一張字卡上
+      if (ok()) setHand(null)
     }
     const top = pctOf(target.current, 0.5, 0.62)
     if (top) setHand(top)
@@ -190,7 +174,6 @@ export function Glyph({
       setBump((b) => ({ ...b, [ch]: (b[ch] ?? 0) + 1 }))
       await wait(450)
     }
-    await wait(300)
     end()
   }
   /** 孩子點了（或示範做完）：正在指字卡的手收掉 */
@@ -298,7 +281,6 @@ export function Glyph({
   /** 孩子點了（示範中也算：搶點，示範收掉） */
   const barge = () => {
     stopSweep()
-    unpark()
     if (!demoing) return
     flow.cut()
     endDemo()
@@ -388,7 +370,7 @@ export function Glyph({
             if (locked.current) return
             idle.poke()
             ask()
-            // 照著停在這裡的手點了上面的字（T-145）：手再去點一次下面的字卡（示範中 sweep 不動）
+            // 點了上面的字：手再去點一次下面的字卡（示範中 sweep 不動）
             void sweep()
           }}
         >

@@ -64,6 +64,39 @@ export function linePics(t: ZhText): LinePic[][] {
   })
 }
 
+/**
+ * 念課文時每一行旁邊亮哪幾張圖（./Reader.tsx、./layout.ts 用；T-146）。圖要對得上大人正在念的那一行：
+ * 1. 有紅字（而且有圖）的行：那幾個紅字的圖（跟 linePics 一樣）。
+ * 2. 沒有紅字，但這一行的字裡提到這一篇有圖的東西（「咚！紅蘿蔔拔出來了！」→ 紅蘿蔔）：那張圖。
+ * 3. 都沒有：接著上一行在講的（只看緊鄰的上一行，同一句話的下半句：「兔子跑得快快快，／跑到樹下睡大覺。」→ 兔子）。
+ * 4. 再沒有：這一行不放圖，只亮那一行的字。
+ * 不借後面的行、不借隔兩行以上的（盲測 dbc602c：〈但以理愛吃青菜〉「國王請他吃大肉肉，」亮的是青菜，孩子連點都說「都一樣」）。
+ * linePics 照舊給英文故事的頁圖、書的封面用（那邊要每一頁都有圖）。
+ */
+export function readPics(t: ZhText): LinePic[][] {
+  const has = (w: string) => !!t.emoji[w]
+  const own = t.lines.map((l) => [...new Set(pieces(l).filter((p) => p.red && has(p.text)).map((p) => p.text))])
+  // 這一篇有圖的字詞：紅字先、再其他的；長的先（「小狗」先於「狗」）
+  const words = [...new Set([...t.redWords, ...Object.keys(t.emoji)])].filter(has).sort((a, b) => b.length - a.length)
+  const told = t.lines.map((l, i) => {
+    if (own[i].length) return own[i]
+    let text = plain(l)
+    const hit: { w: string; at: number }[] = []
+    for (const w of words) {
+      const at = text.indexOf(w)
+      if (at < 0 || hit.some((h) => t.emoji[h.w] === t.emoji[w])) continue
+      hit.push({ w, at })
+      text = text.split(w).join('　'.repeat(w.length)) // 「小狗」用掉了，「狗」不再算一次
+    }
+    return hit.sort((a, b) => a.at - b.at).slice(0, 2).map((h) => h.w)
+  })
+  return told.map((ws, i) => {
+    if (ws.length) return ws.map((word) => ({ word, echo: false }))
+    const prev = told[i - 1]
+    return prev?.length ? [{ word: prev[prev.length - 1], echo: true }] : []
+  })
+}
+
 // ── 選圖題 ────────────────────────────────────────────────────
 export interface ZhQuestion {
   /** 要找的字詞（課文裡的紅字：先聽過、看過才考） */

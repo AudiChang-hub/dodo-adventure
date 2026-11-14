@@ -6,7 +6,7 @@ import { firstFinger, nod } from '../../games/NotYet'
 import { EASE } from '../../ui/motion'
 import { Sparkles } from '../../ui/Sparkles'
 import type { Mood } from '../../art/Dino'
-import { linePics, pieces, talkFor, talkOf, type ZhText } from './data'
+import { pieces, readPics, talkFor, talkOf, type ZhText } from './data'
 import { pageUnits } from './layout'
 import { Pic } from './Pic'
 import type { HostTap } from './Lesson'
@@ -94,6 +94,8 @@ function Bits({ n }: { n: number }) {
  * - 每一行都有圖可以點（T-111，盲測 a35cd5e：三次都沒上完。一半以上的行沒有紅字，念那幾行時他沒有東西可以點，
  *   只好去點莫莫、點字，都沒反應，覺得「好久喔」就離開了）：
  *   - 沒有紅字的行借前後行的主角（data.ts 的 linePics：「跑到樹下睡大覺。」旁邊是兔子），樣子跟紅字的圖一樣；
+ *     T-146（盲測 dbc602c：「國王請他吃大肉肉，」亮的是青菜）起改用 data.ts 的 readPics：圖要對得上這一行（行裡提到的、或緊鄰上一行在講的），
+ *     對不上的行不放圖、只亮那一行的字；點那一行的字、空白處照樣算點了這一行（莫莫開心一下、複習篇照樣翻行），探頭的角色是前面最近的那一個；
  *   - 點這一行的字也算點了這一行的圖；
  *   - 每一行第一次點到圖：那張圖撒一把星星（看得出「我點到了」）；同一行再點只跳一下、輕輕一聲（不會變成一直點的遊戲）；
  *   - 上面的進度（Lesson 傳給 Shell）：念完一行亮一格，聽得出、看得出「念到哪裡、還有多少」（onLine）。
@@ -207,7 +209,9 @@ export function Reader({
   const startedAt = useRef(performance.now())
   const left = useRef(false)
   const last = t.lines.length - 1
-  const pics = linePics(t)
+  const pics = readPics(t)
+  /** 探頭的角色（T-140）：這一行的圖；這一行沒有圖，就是前面最近的那一個（還沒有就不探頭） */
+  const peekWord = pics.slice(0, cur + 1).reverse().find((r) => r.length)?.[0]?.word
 
   /** 大人的按鈕：連點、兩根手指只算一下（id 是哪一顆） */
   const adult = (id: string, fn: () => void) => (e: React.PointerEvent) => {
@@ -289,6 +293,13 @@ export function Reader({
     childTurn(line)
   }
 
+  /** 點了沒有圖的那一行（字、空白處，T-146）：莫莫開心一下（每行第一次）、複習篇照樣翻行 */
+  const tapLine = (line: number) => {
+    if ((line > cur && !talk) || left.current) return
+    earn(line)
+    childTurn(line)
+  }
+
   /** 聊一聊：孩子點了問題的主角（用指的回答）：圖跳一下；第一次再加綠框、星星、莫莫開心，「去選圖」馬上出來 */
   const answerTalk = (w: string) => {
     if (left.current) return
@@ -302,7 +313,7 @@ export function Reader({
   }
 
   // 亮的那一行的圖一直沒被點：每 8 秒自己輕輕跳一下（點了就停；換一行重新算）
-  const curKeys = talk ? '' : linePics(t)[cur].map((p) => `${cur}:${p.word}`).join('|')
+  const curKeys = talk ? '' : pics[cur].map((p) => `${cur}:${p.word}`).join('|')
   const curTouched = curKeys.split('|').some((k) => touched.has(k))
   useEffect(() => {
     setCueTick(0)
@@ -330,17 +341,16 @@ export function Reader({
     }
     const p = pics[cur]?.[0]
     if (p) tapWord(p.word, cur)
+    else tapLine(cur)
   }
 
   /** 點到探出頭的角色：躲起來、換一個地方冒出來；每 3 下莫莫開心一下。也算點了這一行的圖（亮的那張不再自己跳） */
   const tapPeek = (e: React.PointerEvent) => {
     e.stopPropagation()
-    if (left.current || talk || !firstFinger(e.nativeEvent)) return
-    const p = pics[cur]?.[0]
-    if (!p) return
-    const key = `${cur}:${p.word}`
+    if (left.current || talk || !firstFinger(e.nativeEvent) || !peekWord) return
+    const key = `${cur}:${peekWord}`
     sfx.pop()
-    if (!touched.has(key)) setTouched((s) => new Set(s).add(key))
+    if (pics[cur].length && !touched.has(key)) setTouched((s) => new Set(s).add(key))
     earn(cur)
     setPeek((x) => {
       const others = PEEK_SPOTS.map((_, i) => i).filter((i) => i !== x.spot)
@@ -411,12 +421,12 @@ export function Reader({
       onPointerDown={tapBlank}
     >
       {/* 躲貓貓（T-140）：這一行的角色在課本外面探出頭；換一行就換那一行的角色 */}
-      {!talk && pics[cur]?.[0] && (
+      {!talk && peekWord && (
         <motion.button
           key={`peek-${cur}-${peek.n}`}
           type="button"
           className="zh-peek"
-          aria-label={pics[cur][0].word}
+          aria-label={peekWord}
           data-spot={peek.spot}
           // 舞台的 %（cqw、cqh）；.zh-read 從舞台左邊 17cqw 開始（左邊讓給莫莫，chinese.css）
           style={{ left: `${PEEK_SPOTS[peek.spot][0] - READ_LEFT}cqw`, top: `${PEEK_SPOTS[peek.spot][1]}cqh` } as CSSProperties}
@@ -425,7 +435,7 @@ export function Reader({
           transition={{ type: 'spring', stiffness: 320, damping: 16, delay: peek.n ? 0.15 : 0.6 }}
           onPointerDown={tapPeek}
         >
-          <Pic name={t.emoji[pics[cur][0].word]!} />
+          <Pic name={t.emoji[peekWord]!} />
         </motion.button>
       )}
       <motion.article className="zh-page" initial={still ? false : { y: 14 }} animate={{ y: 0 }} transition={{ duration: 0.5, ease: EASE.out }}>
@@ -441,9 +451,10 @@ export function Reader({
                 data-line={i}
                 onPointerDown={(e) => {
                   // 點這一行的字（不是紅字、不是圖）：當作點了這一行的第一張圖（T-111）
-                  if (!seen || !pics[i].length || !firstFinger(e.nativeEvent)) return
+                  if (!seen || !firstFinger(e.nativeEvent)) return
                   e.stopPropagation()
-                  tapWord(pics[i][0].word, i)
+                  if (pics[i].length) tapWord(pics[i][0].word, i)
+                  else tapLine(i)
                 }}
               >
                 {on && <motion.span className="zh-band" layoutId={still ? undefined : 'zh-band'} transition={{ duration: 0.35, ease: EASE.inOut }} aria-hidden="true" />}
