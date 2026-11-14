@@ -387,7 +387,7 @@ export function Glyph({
         </motion.div>
       </div>
 
-      <div className={`options with-stim zh-options zh-glyph-options${solved ? ' is-solved' : ''}`} data-dim={demoing ? '1' : undefined}>
+      <div className={`options with-stim zh-options zh-glyph-options${solved ? ' is-solved' : ''}`} data-dim={demoing ? '1' : undefined} data-n={opts.length}>
         {opts.map((ch, i) => {
           const m = marks[ch]
           const away = fly?.ch === ch || (m === 'correct' && paired === 'right')

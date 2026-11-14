@@ -19,9 +19,27 @@ export interface ZhText {
   emoji: Record<string, string | null>
   /** 給大人看的一句：小字放在角落 */
   parentTip: string
+  /**
+   * 加長版（T-150，4 歲：選填）：同一個故事 5～6 行、45～60 字、一行最多 10 個字，多的行放「先……然後……」和一個原因。
+   * 紅字詞、圖、選圖題都跟短版一樣。門開了以後複習舊篇時用（./stage4.ts）；沒有的篇照常用短版。
+   */
+  linesLong?: string[]
+  /** 加長版才問的一題（順序或「為什麼」）：q 大人問的、a 答不出來時大人示範的回答 */
+  parentTipLong?: { q: string; a: string }
+  /** 這是加長版（longOf 做出來的，不在 texts.json 裡）：選圖記 metrics.long、聊一聊多一題 */
+  long?: boolean
 }
 
 export const ZH_TEXTS = TEXTS as unknown as ZhText[]
+
+/** 一篇的加長版（lines 換成 linesLong）；這一篇還沒寫加長版就是 null（照常用短版） */
+export function longOf(t: ZhText): ZhText | null {
+  if (t.long) return t
+  return t.linesLong?.length ? { ...t, lines: t.linesLong, long: true } : null
+}
+
+/** 一段文字有幾個國字（一行最多 10 個字、一篇幾個字都只算國字，不算標點） */
+export const hanCount = (s: string) => [...plain(s)].filter((c) => /[一-鿿]/.test(c)).length
 
 // ── 課文的一行 ────────────────────────────────────────────────
 export interface Piece {

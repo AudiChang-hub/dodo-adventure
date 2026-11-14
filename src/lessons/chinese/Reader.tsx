@@ -609,7 +609,7 @@ export function Reader({
               </motion.button>
             )}
           </div>
-          <div className="zh-talk-note">
+          <div className={`zh-talk-note${t.long && t.parentTipLong ? ' has-long' : ''}`}>
             <p className="zh-talk-ask">
               <span className="zh-talk-tag">聊一聊・問他</span>
               <span className="zh-talk-q">{tk.q}</span>
@@ -617,6 +617,14 @@ export function Reader({
             <p className="zh-talk-model">
               <span className="zh-talk-how">答不出來就說</span>「{tk.a}」
             </p>
+            {/* 加長版（T-150）多一題順序或「為什麼」：只在加長版出現 */}
+            {t.long && t.parentTipLong && (
+              <p className="zh-talk-ask zh-talk-long">
+                <span className="zh-talk-tag">再問一題</span>
+                <span className="zh-talk-q">{t.parentTipLong.q}</span>
+                <span className="zh-talk-how">答不出來就說</span>「{t.parentTipLong.a}」
+              </p>
+            )}
             <p className="zh-talk-more">等他說；他說一兩個字，你幫他說成完整的一句。{more && `還可以：${more}`}</p>
           </div>
         </motion.div>

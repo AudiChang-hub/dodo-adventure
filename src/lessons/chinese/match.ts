@@ -51,11 +51,12 @@ export function glyphSim(a: string, b: string): number | null {
 
 /** 「長得差很多」：重疊不到這麼多（例：豬／小 0.27、豬／三 0.32；豬／貓 0.53） */
 export const FAR = 0.4
-/** 「有一點像」的上限：再像就是「大／太」（0.82）這種只差一點點的，那是 4 歲以後的事 */
+/** 「有一點像」的上限：再像就是「大／太」（0.82）這種只差一點點的，第 4 級也不放 */
 export const NEAR_MAX = 0.75
 
 // ── 出題 ────────────────────────────────────────────────────
-export type GlyphLevel = 1 | 2 | 3
+/** 第 4 級是 4 歲的內容（T-150：4 選 1），門開了才到得了（./stage4.ts 的 glyphMax） */
+export type GlyphLevel = 1 | 2 | 3 | 4
 
 export interface GlyphQuestion {
   /** 要找的字（這一篇紅字裡的一個字） */
@@ -84,6 +85,7 @@ export function glyphPool(t: ZhText, word: string): string[] {
  * - 第 1 級：2 選 1，干擾字長得差很多（重疊 < FAR）；
  * - 第 2 級：3 選 1，兩個都差很多；
  * - 第 3 級：3 選 1，一個「有一點像」（課文裡最像、但不超過 NEAR_MAX 的字），一個差很多。
+ * - 第 4 級（T-150，4 歲）：4 選 1，一個有一點像、兩個差很多。找不到有一點像的字、或差很多的不到 2 個：出不了（null，呼叫的退回第 3 級出）。
  * 差很多的字有好幾個時隨機挑（rnd，測試給固定的），每次不會都是「了」「小」這幾個。
  */
 export function glyphQuestion(t: ZhText, run: number, level: GlyphLevel, rnd: () => number = Math.random): GlyphQuestion | null {
@@ -104,7 +106,12 @@ export function glyphQuestion(t: ZhText, run: number, level: GlyphLevel, rnd: ()
   let ds: string[]
   if (level === 1) ds = pickFar(1, new Set())
   else if (level === 2) ds = pickFar(2, new Set())
-  else {
+  else if (level === 4) {
+    const near = [...scored].reverse().find((x) => x.s <= NEAR_MAX && x.s >= FAR)?.c
+    if (!near) return null
+    ds = [near, ...pickFar(2, new Set([near]))]
+    if (ds.length < 3) return null
+  } else {
     const near = [...scored].reverse().find((x) => x.s <= NEAR_MAX && x.s >= FAR)?.c
     ds = near ? [near, ...pickFar(1, new Set([near]))] : pickFar(2, new Set())
   }
@@ -136,19 +143,30 @@ export const GLYPH_START: GlyphState = { level: 1, recent: [], demos: 0, learned
 /** 這一堂要不要先讓手示範一次 */
 export const needsDemo = (s: GlyphState) => !s.learned && s.demos < DEMO_MAX
 
+/** 第 4 級（4 歲）退一級：最近 6 題第一次就對 ≤ 3 題（設計稿 T-150 第二節；最近 2 題都錯也退，跟其他級一樣） */
+export const BACK4_OF = 6
+export const BACK4_RIGHT = 3
+
 /**
  * 答完一題之後：
  * - demo：這一堂手先示範過；led：第一下點的時候手正指著答案（發呆太久、錯兩次的提示）。兩種都不算熟練（記成一起練）。
- * - 最近 2 題第一次都點錯：退一級（準則 LOAD-5）；這一級熟練了：升一級。升降之後重新算。
+ * - 最近 2 題第一次都點錯：退一級（準則 LOAD-5）；這一級熟練了：升一級（最多到 max）。升降之後重新算。
+ * - max：最高到第幾級（3；4 選 1 的門開了、沒暫停才是 4，./stage4.ts 的 glyphMax）。現在的級數比 max 高（家長暫停了），先降到 max。
+ * - level：這一題是第幾級出的。比現在的級數低（這一堂 4 選 1 出夠了，其他題照第 3 級出）：不算進升降級。
+ * 舊版只認得 1～3：讀到 4 照第 3 級出題、降級時 4 → 3（設計稿第五節「資料」）。
  */
-export function afterGlyph(s: GlyphState, r: { date: string; first: boolean; demo: boolean; led: boolean }): GlyphState {
+export function afterGlyph(s0: GlyphState, r: { date: string; first: boolean; demo: boolean; led: boolean; level?: number }, max: 3 | 4 = 3): GlyphState {
+  const s: GlyphState = s0.level > max ? { ...s0, level: max, recent: [] } : s0
   const learned = s.learned || (r.first && !r.led)
   const demos = s.demos + (r.demo ? 1 : 0)
-  if (r.demo || r.led) return { ...s, demos, learned }
+  if (r.demo || r.led || (r.level != null && r.level < s.level)) return { ...s, demos, learned }
   const recent = [...s.recent, { date: r.date, ok: r.first }].slice(-MASTER_OF)
   const last2 = recent.slice(-2)
-  if (s.level > 1 && last2.length === 2 && last2.every((x) => !x.ok)) return { level: (s.level - 1) as GlyphLevel, recent: [], demos, learned }
+  const down = { level: (s.level - 1) as GlyphLevel, recent: [], demos, learned }
+  if (s.level > 1 && last2.length === 2 && last2.every((x) => !x.ok)) return down
+  const last6 = recent.slice(-BACK4_OF)
+  if (s.level === 4 && last6.length >= BACK4_OF && last6.filter((x) => x.ok).length <= BACK4_RIGHT) return down
   const mastered = recent.length >= MASTER_OF && recent.filter((x) => x.ok).length >= MASTER_OK && new Set(recent.map((x) => x.date)).size >= MASTER_DAYS
-  if (mastered && s.level < 3) return { level: (s.level + 1) as GlyphLevel, recent: [], demos, learned }
+  if (mastered && s.level < max) return { level: (s.level + 1) as GlyphLevel, recent: [], demos, learned }
   return { level: s.level, recent, demos, learned }
 }

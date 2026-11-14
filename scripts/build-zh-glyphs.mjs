@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // 「找一樣的字」（T-117）要知道兩個字長得像不像：把 180 篇課文裡出現的每個國字，用課裡的字型（粉圓體 Huninn）畫成 16×16 的小圖，
 // 存成 src/lessons/chinese/glyphs.generated.json（每個字 64 個 16 進位字元＝256 格，有墨的格是 1）。
-// 像不像在 src/lessons/chinese/match.ts 的 glyphSim 算（兩張小圖疊起來，重疊多少）。課文改了（texts.json 多了新字）要重跑：
+// 加長版課文（linesLong，T-150）的字也畫。像不像在 src/lessons/chinese/match.ts 的 glyphSim 算（兩張小圖疊起來，重疊多少）。課文改了（texts.json 多了新字）要重跑：
 //   node scripts/build-zh-glyphs.mjs
 import fs from 'node:fs'
 import path from 'node:path'
@@ -16,7 +16,7 @@ const S = 8
 const INK = 0.18
 
 const texts = JSON.parse(fs.readFileSync(path.join(root, 'src/lessons/chinese/texts.json'), 'utf8'))
-const chars = [...new Set(texts.flatMap((t) => [...t.lines.join(''), ...t.redWords.join('')]).filter((c) => /[一-鿿]/.test(c)))].sort()
+const chars = [...new Set(texts.flatMap((t) => [...t.lines.join(''), ...(t.linesLong ?? []).join(''), ...t.redWords.join('')]).filter((c) => /[一-鿿]/.test(c)))].sort()
 
 const css = pathToFileURL(path.join(root, 'node_modules/@fontsource/huninn/400.css')).href
 const tmp = path.join(root, 'test-results', 'zh-glyphs.html')
