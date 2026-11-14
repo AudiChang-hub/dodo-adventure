@@ -27,7 +27,7 @@ const BECKON_MS = 4000
 /** 最多再跳幾次（紙感螢幕不一直動，MOTION-2） */
 const BECKON_MAX = 3
 
-/** 小小的畫框（找開頭的圖：「S → 一張圖」） */
+/** 小小的畫框（聽字找圖：「耳朵 → 一張圖」） */
 function Frame() {
   return (
     <svg viewBox="0 0 48 48" aria-hidden="true">
@@ -38,15 +38,26 @@ function Frame() {
   )
 }
 
+/** 小小的耳朵（聽字找圖：聽豆豆說） */
+function Ear() {
+  return (
+    <svg viewBox="0 0 48 48" aria-hidden="true">
+      <path d="M16 20 C16 10 34 8 35 21 C36 29 28 30 28 37 C28 43 20 43 19 38" fill="none" stroke="currentColor" strokeWidth={4} strokeLinecap="round" />
+      <path d="M23 21 C23 16 29 16 29 21" fill="none" stroke="currentColor" strokeWidth={3.5} strokeLinecap="round" opacity={0.7} />
+    </svg>
+  )
+}
+
 /**
  * 豆豆頭上的泡泡：這一題要找什麼（T-96，聽不懂 Where is big S? 也看得懂）。三種題型樣子固定、分得出來：
- * 找大寫＝大的 S 是實心、小的 s 只有淡淡的框；找小寫反過來；找開頭的圖＝S 後面一個畫框。泡泡小、不能點，不像選項。
+ * 找大寫＝大的 S 是實心、小的 s 只有淡淡的框；找小寫反過來；聽字找圖＝耳朵後面一個畫框（T-147）。泡泡小、不能點，不像選項。
  */
 function Ask({ q }: { q: Question }) {
+  // 聽字找圖（T-147）：泡泡裡是一隻耳朵＋畫框（聽豆豆說的字、找那張圖）；不寫字母，免得變成找開頭字母
   if (q.kind === 'word')
     return (
-      <span className="en-ask-in is-word">
-        <b>{q.L}</b>
+      <span className="en-ask-in is-word" data-word={q.answer}>
+        <Ear />
         <i aria-hidden="true">→</i>
         <Frame />
       </span>
@@ -135,7 +146,7 @@ export function Quiz({
   /** 這一堂的題目（大寫、小寫都照問，T-124） */
   const list = useRef<Question[]>([])
   /**
-   * 哪幾題要先示範：找字母（大寫、小寫算同一輪，T-125）、找開頭的圖，各自的第一題，而且這一輪裡有孩子還不會的題型；
+   * 哪幾題要先示範：找字母（大寫、小寫算同一輪，T-125）、聽字找圖，各自的第一題，而且這一輪裡有孩子還不會的題型；
    * 回來接著上的那一題一定示範（上課前就決定好，不會因為流程重跑而變）。
    * T-125（盲測 0f3363f 英文：「一直點都一樣」）：以前大寫、小寫各示範一次，Watch me → 題目 → Your turn 一模一樣走兩遍，
    * 第一天只有 S、s 兩張卡，看起來是同一題做兩輪。現在大寫、小寫混成一輪，只在第一題示範；小寫題直接問（點錯照樣有手指著答案，T-116）。
@@ -287,7 +298,7 @@ export function Quiz({
         setCarry(qk.answer)
       }
       sfx.pop()
-      await say(qk.yes)
+      await say(...qk.yes)
       await wait(500)
       if (!ok()) return
       // 你做：手收起來，選項留在原地（不換位置；餵豆豆的卡片回到原位）
@@ -474,7 +485,7 @@ export function Quiz({
       return
     }
     // 聽完才答、一次就對：Yes! S… s, s…。猜對（關鍵字還沒念完就點對）：不說 Yes!，平平地把關鍵字和答案再念一次（Big S!）
-    await say(...(full ? [praiseKey('dodo'), q.yes] : first ? q.echo : [q.yes]))
+    await say(...(full ? [praiseKey('dodo'), ...q.yes] : first ? q.echo : q.yes))
     await wait(500)
     if (!live.current) return
     if (i + 1 >= list.current.length) return done(results.current)

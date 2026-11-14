@@ -13,6 +13,7 @@ import { bridgeKey, zhClip, zhWord } from '../../content/zh-words'
 import { getSettings } from '../../lib/settings'
 import { wordId, type LessonLetter } from './data'
 import { Word } from './Word'
+import { taughtWords } from './abc'
 import { firstFinger } from '../../games/NotYet'
 
 /** 產生好的中文音檔（public/audio/zh/index.json）：沒產生的詞只念英文，不留一段空白 */
@@ -35,15 +36,20 @@ async function linesOf(w: string): Promise<string[]> {
 }
 
 /**
- * 單字範例（英文課第 3 段）：三個今天字母開頭的字，每個念「Apple → 蘋果 → Apple」，念到哪一個哪一個亮起來。
+ * 單字範例（英文課第 3 段）：兩個代表字（T-147，家長 2026-11-14：一個字母教 2 個；data.ts 每個字母 words 的前 2 個），每個念「Apple → 蘋果 → Apple」，念到哪一個哪一個亮起來。
  * 三張圖一進這一段就跟字幕一起出來（2026-11-01 PM：以前念「These words start with A!」的兩秒多畫面中間是空的，
  * 三歲孩子盯著空白超過一秒就會開始亂點）。
  * 念完自己往下走；念完之後點圖可以再聽一次。
  * 搶點（T-108，games/barge.ts）：三個字還沒念完就點圖：停掉介紹，直接念他點的那一個，念完照常停一下就往下走。
  * 正在念他點的那一個時又點：圖跳一下、有聲音，不重念。
  */
-export function Words({ letter, onDone }: { letter: LessonLetter; onDone: () => void }) {
+export function Words({ letter, onDone, onLit }: { letter: LessonLetter; onDone: () => void; /** 正在念第幾個字（陪玩小字跟著換，T-149 E3） */ onLit?: (i: number) => void }) {
+  const words = taughtWords(letter)
   const [lit, setLit] = useState(-1)
+  useEffect(() => {
+    if (lit >= 0) onLit?.(lit)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lit])
   const [bump, setBump] = useState<{ i: number; n: number } | null>(null)
   const talking = useRef(true)
   /** 開頭三個字的介紹還在念（可以被搶掉） */
@@ -64,7 +70,7 @@ export function Words({ letter, onDone }: { letter: LessonLetter; onDone: () => 
       if (ticking || !live.current) return
       ticking = true
       intro.current = false
-      noteTaught(letter.words.map((w) => wordKey(w.w)))
+      noteTaught(words.map((w) => wordKey(w.w)))
       leaveAt.current = performance.now() + 1500
       const tick = () => {
         if (!live.current) return
@@ -78,16 +84,16 @@ export function Words({ letter, onDone }: { letter: LessonLetter; onDone: () => 
       await wait(300)
       if (!ok()) return
       await say(`ph.${letter.l}.words`)
-      for (let i = 0; i < letter.words.length; i++) {
+      for (let i = 0; i < words.length; i++) {
         if (!ok()) return
         const t = performance.now()
         setLit(i)
         await wait(350)
-        const ls = await linesOf(letter.words[i].w)
+        const ls = await linesOf(words[i].w)
         if (!ok()) return
         await say(...ls)
         if (!ok()) return
-        void logTeach({ station: 'english', game: 'lesson-en', itemId: `word:${wordKey(letter.words[i].w)}`, skill: `word:${wordKey(letter.words[i].w)}`, level: 1, ms: Math.round(performance.now() - t) })
+        void logTeach({ station: 'english', game: 'lesson-en', itemId: `word:${wordKey(words[i].w)}`, skill: `word:${wordKey(words[i].w)}`, level: 1, ms: Math.round(performance.now() - t) })
         await wait(250)
       }
       if (!ok()) return
@@ -117,7 +123,7 @@ export function Words({ letter, onDone }: { letter: LessonLetter; onDone: () => 
     setBump((b) => ({ i, n: (b?.n ?? 0) + 1 }))
     talking.current = true
     setLit(i)
-    await say(...(await linesOf(letter.words[i].w)))
+    await say(...(await linesOf(words[i].w)))
     if (!live.current) return
     setLit(-1)
     talking.current = false
@@ -126,7 +132,7 @@ export function Words({ letter, onDone }: { letter: LessonLetter; onDone: () => 
 
   return (
     <div className="en-words">
-      {letter.words.map((w, i) => (
+      {words.map((w, i) => (
         <motion.button
           key={w.w}
           type="button"

@@ -169,8 +169,9 @@ ok('家長區：每一種題目聽完才答幾次、對幾次、沒聽完就點�
       for (const k of [...q.prompt, ...q.echo]) assert.ok(hasLine(k), `缺台詞 ${k}`)
       const k = q.prompt[0]
       if (q.kind === 'word') {
-        assert.equal(k, `ph.${q.L.toLowerCase()}.ask`, '找開頭的圖：先念字母和它的音')
-        assert.equal(keywordWords(k), 2, '關鍵字是字母名和第一個音')
+        // T-147：聽字找圖（Where's the apple?）取代找開頭的圖；整句念完才算聽完
+        assert.equal(k, `en.where.word.${q.answer}`, "聽字找圖：Where's the apple?")
+        assert.equal(keywordWords(k), Infinity)
       }
       else {
         // Big S! / Little s!：整句就是關鍵字，兩個字

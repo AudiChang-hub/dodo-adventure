@@ -1,6 +1,12 @@
-import { AnimatePresence, motion } from 'motion/react'
+import { useEffect, useRef, useState } from 'react'
+import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import { firstFinger } from '../../games/NotYet'
+import { Hand } from '../../games/Demo'
+import { wait } from '../../games/lines'
+import { say, sfx, stopSpeech } from '../../lib/audio'
+import { logTeach } from '../../lib/record'
 import { turnStyle, type OptView } from './QuizParts'
+import type { LessonLetter } from './data'
 
 /**
  * 選擇題的玩法二：泡泡（T-127 B 案，docs/T-127-新鮮感提案.md 第四節 (a)）。
@@ -69,3 +75,122 @@ const SPOTS3 = [
   { x: 52, y: 34 },
   { x: 80, y: 58 },
 ]
+
+/** 泡泡派對多久（T-147 設計稿 1-1：10 秒，不計分） */
+export const PARTY_MS = 10_000
+/** 一直沒點：手出來點給他看 */
+const PARTY_HINT_MS = 3500
+
+/** 派對的泡泡：滿畫面、大寫小寫輪流，大小高低錯開（百分比，泡泡中心） */
+const PARTY = [
+  { x: 14, y: 24, big: true },
+  { x: 34, y: 52, big: false },
+  { x: 47, y: 18, big: false },
+  { x: 58, y: 56, big: true },
+  { x: 74, y: 22, big: true },
+  { x: 90, y: 58, big: false },
+  { x: 42, y: 86, big: true },
+  { x: 76, y: 86, big: true },
+]
+
+/**
+ * 泡泡派對（T-147 英文門案 A）：一堂課的遊戲回合做完以後的慶祝，約 10 秒。
+ * 滿畫面都是今天字母的泡泡（大寫在大泡泡、小寫在小泡泡），點破一顆就念一次字母名（A…）。不計分、不記作答（只記一筆 teach）。
+ * - 紙感螢幕（MOTION-2、DISPLAY-1）：泡泡不飄、不動，只有點破的那一顆散開。
+ * - 連點、多指都可以（每一顆只破一次，每根手指各點各的）；念字母時又點，念新的那一顆（不排隊）。
+ * - 3.5 秒都沒點：手出來點一顆給他看（手只指，不幫他點破）。
+ * - 全部點破、或 10 秒到：自己結束（這是慶祝，不等大箭頭；下一個畫面是下課的晚安道別）。
+ * - 減少動態效果：點破的泡泡直接消失。
+ */
+export function BubbleParty({ letter, onDone }: { letter: LessonLetter; onDone: () => void }) {
+  const still = useReducedMotion()
+  const [gone, setGone] = useState<number[]>([])
+  const [hand, setHand] = useState(false)
+  const [tap, setTap] = useState(0)
+  const live = useRef(true)
+  const over = useRef(false)
+  const t0 = useRef(performance.now())
+  const end = () => {
+    if (over.current || !live.current) return
+    over.current = true
+    void logTeach({ station: 'english', game: 'lesson-en-party', itemId: `party:${letter.L}`, skill: `abc:${letter.L}`, level: 1, ms: Math.round(performance.now() - t0.current) })
+    onDone()
+  }
+
+  useEffect(() => {
+    live.current = true
+    t0.current = performance.now()
+    void say('en.party')
+    const stop = window.setTimeout(end, PARTY_MS)
+    return () => {
+      live.current = false
+      clearTimeout(stop)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  // 一直沒點：手出來指一顆、點一下（之後每 2.5 秒再點一下，點了第一顆就收起來）
+  useEffect(() => {
+    if (gone.length) return setHand(false)
+    const a = window.setTimeout(() => {
+      setHand(true)
+      setTap((t) => t + 1)
+    }, PARTY_HINT_MS)
+    const b = window.setInterval(() => setTap((t) => t + 1), 2500)
+    return () => {
+      clearTimeout(a)
+      clearInterval(b)
+    }
+  }, [gone.length])
+
+  const pop = (i: number) => {
+    if (over.current || gone.includes(i)) return
+    const next = [...gone, i]
+    setGone(next)
+    sfx.pop()
+    // 念新的那一顆（say 會停掉上一句，不排隊）
+    void say(`en.pop.${letter.l}`)
+    if (next.length >= PARTY.length)
+      void (async () => {
+        await wait(900)
+        end()
+      })()
+  }
+
+  // 離開時停掉字母名；派對自己結束（課接著說 You did it!）的不停，免得把那一句切掉（T-143）
+  useEffect(
+    () => () => {
+      if (!over.current) stopSpeech()
+    },
+    [],
+  )
+
+  const first = PARTY.findIndex((_, i) => !gone.includes(i))
+  return (
+    <div className="en-party" data-popped={gone.length} data-total={PARTY.length}>
+      {PARTY.map((b, i) => (
+        <AnimatePresence key={i}>
+          {!gone.includes(i) && (
+            <motion.button
+              type="button"
+              className={`en-party-bubble${b.big ? ' is-upper' : ' is-lower'}`}
+              style={{ left: `${b.x}%`, top: `${b.y}%` }}
+              aria-label={b.big ? letter.L : letter.l}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1, transition: { duration: still ? 0 : 0.35, delay: still ? 0 : i * 0.05 } }}
+              exit={still ? { opacity: 0, transition: { duration: 0 } } : { opacity: 0, scale: 1.6, transition: { duration: 0.35 } }}
+              onPointerDown={() => pop(i)}
+              onClick={(e) => {
+                if (e.detail === 0) pop(i)
+              }}
+            >
+              <span className="en-opt-letter">{b.big ? letter.L : letter.l}</span>
+              <i className="en-bubble-shine" aria-hidden="true" />
+            </motion.button>
+          )}
+        </AnimatePresence>
+      ))}
+      <AnimatePresence>{hand && first >= 0 && <Hand key="party" x={PARTY[first].x} y={PARTY[first].y} tap={tap} size="min(110px, 13vmin)" cuff="#BFE0CC" />}</AnimatePresence>
+    </div>
+  )
+}

@@ -9,6 +9,8 @@ import { hasLine } from '../src/content/registry'
 import { LINES, ORDER, lessonLetter, orderFor, wordId, LESSON_LETTERS } from '../src/lessons/english/data'
 import { doneRecord, lessonGood, planFor, startedRecord, type EnglishProgress } from '../src/lessons/english/plan'
 import { makeQuiz, wrongKeys } from '../src/lessons/english/quiz-plan'
+import fs from 'node:fs'
+import { kindOf } from '../src/lessons/english/abc'
 
 let n = 0
 const ok = (name: string) => console.log(`ok ${++n} ${name}`)
@@ -52,7 +54,8 @@ ok('A12 舊的進度（沒有 seq）照 A→Z 往下走，不會因為設了名�
 for (const seq of [ORDER, ben]) {
   for (let idx = 0; idx < seq.length; idx++) {
     const taught = new Set(seq.slice(0, idx + 1))
-    const words = new Set(LESSON_LETTERS.filter((x) => taught.has(x.L)).flatMap((x) => x.words.map((w) => wordId(w.w))))
+    // T-147：一個字母只教 2 個代表字（words 的前 2 個），第 3 個不考
+    const words = new Set(LESSON_LETTERS.filter((x) => taught.has(x.L)).flatMap((x) => x.words.slice(0, 2).map((w) => wordId(w.w))))
     for (const q of makeQuiz(lessonLetter(idx, seq), idx, seq)) {
       const okId = (id: string) => (q.kind === 'word' ? words.has(id) : taught.has(id.split(':')[0]))
       assert.ok(okId(q.answer), `${seq.slice(0, 3)} 第 ${idx + 1} 天 答案 ${q.answer} 還沒教`)
@@ -143,7 +146,7 @@ ok('T-116 複習到一半離開：同一天回來從離開的那一段接著複�
   }
   // 第三題單日問圖、雙日複習以前的字母，兩種都會出現
   const thirds = Array.from({ length: 25 }, (_, k) => makeQuiz(lessonLetter(k + 1), k + 1)[2])
-  assert.ok(thirds.filter((q) => q.kind === 'word').length >= 10, '單日要有找開頭音的圖')
+  assert.ok(thirds.filter((q) => q.kind === 'word').length >= 10, '單日要有聽字找圖')
   assert.ok(thirds.filter((q, k) => q.kind === 'big' && q.L !== lessonLetter(k + 1).L).length >= 10, '雙日要有複習以前的字母')
 }
 ok('T-104、T-112 選擇題答完幾題、結果記下來，同一天回來從下一題接著問；題數固定（第一天 2 題、之後 3 題），不再重複問同一題')
@@ -218,5 +221,56 @@ ok('T-122 上完了、還沒說完晚安就離開：同一天回來回到晚安�
   for (const l of 'acemnorsuvwxz') assert.ok(yRange(LESSON_LETTERS.find((x) => x.l === l)!.lower)[0] >= LINES.mid - 4, `${l} 不該超過中線`)
 }
 ok('T-132 四線格：大寫頂線到底線、小寫從中線（上伸的從頂線）到底線，大 S 和小 s 高度看得出不一樣')
+
+// ── T-147 英文門案 A ──────────────────────────────────────
+{
+  // 寫寫看保留（家長 2026-11-14「描英文字是很重要的練習」）：舊進度停在寫寫看的，同一天回來照原本的方式接回寫寫看
+  const d = '2026-11-14'
+  const w = planFor({ idx: 3, seq: ORDER, date: d, done: false, good: false, stage: 'write', round: 0 }, d)
+  assert.deepEqual(w.resume, { stage: 'write', round: 0 })
+  assert.equal(startedRecord(w, null, d)?.stage, 'write')
+  // 今天上完了又進來：review（字母遊戲時間），不管停在哪一段
+  assert.equal(planFor({ idx: 3, seq: ORDER, date: d, done: true, good: true, stage: 'write', round: 0 }, d).review, true)
+}
+ok('T-147 舊進度停在寫寫看：同一天回來接回寫寫看；今天上完了再進來是字母遊戲時間')
+
+assert.match(fs.readFileSync('src/lessons/english/QuizParts.tsx', 'utf8'), /export const QUIZ_LOOKS: readonly QuizLook\[\] = \['bubbles', 'feed'\]/)
+ok('T-147 遊戲回合只輪泡泡、餵豆豆（拿掉找卡片）')
+
+// 家長 2026-11-14：拿掉「Which one starts with A?」，換成聽字找圖（Where's the apple?）
+{
+  const KIND = (w: string) => kindOf(w)
+  let n = 0
+  for (const seq of [ORDER, orderFor('Ben')])
+    for (let idx = 0; idx < 26; idx++)
+      for (let k = 0; k < 8; k++)
+        for (const q of makeQuiz(lessonLetter(idx, seq), idx, seq)) {
+          for (const p of q.prompt) assert.ok(!/ph\.[a-z]\.(ask|q\.word)/.test(p), `還在問開頭音：${p}`)
+          if (q.kind !== 'word') continue
+          n++
+          const x = lessonLetter(idx, seq)
+          assert.ok(x.words.slice(0, 2).some((w) => wordId(w.w) === q.answer), `${x.L} 的找圖答案 ${q.answer} 不是今天教的 2 個字`)
+          assert.deepEqual(q.prompt, [`en.where.word.${q.answer}`])
+          assert.equal(q.skill, `enword:${q.answer}`)
+          assert.equal(q.options.length, 2, '2 選 1')
+          const ws = LESSON_LETTERS.flatMap((y) => y.words)
+          const [a, b] = q.options.map((o) => ws.find((w) => wordId(w.w) === o.id)!.w)
+          assert.notEqual(KIND(a), KIND(b), `干擾圖要不同類：${a}、${b}`)
+          assert.deepEqual(q.yes, [`ph.word.${q.answer}`, `en.pop.${x.l}`, `ph.word.${q.answer}`], '答對念三明治')
+          for (const key of [...q.prompt, ...q.yes]) assert.ok(hasLine(key), `沒有台詞 ${key}`)
+        }
+  assert.ok(n > 50, `聽字找圖出了 ${n} 題`)
+}
+ok("T-147 聽字找圖：念今天教的代表字（Where's the apple?），2 選 1、干擾圖不同類，答對念三明治，記 enword:；沒有開頭音的題目")
+
+// 舊進度 answers 裡的 word 題（以前的開頭音題）：同一天回來照樣接著問，一樣不算進隔天重不重上
+{
+  const d = '2026-11-14'
+  const old = [{ kind: 'big' as const, first: true, heard: true }, { kind: 'little' as const, first: true, heard: true }]
+  const pl = planFor({ idx: 3, seq: ORDER, date: d, done: false, good: false, stage: 'quiz', round: 2, answers: old }, d)
+  assert.deepEqual(pl.resume?.answers, old)
+  assert.equal(lessonGood([...old, { kind: 'word', first: false, heard: true }]), true)
+}
+ok('T-147 舊進度裡的 word 題：照樣讀得進來、不算進隔天重不重上')
 
 console.log('ALL PASS')
