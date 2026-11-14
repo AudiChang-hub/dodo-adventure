@@ -34,10 +34,7 @@
   - 在自己的分支或 worktree 改，只改分到的檔案，commit 但不 push。
   - 只跑自己改到的部分：`npm run verify`，加上 `npm run test:toddler -- --changed`。
   - 不用 `preview_start`、`AskUserQuestion`。有疑問寫在回報裡。
-- **AI 小男生測試員**：獨立的盲測工作階段，見 [tests/ai-toddler/README.md](tests/ai-toddler/README.md)。
-  - 只測 PM 合併後的版本。不看 diff、`src/`，也不看開發報告。
-  - 只回報，不改 `src/`。
-  - 報告放主 repo 的 `docs/AI小男生測試/`。
+- **AI 小男生盲測**：家長 2026-11-14 決定停用，為了省 Token、加快上線。工具還留在 `tests/ai-toddler/`，家長沒有明確要求就不跑，也不提議恢復。
 
 ## 指令
 
@@ -47,11 +44,10 @@
 | 合併前的檢查（型別、單元、排版、故事、音檔） | `npm run verify` |
 | 三歲測試，只跑受影響的 | `npm run test:toddler -- --changed` |
 | 三歲測試，完整版 | `npm run test:toddler` |
-| AI 小男生盲測 | `npm run test:ai-toddler -- --lesson en\|zh\|math\|draw\|story` |
 | 打包 | `npm run build` |
 | 部署到 GitHub Pages | `node scripts/deploy.mjs` |
 
-**PM 的上線流程**：同一批合併完，依序跑 `npm run audio` → `npm run verify` → `npm run test:toddler -- --changed main`（每批至少跑一次完整版）→ `npm run build` → `node scripts/deploy.mjs`。上線後交給 AI 小男生測試員盲測。
+**PM 的上線流程**：同一批合併完，依序跑 `npm run audio` → `npm run verify` → `npm run test:toddler -- --changed main`（每批至少跑一次完整版）→ `npm run build` → `node scripts/deploy.mjs`。上線後不做 AI 小男生盲測。
 
 ## 測試規則
 
@@ -59,7 +55,7 @@
 - 只出現一次的問題，先用同一個 seed 重跑（`--seed N`，預設會自動重跑 2 次），確認是穩定重現還是偶發。
 - 執行測試：
   - 不用 `nice`，worker 數交給 `test:toddler` 自動決定，例如 `npm run test:toddler -- --changed main`。只有大量生成語音時才要降低優先權、限制執行緒數。
-  - 三歲測試和 AI 小男生測試共用排隊鎖（`%TEMP%\dodo-toddler`），不要加 `--no-lock`。
+  - 三歲測試用排隊鎖（`%TEMP%\dodo-toddler`），不要加 `--no-lock`。
   - 停測試只停自己啟動時記下的 PID（`taskkill /PID <pid> /T /F`），不要用指令字串比對。
 
 ## 已知地雷
