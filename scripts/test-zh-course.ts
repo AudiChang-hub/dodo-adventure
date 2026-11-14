@@ -332,7 +332,11 @@ function main() {
       assert.ok(k && k.q && k.a, `${where}沒有聊一聊`)
       assert.ok(!BAN.some((b) => k.q.includes(b)), `${where}「${k.q}」：3 歲不問為什麼、怎麼、如果……`)
       assert.ok(/誰|什麼|哪/.test(k.q), `${where}「${k.q}」：用誰、什麼、哪裡問`)
-      assert.ok([...k.q].length <= 12 && k.q.endsWith('？'), `${where}「${k.q}」：≤ 12 字、問號結尾`)
+      // T-145（盲測 fb621aa：「誰蓋房子？」孩子說聽不懂在問什麼）：每一題都先說「指指看，」、答案是卡片上那張圖，三歲用指的就答得出來
+      // 卡片上放的圖（Reader.tsx）：答案的圖（pic），沒有的話是問題裡提到的那個有圖的紅字
+      const drawn = t.redWords.filter((w) => t.emoji[w])
+      assert.ok(k.q.startsWith('指指看，') && (!!k.pic || drawn.some((w) => k.q.includes(w))), `${where}「${k.q}」：先說「指指看，」，問的要是卡片上那張圖`)
+      assert.ok([...k.q].length <= 16 && k.q.endsWith('？'), `${where}「${k.q}」：≤ 16 字（含「指指看，」）、問號結尾`)
       assert.ok([...k.a].length <= 16 && /[。！]$/.test(k.a), `${where}「${k.a}」：示範的回答 ≤ 16 字、一句`)
       // 答案在課文裡（回想，不是推理）：示範回答裡至少有兩個字連著出現在課文
       const text = t.lines.map(plain).join('')
@@ -343,7 +347,7 @@ function main() {
         assert.ok(t.redWords.includes(k.pic) && t.emoji[k.pic], `${where}圖「${k.pic}」要是有圖的紅字`)
       }
     }
-    console.log(`ok 9 聊一聊：180 篇都是誰、什麼、哪裡的問法（沒有為什麼），答案在課文裡、有大人示範的回答；${pics} 篇有圖可以指`)
+    console.log(`ok 9 聊一聊：180 篇都是「指指看，」加誰、什麼、哪裡的問法（沒有為什麼），答案在課文裡、有大人示範的回答；${pics} 篇有圖可以指`)
   }
   // ── 中文課文不出聲（2026-11-03）：沒有程式會去要中文課文、中文數數的音檔；中文課裡不說話、不用平板內建語音 ─────────────
   // （英文單字三明治的中文 audio/zh/ 家長要保留，不在這裡擋）

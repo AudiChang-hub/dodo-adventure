@@ -582,16 +582,16 @@ test.describe('中文課', () => {
    * 舊篇（複習）上完 → 慶祝 → 下課的大箭頭（手指著它）→ 晚安，這就算今天上完；旁邊一本小小的「再一篇」，不搶眼、沒有手，孩子主動點才上新篇。
    * 沒上新篇：新篇不消耗，下次進來直接上那篇新篇（不再複習同一篇），上完照常下課；再下一次才是下一次的複習。
    */
-  test('T-142 複習上完：慶祝 → 手指著下課箭頭、旁邊一本不搶眼的書（沒有手）→ 下課、晚安；新篇不消耗；再進來直接上新篇、上完下課；隔天是下一次的複習', async ({ page }, info) => {
+  test('T-142 複習上完：慶祝 → 手指著下課箭頭、旁邊一本小一點的書 → 下課、晚安；新篇不消耗；再進來直接上新篇、上完下課；隔天是下一次的複習', async ({ page }, info) => {
     test.skip(!want('lesson-chinese-offer'))
     test.setTimeout(8 * 60_000)
     await page.addInitScript({ path: path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'ai-toddler', 'heard.js') })
     const { k, c } = await setup(page, info, 'T142複習上完下課', false, false)
     try {
       if (!(await toChoice(k, c))) return
-      // 慶祝：舊的書打勾；手來指右下角的下課箭頭（4.5 秒內），書沒有手、比舊的書小
+      // 慶祝：舊的書打勾；手來指右下角的下課箭頭（6.5 秒內：T-145 手先到新書上點一下），書比舊的書小
       let handOnArrow = false
-      for (const end = Date.now() + 4500; Date.now() < end && !handOnArrow; await page.waitForTimeout(150)) handOnArrow = await page.evaluate(handNearArrow)
+      for (const end = Date.now() + 6500; Date.now() < end && !handOnArrow; await page.waitForTimeout(150)) handOnArrow = await page.evaluate(handNearArrow)
       const b = await page.evaluate(() => {
         const r = (s: string) => document.querySelector(s)?.getBoundingClientRect() ?? null
         return {
@@ -604,9 +604,9 @@ test.describe('中文課', () => {
           hint: document.querySelector('.coplay-hint')?.textContent ?? '',
         }
       })
-      const ok = b.done && b.offer && !b.offerHand && b.small && !b.oldChoice && b.arrow && handOnArrow
-      c.outcome('慶祝：舊的書打勾、手指著下課箭頭；「再一篇」是一本小書、沒有手', ok, JSON.stringify({ ...b, handOnArrow, hint: undefined }))
-      if (!ok) await c.once('t142-look', '困惑', '複習上完的畫面不是「手指下課、旁邊一本不搶眼的書」', JSON.stringify({ ...b, handOnArrow }))
+      const ok = b.done && b.offer && b.small && !b.oldChoice && b.arrow && handOnArrow
+      c.outcome('慶祝：舊的書打勾、手指著下課箭頭；「再一篇」是一本小一點的書', ok, JSON.stringify({ ...b, handOnArrow, hint: undefined }))
+      if (!ok) await c.once('t142-look', '困惑', '複習上完的畫面不是「手指下課、旁邊一本小一點的書」', JSON.stringify({ ...b, handOnArrow }))
       const hinted = /再點.*書/.test(b.hint)
       c.outcome('給大人的小字寫「他想聽再點書」', hinted, b.hint)
       if (!hinted) await c.once('t142-hint', '困惑', '複習上完的陪玩小字沒寫「他想聽再點書」', b.hint)
@@ -667,6 +667,80 @@ test.describe('中文課', () => {
       await c.flush()
     } finally {
       finish(k, c, 'T142複習上完下課')
+    }
+  })
+
+  test('T-145 複習上完：手先指新書再指下課箭頭、新書看得出能點；大箭頭邊緣點得到；下課點一次恐龍就很快指房子', async ({ page }, info) => {
+    test.skip(!want('lesson-chinese-t145'))
+    test.setTimeout(6 * 60_000)
+    const { k, c } = await setup(page, info, 'T145提議與下課', false, false)
+    try {
+      if (!(await toChoice(k, c))) return
+      // 中③（盲測 fb621aa：4/4 照手點箭頭，沒人點新書）：手先到新書上點一下，再去指下課箭頭；新書的圖不淡
+      let handOnBook = false
+      let handOnArrowAfter = false
+      for (const end = Date.now() + 7000; Date.now() < end && !handOnArrowAfter; await page.waitForTimeout(120)) {
+        const h = await page.evaluate(() => {
+          const near = (sel: string) => {
+            const a = document.querySelector(sel)?.getBoundingClientRect()
+            if (!a) return false
+            return [...document.querySelectorAll('.demo-hand')].some((e) => {
+              const r = e.getBoundingClientRect()
+              return Math.hypot(r.left + r.width / 2 - (a.left + a.width / 2), r.top + r.height / 2 - (a.top + a.height / 2)) < Math.max(a.width, a.height)
+            })
+          }
+          return { book: near('.zh-offer'), arrow: near('.next-step') }
+        })
+        if (h.book) handOnBook = true
+        if (handOnBook && h.arrow) handOnArrowAfter = true
+      }
+      const look = await page.evaluate(() => {
+        const pic = document.querySelector('.zh-offer-pic')
+        const op = pic ? Number(getComputedStyle(pic).opacity) : 0
+        const b = document.querySelector('.zh-offer')?.getBoundingClientRect()
+        return { op, w: Math.round(b?.width ?? 0) }
+      })
+      const seen = handOnBook && handOnArrowAfter && look.op >= 0.95 && look.w >= 90
+      c.outcome('手先指新書、再指下課箭頭；新書不淡、夠大', seen, JSON.stringify({ handOnBook, handOnArrowAfter, ...look }))
+      if (!seen) await c.once('t145-offer', '困惑', '複習上完的新書看不出可以點（沒有手指過、圖很淡或太小）', JSON.stringify({ handOnBook, handOnArrowAfter, ...look }))
+      await shot(page, info, 'T145-中文-提議')
+      // 低②（盲測：點大箭頭偏 30px 被記成空白處）：大箭頭中心和上下左右偏 30px 都點得到它
+      const hits = await page.evaluate(() => {
+        const a = document.querySelector('.next-step')?.getBoundingClientRect()
+        if (!a) return null
+        const cx = a.left + a.width / 2
+        const cy = a.top + a.height / 2
+        return [[0, 0], [30, 0], [-30, 0], [0, 30], [0, -30], [30, 30], [-30, -30], [42, 0], [0, 42]].map(([dx, dy]) => {
+          const el = document.elementFromPoint(cx + dx, cy + dy)
+          return el?.closest('.next-step') ? 'ok' : `${dx},${dy}:${(el?.getAttribute('class') ?? el?.tagName ?? '').split(' ')[0]}`
+        })
+      })
+      const allHit = !!hits && hits.every((h) => h === 'ok')
+      c.outcome('大箭頭中心、偏 30～42px 都點得到', allHit, JSON.stringify(hits))
+      if (!allHit) await c.once('t145-arrow', '困惑', '大箭頭邊緣點下去不是大箭頭', JSON.stringify(hits))
+      // 不點新書照常下課
+      const n = await arrowAt(page)
+      if (n) await k.tap(n, '下課箭頭')
+      const bye = await page.waitForSelector('.lesson-bye', { timeout: 8000 }).catch(() => null)
+      if (!bye) return void (await c.once('t145-bye', '卡死', '複習上完點下課箭頭沒有到晚安道別', ''))
+      // 低④（盲測：要連點兩次恐龍才等到手指房子）：點一次恐龍，2.2 秒內手就指著房子
+      await k.wait(1200)
+      const dino = await page.evaluate(() => {
+        const r = document.querySelector('.lb-host')?.getBoundingClientRect()
+        return r ? { x: r.left + r.width / 2, y: r.top + r.height * 0.45 } : null
+      })
+      if (!dino) return void (await c.once('t145-dino', '卡死', '下課畫面沒有恐龍', ''))
+      await k.tap(dino, '恐龍')
+      const t0 = Date.now()
+      let handHome = -1
+      for (const end = t0 + 6000; Date.now() < end && handHome < 0; await page.waitForTimeout(80)) if (await page.$('.lb-home .demo-hand')) handHome = Date.now() - t0
+      const quick = handHome >= 0 && handHome <= 2200
+      c.outcome('點一次恐龍，2.2 秒內手指房子', quick, `${handHome}ms`)
+      if (!quick) await c.once('t145-home-hand', '困惑', '下課點恐龍之後，手太久才指房子（孩子會再點一次恐龍）', `${handHome}ms`)
+      await shot(page, info, 'T145-中文-下課指房子')
+      await c.flush()
+    } finally {
+      finish(k, c, 'T145提議與下課')
     }
   })
 

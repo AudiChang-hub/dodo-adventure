@@ -22,6 +22,14 @@ const ASK_GAP_MS = 3000
 const AGAIN_MS = 8000
 /** 揮手說晚安至少多久才躺下（說話比這個長就等說完） */
 const WAVE_MS = 1700
+/**
+ * 莫莫（中文課不出聲）揮手多久就躺下（T-145，盲測 fb621aa：4/4 孩子點了恐龍又點一次，才等到手指房子）。
+ * 豆豆、波波照舊等 Good night 說完（WAVE_MS 起跳）
+ */
+const WAVE_QUIET_MS = 1100
+/** 睡著以後房子多久出來、手多久來指它（T-145：以前 0.9 秒、1.4 秒；只在點了恐龍、道別完之後，點恐龍之前房子不會出來） */
+const HOME_IN_S = 0.3
+const HOME_HAND_MS = 400
 
 type Phase = 'awake' | 'wave' | 'asleep'
 
@@ -32,9 +40,10 @@ type Phase = 'awake' | 'wave' | 'asleep'
  *    0.6 秒手點一下、恐龍開口 Tap me! Let's say good night!（莫莫不出聲；課最後那一句還在說就等它說完）；
  *    之後每 8 秒手再點一次。點空白處：手再點一次、再請一次（T-141）。
  *    以前還沒道別的恐龍會睏得閉一下眼睛，孩子看了以為已經睡著、就去點左上角的房子（盲測 c9bb003 英文 2），拿掉了。
- * 2. 孩子點恐龍：恐龍左右揮手、旁邊一隻小手揮一揮，說 Good night, 名字!（豆豆、波波；中文課的莫莫不出聲，只有輕輕的音效）。
+ * 2. 孩子點恐龍：恐龍左右揮手、旁邊一隻小手揮一揮，說 Good night, 名字!（豆豆、波波；中文課的莫莫不出聲，只有輕輕的音效，揮一下就躺下，T-145）。
+ *    揮手中又點恐龍：輕輕一聲（T-145）。
  * 3. 恐龍趴下睡覺（閉眼、身體放低、頭上三個 Z 一個一個冒出來），天色變暗一點、出現月亮。
- * 4. 房子（時間到的那一天是月亮）亮起來，手指著它；孩子點了才回首頁（時間到：去睡覺畫面）。
+ * 4. 房子（時間到的那一天是月亮）馬上亮起來、手很快指著它（T-145）；孩子點了才回首頁（時間到：去睡覺畫面）。
  * 道別之前房子不出來（家長：道別完才離開）；左上角的返回鍵一直都點得到（NAV-1），隨時可以離開。
  * 點空白處：手再指一次現在要點的東西（恐龍或房子）。睡著以後再點恐龍：Z 抖一下（打呼），不會醒來。
  * 動作都是一次就停（MOTION-1/2/3），沒有一直閃的東西。
@@ -84,18 +93,20 @@ export function LessonBye({ host, timeUp = false, onDone, onAsleep }: { host: Sp
       setSnore((n) => n + 1)
       return point(500)
     }
+    // 揮手中又點了一次：輕輕回應一聲（不再像沒點到），流程照走
+    if (phaseRef.current === 'wave') return void sfx.tap()
     if (phaseRef.current !== 'awake') return
     setPhase('wave')
     setHand(0)
     handTimers.current.forEach(clearTimeout)
     sfx.pop()
     const talk = host === 'momo' ? (sfx.chime(0), wait(300).then(() => sfx.chime(2))) : say(`bye.night.${host}`)
-    await Promise.all([talk, wait(WAVE_MS)])
+    await Promise.all([talk, wait(host === 'momo' ? WAVE_QUIET_MS : WAVE_MS)])
     if (!live.current) return
     sfx.chime(4)
     setPhase('asleep')
     onAsleep?.()
-    point(1400)
+    point(HOME_HAND_MS)
   }
 
   const finish = () => {
@@ -171,7 +182,7 @@ export function LessonBye({ host, timeUp = false, onDone, onAsleep }: { host: Sp
                 ? { rotate: -5, y: 22, scaleY: 0.9 }
                 : { rotate: 0, y: 0, scaleY: 1 }
           }
-          transition={phase === 'wave' ? { duration: 1.4, ease: 'easeInOut' } : { duration: 0.9, ease: 'easeOut' }}
+          transition={phase === 'wave' ? { duration: host === 'momo' ? 1 : 1.4, ease: 'easeInOut' } : { duration: 0.9, ease: 'easeOut' }}
         >
           <Dino who={host} mood={asleep ? 'sleep' : phase === 'wave' ? 'cheer' : 'happy'} size="100%" />
         </motion.div>
@@ -232,7 +243,7 @@ export function LessonBye({ host, timeUp = false, onDone, onAsleep }: { host: Sp
             aria-label={timeUp ? '去睡覺' : '回首頁'}
             initial={{ scale: 0.6, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
-            transition={{ type: 'spring', stiffness: 260, damping: 20, delay: 0.9 }}
+            transition={{ type: 'spring', stiffness: 260, damping: 20, delay: HOME_IN_S }}
             whileTap={{ scale: 0.92 }}
             {...tap('home', finish)}
           >
