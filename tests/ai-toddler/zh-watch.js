@@ -63,8 +63,14 @@
       const ask = root.querySelector('.zh-ask-word')
       const read = root.querySelector('.zh-read')
       const model = root.querySelector('.zh-talk-model')
+      // 找一樣的字（Glyph.tsx）：上面一個大字，下面兩、三張字卡（key 就是那個字）
+      const glyph = root.querySelector('.zh-glyph')
+      const target = root.querySelector('.zh-glyph-target')
       return {
-        mode: talk ? 'talk' : ask ? 'quiz' : read && root.querySelector('.zh-line.on') ? 'read' : null,
+        mode: talk ? 'talk' : ask ? 'quiz' : glyph ? 'glyph' : read && root.querySelector('.zh-line.on') ? 'read' : null,
+        glyph: target ? target.getAttribute('data-char') : null,
+        // 手正在示範（第一次上「找一樣的字」先看手做一次）
+        demo: !!(glyph && glyph.hasAttribute('data-demo')),
         at: read ? read.getAttribute('data-at') : null,
         lit: [...root.querySelectorAll('.zh-line.on .zh-pic')].map((e) => e.getAttribute('data-word')),
         star: root.querySelector('.zh-talk-pic') ? root.querySelector('.zh-talk-pic').getAttribute('data-word') : null,

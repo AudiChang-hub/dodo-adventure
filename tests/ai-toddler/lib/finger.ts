@@ -74,7 +74,7 @@ export class Finger {
     })
   }
 
-  /** 那一點底下是什麼：返回鍵、家長角落、畫布、按鈕（aria-label）、或空白 */
+  /** 那一點底下是什麼：返回鍵、家長角落、畫布、按鈕（aria-label）、App 有接的小地方（React 的 onPointerDown），或空白 */
   hitAt(p: Pt) {
     return this.page
       .evaluate(({ x, y }) => {
@@ -85,6 +85,22 @@ export class Finger {
         if (el.tagName === 'CANVAS') return '畫布'
         const b = el.closest('button, [role=button], .door, .side-door, .book-card')
         if (b) return `按鈕「${b.getAttribute('aria-label') || (b as HTMLElement).dataset.door || b.textContent?.trim().slice(0, 12) || (b.getAttribute('class') ?? '').split(' ')[0]}」`
+        // 不是按鈕、但 App 用 React 的 onPointerDown／onClick 接的東西（中文課的一行字、圖的空隙）（T-145：以前都記成「空白處」）。
+        // 蓋住大半個畫面的（下課畫面、課本整頁）是「點空白處也有反應」，照舊叫空白處
+        // 這段在瀏覽器裡跑：不能宣告具名函式（tsx 會加 __name）
+        let h: Element | null = el
+        for (; h && h !== document.body; h = h.parentElement) {
+          const k = Object.keys(h).find((x) => x.startsWith('__reactProps$'))
+          const pr = k ? (h as unknown as Record<string, Record<string, unknown>>)[k] : null
+          if (pr && (pr.onPointerDown || pr.onClick || pr.onPointerUp || pr.onTouchStart)) break
+        }
+        if (h && h !== document.body) {
+          const r = h.getBoundingClientRect()
+          if (r.width * r.height < innerWidth * innerHeight * 0.4) {
+            const name = h.getAttribute('aria-label') || h.closest('[data-word]')?.getAttribute('data-word') || (h.getAttribute('class') ?? '').split(' ')[0] || h.tagName.toLowerCase()
+            return `點得到的地方（${name}）`
+          }
+        }
         // SVG 的 className 是 SVGAnimatedString，用 getAttribute 才拿得到字
         const cls = (el.getAttribute('class') ?? '').split(' ')[0]
         return cls ? `空白處（${cls}）` : `空白處（${el.tagName.toLowerCase()}）`
