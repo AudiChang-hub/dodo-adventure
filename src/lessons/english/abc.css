@@ -387,8 +387,21 @@
   position: relative;
   width: min(340px, 36vmin);
 }
-.en-new-card svg {
+.en-new-card > span > svg {
   width: min(190px, 20vmin);
+}
+/* 故事的 .en-word（src/screens/story.css，同名的字卡）載入後會蓋過英文課的寫法：這張卡片裡照英文課的單字樣子 */
+.en-new-card .en-word {
+  display: inline;
+  min-width: 0;
+  padding: 0;
+  border-radius: 0;
+  background: none;
+  box-shadow: none;
+  font: 600 calc(min(52px, 6vmin) * var(--fit, 1)) / 1 'Fredoka', sans-serif;
+  white-space: nowrap;
+  letter-spacing: 0.01em;
+  color: var(--ink-soft);
 }
 
 /* 聽開頭：籃子上是嘴巴（聽開頭的音），不寫字母；放對了嘴巴張一下 */

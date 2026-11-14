@@ -37,6 +37,8 @@ export function NewWord({ pick, onReady }: { pick: WordPick; onReady: () => void
     ready.current = true
     intro.current = false
     noteTaught([wordKey(pick.w.w)])
+    // 念完一次（介紹念完、或搶點直接念完）才記教學
+    void logTeach({ station: 'english', game: 'abc-new', itemId: `word:${wordKey(pick.w.w)}`, skill: `word:${wordKey(pick.w.w)}`, level: 1, ms: Math.round(performance.now() - mountAt.current) })
     onReady()
   }
 
@@ -49,11 +51,9 @@ export function NewWord({ pick, onReady }: { pick: WordPick; onReady: () => void
       if (!ok()) return
       await say('en.abc.new')
       if (!ok()) return
-      const t = performance.now()
       setLit(true)
       await say(...(await linesOf(pick.w.w)))
       if (!ok()) return
-      void logTeach({ station: 'english', game: 'abc-new', itemId: `word:${wordKey(pick.w.w)}`, skill: `word:${wordKey(pick.w.w)}`, level: 1, ms: Math.round(performance.now() - t) })
       setLit(false)
       talking.current = false
       done()

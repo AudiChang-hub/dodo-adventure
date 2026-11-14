@@ -294,7 +294,8 @@ export function Pair({
     idle.stop()
     const firstTry = !together && tries.current === 0
     const h = heard.current
-    const byHand = led.current && !shown.current
+    // 聽開頭的一起做（r.led）：手還沒出來就搶著放也一樣算手帶著做（記 guided，不算熟練）
+    const byHand = (led.current || !!r.led) && !shown.current
     const full = firstTry && h && !led.current
     setState({ [r.answer]: 'yes' })
     setCarry(r.answer)

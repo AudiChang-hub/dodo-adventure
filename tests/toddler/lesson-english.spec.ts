@@ -2167,3 +2167,330 @@ test.describe('英文課：字母遊戲時間（T-147）', () => {
     }
   })
 })
+
+// ── T-150 E 英文 4 歲內容：門開了（測試直接放開門的 kv 和像真的玩過的作答紀錄）──────────────────
+
+const T150_SHOTS = process.env.T150_SHOTS
+async function shot4(page: Page, name: string, info: { project: { name: string } }) {
+  if (!T150_SHOTS || info.project.name !== 'tab1200') return
+  fs.mkdirSync(T150_SHOTS, { recursive: true })
+  await page.screenshot({ path: path.join(T150_SHOTS, `${name}.png`) })
+}
+
+/**
+ * 今天的課上完了（學過 A～F），放進籃子；4 歲的門照 gates 放好（日期寫「幾天前」，在瀏覽器裡換成日期）：
+ * more：更多單字開了幾天、今天教過新朋友了沒；onset：聽開頭開了幾天、玩過幾次、幾天前玩的；paused：家長暫停。
+ * 作答紀錄：A～F 的 12 個字，12 天前到昨天每天 4 回合 3 選 1、聽完、第一次就對（都「答得出」）。
+ */
+async function seedStage4(page: Page, o: { more?: { ago: number; newToday?: boolean }; onset?: { ago: number; plays: number; lastAgo?: number }; paused?: boolean }) {
+  await seedPlay(page, 5, 'pair')
+  await page.evaluate(
+    (o) =>
+      new Promise<void>((res) => {
+        const day = (ago: number) => {
+          const d = new Date(Date.now() - ago * 86_400_000)
+          return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+        }
+        const W = ['apple', 'ant', 'bus', 'ball', 'car', 'cat', 'dinosaur', 'dog', 'egg', 'elephant', 'fish', 'fox']
+        const kv: Record<string, unknown> = {}
+        if (o.more) kv['en-more'] = { opened: day(o.more.ago), ...(o.more.newToday ? { lastNew: day(0) } : {}) }
+        if (o.onset) kv['en-onset'] = { opened: day(o.onset.ago), plays: o.onset.plays, ...(o.onset.lastAgo != null ? { lastPlay: day(o.onset.lastAgo) } : {}) }
+        const rq = indexedDB.open('dodo-adventure')
+        rq.onsuccess = () => {
+          const tx = rq.result.transaction(['kv', 'attempts'], 'readwrite')
+          tx.objectStore('kv').put({ key: 'lesson.english.stage4', value: kv })
+          if (o.paused) tx.objectStore('kv').put({ key: 'stage4.paused.en', value: true })
+          const at = tx.objectStore('attempts')
+          let n = 0
+          for (let ago = 12; ago >= 1; ago--)
+            for (let j = 0; j < 4; j++) {
+              const w = W[((12 - ago) * 4 + j) % W.length]
+              const ts = Date.now() - ago * 86_400_000 + j * 60_000
+              at.put({ id: `t150-${++n}`, ts, date: day(ago), sessionId: 't150', station: 'english', game: 'abc-find', itemId: `pair:x:${w}`, skill: `enword:${w}`, phase: 'quiz', level: 1, options: [w, 'o1', 'o2'], answer: w, taps: [{ pick: w, ms: 2000 }], firstTryCorrect: true, attempts: 1, responseMs: 2000, hintUsed: false, heard: true, synced: 0 })
+            }
+          tx.oncomplete = () => {
+            rq.result.close()
+            res()
+          }
+        }
+      }),
+    o,
+  )
+}
+const t150Base = (rs: Raw[], t0: number) => rs.filter((a) => a.ts >= t0 && !a.itemId.startsWith('pair:x:'))
+/** 聽開頭這一回合（.en-pair.is-onset） */
+const onsetNow = (page: Page) =>
+  page.evaluate(() => {
+    const root = document.querySelector('.en-pair.is-onset')
+    if (!root) return null
+    const opts = [...root.querySelectorAll<HTMLElement>('.en-findpic')].map((e) => {
+      const r = e.getBoundingClientRect()
+      return { x: r.left + r.width / 2, y: r.top + r.height / 2, key: e.dataset.id ?? '', w: e.getAttribute('aria-label') ?? '', no: e.classList.contains('is-no'), yes: e.classList.contains('is-yes'), named: e.classList.contains('is-named') }
+    })
+    const b = root.querySelector('.en-basket')!.getBoundingClientRect()
+    return {
+      answer: root.getAttribute('data-answer') ?? '',
+      onset: root.getAttribute('data-onset') ?? '',
+      led: root.getAttribute('data-led') === '1',
+      round: Number(root.getAttribute('data-round')),
+      accepting: root.getAttribute('data-accepting') !== 'false',
+      mouth: !!root.querySelector('.en-basket-mouth') && !root.querySelector('.en-basket-letter'),
+      basket: { x: b.left + b.width / 2, y: b.top + b.height / 2 },
+      opts,
+    }
+  })
+/** 等聽開頭第 r 回合收作答（naming：還在念圖名的時候就回傳，測搶點） */
+async function untilOnset(page: Page, r: number, naming = false, ms = 30_000) {
+  const end = Date.now() + ms
+  while (Date.now() < end) {
+    const p = await onsetNow(page)
+    if (p && p.round === r && p.accepting && !p.opts.some((o) => o.yes) && (!naming || p.opts.some((o) => o.named))) return p
+    if (p && p.round === r && naming && p.accepting && !p.opts.some((o) => o.named) && !p.opts.some((o) => o.yes)) return p
+    await page.waitForTimeout(120)
+  }
+  return null
+}
+/** 字母牆點夠 6 下（大箭頭由 autoNext 點） */
+async function wallTaps(k: Toddler, page: Page) {
+  await page.waitForSelector('.en-wall .en-block', { timeout: 10_000 }).catch(() => null)
+  await page.waitForTimeout(700)
+  for (let i = 0; i < 7; i++) {
+    const bs = await wallNow(page)
+    if (!bs.length) break
+    await k.tap(bs[i % bs.length], '點積木')
+    await k.wait(300)
+  }
+}
+const abcAt = (page: Page) => page.evaluate(() => document.querySelector('.en-lesson')?.getAttribute('data-abc') ?? null)
+
+test.describe('英文課：4 歲內容（T-150 E，門開了）', () => {
+  test('新朋友：連點、多指、念的時候返回 1 步回首頁、回來再認識一次；教過才進聽字找圖，一天只有 1 個', async ({ page }, info) => {
+    test.skip(!want('lesson-english') || info.project.name !== 'tab1200')
+    test.setTimeout(5 * 60_000)
+    const { k, c } = await setup(page, info, '4歲-新朋友')
+    try {
+      await seedStage4(page, { more: { ago: 30 } })
+      const t0 = await page.evaluate(() => Date.now())
+      if (!(await enter(k, c))) return
+      await wallTaps(k, page)
+      const card = await page.waitForSelector('.en-new-card', { timeout: 30_000 }).catch(() => null)
+      const word = card ? await card.getAttribute('data-word') : null
+      c.outcome('字母牆之後：新朋友（最久以前學的 A 的第 3 個字 ambulance）', word === 'ambulance', `${word ?? `停在 ${await abcAt(page)}`}`)
+      if (!card) return void (await c.once('t150-new', '卡死', '門開了、字都答得出來，字母牆之後沒有新朋友', `停在 ${await abcAt(page)}`))
+      await page.waitForTimeout(1200)
+      await shot4(page, '英文-1-新朋友', info)
+      const fit = await page.evaluate(() => {
+        const cd = document.querySelector('.en-new-card')!.getBoundingClientRect()
+        const wd = document.querySelector('.en-new-card .en-word')!.getBoundingClientRect()
+        return { card: Math.round(cd.width), word: Math.round(wd.width), h: Math.round(wd.height), inside: wd.left >= cd.left - 1 && wd.right <= cd.right + 1 }
+      })
+      c.outcome('新朋友的字一行、在卡片裡', fit.inside && fit.h < 80, JSON.stringify(fit))
+      if (!fit.inside || fit.h >= 80) await c.once('t150-new-fit', '小問題', '新朋友的字超出卡片或斷成兩行', JSON.stringify(fit))
+      // 一出來就連點（上一段連點的手指）、兩根手指
+      const box = await card.boundingBox()
+      const at = box ? { x: box.x + box.width / 2, y: box.y + box.height / 2 } : null
+      if (at) {
+        k.behavior = '新朋友一出來就連點、兩根手指'
+        await k.spam(at, 5, '連點新朋友')
+        await k.twoFinger([at], { x: at.x + 160, y: at.y + 40 }, 150)
+      }
+      // 念的時候按返回：1 步回首頁
+      const h = await homeButton(page)
+      if (h) await pressBack(k, h, '新朋友按返回')
+      const to = await waitLive(page, (l) => l === 'home', 4000)
+      c.outcome('新朋友按返回 → 首頁（1 步）', to === 'home', `到 ${to}`)
+      if (to !== 'home') await c.once('t150-new-back', '無法返回', '新朋友按返回沒有回首頁', `停在 ${to}`)
+      // 回來：字母牆看完了，直接（或再）見到新朋友；念完大箭頭 → 放進籃子
+      if (!(await enter(k, c))) return
+      const again = await page.waitForSelector('.en-new-card, .en-pair', { timeout: 30_000 }).catch(() => null)
+      c.outcome('回來：接著新朋友或配對遊戲（不從字母牆重來、不卡住）', !!again, `${await abcAt(page)}`)
+      const pair = await page.waitForSelector('.en-pair', { timeout: 40_000 }).catch(() => null)
+      c.outcome('新朋友念完 → 大箭頭 → 放進籃子', !!pair, `停在 ${await abcAt(page)}`)
+      if (!pair) return void (await c.once('t150-new-next', '卡死', '新朋友之後沒有到配對遊戲', `停在 ${await abcAt(page)}`))
+      const kv = (await kvOf(page, 'lesson.english.stage4')) as { 'en-more'?: { taught?: Record<string, number>; lastNew?: string } } | null
+      c.outcome('記下 A 教到第 3 個字、今天教過新朋友了', kv?.['en-more']?.taught?.A === 3 && !!kv?.['en-more']?.lastNew, JSON.stringify(kv))
+      if (kv?.['en-more']?.taught?.A !== 3) await c.once('t150-new-kv', '誤記作答', '新朋友念完沒有記下教到第 3 個字', JSON.stringify(kv))
+      for (let r = 0; r < 4; r++) {
+        const p = await untilPair(page, r, 40_000)
+        if (!p || !rightOf(p)) break
+        await k.tap(rightOf(p)!, '放對')
+      }
+      const ended = await page.waitForSelector('.cheer-scrim', { timeout: 40_000 }).catch(() => null)
+      c.outcome('玩完到下課', !!ended)
+      const rs = t150Base(await rawAttempts(page), t0)
+      const teach = rs.filter((a) => a.game === 'abc-new')
+      c.outcome('新朋友只記教學（teach），不記作答', teach.length >= 1 && teach.every((a) => a.phase === 'teach' && a.skill === 'word:ambulance'), teach.map((a) => `${a.skill}/${a.phase}`).join('、'))
+      const odd = rs.filter((a) => a.game === 'abc-onset' || /^(letter|phonics):/.test(a.skill))
+      c.outcome('沒有聽開頭、沒有記到 letter:／phonics:', !odd.length, odd.map((a) => a.skill).join('、'))
+      if (odd.length) await c.once('t150-new-rec', '誤記作答', '新朋友那一次記了別的作答', odd.map((a) => a.skill).join('、'))
+      // 同一天再進來：不再有新朋友（一天最多 1 個）
+      if (!(await enter(k, c))) return
+      await wallTaps(k, page)
+      const next = await page.waitForSelector('.en-new-card, .en-pair, .en-flip', { timeout: 30_000 }).catch(() => null)
+      const isNew = await page.evaluate(() => !!document.querySelector('.en-new-card'))
+      c.outcome('同一天再進來：沒有第二個新朋友', !!next && !isNew, `${await abcAt(page)}`)
+      if (isNew) await c.once('t150-new-2', '困惑', '同一天出了第二個新朋友', '')
+    } finally {
+      await c.flush().catch(() => {})
+      finish(k, c, '4歲-新朋友')
+    }
+  })
+
+  test('聽開頭：念圖名時搶點、拖到一半放手、放錯、連點、多指、中途返回再進來接著玩；記 onset:、手帶著做和沒聽完的不算', async ({ page }, info) => {
+    test.skip(!want('lesson-english') || info.project.name !== 'tab1200')
+    test.setTimeout(6 * 60_000)
+    const { k, c } = await setup(page, info, '4歲-聽開頭')
+    try {
+      await seedStage4(page, { more: { ago: 40, newToday: true }, onset: { ago: 30, plays: 3, lastAgo: 5 } })
+      const t0 = await page.evaluate(() => Date.now())
+      if (!(await enter(k, c))) return
+      await wallTaps(k, page)
+      const first = await page.waitForSelector('.en-pair.is-onset', { timeout: 30_000 }).catch(() => null)
+      c.outcome('字母牆之後：聽開頭（嘴巴籃子）', !!first, `停在 ${await abcAt(page)}`)
+      if (!first) return void (await c.once('t150-onset', '卡死', '聽開頭的門開了，字母牆之後沒有聽開頭', `停在 ${await abcAt(page)}`))
+      // 第 1 回合：一起做（手指著答案）；念圖名的時候就點一張
+      const n0 = await untilOnset(page, 0, true)
+      if (n0) {
+        await shot4(page, '英文-2-聽開頭念圖名', info)
+        c.outcome('籃子上是嘴巴、不寫字母（問音不問字母名）', n0.mouth)
+        c.outcome('第 1 回合是一起做（2 選 1）', n0.led && n0.opts.length === 2, `${n0.opts.length} 張`)
+        k.behavior = '念圖名的時候搶點'
+        const pick = n0.opts.find((o) => o.key !== n0.answer) ?? n0.opts[0]
+        await k.tap(pick, `搶點 ${pick.w}`)
+        await page.waitForTimeout(2500)
+        const p = await onsetNow(page)
+        const right = p?.opts.find((o) => o.key === p.answer && !o.yes)
+        if (right) await k.tap(right, `放對 ${right.w}`)
+      } else await c.once('t150-onset-0', '卡死', '聽開頭第 1 回合讀不到題目', '')
+      // 第 2 回合（3 選 1 自己做）：拖到一半放手、放錯、再拖進嘴巴籃子
+      const p1 = await untilOnset(page, 1)
+      if (p1) {
+        c.outcome('第 2 回合：自己做 3 選 1', !p1.led && p1.opts.length === 3, `${p1.opts.length} 張${p1.led ? '、手帶著' : ''}`)
+        await page.waitForTimeout(3500)
+        await shot4(page, '英文-3-聽開頭3選1', info)
+        const r1 = p1.opts.find((o) => o.key === p1.answer)!
+        k.behavior = '拖到一半放手'
+        await k.drag([r1, { x: r1.x + 50, y: r1.y - 40 }, { x: r1.x + 120, y: r1.y - 70 }], { label: `拖 ${r1.w} 到一半放手` })
+        await page.waitForTimeout(700)
+        const recs = (await rawAttempts(page)).filter((a) => a.game === 'abc-onset' && a.ts >= t0)
+        c.outcome('拖到一半放手：不算答', recs.length === 1, `${recs.length} 筆`)
+        if (recs.length !== 1) await c.once('t150-half', '誤記作答', '聽開頭拖到一半放手被當成答了', `${recs.length} 筆`)
+        const w = (await onsetNow(page))?.opts.find((o) => o.key !== p1.answer && !o.no)
+        if (w) {
+          k.behavior = '放錯'
+          await k.tap(w, `錯的 ${w.w}`)
+          await page.waitForTimeout(700)
+          c.outcome('放錯：那張淡掉', !!(await onsetNow(page))?.opts.find((o) => o.key === w.key)?.no)
+          await page.waitForTimeout(3000)
+        }
+        const p1b = await onsetNow(page)
+        const r1b = p1b?.opts.find((o) => o.key === p1b.answer)
+        if (p1b && r1b) await k.drag([r1b, { x: (r1b.x + p1b.basket.x) / 2, y: (r1b.y + p1b.basket.y) / 2 }, p1b.basket], { label: `把 ${r1b.w} 拖進嘴巴籃子` })
+      } else await c.once('t150-onset-1', '卡死', '聽開頭第 2 回合沒有出來', `停在 ${await abcAt(page)}`)
+      // 第 3 回合：連點對的；做完就按返回，回來接著第 4 回合
+      const p2 = await untilOnset(page, 2)
+      if (p2) {
+        await page.waitForTimeout(3500)
+        const r2 = (await onsetNow(page))?.opts.find((o) => o.key === p2.answer)
+        if (r2) await k.spam(r2, 3, `連點 ${r2.w}`)
+      } else await c.once('t150-onset-2', '卡死', '聽開頭第 3 回合沒有出來', '')
+      await untilOnset(page, 3, true, 20_000)
+      const h = await homeButton(page)
+      if (h) await pressBack(k, h, '聽開頭按返回')
+      const to = await waitLive(page, (l) => l === 'home', 4000)
+      c.outcome('聽開頭按返回 → 首頁（1 步）', to === 'home', `到 ${to}`)
+      if (to !== 'home') await c.once('t150-onset-back', '無法返回', '聽開頭按返回沒有回首頁', `停在 ${to}`)
+      if (!(await enter(k, c))) return
+      const p3 = await untilOnset(page, 3, false, 30_000)
+      c.outcome('同一天回來：接著聽開頭第 4 回合', !!p3, `停在 ${await abcAt(page)}`)
+      if (!p3) await c.once('t150-onset-resume', '誤記作答', '聽開頭玩到一半離開，回來沒有接著玩', `停在 ${await abcAt(page)}`)
+      else {
+        await page.waitForTimeout(3500)
+        const q = await onsetNow(page)
+        const right = q?.opts.find((o) => o.key === q.answer)
+        const wrong = q?.opts.find((o) => o.key !== q.answer)
+        if (right && wrong) {
+          k.behavior = '兩根手指一起點'
+          await k.twoFinger([right], wrong, 150)
+        }
+      }
+      const ended = await page.waitForSelector('.cheer-scrim', { timeout: 60_000 }).catch(() => null)
+      c.outcome('聽開頭玩得完（到下課）', !!ended)
+      if (!ended) await c.once('t150-onset-end', '卡死', '聽開頭玩不完、到不了下課', `停在 ${await abcAt(page)}`)
+      await page.waitForTimeout(800)
+      await shot4(page, '英文-4-聽開頭玩完', info)
+      const rs = t150Base(await rawAttempts(page), t0).filter((a) => a.phase !== 'teach')
+      const on = rs.filter((a) => a.game === 'abc-onset')
+      const okSkills = on.every((a) => /^onset:[a-z]$/.test(a.skill))
+      c.outcome('作答紀錄：4 回合各一筆、都記 onset:<音>', on.length === 4 && okSkills, on.map((a) => `${a.skill}/${a.phase}${a.ok ? '' : '✗'}`).join('、'))
+      if (on.length !== 4 || !okSkills) await c.once('t150-onset-rec', '誤記作答', '聽開頭的作答紀錄不對（要 4 筆 onset:）', on.map((a) => `${a.skill}/${a.phase}`).join('、'))
+      c.outcome('一起做的第 1 回合記 guided（不算熟練）', on[0]?.phase === 'guided', on[0]?.phase ?? '')
+      const other = rs.filter((a) => a.game !== 'abc-onset')
+      c.outcome('沒有記到 letter:／phonics:／enword:（聽開頭取代這一次的配對遊戲）', !other.length, other.map((a) => `${a.game}/${a.skill}`).join('、'))
+      if (other.length) await c.once('t150-onset-other', '誤記作答', '聽開頭那一次記了別的作答', other.map((a) => `${a.game}/${a.skill}`).join('、'))
+      const kv = (await kvOf(page, 'lesson.english.stage4')) as { 'en-onset'?: { plays?: number; lastPlay?: string } } | null
+      c.outcome('玩完記一次（plays 3 → 4、lastPlay 今天）', kv?.['en-onset']?.plays === 4, JSON.stringify(kv?.['en-onset']))
+      if (kv?.['en-onset']?.plays !== 4) await c.once('t150-onset-kv', '誤記作答', '聽開頭玩完沒有記下來', JSON.stringify(kv))
+    } finally {
+      await c.flush().catch(() => {})
+      finish(k, c, '4歲-聽開頭')
+    }
+  })
+
+  test('第一次聽開頭：搶在示範時點、一起做照著手放，全部不算熟練', async ({ page }, info) => {
+    test.skip(!want('lesson-english') || info.project.name !== 'tab1200')
+    test.setTimeout(6 * 60_000)
+    const { k, c } = await setup(page, info, '4歲-第一次聽開頭')
+    try {
+      await seedStage4(page, { more: { ago: 3, newToday: true }, onset: { ago: 1, plays: 0 } })
+      const t0 = await page.evaluate(() => Date.now())
+      if (!(await enter(k, c))) return
+      await wallTaps(k, page)
+      const demo = await page.waitForSelector('.en-pair.is-onset .demo-hand', { timeout: 30_000 }).catch(() => null)
+      c.outcome('第一次聽開頭：第 1 回合有手示範', !!demo, `停在 ${await abcAt(page)}`)
+      if (!demo) return void (await c.once('t150-intro', '卡死', '第一次聽開頭沒有示範', `停在 ${await abcAt(page)}`))
+      await shot4(page, '英文-5-第一次聽開頭示範', info)
+      await page.waitForTimeout(1500)
+      const p = await onsetNow(page)
+      if (p) {
+        k.behavior = '搶在示範時點'
+        await k.spam(p.opts[0], 3, `示範時連點 ${p.opts[0].w}`)
+      }
+      for (let r = 0; r < 4; r++) {
+        const q = await untilOnset(page, r, false, 40_000)
+        if (!q) break
+        await page.waitForTimeout(3200)
+        const now = await onsetNow(page)
+        const right = now?.opts.find((o) => o.key === now.answer && !o.yes)
+        if (right) await k.tap(right, `照著手放 ${right.w}`)
+      }
+      const ended = await page.waitForSelector('.cheer-scrim', { timeout: 60_000 }).catch(() => null)
+      c.outcome('第一次聽開頭玩得完', !!ended)
+      if (!ended) await c.once('t150-intro-end', '卡死', '第一次聽開頭玩不完', `停在 ${await abcAt(page)}`)
+      const on = t150Base(await rawAttempts(page), t0).filter((a) => a.game === 'abc-onset')
+      c.outcome('第一次（示範＋一起做）：全部記 guided，不算熟練', on.length >= 3 && on.every((a) => a.phase === 'guided'), on.map((a) => `${a.skill}/${a.phase}`).join('、'))
+      if (!on.every((a) => a.phase === 'guided')) await c.once('t150-intro-rec', '誤記作答', '第一次聽開頭有回合被記成自己做', on.map((a) => a.phase).join('、'))
+    } finally {
+      await c.flush().catch(() => {})
+      finish(k, c, '4歲-第一次聽開頭')
+    }
+  })
+
+  test('家長暫停英文 4 歲內容：門開著也照 3 歲的玩（放進籃子、沒有新朋友、沒有聽開頭）', async ({ page }, info) => {
+    test.skip(!want('lesson-english') || info.project.name !== 'tab1200')
+    test.setTimeout(3 * 60_000)
+    const { k, c } = await setup(page, info, '4歲-暫停')
+    try {
+      await seedStage4(page, { more: { ago: 30 }, onset: { ago: 30, plays: 3, lastAgo: 5 }, paused: true })
+      if (!(await enter(k, c))) return
+      await wallTaps(k, page)
+      await page.waitForSelector('.en-new-card, .en-pair, .en-flip', { timeout: 30_000 }).catch(() => null)
+      const st = await page.evaluate(() => ({ nw: !!document.querySelector('.en-new-card'), onset: !!document.querySelector('.en-pair.is-onset'), pair: !!document.querySelector('.en-pair') }))
+      c.outcome('暫停中：字母牆之後是放進籃子', st.pair && !st.onset && !st.nw, JSON.stringify(st))
+      if (st.nw || st.onset) await c.once('t150-paused', '誤記作答', '家長暫停了英文 4 歲內容，孩子端還是出了 4 歲的玩法', JSON.stringify(st))
+    } finally {
+      await c.flush().catch(() => {})
+      finish(k, c, '4歲-暫停')
+    }
+  })
+})
