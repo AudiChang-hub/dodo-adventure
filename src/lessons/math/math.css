@@ -1057,12 +1057,12 @@
   width: 14%;
 }
 .ma-sub-dot.is-icon {
-  width: 24%;
+  width: 28%;
   background: none;
   border-radius: 0;
 }
 .ma-sub-group.frame .ma-sub-dot.is-icon {
-  width: 17%;
+  width: 18%;
 }
 .ma-sub-dot.is-icon svg {
   width: 100%;
@@ -1117,6 +1117,10 @@
   display: grid;
   place-items: center;
 }
+.ma-sub .ma-tile .tile-in > .ma-sub-group {
+  width: 100%;
+  height: auto;
+}
 
 /* ── 數字小路（T-150 M，Path.tsx）：一條水平直線的 10 格，骰子在下面，小恐龍站在格子上 ─────────── */
 .ma-path {
@@ -1124,16 +1128,21 @@
   inset: 0;
   touch-action: none;
 }
-.ma-path-cell,
-.ma-path-start {
+.ma-path-track {
+  --g: 0.8cqw;
   position: absolute;
+  left: 21cqw;
+  right: 3cqw;
   top: 46%;
-  width: 6.6cqw;
-  aspect-ratio: 1;
-  translate: -50% -50%;
-  box-sizing: border-box;
+  translate: 0 -50%;
+  display: grid;
+  grid-template-columns: repeat(11, 1fr);
+  gap: var(--g);
+  align-items: center;
 }
 .ma-path-cell {
+  aspect-ratio: 1;
+  box-sizing: border-box;
   border-radius: 1.4cqmin;
   background: var(--card);
   border: 3px solid #e2c3a2;
@@ -1141,7 +1150,7 @@
   place-items: center;
   font-family: 'Fredoka', sans-serif;
   font-weight: 600;
-  font-size: 3.6cqw;
+  font-size: 3.4cqw;
   line-height: 1;
   color: var(--ink);
   transition: background 0.25s var(--ease-out), border-color 0.25s var(--ease-out);
@@ -1157,16 +1166,18 @@
   border-color: var(--ma-ink);
 }
 .ma-path-start {
-  width: 3cqw;
+  justify-self: center;
+  width: 45%;
+  aspect-ratio: 1;
   border-radius: 50%;
   background: #e2c3a2;
 }
 .ma-path-dino {
   position: absolute;
-  top: 46%;
+  bottom: calc(100% - 0.6cqmin);
   width: 11cqmin;
   aspect-ratio: 1;
-  translate: -50% calc(-50% - 3.3cqw - 5.5cqmin);
+  translate: -50% 0;
   padding: 0;
   border: 0;
   background: none;
@@ -1211,17 +1222,16 @@
   pointer-events: none;
 }
 @media (orientation: portrait) {
-  .ma-path-cell,
-  .ma-path-start {
-    top: 40%;
-    width: 6.4cqw;
+  .ma-path-track {
+    --g: 0.6cqw;
+    /* 右邊多留一點：小恐龍比格子寬，走到 10 不會被切到 */
+    left: 3cqw;
+    right: 8cqw;
+    top: 42%;
   }
-  .ma-path-start {
-    width: 3cqw;
-  }
-  .ma-path-dino {
-    top: 40%;
-    translate: -50% calc(-50% - 3.2cqw - 5.5cqmin);
+  .ma-path-cell {
+    font-size: 4.2cqw;
+    border-width: 2px;
   }
   .ma-path-die {
     top: 66%;

@@ -36,6 +36,8 @@ async function setup(page: Page, info: Parameters<Parameters<typeof test>[2]>[1]
   // firm：1～5 已經熟練（不然 6 以上的數字還不會開，會變成 1～5 的混合複習；熟練的判斷在 scripts/test-math-plan.ts 測）
   const n = 1 + (seed % 10)
   await setMath(page, { next: n, firm: true })
+  // firm（1～5 熟練了）會開 4 歲內容的門（T-150 M）：3 歲的測試照 3 歲的上，先暫停；4 歲的測試（open4）再打開
+  await putKV(page, 'stage4.paused.math', true)
   return { k, c, n }
 }
 
@@ -164,9 +166,13 @@ async function solve(k: Toddler) {
     // 開場玩著數數（T-147）：找找看點下一個要找的；青蛙、手指點畫面中間
     const warm = live.querySelector('[data-warm]:not([data-warm-done])')
     const warmAt = !warm ? null : warm.getAttribute('data-warm') === 'find' ? c(warm.querySelector('.ma-spot[data-target]:not(.on)')) : c(warm.querySelector('.ma-frog, .ma-hands'))
-    return { give, thing: thing[0] ?? null, hint, tiles, stroke, warmAt }
+    // 數字小路（T-150 M）：還有步數點小恐龍，不然點骰子
+    const path = live.querySelector('.ma-path:not([data-path-done])')
+    const pathAt = !path || path.hasAttribute('data-path-rolling') ? null : Number(path.getAttribute('data-path-left')) > 0 ? c(path.querySelector('.ma-path-dino')) : c(path.querySelector('.ma-path-die'))
+    return { give, thing: thing[0] ?? null, hint, tiles, stroke, warmAt, pathAt }
   })
   if (!s) return
+  if (s.pathAt) return k.tap(s.pathAt as Pt, '數字小路')
   if (s.warmAt) return k.tap(s.warmAt as Pt, '開場數一下')
   if (s.give) return k.tap(s.give as Pt, '拿給波波')
   if (s.thing) return k.tap(s.thing as Pt, '數下一個')
@@ -1713,4 +1719,368 @@ test.describe('數學課', () => {
       }
     })
   }
+})
+
+// ── 4 歲內容（T-150 M，src/lessons/math/stage4.ts）：門開了才有一眼看出（小遊戲）、數字小路（開場） ─────────────
+
+/** 寫一個 kv（數學 4 歲內容的門 lesson.math.stage4） */
+const putKV = (page: Page, key: string, value: unknown) =>
+  page.evaluate(
+    ({ key, value }) =>
+      new Promise<void>((res) => {
+        const rq = indexedDB.open('dodo-adventure')
+        rq.onsuccess = () => {
+          const db = rq.result
+          const g = db.transaction('kv', 'readwrite').objectStore('kv').put({ key, value })
+          g.onsuccess = () => {
+            db.close()
+            res()
+          }
+          g.onerror = () => res()
+        }
+        rq.onerror = () => res()
+      }),
+    { key, value },
+  )
+const getKV4 = (page: Page) =>
+  page.evaluate(
+    () =>
+      new Promise<{ sub?: { level: number; demoed?: boolean } } | null>((res) => {
+        const rq = indexedDB.open('dodo-adventure')
+        rq.onsuccess = () => {
+          const db = rq.result
+          const g = db.transaction('kv').objectStore('kv').get('lesson.math.stage4')
+          g.onsuccess = () => {
+            db.close()
+            res((g.result as { value?: { sub?: { level: number; demoed?: boolean } } } | undefined)?.value ?? null)
+          }
+          g.onerror = () => res(null)
+        }
+        rq.onerror = () => res(null)
+      }),
+  )
+/** 一眼看出的作答（skill sub:N） */
+const subRecs = (page: Page) =>
+  page.evaluate(
+    () =>
+      new Promise<{ phase: string; skill: string; options: string[]; first: boolean; level: number }[]>((res) => {
+        const rq = indexedDB.open('dodo-adventure')
+        rq.onsuccess = () => {
+          const db = rq.result
+          const g = db.transaction('attempts').objectStore('attempts').getAll()
+          g.onsuccess = () => {
+            db.close()
+            type A = { phase?: string; skill: string; options?: string[]; firstTryCorrect: boolean; level: number }
+            res((g.result as A[]).filter((a) => a.skill.startsWith('sub:')).map((a) => ({ phase: a.phase ?? 'quiz', skill: a.skill, options: a.options ?? [], first: a.firstTryCorrect, level: a.level })))
+          }
+          g.onerror = () => res([])
+        }
+        rq.onerror = () => res([])
+      }),
+  )
+
+/** 門開著（開了很久，不是剛開）：一眼看出（第幾級、示範過沒）、數字小路 */
+async function open4(page: Page, o: { sub?: { level: number; demoed: boolean }; path?: boolean; warm?: string; game?: string }) {
+  await putKV(page, 'stage4.paused.math', false)
+  const kv: Record<string, unknown> = { firm: true }
+  if (o.sub) Object.assign(kv, { 'math-sub': { opened: '2026-01-01' }, sub: { level: o.sub.level, since: 0, demoed: o.sub.demoed } })
+  if (o.sub && o.sub.level >= 3) kv['math-sub45'] = { opened: '2026-01-02' }
+  if (o.path) kv['math-path'] = { opened: '2026-01-01' }
+  await putKV(page, 'lesson.math.stage4', kv)
+  await page.evaluate(
+    ({ warm, game }) => {
+      if (warm) localStorage.setItem('dodo:variety:math.warm', warm)
+      if (game) localStorage.setItem('dodo:variety:math.game', game)
+    },
+    { warm: o.warm, game: o.game },
+  )
+}
+
+/** 一眼看出現在的樣子 */
+const subNow = (page: Page) =>
+  page.evaluate(() => {
+    const sc = [...document.querySelectorAll<HTMLElement>('.scene')].filter((e) => !e.inert).pop()
+    const w = sc?.querySelector('[data-sub]')
+    const box = (e: Element | null | undefined) => {
+      if (!e) return null
+      const b = e.getBoundingClientRect()
+      return b.width > 4 ? { x: b.left + b.width / 2, y: b.top + b.height / 2 } : null
+    }
+    return {
+      on: !!w,
+      n: Number(w?.getAttribute('data-sub') ?? 0),
+      ask: w?.hasAttribute('data-sub-ask') ?? false,
+      cloth: w?.querySelector('[data-sub-cloth]')?.getAttribute('data-sub-cloth') ?? null,
+      board: box(w?.querySelector('.ma-sub-board')),
+      right: box(w?.querySelector('.ma-tile[data-answer]')),
+      wrong: box(w?.querySelector('.ma-tile:not([data-answer])')),
+      tiles: w?.querySelectorAll('.ma-tile').length ?? 0,
+      stage: [...(sc?.querySelectorAll('[data-game-stage]') ?? [])].pop()?.getAttribute('data-game-stage') ?? null,
+    }
+  })
+
+/** 數字小路現在的樣子 */
+const pathNow = (page: Page) =>
+  page.evaluate(() => {
+    const sc = [...document.querySelectorAll<HTMLElement>('.scene')].filter((e) => !e.inert).pop()
+    const w = sc?.querySelector('.ma-path')
+    const box = (e: Element | null | undefined) => {
+      if (!e) return null
+      const b = e.getBoundingClientRect()
+      return b.width > 4 ? { x: b.left + b.width / 2, y: b.top + b.height / 2 } : null
+    }
+    return {
+      on: !!w,
+      pos: Number(w?.getAttribute('data-path-pos') ?? -1),
+      left: Number(w?.getAttribute('data-path-left') ?? -1),
+      rolling: w?.hasAttribute('data-path-rolling') ?? false,
+      done: w?.hasAttribute('data-path-done') ?? false,
+      dino: box(w?.querySelector('.ma-path-dino')),
+      die: box(w?.querySelector('.ma-path-die')),
+      empty: box(w?.querySelector('.ma-path-cell[data-cell="10"]')),
+    }
+  })
+
+/** 點大箭頭往下，直到某一段（這幾個測試自己點，autoNext 關掉） */
+async function toPart(k: Toddler, want: string, tries = 60) {
+  for (let i = 0; i < tries; i++) {
+    if ((await partNow(k.page)) === want) return true
+    const arrow = await nextArrow(k.page)
+    if (arrow) await k.tap(arrow, '下一步')
+    await k.wait(500)
+  }
+  return (await partNow(k.page)) === want
+}
+
+/** 進度直接放在小遊戲（同一天上到一半）：今天的數字 n */
+const atGame = async (page: Page, n: number) =>
+  setMath(page, { next: n, firm: true, day: await today(page), n, mode: 'new', max: n, part: 3, pv: 2, partId: 'game', asked: 0, missed: 0 })
+
+/** 按返回：1 步回首頁 */
+async function backHome(k: Toddler, c: Checker, ctx: string) {
+  const h = await homeButton(k.page)
+  if (h) await pressBack(k, h)
+  const live = await waitLive(k.page, (l) => l === 'home', 4000)
+  c.outcome(`${ctx}按返回 → 首頁`, live === 'home', `到 ${live}`)
+  if (live !== 'home') await c.once(`back:${ctx}`, '無法返回', `${ctx}按返回沒有回首頁`, `停在 ${live}`)
+  return live === 'home'
+}
+
+test.describe('數學課 4 歲內容（T-150 M）', () => {
+  test('一眼看出第一次：閃的時候亂點、多指，搶在示範時點，記成一起練；1 步回首頁', async ({ page }, info) => {
+    test.skip(!want())
+    test.setTimeout(4 * 60_000)
+    const { k, c, n: seedN } = await setup(page, info, '4歲-一眼看出示範', false, false, 'give', 'hop')
+    const n = 3 + (seedN % 6)
+    await atGame(page, n)
+    await open4(page, { sub: { level: 2, demoed: false }, game: 'dots+balloon' })
+    try {
+      if (!(await enter(k, c, true))) return
+      const ok = await toPart(k, 'game')
+      if (!ok) return void (await c.once('to-game', '卡死', '開場之後沒有到小遊戲', `${await partNow(page)}`))
+      let s = await subNow(page)
+      c.outcome('小遊戲第一題是一眼看出', s.on && s.stage === 'dots', `${s.stage}`)
+      if (!s.on) return void (await c.once('sub-on', '困惑', '門開了，小遊戲沒有出一眼看出', `${s.stage}`))
+      await audit(k, c, '數學課 一眼看出（閃）')
+      // 閃的時候：連點板子、兩指一起壓，不會怎樣、不記作答
+      k.behavior = '閃的時候亂點'
+      if (s.board) {
+        await k.spam(s.board, 4, '連點板子')
+        await k.twoFinger([s.board], { x: s.board.x + 120, y: s.board.y + 160 }, 300)
+      }
+      c.outcome('閃的時候點了不記作答', (await subRecs(page)).length === 0, '')
+      // 示範中搶著點
+      await page.waitForFunction(() => !!document.querySelector('[data-sub-ask]'), null, { timeout: 8000 }).catch(() => {})
+      await audit(k, c, '數學課 一眼看出（問）')
+      k.behavior = '搶在示範時點'
+      await grabDuringTeach(k, c, LESSON)
+      for (let i = 0; i < 12; i++) {
+        s = await subNow(page)
+        if ((await subRecs(page)).length) break
+        const t = i === 0 ? s.wrong : s.right
+        if (t) await k.tap(t, i === 0 ? '點錯的' : '點對的')
+        await k.wait(900)
+      }
+      const recs = await subRecs(page)
+      const recOk = recs.length === 1 && recs[0].phase === 'guided' && recs[0].skill === `sub:${s.n}` && recs[0].options.length === 3
+      c.outcome('第一次記一筆一起練（guided、3 選 1）', recOk, JSON.stringify(recs))
+      if (!recOk) await c.once('sub-guided', '誤記作答', '一眼看出第一次（示範）的紀錄不對', JSON.stringify(recs), false)
+      const arrow = await page.waitForFunction(() => !!document.querySelector('[data-next-step]'), null, { timeout: 15_000 }).then(() => true).catch(() => false)
+      c.outcome('數完停著等大箭頭', arrow, '')
+      if (!arrow) await c.once('sub-arrow', '卡死', '一眼看出答完沒有出大箭頭', '')
+      const kv = await getKV4(page)
+      c.outcome('示範過記下來', kv?.sub?.demoed === true, JSON.stringify(kv?.sub))
+      await backHome(k, c, '一眼看出答完')
+      await checkDoubleRecords(k, c)
+      await c.flush()
+    } finally {
+      finish(k, c, '4歲-一眼看出示範')
+    }
+  })
+
+  test('一眼看出（第 1 級 2 選 1）：蓋著點板子不掀開、點錯掀開布、連點只記一筆、下一步到氣球', async ({ page }, info) => {
+    test.skip(!want())
+    test.setTimeout(4 * 60_000)
+    const { k, c, n: seedN } = await setup(page, info, '4歲-一眼看出', false, false, 'give', 'hop')
+    const n = 3 + (seedN % 6)
+    await atGame(page, n)
+    await open4(page, { sub: { level: 1, demoed: true }, game: 'dots+balloon' })
+    try {
+      if (!(await enter(k, c))) return
+      if (!(await toPart(k, 'game'))) return void (await c.once('to-game', '卡死', '開場之後沒有到小遊戲', `${await partNow(page)}`))
+      await page.waitForFunction(() => document.querySelector('[data-sub-cloth]')?.getAttribute('data-sub-cloth') === 'cover' && !!document.querySelector('[data-sub-ask]'), null, { timeout: 10_000 }).catch(() => {})
+      let s = await subNow(page)
+      c.outcome('閃完蓋起來、出題', s.cloth === 'cover' && s.ask, `${s.cloth} ${s.ask}`)
+      c.outcome('第 1 級是 2 選 1', s.tiles === 2, `${s.tiles} 張`)
+      // 蓋著點板子：不會掀開
+      k.behavior = '蓋著點布'
+      if (s.board) await k.spam(s.board, 3, '點布')
+      await k.wait(400)
+      s = await subNow(page)
+      c.outcome('蓋著點布不會掀開', s.cloth === 'cover', `${s.cloth}`)
+      if (s.cloth !== 'cover') await c.once('cloth', '困惑', '布蓋著的時候點布就掀開了（可以偷看）', `${s.cloth}`)
+      // 發呆一下
+      await k.wait(5000, '發呆')
+      // 點錯：布掀開
+      k.behavior = '點錯'
+      if (s.wrong) await k.tap(s.wrong, '點錯的')
+      await k.wait(700)
+      s = await subNow(page)
+      c.outcome('點錯布掀開', s.cloth === 'open', `${s.cloth}`)
+      // 連點對的：只記一筆，不是第一次就對
+      k.behavior = '連點對的'
+      await k.wait(1500)
+      if (s.right) await k.spam(s.right, 5, '連點對的')
+      await page.waitForFunction(() => !!document.querySelector('[data-next-step]'), null, { timeout: 15_000 }).catch(() => {})
+      const recs = await subRecs(page)
+      const recOk = recs.length === 1 && recs[0].phase === 'quiz' && recs[0].first === false && recs[0].options.length === 2 && recs[0].level === 1
+      c.outcome('只記一筆 sub:N（點錯過：不是第一次就對）', recOk, JSON.stringify(recs))
+      if (!recOk) await c.once('sub-rec', '誤記作答', '一眼看出的紀錄不對', JSON.stringify(recs), false)
+      // 大箭頭 → 氣球
+      let balloon = false
+      for (let i = 0; i < 4 && !balloon; i++) {
+        const a = await nextArrow(page)
+        if (a) await k.tap(a, '下一步')
+        balloon = await page.waitForFunction(() => [...document.querySelectorAll('[data-game-stage]')].pop()?.getAttribute('data-game-stage') === 'balloon', null, { timeout: 3000 }).then(() => true).catch(() => false)
+      }
+      c.outcome('下一步到氣球', balloon, `${(await subNow(page)).stage}`)
+      if (!balloon) await c.once('sub-next', '卡死', '一眼看出答完點下一步沒有到氣球', '')
+      await backHome(k, c, '氣球')
+      await checkDoubleRecords(k, c)
+      await c.flush()
+    } finally {
+      finish(k, c, '4歲-一眼看出')
+    }
+  })
+
+  test('數字小路：沒擲就點小恐龍、擲的時候連點、連點小恐龍不會走超過、走到一半返回、走到 10 就停、只記一筆教學', async ({ page }, info) => {
+    test.skip(!want())
+    test.setTimeout(6 * 60_000)
+    const { k, c } = await setup(page, info, '4歲-數字小路', false, false, 'give', 'hop')
+    await open4(page, { path: true, warm: 'path' })
+    try {
+      if (!(await enter(k, c, true))) return
+      let ok = await toPart(k, 'warm')
+      let p = await pathNow(page)
+      c.outcome('開場是數字小路', ok && p.on, `${await partNow(page)}`)
+      if (!p.on) return void (await c.once('path-on', '困惑', '門開了、輪到數字小路，開場沒有出來', `${await partNow(page)}`))
+      await audit(k, c, '數學課 數字小路')
+      const before = (await records(page)).length
+      // 還沒擲就點小恐龍：不走
+      k.behavior = '沒擲就點小恐龍'
+      await k.wait(800)
+      if (p.dino) await k.spam(p.dino, 3, '點小恐龍')
+      await k.wait(300)
+      p = await pathNow(page)
+      c.outcome('沒擲骰子點小恐龍不會走', p.pos === 0, `${p.pos}`)
+      // 擲（說話的時候搶著點），轉的時候連點骰子：只擲一次
+      k.behavior = '擲的時候連點'
+      if (p.die) await k.spam(p.die, 5, '連點骰子')
+      await page.waitForFunction(() => !document.querySelector('[data-path-rolling]'), null, { timeout: 4000 }).catch(() => {})
+      await k.wait(200)
+      p = await pathNow(page)
+      c.outcome('擲出 1 或 2', p.left === 1 || p.left === 2, `left ${p.left}`)
+      // 連點小恐龍、多指：走的格數不超過骰子點數
+      k.behavior = '連點小恐龍'
+      const left0 = p.left
+      if (p.dino) {
+        await k.spam(p.dino, 6, '連點小恐龍')
+        await k.twoFinger([p.dino], p.empty ?? p.dino, 200)
+      }
+      await k.wait(800)
+      if (p.dino) await k.spam(p.dino, 4, '再連點')
+      await k.wait(400)
+      p = await pathNow(page)
+      c.outcome(`走的格數不超過骰子（${left0}）`, p.pos <= left0 && p.pos >= 0, `走到 ${p.pos}`)
+      if (p.pos > left0) await c.once('path-over', '誤記作答', '數字小路走超過骰子的點數', `骰子 ${left0}，走到 ${p.pos}`)
+      // 走到一半按返回：回首頁；再進來從頭
+      if (!(await backHome(k, c, '數字小路走到一半'))) return
+      await k.wait(1200)
+      if (!(await enter(k, c))) return
+      ok = await toPart(k, 'warm')
+      p = await pathNow(page)
+      c.outcome('再進來從起點開始', ok && p.on && p.pos === 0, `${p.pos}`)
+      // 走到 10：一直點（偶爾發呆讓手出來）
+      k.behavior = '走到 10'
+      for (let i = 0; i < 80; i++) {
+        p = await pathNow(page)
+        if (p.done || !p.on) break
+        if (p.rolling) {
+          await k.wait(300)
+          continue
+        }
+        const t = p.left > 0 ? p.dino : p.die
+        if (t) await k.tap(t, p.left > 0 ? '點小恐龍' : '點骰子')
+        await k.wait(p.left > 0 ? 750 : 1300)
+        if (i === 6) await k.wait(7500, '發呆')
+      }
+      p = await pathNow(page)
+      c.outcome('走到 10 就停', p.done && p.pos === 10, `走到 ${p.pos}`)
+      if (!p.done) return void (await c.once('path-done', '卡死', '數字小路走不到 10', `走到 ${p.pos}`))
+      if (p.dino) await k.spam(p.dino, 4, '走完還一直點')
+      await k.wait(500)
+      c.outcome('走完多點不會再走', (await pathNow(page)).pos === 10, '')
+      const arrow = await page.waitForFunction(() => !!document.querySelector('[data-next-step]'), null, { timeout: 15_000 }).then(() => true).catch(() => false)
+      c.outcome('走完停著等大箭頭', arrow, '')
+      if (!arrow) await c.once('path-arrow', '卡死', '數字小路走完沒有出大箭頭', '')
+      const recs = (await records(page)).slice(before)
+      const recOk = recs.length === 1 && recs[0].phase === 'teach' && recs[0].skill === 'warm:path'
+      c.outcome('只記一筆教學 warm:path', recOk, JSON.stringify(recs.map((a) => [a.game, a.phase, a.skill])))
+      if (!recOk) await c.once('path-rec', '誤記作答', '數字小路記了作答，或沒記教學', JSON.stringify(recs.map((a) => [a.game, a.phase, a.skill])), false)
+      const counting = await toPart(k, 'count', 8)
+      c.outcome('點大箭頭 → 數數', counting, `${await partNow(page)}`)
+      if (!counting) await c.once('path-next', '卡死', '數字小路走完點大箭頭沒有到數數', `${await partNow(page)}`)
+      await checkDoubleRecords(k, c)
+      await c.flush()
+    } finally {
+      finish(k, c, '4歲-數字小路')
+    }
+  })
+
+  test('4 歲內容開著上完一堂：連點門、亂點、連點、示範時搶著點', async ({ page }, info) => {
+    test.skip(!want())
+    test.setTimeout(14 * 60_000)
+    const { k, c, n: seedN } = await setup(page, info, '4歲-上完一堂')
+    const n = 3 + (seedN % 6)
+    await setMath(page, { next: n, firm: true })
+    await open4(page, { sub: { level: 3, demoed: false }, path: true, warm: 'path', game: 'boat+dots' })
+    try {
+      if (!(await enter(k, c, true))) return
+      await grabDuringTeach(k, c, LESSON)
+      const seen = new Set<string>()
+      const done = await play(k, c, async () => lessonEnd(page), { seen, budget: 9 * 60_000 })
+      c.outcome('上完一堂', done, [...seen].filter((s) => !s.startsWith('grab:')).join(' → '))
+      const all = await records(page)
+      const warms = all.filter((a) => a.game.startsWith('m-warm-'))
+      c.outcome('開場只記一筆 warm:path', !done || (warms.length === 1 && warms[0].skill === 'warm:path'), JSON.stringify(warms.map((a) => [a.phase, a.skill])))
+      const subs = await subRecs(page)
+      const subOk = subs.length === 1 && subs[0].options.length === 3
+      c.outcome('小遊戲記一筆一眼看出（3 選 1）', !done || subOk, JSON.stringify(subs))
+      if (done && !subOk) await c.once('sub-lesson', '誤記作答', '4 歲內容開著上完一堂，一眼看出的紀錄不對', JSON.stringify(subs), false)
+      await checkDoubleRecords(k, c)
+      await c.flush()
+    } finally {
+      finish(k, c, '4歲-上完一堂')
+    }
+  })
 })

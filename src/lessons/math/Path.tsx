@@ -222,15 +222,16 @@ export function PathPart({ ctx }: { ctx: PartCtx }) {
 
   const target = want() === 'walk' ? dinoEl.current : dieEl.current
   const at = hand && !done && !rolling ? pointIn(target, layer.current, 0.5, 0.6) : null
-  /** 格子的中心（百分比）：一條水平直線，10 格一樣大 */
-  const cellX = (i: number) => 25 + (i - 0.5) * 7
-  const dinoX = pos === 0 ? cellX(0) : cellX(pos)
+  /** 小恐龍站的那一欄（0 是起點）的中心：軌道是 11 欄（起點＋10 格）、欄距 --g（math.css 的 .ma-path-track） */
+  const dinoX = `calc((100% - 10 * var(--g)) / 11 * ${pos + 0.5} + var(--g) * ${pos})`
 
   return (
     <div className="ma-path" ref={layer} onPointerDown={down} data-path-pos={pos} data-path-left={left} data-path-done={done ? '1' : undefined} data-path-rolling={rolling ? '1' : undefined}>
-      <div className="ma-path-start" style={{ left: `${cellX(0)}%` }} aria-hidden="true" />
+      {/* 一條水平直線：起點＋1～10，格子一樣大（不彎、不繞、沒有場景） */}
+      <div className="ma-path-track">
+      <div className="ma-path-start" aria-hidden="true" />
       {Array.from({ length: PATH_END }, (_, i) => (
-        <div key={i} className={`ma-path-cell${i < pos ? ' on' : ''}${i + 1 === pos ? ' here' : ''}`} style={{ left: `${cellX(i + 1)}%` }} data-path-hit="cell" data-cell={i + 1}>
+        <div key={i} className={`ma-path-cell${i < pos ? ' on' : ''}${i + 1 === pos ? ' here' : ''}`} data-path-hit="cell" data-cell={i + 1}>
           <span>{i + 1}</span>
         </div>
       ))}
@@ -241,7 +242,7 @@ export function PathPart({ ctx }: { ctx: PartCtx }) {
         data-path-hit="dino"
         aria-label="小恐龍"
         initial={false}
-        animate={{ left: `${dinoX}%` }}
+        animate={{ left: dinoX }}
         transition={{ duration: 0.4, ease: EASE.out }}
       >
         <motion.span
@@ -253,6 +254,7 @@ export function PathPart({ ctx }: { ctx: PartCtx }) {
           <Emoji name="sauropod" />
         </motion.span>
       </motion.button>
+      </div>
       <motion.button
         type="button"
         ref={dieEl}
