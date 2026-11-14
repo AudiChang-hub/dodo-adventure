@@ -9,7 +9,7 @@ import { enTodayOf, type EnSkip, type Heard } from '../src/screens/story/en-page
 import { ZH_RUN_MAX, zhRunKV, zhRunToday } from '../tests/ai-toddler/lib/zh-run'
 import { readFileSync, readdirSync, statSync } from 'node:fs'
 import { join } from 'node:path'
-import { ZH_TEXTS, linePics, plain, questionsOf, talkFor, talkOf, type ZhText } from '../src/lessons/chinese/data'
+import { ZH_TEXTS, linePics, plain, questionsOf, readPics, talkFor, talkOf, type ZhText } from '../src/lessons/chinese/data'
 import { FAR, GLYPH_START, NEAR_MAX, afterGlyph, charOf, glyphPool, glyphQuestion, glyphSim, needsDemo, type GlyphQuestion, type GlyphState } from '../src/lessons/chinese/match'
 
 /** 固定的亂數（同一個 seed 每次一樣） */
@@ -381,6 +381,28 @@ function main() {
       }
     }
     console.log('ok 11 每一行旁邊都有圖可以點：沒有紅字的行借上一行的主角（龜兔賽跑：跑到樹下睡大覺 → 兔子），180 篇每一行都有')
+  }
+  {
+    // T-146（盲測 dbc602c：〈但以理愛吃青菜〉「國王請他吃大肉肉，」亮的是青菜）：念課文時亮的圖要對得上那一行
+    const show = (t: ZhText) => readPics(t).map((ps) => ps.map((p) => `${p.word}${p.echo ? '(借)' : ''}`))
+    const daniel = ZH_TEXTS.find((t) => t.day === 11)!
+    assert.deepEqual(show(daniel), [[], [], ['青菜', '紅蘿蔔'], ['紅蘿蔔(借)']], '但以理愛吃青菜：前兩行還沒說到青菜，不放圖')
+    const rabbit = ZH_TEXTS.find((t) => t.title === '龜兔賽跑')!
+    assert.deepEqual(show(rabbit), [['兔子'], ['兔子(借)'], ['烏龜'], ['烏龜(借)']], '龜兔賽跑：同一句的下半句照樣借上一行的主角')
+    for (const t of ZH_TEXTS) {
+      const ps = readPics(t)
+      assert.equal(ps.length, t.lines.length)
+      for (const [i, row] of ps.entries()) {
+        const here = plain(t.lines[i])
+        const before = i ? plain(t.lines[i - 1]) : ''
+        for (const p of row) {
+          assert.ok(t.emoji[p.word], `第 ${t.day} 篇第 ${i + 1} 行的圖 ${p.word} 沒有圖檔`)
+          // 不借後面的行、不借隔兩行以上的：圖一定是這一行或緊鄰上一行說到的
+          assert.ok(p.echo ? before.includes(p.word) : here.includes(p.word), `第 ${t.day} 篇第 ${i + 1} 行「${here}」亮的 ${p.word} 對不上`)
+        }
+      }
+    }
+    console.log('ok 11b 念課文亮的圖對得上那一行：這一行說到的、或緊鄰上一行的主角；對不上的行不放圖（但以理愛吃青菜前兩行不亮青菜）')
   }
   // ── 找一樣的字（T-117）：不教不考、2 選 1 起、干擾字差很多 ─────────────
   {

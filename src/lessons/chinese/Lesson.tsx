@@ -14,7 +14,7 @@ import { stepsOf, weight, type Part, type Step } from './steps'
 import { doneDays, glyphState, lessonPlan, markDone, markOld, saveGlyph } from './progress'
 import { NEXT_HINT, cancelNextStep, nextStep, useNextPending } from '../../ui/NextStep'
 import { Reader } from './Reader'
-import { Between, Breath, OFFER_TOUR_MS } from './Between'
+import { Between, Breath, CHEER_BEAT_MS } from './Between'
 import { Quiz } from './Quiz'
 import { Glyph } from './Glyph'
 import { firstFinger } from '../../games/NotYet'
@@ -175,7 +175,7 @@ export function ChineseLessonBody({ onDone }: LessonProps) {
   }
   /**
    * 複習（舊篇）上完（T-142，家長 2026-11-12：第二篇改成提議；盲測 9231aa6：孩子舊篇撐得完，接著上新篇就離開，連兩版都這樣）：
-   * 莫莫歡呼、完成的音效，換到複習上完的畫面（./Between.tsx：舊篇的書打勾）；手先到新書上點一下（T-145），接著右下角出現下課的大箭頭（手指著它），
+   * 莫莫歡呼、完成的音效，換到複習上完的畫面（./Between.tsx：舊篇的書打勾）；慶祝一拍後右下角出現下課的大箭頭（手指著它；T-146 手不再先去指新書），
    * 點了就下課、晚安，今天就算上完——新篇不消耗（markDone 不叫），這一次課的複習記下來，下次進來直接上新篇（course.ts 的 reviewDone）。
    * 旁邊一本小一點的新書：孩子主動點了才上新篇（more）。
    */
@@ -184,7 +184,7 @@ export function ChineseLessonBody({ onDone }: LessonProps) {
     setMood('cheer')
     sfx.done()
     setBetween(i)
-    await new Promise((r) => window.setTimeout(r, OFFER_TOUR_MS))
+    await new Promise((r) => window.setTimeout(r, CHEER_BEAT_MS))
     if (!live.current || offered.current) return
     if (!(await nextStep({ cue: true })) || !live.current || offered.current) return
     setMood('idle')

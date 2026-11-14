@@ -932,7 +932,7 @@
 }
 /*
  * 再一篇（T-142：提議）：一本小一點的新書，在打勾的舊書右下角旁邊。沒有黃框、沒有「新」。
- * T-145（盲測 fb621aa：沒人點）：圖不淡、書大一點，手先來點一下（.zh-offer-hand）；下課的大箭頭還是手最後指著的那一個
+ * T-145：圖不淡、書大一點（≥ 96px），出來時輕輕跳一下。T-146：手不指它（手只指下課的大箭頭），要不要上新篇由大人決定
  */
 .zh-offer {
   position: relative;
@@ -967,11 +967,6 @@
   display: block;
   width: 70%;
   aspect-ratio: 1;
-}
-.zh-offer-hand {
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
 }
 
 /*

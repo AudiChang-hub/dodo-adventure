@@ -589,7 +589,7 @@ test.describe('中文課', () => {
     const { k, c } = await setup(page, info, 'T142複習上完下課', false, false)
     try {
       if (!(await toChoice(k, c))) return
-      // 慶祝：舊的書打勾；手來指右下角的下課箭頭（6.5 秒內：T-145 手先到新書上點一下），書比舊的書小
+      // 慶祝：舊的書打勾；手來指右下角的下課箭頭（T-146 起手不先去新書），書比舊的書小
       let handOnArrow = false
       for (const end = Date.now() + 6500; Date.now() < end && !handOnArrow; await page.waitForTimeout(150)) handOnArrow = await page.evaluate(handNearArrow)
       const b = await page.evaluate(() => {
@@ -670,40 +670,46 @@ test.describe('中文課', () => {
     }
   })
 
-  test('T-145 複習上完：手先指新書再指下課箭頭、新書看得出能點；大箭頭邊緣點得到；下課點一次恐龍就很快指房子', async ({ page }, info) => {
-    test.skip(!want('lesson-chinese-t145'))
+  /**
+   * T-146（家長 2026-11-14，盲測 dbc602c：T-145 讓手先指新書，4/4 孩子照著點進新篇、0/4 上完，都說「好久喔／看不懂」；
+   * 上一版手指下課箭頭時 4/4 順利下課）：手只指下課箭頭，從不到新書上；新書照樣醒目（不淡、≥ 96px），讓大人決定要不要點。
+   */
+  test('T-146 複習上完：手只指下課箭頭、不到新書上，新書看得出能點；大箭頭邊緣點得到；下課點一次恐龍就很快指房子', async ({ page }, info) => {
+    test.skip(!want('lesson-chinese-t146-offer'))
     test.setTimeout(6 * 60_000)
-    const { k, c } = await setup(page, info, 'T145提議與下課', false, false)
+    const { k, c } = await setup(page, info, 'T146提議與下課', false, false)
     try {
       if (!(await toChoice(k, c))) return
-      // 中③（盲測 fb621aa：4/4 照手點箭頭，沒人點新書）：手先到新書上點一下，再去指下課箭頭；新書的圖不淡
+      // 7 秒內每 0.12 秒看一次：手的指尖有沒有到新書上、什麼時候指著下課箭頭
       let handOnBook = false
-      let handOnArrowAfter = false
-      for (const end = Date.now() + 7000; Date.now() < end && !handOnArrowAfter; await page.waitForTimeout(120)) {
+      let handOnArrow = -1
+      const tOffer = Date.now()
+      for (const end = tOffer + 7000; Date.now() < end; await page.waitForTimeout(120)) {
         const h = await page.evaluate(() => {
-          const near = (sel: string) => {
-            const a = document.querySelector(sel)?.getBoundingClientRect()
-            if (!a) return false
-            return [...document.querySelectorAll('.demo-hand')].some((e) => {
-              const r = e.getBoundingClientRect()
-              return Math.hypot(r.left + r.width / 2 - (a.left + a.width / 2), r.top + r.height / 2 - (a.top + a.height / 2)) < Math.max(a.width, a.height)
-            })
+          const tips = [...document.querySelectorAll('.demo-hand')].map((e) => {
+            const r = e.getBoundingClientRect()
+            return { x: r.left + r.width * 0.34, y: r.top + r.height * 0.07, cx: r.left + r.width / 2, cy: r.top + r.height / 2 }
+          })
+          const book = document.querySelector('.zh-offer')?.getBoundingClientRect()
+          const a = document.querySelector('.next-step')?.getBoundingClientRect()
+          return {
+            book: !!book && tips.some((p) => p.x >= book.left - 10 && p.x <= book.right + 10 && p.y >= book.top - 10 && p.y <= book.bottom + 10),
+            arrow: !!a && tips.some((p) => Math.hypot(p.cx - (a.left + a.width / 2), p.cy - (a.top + a.height / 2)) < 170),
           }
-          return { book: near('.zh-offer'), arrow: near('.next-step') }
         })
         if (h.book) handOnBook = true
-        if (handOnBook && h.arrow) handOnArrowAfter = true
+        if (h.arrow && handOnArrow < 0) handOnArrow = Date.now() - tOffer
       }
       const look = await page.evaluate(() => {
         const pic = document.querySelector('.zh-offer-pic')
         const op = pic ? Number(getComputedStyle(pic).opacity) : 0
         const b = document.querySelector('.zh-offer')?.getBoundingClientRect()
-        return { op, w: Math.round(b?.width ?? 0) }
+        return { op, w: Math.round(b?.width ?? 0), hand: !!document.querySelector('.zh-offer .demo-hand') }
       })
-      const seen = handOnBook && handOnArrowAfter && look.op >= 0.95 && look.w >= 90
-      c.outcome('手先指新書、再指下課箭頭；新書不淡、夠大', seen, JSON.stringify({ handOnBook, handOnArrowAfter, ...look }))
-      if (!seen) await c.once('t145-offer', '困惑', '複習上完的新書看不出可以點（沒有手指過、圖很淡或太小）', JSON.stringify({ handOnBook, handOnArrowAfter, ...look }))
-      await shot(page, info, 'T145-中文-提議')
+      const seen = !handOnBook && !look.hand && handOnArrow >= 0 && handOnArrow <= 4500 && look.op >= 0.95 && look.w >= 96
+      c.outcome('手只指下課箭頭（4.5 秒內）、不到新書上；新書不淡、≥ 96px', seen, JSON.stringify({ handOnBook, handOnArrow, ...look }))
+      if (!seen) await c.once('t146-offer', '困惑', '複習上完：手到了新書上（或沒指下課箭頭），或新書看不出能點', JSON.stringify({ handOnBook, handOnArrow, ...look }))
+      await shot(page, info, 'T146-中文-提議')
       // 低②（盲測：點大箭頭偏 30px 被記成空白處）：大箭頭中心和上下左右偏 30px 都點得到它
       const hits = await page.evaluate(() => {
         const a = document.querySelector('.next-step')?.getBoundingClientRect()
@@ -737,10 +743,10 @@ test.describe('中文課', () => {
       const quick = handHome >= 0 && handHome <= 2200
       c.outcome('點一次恐龍，2.2 秒內手指房子', quick, `${handHome}ms`)
       if (!quick) await c.once('t145-home-hand', '困惑', '下課點恐龍之後，手太久才指房子（孩子會再點一次恐龍）', `${handHome}ms`)
-      await shot(page, info, 'T145-中文-下課指房子')
+      await shot(page, info, 'T146-中文-下課指房子')
       await c.flush()
     } finally {
-      finish(k, c, 'T145提議與下課')
+      finish(k, c, 'T146提議與下課')
     }
   })
 
@@ -1198,11 +1204,75 @@ test.describe('中文課', () => {
   })
 
   /**
-   * T-145（盲測 fb621aa 中文 zh-run 7 第 12 步、zh-run 8 第 11 步）：學會以後不示範的「找一樣的字」，手點完一輪字卡就收走，
-   * 下一輪要等發呆 6 秒，中間畫面上沒有手，孩子「不知道要點哪個」。現在一出現就有手，一直到他點下去或提示出來，手都在畫面上；
-   * 手可以停在上面的字（看這個），不能停在答案上（不洩題）。孩子照著手點上面的字，手就帶他去點下面的字卡。
+   * T-146（盲測 dbc602c：〈但以理愛吃青菜〉第 2 行「國王請他吃大肉肉，」沒有紅字，亮的卻是青菜——借了後面那一行的圖，孩子連點都說「都一樣」）：
+   * 亮的圖要對得上大人正在念的那一行（這一行裡提到的、或緊鄰上一行在講的，data.ts 的 readPics）；對不上的行不放圖、只亮那一行的字。
+   * 點沒有圖的那一行的字、空白處，不會卡住，大人照樣念得下去。
    */
-  test('T-145 找一樣的字一出現就有手：發呆時手一直在、不停在答案上；照手點上面的字，手去點下面的字卡', async ({ page }, info) => {
+  test('T-146 念課文亮的圖對得上那一行：〈但以理愛吃青菜〉前兩行不亮青菜；每一行亮的圖都在這一行或上一行的字裡', async ({ page }, info) => {
+    test.skip(!want('lesson-chinese-linepic'))
+    test.setTimeout(4 * 60_000)
+    const { k, c } = await setup(page, info, 'T146亮的圖')
+    try {
+      await putKV(page, 'zhLesson:introSeen', true)
+      await pickDay(page, 11)
+      if (!(await enter(k, c))) return
+      if ((await state(page)).intro) await adult(k, '.zh-intro .zh-go', '開始念（大人）')
+      const s0 = await state(page)
+      c.outcome('進到〈但以理愛吃青菜〉', s0.title === '但以理愛吃青菜', `〈${s0.title}〉`)
+      if (s0.title !== '但以理愛吃青菜') return void (await c.once('t146-day', '困惑', '選了第 11 篇沒有進到那一篇', `〈${s0.title}〉`))
+      const rows: { at: string; words: string[]; text: string }[] = []
+      for (let i = 0; i < 8; i++) {
+        const s = await state(page)
+        if (s.talk || s.quiz || s.cheer || s.at == null || s.at === 'talk') break
+        await k.wait(800)
+        const row = await page.evaluate(() => {
+          const root = [...document.querySelectorAll<HTMLElement>('.scene')].filter((e) => !e.inert).pop() ?? document
+          const on = root.querySelector<HTMLElement>('.zh-line.on')
+          const n = Number(on?.dataset.line ?? -1)
+          const prev = root.querySelector(`.zh-line[data-line="${n - 1}"] .zh-text`)?.textContent ?? ''
+          return {
+            at: String(n),
+            words: [...(on?.querySelectorAll('.zh-pic') ?? [])].map((e) => e.getAttribute('data-word') ?? ''),
+            text: on?.querySelector('.zh-text')?.textContent ?? '',
+            prev,
+          }
+        })
+        const fits = row.words.every((w) => row.text.includes(w) || row.prev.includes(w))
+        rows.push({ at: row.at, words: row.words, text: row.text })
+        c.outcome(`第 ${Number(row.at) + 1} 行亮的圖對得上`, fits, `「${row.text}」→ ${row.words.join('、') || '（沒有圖）'}`)
+        if (!fits) await c.once(`t146-pic-${row.at}`, '困惑', '念課文亮的圖跟大人念的那一行對不上', `「${row.text}」→ ${row.words.join('、')}`)
+        if (!row.words.length) {
+          // 沒有圖的行：孩子點那一行的字、點空白處，不卡住
+          k.behavior = '點沒有圖的那一行'
+          const w = (await points(page, '.zh-line.on .zh-text'))[0]
+          if (w) await k.spam(w, 3, '沒有圖的那一行')
+          const s1 = await state(page)
+          const ok = s1.title === '但以理愛吃青菜' && s1.at === row.at
+          c.outcome('點沒有圖的那一行：還在課本、停在同一行（新篇由大人翻行）', ok, `〈${s1.title}〉第 ${s1.at} 行`)
+          if (!ok) await c.once(`t146-tapline-${row.at}`, '困惑', '點沒有圖的那一行，課本跳走了', `〈${s1.title}〉第 ${s1.at} 行`)
+        }
+        if (!(await adult(k, '.zh-next', '下一行（大人）'))) await k.wait(500)
+      }
+      const first2 = rows.filter((r) => r.at === '0' || r.at === '1')
+      const noGreens = first2.length === 2 && first2.every((r) => !r.words.includes('青菜'))
+      c.outcome('前兩行（還沒說到青菜）不亮青菜', noGreens, JSON.stringify(first2))
+      if (!noGreens) await c.once('t146-greens', '困惑', '〈但以理愛吃青菜〉還沒說到青菜，亮的就是青菜', JSON.stringify(first2))
+      const s = await waitFor(k, (s) => s.talk || s.quiz, 6000)
+      c.outcome('大人照樣念到聊一聊', !!s, s ? '到了' : '沒到')
+      if (!s) await c.once('t146-stuck', '卡死', '有沒有圖的行時，大人按下一行念不完', '')
+      await shot(page, info, 'T146-中文-亮的圖')
+      await c.flush()
+    } finally {
+      finish(k, c, 'T146亮的圖')
+    }
+  })
+
+  /**
+   * T-145（盲測 fb621aa 中文 zh-run 7、8）：學會以後不示範的「找一樣的字」，一出來手就點上面的字、再輪流點下面的字卡（看這個、點這些）。
+   * T-146（盲測 dbc602c：T-145 讓手點完回到上面的字停著，孩子照著手停的位置點，4/4 第一下都點錯）：手點完一輪就收掉，
+   * 不停在上面的字、不停在錯的字卡上，也不停在答案上（學會以後要自己找；12 秒才指答案）。孩子點上面的字，手再去點下面的字卡。
+   */
+  test('T-146 找一樣的字：手掃過字卡就收掉，不停在上面的字或任何一張字卡上；照手點上面的字，手去點下面的字卡', async ({ page }, info) => {
     test.skip(!want('lesson-chinese-glyph-hand'))
     test.setTimeout(5 * 60_000)
     const { k, c } = await setup(page, info, '找一樣的字有手')
@@ -1234,32 +1304,33 @@ test.describe('中文課', () => {
       const on = await waitFor(k, (s) => s.glyph && s.accepting, 5000)
       c.outcome('找一樣的字出來、可以點（不示範）', !!on && !on.dim, on ? (on.dim ? '在示範' : '可以點') : '沒有收作答')
       if (!on || on.dim) return
-      // 發呆 11 秒（12 秒手才指答案）：每 0.2 秒看一次手
+      // 發呆 11 秒（12 秒手才指答案）：每 0.2 秒看一次手停在哪、連續停多久
       k.behavior = '發呆，看手在哪'
       const t0 = Date.now()
-      let none = 0
-      let firstNone = -1
-      /** 手連續停在答案上多久（毫秒） */
-      let ansFrom = -1
-      let ansMax = 0
+      /** 手連續停在同一個地方最久多久（毫秒）：上面的字 top、錯的字卡 tile、答案 ans */
+      const stay: Record<string, number> = { top: 0, tile: 0, ans: 0 }
+      let prevAt: string | null = null
+      let from = 0
+      let swept = false
+      let goneAfter = false
       while (Date.now() - t0 < 11_000) {
         const at = await handOn()
-        const t = (Date.now() - t0) / 1000
-        if (!at && t > 1.2) {
-          none++
-          if (firstNone < 0) firstNone = t
-        }
         const now = Date.now()
-        if (at !== 'ans') ansFrom = -1
-        else if (ansFrom < 0) ansFrom = now
-        else ansMax = Math.max(ansMax, now - ansFrom)
+        if (at === 'tile' || at === 'ans') swept = true
+        if (swept && !at) goneAfter = true
+        if (at !== prevAt) {
+          prevAt = at
+          from = now
+        } else if (at && at in stay) stay[at] = Math.max(stay[at], now - from)
         await page.waitForTimeout(200)
       }
-      c.outcome('一出現到 11 秒，手一直在畫面上', none === 0, none ? `${firstNone.toFixed(1)} 秒起沒有手（${none} 次看不到）` : '一直有手')
-      if (none) await c.once('glyph-nohand', '困惑', '「找一樣的字」出來以後有一段時間畫面上沒有手', `${firstNone.toFixed(1)} 秒起`)
-      // 輪流點的時候每張停 1 秒左右（最後一張 1.35 秒）；連續停 2 秒以上就是停在答案上了
-      c.outcome('手不會停在答案上（12 秒提示前）', ansMax < 2000, `在答案上最久連續 ${(ansMax / 1000).toFixed(1)} 秒`)
-      if (ansMax >= 2000) await c.once('glyph-handans', '困惑', '「找一樣的字」發呆時手停在答案上', `${(ansMax / 1000).toFixed(1)} 秒`)
+      c.outcome('手有輪流點下面的字卡', swept, swept ? '有' : '沒看到手點字卡')
+      if (!swept) await c.once('glyph-nosweep', '困惑', '「找一樣的字」出來以後手沒有去點下面的字卡', '')
+      // 輪流點的時候：上面的字停 1.4 秒、每張字卡停 1 秒左右；連續停 2 秒以上就是「停在那裡」了
+      const parked = Object.entries(stay).filter(([, ms]) => ms >= 2000)
+      const ok = !parked.length && goneAfter
+      c.outcome('手點完就收掉，不停在上面的字、錯的字卡或答案上（12 秒提示前）', ok, `${JSON.stringify(stay)}${goneAfter ? '' : '、點完手沒收'}`)
+      if (!ok) await c.once('glyph-hand-park', '困惑', '「找一樣的字」手點完一輪停在上面的字或字卡上（孩子會照著點）', JSON.stringify(stay))
       // 照著手點上面的字：手去點下面的字卡
       k.behavior = '照著手點上面的字'
       const top = (await points(page, '.zh-glyph-target'))[0]
@@ -1397,8 +1468,9 @@ test.describe('中文課', () => {
       const per: number[] = []
       for (let i = 0; i < fresh.lines; i++) {
         const before = await stars()
-        const p = (await points(page, '.zh-line.on .zh-pic'))[0]
-        if (p) await k.spam(p, 2, `第 ${i + 1} 行亮的圖`)
+        // 沒有對得上的圖的行（T-146：只亮那一行的字）：點那一行的字
+        const p = (await points(page, '.zh-line.on .zh-pic'))[0] ?? (await points(page, '.zh-line.on .zh-text'))[0]
+        if (p) await k.spam(p, 2, `第 ${i + 1} 行亮的圖（沒有圖就點字）`)
         await k.wait(1500)
         per.push((await stars()) - before)
         if (i === 1) await shot(page, info, 'T141-中文-新篇點圖換星星')
