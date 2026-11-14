@@ -8,6 +8,7 @@ import { lexWord, wordKey } from '../../content/lexicon'
 import { bridgeKey } from '../../content/zh-words'
 import { LESSON_LETTERS, wordId } from './data'
 import { EXTRA_PHONICS } from './letters-extra'
+import { onsetOf } from './stage4'
 
 const cap = (s: string) => s[0].toUpperCase() + s.slice(1)
 
@@ -45,7 +46,8 @@ for (const x of LESSON_LETTERS) {
   def(`en.pop.${l}`, 'dodo', cueText({ unit: x.unit, names: 1, sound: x.unit.sound.kind === 'none' }))
   // 聽字找圖（家長 2026-11-14：拿掉「哪個是 A 開頭」）：Where's the apple?，只用教過的 2 個代表字。
   // 冠詞照 findWord：沒有冠詞的字（up、zero…）不加 the
-  for (const { w } of x.words.slice(0, 2)) def(`en.where.word.${wordId(w)}`, 'dodo', BARE.has(w) && w !== 'ice cream' ? `Where is | ${w}?` : `Where's the | ${w}?`)
+  // T-150 E 更多單字：新朋友教過的第 3 個字也會出現在聽字找圖（quiet 不當新朋友教，abc.ts 的 NOT_NEW）
+  for (const { w } of x.words) if (w !== 'quiet') def(`en.where.word.${wordId(w)}`, 'dodo', BARE.has(w) && w !== 'ice cream' ? `Where is | ${w}?` : `Where's the | ${w}?`)
   // 答對時念的「A… a, a…」：字母森林延後的 o、j、v、y 沒有這一句
   if (!hasLine(`ph.${l}.sound`)) def(`ph.${l}.sound`, 'dodo', cueText({ unit: x.unit, names: 1, sound: true }))
   def(`ph.${l}.today`, 'dodo', `Today's letter is | ${L}!`)
@@ -78,5 +80,19 @@ for (const x of LESSON_LETTERS) {
     const key = wordKey(w)
     const zh = lexWord(key)?.zh?.replace(/\s+/g, '')
     if (zh && !hasLine(bridgeKey(key, 'dodo'))) defBridge(bridgeKey(key, 'dodo'), 'dodo', zh, `${cap(w)}.`)
+  }
+}
+
+// T-150 E 4 歲內容：字母遊戲時間的新朋友（第 3 個字），和第三種遊戲「聽開頭」（abc.ts 的 makeOnsets）。
+def('en.abc.new', 'dodo', 'A new friend!')
+const unitOf = (l: string) => LESSON_LETTERS.find((x) => x.l === l)?.unit
+for (const x of LESSON_LETTERS) {
+  // 聽開頭的問題只念音、不念字母名：Find the one that starts with | a, a…（字母森林教過的字母已經有這一句，沒有的在這裡補；沒有字母音的 q、v、x 不問）
+  if (x.unit.sound.kind !== 'none' && !hasLine(`ph.${x.l}.q.start`)) def(`ph.${x.l}.q.start`, 'dodo', `Find the one that starts with | ${cueText({ unit: x.unit, names: 0, sound: true })}`)
+  // 答對時念的：A… a, a… apple!（開頭音 + 字；fox 雖然是 X 教的，開頭音是 f，key 用 ph.f.echo.fox）
+  for (const { w } of x.words) {
+    const o = onsetOf(wordId(w))
+    const u = o ? unitOf(o) : undefined
+    if (o && u && u.sound.kind !== 'none' && !hasLine(`ph.${o}.echo.${wordId(w)}`)) def(`ph.${o}.echo.${wordId(w)}`, 'dodo', cueText({ unit: u, names: 1, sound: true, word: w }))
   }
 }

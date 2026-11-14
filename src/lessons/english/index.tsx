@@ -62,6 +62,8 @@ function hintOf(stage: Stage, x: LessonLetter, q?: Question, look: QuizLook = 'c
       return `泡泡派對：讓他點破泡泡，每點一顆豆豆念一次 ${x.L}；不計分`
     case 'abc':
       if (pv?.part === 'pair') return `聽字找圖：請他把${said(pv.w)}拖進籃子（點一下也可以）`
+      if (pv?.part === 'onset') return '聽開頭：豆豆先念每張圖，再念一個開頭的音，請他把那個音開頭的圖放進嘴巴籃子'
+      if (pv?.part === 'friend') return `新朋友：跟他一起說${said(pv.w)}`
       if (pv?.part === 'flip') return '翻翻卡：請他一次翻兩張，找出兩張一樣的圖；翻開時跟他一起說出英文'
       return '字母牆：讓他點學過的字母，跟著豆豆念；不計分'
     case 'quiz':
@@ -268,7 +270,7 @@ export function EnglishLesson({ onDone }: LessonProps) {
           <>
             <span className={pv && pv.part !== 'wall' ? 'is-done' : 'is-now'}>{pv && pv.part !== 'wall' && letter ? letter.l : ''}</span>
             {pv?.game &&
-              (pv.part === 'pair' || pv.part === 'flip' ? (
+              (pv.part === "pair" || pv.part === "flip" || pv.part === "onset" ? (
                 <span className="is-now is-quiz" data-done={pv.done} data-total={pv.total}>
                   {Array.from({ length: pv.total }, (_, j) => (
                     <i key={j} className={j < pv.done ? 'on' : undefined} />

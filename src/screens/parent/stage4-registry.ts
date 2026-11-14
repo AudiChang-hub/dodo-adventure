@@ -32,7 +32,7 @@ export interface Stage4Module {
   PAUSE_KEY?: string
 }
 
-const EN: Stage4Module | null = null
+import * as EN from '../../lessons/english/stage4'
 import * as MATH from '../../lessons/math/stage4'
 
 export type Subject = 'zh' | 'en' | 'math'

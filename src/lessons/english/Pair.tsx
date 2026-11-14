@@ -15,6 +15,11 @@ import { nextStep } from '../../ui/NextStep'
 import { pointIn } from '../math/kit'
 import { ABC_GAME_ID, letterOf, sandwich, type PairOpt, type PairRound } from './abc'
 
+/** 這一回合的題目：聽字找圖 Where's the apple?；聽開頭 Find the one that starts with | a, a…（只念音） */
+const promptOf = (q: PairRound) => (q.onset ? `ph.${q.onset}.q.start` : `en.where.word.${q.answer}`)
+/** 放對了念的：聽字找圖是三明治 Apple. A… Apple.；聽開頭是 A… a, a… apple! */
+const goodOf = (q: PairRound) => (q.onset && hasLine(`ph.${q.onset}.echo.${q.answer}`) ? [`ph.${q.onset}.echo.${q.answer}`] : sandwich(q.L, q.w))
+
 /** 手指移動不到這麼多（px）就放開：當作點一下（點一下也算放進籃子，TOUCH-2） */
 const TAP_PX = 14
 
@@ -30,6 +35,11 @@ const TAP_PX = 14
  *   錯兩次：手帶著做完這一回合（一起練），回合數固定、一定玩得完。
  * - 發呆 8 秒手安靜地指著答案、15 秒再念一次題目（PHASE-7）。
  * - 每回合做完停住，點「下一步」大箭頭才換下一回合（T-118）；最後一回合做完直接 onDone。
+ * 聽開頭（T-150 E 4 歲內容，回合有 onset）：同一個畫面，籃子上是嘴巴、放對了也不寫字母。
+ * - 先把每張圖念出來（Apple. Moon.，念到哪張哪張亮），再問 Find the one that starts with | a, a…（問音，不問字母名）。
+ *   念圖名、問題的時候點：照搶點停掉、照常判，但題目沒聽完（heard: false）不算熟練。
+ * - 一起做的回合（led）：問完手就指著答案，記 guided（手帶著做的不算熟練）。
+ * - 作答記 game abc-onset、skill onset:a、level 是選項數；放錯念「Bus.」再問一次。
  */
 export function Pair({
   rounds,
@@ -82,6 +92,8 @@ export function Pair({
   const shown = useRef(false)
   const gripped = useRef(false)
   const doneN = useRef(start)
+  /** 聽開頭：正在念名字的那張圖 */
+  const [naming, setNaming] = useState<string | null>(null)
 
   // 要飛進籃子的那一張：算出它到籃子中間的距離
   useLayoutEffect(() => {
@@ -98,7 +110,21 @@ export function Pair({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [carry])
 
-  const prompt = (q: PairRound) => `en.where.word.${q.answer}`
+  const prompt = promptOf
+
+  /** 聽開頭：先把每張圖念出來（念到哪張哪張亮）。被搶掉回傳 false */
+  const nameAll = async (q: PairRound, ok: () => boolean) => {
+    if (!q.onset) return true
+    for (const o of q.options) {
+      if (!ok()) return false
+      setNaming(o.id)
+      await say(`ph.word.${o.id}`)
+      if (!ok()) return false
+      await wait(250)
+    }
+    setNaming(null)
+    return ok()
+  }
 
   const openTurn = (q: PairRound) => {
     phase.current = 'turn'
@@ -120,6 +146,7 @@ export function Pair({
   const takeOver = () => {
     const was = phase.current
     flow.cut()
+    setNaming(null)
     if (was === 'demo') {
       setShow(null)
       setState({})
@@ -150,6 +177,7 @@ export function Pair({
     setHint(false)
     setBeckon(false)
     setShow(null)
+    setNaming(null)
     tries.current = 0
     taps.current = []
     t0.current = 0
@@ -165,6 +193,7 @@ export function Pair({
       // 我做：Watch me! → 念題目 → 手指答案、帶著它進籃子 → 三明治 → 圖回原位 → Your turn!
       await say('teach.watch.dodo')
       if (!ok()) return
+      if (!(await nameAll(q, ok))) return
       await say(prompt(q))
       if (!ok()) return
       setShow('answer')
@@ -174,7 +203,7 @@ export function Pair({
       setShow('basket')
       setCarry(q.answer)
       sfx.pop()
-      await say(...sandwich(q.L, q.w))
+      await say(...goodOf(q))
       await wait(500)
       if (!ok()) return
       setShow(null)
@@ -184,9 +213,12 @@ export function Pair({
       if (!ok()) return
       await say('teach.turn.dodo')
     } else {
+      if (!(await nameAll(q, ok))) return
       await say(prompt(q))
     }
     if (!ok()) return
+    // 聽開頭的一起做：問完手就指著答案，等他照著放（記 guided）
+    if (q.led) setShow('answer')
     openTurn(q)
   }
 
@@ -237,7 +269,7 @@ export function Pair({
       const ok = flow.begin(live)
       setHint(false)
       setBeckon(false)
-      const why = [`en.that.word.${o.id}`, `en.find.word.${r.answer}`]
+      const why = r.onset ? [`ph.word.${o.id}`, prompt(r)] : [`en.that.word.${o.id}`, `en.find.word.${r.answer}`]
       const talk = say(...(why.every(hasLine) ? why : [prompt(r)]))
       setShow('answer')
       await wait(700)
@@ -262,7 +294,8 @@ export function Pair({
     idle.stop()
     const firstTry = !together && tries.current === 0
     const h = heard.current
-    const byHand = led.current && !shown.current
+    // 聽開頭的一起做（r.led）：手還沒出來就搶著放也一樣算手帶著做（記 guided，不算熟練）
+    const byHand = (led.current || !!r.led) && !shown.current
     const full = firstTry && h && !led.current
     setState({ [r.answer]: 'yes' })
     setCarry(r.answer)
@@ -271,11 +304,11 @@ export function Pair({
     else sfx.pop()
     void logAttempt({
       station: 'english',
-      game: ABC_GAME_ID.pair,
-      itemId: `pair:${r.L}:${r.answer}`,
+      game: r.onset ? ABC_GAME_ID.onset : ABC_GAME_ID.pair,
+      itemId: r.onset ? `onset:${r.onset}:${r.answer}` : `pair:${r.L}:${r.answer}`,
       skill: r.skill,
       phase: shown.current || byHand ? 'guided' : 'quiz',
-      level: 1,
+      level: r.onset ? r.options.length : 1,
       options: r.options.map((x) => x.id),
       answer: r.answer,
       taps: taps.current,
@@ -288,8 +321,8 @@ export function Pair({
     })
     doneN.current = i + 1
     onRound(i + 1, full && !shown.current)
-    // 三明治：Apple. A… Apple.（把字母和字連起來）
-    await say(...(full ? [praiseKey('dodo'), ...sandwich(r.L, r.w)] : sandwich(r.L, r.w)))
+    // 三明治：Apple. A… Apple.（把字母和字連起來）；聽開頭：A… a, a… apple!
+    await say(...(full ? [praiseKey('dodo'), ...goodOf(r)] : goodOf(r)))
     await wait(400)
     if (!live.current) return
     if (i + 1 >= rounds.length) return onDone()
@@ -365,13 +398,23 @@ export function Pair({
   const x = letterOf(r.L)
   const at = show === 'answer' || (show === 'basket' && !carry) ? pointIn(els.current.get(r.answer), layer.current) : show === 'basket' ? pointIn(basket.current, layer.current, 0.5, 0.45) : hint && !solved ? pointIn(els.current.get(r.answer), layer.current) : null
   return (
-    <div className="en-pair" ref={layer} onPointerDown={blank} data-round={i} data-answer={r.answer} data-accepting={accept ? undefined : 'false'}>
+    <div className={`en-pair${r.onset ? ' is-onset' : ''}`} ref={layer} onPointerDown={blank} data-round={i} data-answer={r.answer} data-onset={r.onset} data-led={r.led ? '1' : undefined} data-accepting={accept ? undefined : 'false'}>
       <motion.div key={`b${i}`} ref={basket} className={`en-basket${solved ? ' is-full' : ''}`} initial={{ opacity: 0, y: still ? 0 : -12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4 }}>
-        {/* 籃子上的字母：放對了才出現（題目前就寫字母，會變成找開頭字母） */}
-        <span className={`en-basket-letter${solved ? '' : ' is-empty'}`} aria-label={solved ? r.L : undefined}>
-          <b>{solved ? x.L : ''}</b>
-          <i>{solved ? x.l : ''}</i>
-        </span>
+        {r.onset ? (
+          // 聽開頭：籃子上是嘴巴（聽開頭的音），不寫字母（問的是音，不是字母名）
+          <span className={`en-basket-mouth${solved ? ' is-full' : ''}`} aria-hidden="true">
+            <svg viewBox="0 0 120 70">
+              <path d="M8 30 C30 6 48 14 60 22 C72 14 90 6 112 30 C92 62 28 62 8 30 Z" fill="#E86A6A" stroke="#B94A4A" strokeWidth={5} strokeLinejoin="round" />
+              <path d="M16 31 C40 38 80 38 104 31" stroke="#B94A4A" strokeWidth={5} strokeLinecap="round" fill="none" />
+            </svg>
+          </span>
+        ) : (
+          // 籃子上的字母：放對了才出現（題目前就寫字母，會變成找開頭字母）
+          <span className={`en-basket-letter${solved ? '' : ' is-empty'}`} aria-label={solved ? r.L : undefined}>
+            <b>{solved ? x.L : ''}</b>
+            <i>{solved ? x.l : ''}</i>
+          </span>
+        )}
         <svg className="en-basket-art" viewBox="0 0 200 110" aria-hidden="true">
           <path d="M14 30 H186 L168 102 H32 Z" fill="#E7C48F" stroke="#B88B4F" strokeWidth={6} strokeLinejoin="round" />
           <path d="M30 56 H170 M38 80 H162" stroke="#B88B4F" strokeWidth={5} strokeLinecap="round" opacity={0.6} />
@@ -397,7 +440,7 @@ export function Pair({
                   if (el) els.current.set(o.id, el)
                 }}
                 type="button"
-                className={`en-findpic${state[o.id] === 'no' ? ' is-no' : ''}${state[o.id] === 'yes' ? ' is-yes' : ''}${(beckon || hint) && o.id === r.answer ? ' is-beckon' : ''}${d ? ' is-drag' : ''}`}
+                className={`en-findpic${naming === o.id ? ' is-named' : ''}${state[o.id] === 'no' ? ' is-no' : ''}${state[o.id] === 'yes' ? ' is-yes' : ''}${(beckon || hint) && o.id === r.answer ? ' is-beckon' : ''}${d ? ' is-drag' : ''}`}
                 aria-label={o.w}
                 data-id={o.id}
                 animate={f ? { x: f.dx, y: f.dy, scale: 0.55 } : d ? { x: d.dx, y: d.dy, scale: 1.06 } : { x: 0, y: 0, scale: 1 }}

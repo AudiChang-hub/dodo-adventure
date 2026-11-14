@@ -25,7 +25,7 @@ const loadZh = () =>
     .catch(() => new Set<string>()))
 
 /** 一個字要念的台詞：Apple. → 蘋果 → Apple.（中文三明治）；家長關掉中文、或這個詞的中文音檔還沒產生，就只念 Apple. */
-async function linesOf(w: string): Promise<string[]> {
+export async function linesOf(w: string): Promise<string[]> {
   const head = `ph.word.${wordId(w)}`
   const key = wordKey(w)
   const b = bridgeKey(key, 'dodo')
