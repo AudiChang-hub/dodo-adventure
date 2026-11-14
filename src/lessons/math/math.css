@@ -1017,3 +1017,232 @@
     transition: none;
   }
 }
+
+/* ── 一眼看出幾個（T-150 M，Subitize.tsx）：上面一塊板子，布掀開閃一下點點、蓋回去；下面點一樣多的那張卡 ─────────── */
+.ma-sub {
+  position: absolute;
+  inset: 0;
+}
+.ma-sub-board {
+  position: relative;
+  height: 100%;
+  aspect-ratio: 1.45;
+  border-radius: 24px;
+  background: var(--card);
+  border: 3px solid color-mix(in srgb, var(--ma-deep) 55%, transparent);
+  overflow: hidden;
+  container-type: size;
+  display: grid;
+  place-items: center;
+}
+.ma-sub-board > .ma-sub-group {
+  height: 86%;
+}
+.ma-sub-group {
+  position: relative;
+  height: 100%;
+  aspect-ratio: 1;
+  max-width: 100%;
+}
+.ma-sub-dot {
+  position: absolute;
+  width: 17%;
+  aspect-ratio: 1;
+  translate: -50% -50%;
+  border-radius: 50%;
+  background: var(--ma-ink);
+  transition: box-shadow 0.2s var(--ease-out), scale 0.2s var(--ease-out);
+}
+.ma-sub-group.frame .ma-sub-dot {
+  width: 14%;
+}
+.ma-sub-dot.is-icon {
+  width: 28%;
+  background: none;
+  border-radius: 0;
+}
+.ma-sub-group.frame .ma-sub-dot.is-icon {
+  width: 18%;
+}
+.ma-sub-dot.is-icon svg {
+  width: 100%;
+  height: 100%;
+}
+/* 一起數：數到的那個亮一圈，旁邊寫著數到幾 */
+.ma-sub-dot.lit {
+  box-shadow: 0 0 0 0.9cqmin #f6d07a;
+  scale: 1.08;
+}
+.ma-sub-k {
+  position: absolute;
+  left: 50%;
+  top: -62%;
+  translate: -50% 0;
+  font-family: 'Fredoka', sans-serif;
+  font-weight: 600;
+  font-size: 9cqmin;
+  line-height: 1;
+  color: var(--ink);
+}
+/* 五格框：一排 5 格，點點放在前面幾格 */
+.ma-sub-frame {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 50%;
+  height: 20%;
+  translate: 0 -50%;
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  border: 2px solid color-mix(in srgb, var(--ink) 45%, transparent);
+  border-radius: 4px;
+}
+.ma-sub-frame i {
+  border-left: 2px solid color-mix(in srgb, var(--ink) 30%, transparent);
+}
+.ma-sub-frame i:first-child {
+  border-left: 0;
+}
+/* 布：蓋著的時候看不到點點（點布不會掀開） */
+.ma-sub-cloth {
+  position: absolute;
+  inset: 0;
+  background:
+    repeating-linear-gradient(135deg, rgba(255, 255, 255, 0.16) 0 14px, transparent 14px 28px),
+    #d98f63;
+  box-shadow: inset 0 -1.2cqh 0 rgba(46, 42, 37, 0.12);
+  pointer-events: none;
+}
+.ma-sub .ma-tile .tile-in {
+  display: grid;
+  place-items: center;
+}
+.ma-sub .ma-tile .tile-in > .ma-sub-group {
+  width: 100%;
+  height: auto;
+}
+
+/* ── 數字小路（T-150 M，Path.tsx）：一條水平直線的 10 格，骰子在下面，小恐龍站在格子上 ─────────── */
+.ma-path {
+  position: absolute;
+  inset: 0;
+  touch-action: none;
+}
+.ma-path-track {
+  --g: 0.8cqw;
+  position: absolute;
+  left: 21cqw;
+  right: 3cqw;
+  top: 46%;
+  translate: 0 -50%;
+  display: grid;
+  grid-template-columns: repeat(11, 1fr);
+  gap: var(--g);
+  align-items: center;
+}
+.ma-path-cell {
+  aspect-ratio: 1;
+  box-sizing: border-box;
+  border-radius: 1.4cqmin;
+  background: var(--card);
+  border: 3px solid #e2c3a2;
+  display: grid;
+  place-items: center;
+  font-family: 'Fredoka', sans-serif;
+  font-weight: 600;
+  font-size: 3.4cqw;
+  line-height: 1;
+  color: var(--ink);
+  transition: background 0.25s var(--ease-out), border-color 0.25s var(--ease-out);
+}
+.ma-path-cell span {
+  pointer-events: none;
+}
+.ma-path-cell.on {
+  background: #f6d7b8;
+  border-color: var(--ma-deep);
+}
+.ma-path-cell.here {
+  border-color: var(--ma-ink);
+}
+.ma-path-start {
+  justify-self: center;
+  width: 45%;
+  aspect-ratio: 1;
+  border-radius: 50%;
+  background: #e2c3a2;
+}
+.ma-path-dino {
+  position: absolute;
+  bottom: calc(100% - 0.6cqmin);
+  width: 11cqmin;
+  aspect-ratio: 1;
+  translate: -50% 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+}
+.ma-path-dino-in {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+.ma-path-dino-in svg {
+  width: 100%;
+  height: 100%;
+  filter: saturate(0.6) sepia(0.1);
+}
+.ma-path-die {
+  position: absolute;
+  left: 58%;
+  top: 78%;
+  width: 16cqmin;
+  aspect-ratio: 1;
+  translate: -50% -50%;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+  transition: opacity 0.25s var(--ease-out);
+}
+/* 還有步數沒走：骰子淡一點（要點的是小恐龍） */
+.ma-path-die.used {
+  opacity: 0.55;
+}
+.ma-path-die svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+.ma-path-burst {
+  position: absolute;
+  left: 88%;
+  top: 40%;
+  pointer-events: none;
+}
+@media (orientation: portrait) {
+  .ma-path-track {
+    --g: 0.6cqw;
+    /* 右邊多留一點：小恐龍比格子寬，走到 10 不會被切到 */
+    left: 3cqw;
+    right: 8cqw;
+    top: 42%;
+  }
+  .ma-path-cell {
+    font-size: 4.2cqw;
+    border-width: 2px;
+  }
+  .ma-path-die {
+    top: 66%;
+    left: 50%;
+    width: 22cqw;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ma-sub-dot,
+  .ma-path-cell,
+  .ma-path-die {
+    transition: none;
+  }
+}
