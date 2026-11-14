@@ -179,7 +179,7 @@ export async function writeReport(R: Run, brain: Brain, analystFile: string) {
   const thumb = (n: number) => `[![第 ${n} 步](縮圖/${pad(n)}.jpg)](截圖/${pad(n)}.jpg)`
   const md: string[] = []
   md.push(`# AI 小男生測試：${R.lesson}（${R.started.slice(0, 10)}）`, '')
-  md.push(R.tool ? `**盲測工具 ${R.tool}**：跟沒有標版本（v1）的報告不能直接比。` : '**盲測工具 v1**（T-144C 以前：音效不算聽到、中文課媽媽不回應、截圖不等動畫）', '')
+  md.push(R.tool ? `**盲測工具 ${R.tool}**：跟別的版本的報告不能直接比${R.tool.startsWith('v3') ? '' : '；v3 以前大箭頭會被工具自己點掉，「孩子點大箭頭」不算數'}。` : '**盲測工具 v1**（T-144C 以前：音效不算聽到、中文課媽媽不回應、截圖不等動畫；大箭頭會被工具自己點掉，「孩子點大箭頭」不算數）', '')
   md.push('> 3 歲 3 個月的小男生（由 Claude 扮演，角色設定 `tests/ai-toddler/persona.md`）自己玩，看截圖決定下一步，手指照三歲孩子的誤差偏開。', '> 這是探索測試：「真的孩子看得懂嗎」。固定腳本的回歸測試是 `npm run test:toddler`。', '')
   md.push('| 項目 | 結果 |', '|---|---|')
   if (R.today) md.push(`| 今天排的課 | ${cell(R.today)} |`)

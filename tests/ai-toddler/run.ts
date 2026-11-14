@@ -198,7 +198,7 @@ const R: Run = {
   brain: brain.kind,
   version,
   // 盲測工具的版本：改了小男生聽得到、看得到的東西就升一版，報告開頭會寫（不同版的報告不能直接比）
-  tool: `v2（T-144C：音效、媽媽回應、等動畫${lesson.id === 'zh' ? '' : '；這一課只有音效不同，媽媽回應和等動畫只在中文課'}）`,
+  tool: `v3（T-145：不再自動幫他點大箭頭、點到哪裡記得更準${lesson.id === 'zh' ? '、媽媽說短句、找一樣的字媽媽會回應' : ''}；v2 T-144C：音效、媽媽回應、等動畫${lesson.id === 'zh' ? '' : '，媽媽和等動畫只在中文課'}）`,
   started: new Date().toISOString(),
   minutes: MINUTES,
   maxSteps: MAX_STEPS,
@@ -241,7 +241,9 @@ const clipText = (() => {
 let finger!: Finger
 let fatal: string | null = null
 try {
-  await boot(page, SEED, { to: 'home', settings: lesson.id === 'story' ? { story: true } : {} })
+  // autoNext: false：三歲測試的 boot 預設會在大箭頭出來 1.5 秒後自己點它（T-118），盲測要看的是孩子自己點不點，不能幫他點（T-145：
+  // v2 以前小男生想 7～9 秒的時候箭頭已經被點掉了，他那一下落在下一個畫面，報告記成「空白處」）
+  await boot(page, SEED, { to: 'home', settings: lesson.id === 'story' ? { story: true } : {}, autoNext: false })
   // 故事：預設是舊裝置（書架上已經有 8 本講過的書，今天的新章節照樣先講）；--fresh 是新裝置（什麼都沒有）
   if (lesson.id === 'story' && !flag('fresh')) await seedStory(page)
   if (lesson.id === 'stickers' && !flag('fresh')) await seedStickers(page)
@@ -486,6 +488,16 @@ async function zhSettle(): Promise<string> {
 // 每一步之前媽媽做一件事：說明卡按「開始念」、念亮的那一行（下一步再按「下一行」）、聊一聊問卡片上的問題（下一步按「去選圖」）、
 // 念選圖的題目。她念的話寫進小男生「聽到的」，小男生自己決定要不要點。
 const momDone = new Set<string>()
+/** 大箭頭連續出現了幾步（他第一次沒點，媽媽才指給他看） */
+let arrowSteps = 0
+/**
+ * 媽媽說的話縮成短句（T-145，盲測 fb621aa：「這是小豬，我們找房子。」太長，真的媽媽跟 3 歲講話是 3～6 個字）：
+ * 取字條那一句的第一小句，超過 6 個字就不說（回空字串）
+ */
+function short(s: string) {
+  const first = s.split(/[，。！？、,.!?]/).map((x) => x.trim()).find(Boolean) ?? ''
+  return first && first.length <= 6 ? `${first}！` : ''
+}
 async function mom(): Promise<string> {
   // 這段在瀏覽器裡跑：不能在裡面宣告具名的函式（tsx 會加 __name，瀏覽器裡沒有）
   const st = await page.evaluate(() => {
@@ -509,15 +521,22 @@ async function mom(): Promise<string> {
       // 聊一聊字條「答不出來就說「…」」那一句；他用指的回答過了（主角的圖不再有「點我」的外框）
       model: /「(.+)」/.exec(root.querySelector('.zh-talk-model')?.textContent ?? '')?.[1] ?? null,
       answered: !!root.querySelector('.zh-talk-pic') && !root.querySelector('.zh-talk-pic.cue'),
+      // 找一樣的字（上面的大字）；手還在示範的時候不問
+      glyph: root.querySelector('.zh-glyph-target')?.getAttribute('data-char') ?? null,
+      glyphDemo: !!root.querySelector('.zh-glyph[data-demo]'),
+      arrow: !!document.querySelector('.next-step'),
     }
   })
   const click = async (pt: { x: number; y: number }) => {
     await page.mouse.click(pt.x, pt.y)
     await page.waitForTimeout(900)
   }
+  // 大箭頭出來了他沒點（上一步也在）：照陪玩小字「請他點右下角的大箭頭」，指給他看一次（T-145）
+  arrowSteps = st.arrow ? arrowSteps + 1 : 0
+  if (st.arrow && arrowSteps === 2) return '媽媽指著右下角的大箭頭說：「點這個！」'
   if (st.intro) {
     await click(st.intro)
-    return '媽媽看完大人的說明，說：「我念故事給你聽喔！」'
+    return '媽媽看完大人的說明，說：「我念給你聽！」'
   }
   if (st.card) {
     if (!momDone.has(`talk:${st.talkQ}`)) {
@@ -528,16 +547,23 @@ async function mom(): Promise<string> {
     if (!st.talk) return ''
     await click(st.talk)
     // 他沒有用指的回答：照陪玩小字「答不出來就照字條說一次給他聽」，說完再去選圖（T-144C）
-    if (!st.answered && st.model && !momDone.has('talk-said')) {
+    const say = st.model ? short(st.model) : ''
+    if (!st.answered && say && !momDone.has('talk-said')) {
       momDone.add('talk-said')
-      return `媽媽說：「${st.model}」然後說：「我們來選圖！」按了「去選圖」。`
+      return `媽媽說：「${say}」然後說：「來找找看！」按了「去選圖」。`
     }
-    return '媽媽說：「我們來選圖！」按了「去選圖」。'
+    return '媽媽說：「來找找看！」按了「去選圖」。'
   }
   if (st.ask) {
     if (momDone.has(`ask:${st.ask}`)) return ''
     momDone.add(`ask:${st.ask}`)
     return `媽媽念題目：「哪個是${st.ask}？」`
+  }
+  // 找一樣的字：陪玩小字「指著上面的字問他：下面哪一個跟它長得一模一樣？」，縮成短句、不念那是什麼字（T-145）
+  if (st.glyph && !st.glyphDemo) {
+    if (momDone.has(`glyph:${st.glyph}`)) return ''
+    momDone.add(`glyph:${st.glyph}`)
+    return '媽媽指著上面的大字問你：「哪個一樣？」'
   }
   if (st.next && st.at != null) {
     const key = `line:${st.at}:${st.line}`
@@ -562,15 +588,17 @@ async function mom(): Promise<string> {
 }
 
 /** 小男生點之前，中文課現在的樣子（zh-watch.js 的 __zh.ctx） */
-type ZhCtx = { mode: 'read' | 'talk' | 'quiz' | null; at: string | null; lit: string[]; star: string | null; model: string | null; ask: string | null; tiles: { word: string | null; x: number; y: number; w: number; h: number }[] }
+type ZhCtx = { mode: 'read' | 'talk' | 'quiz' | 'glyph' | null; glyph: string | null; demo: boolean; at: string | null; lit: string[]; star: string | null; model: string | null; ask: string | null; tiles: { word: string | null; x: number; y: number; w: number; h: number }[] }
 const zhCtx = () => page.evaluate(() => (window as unknown as { __zh: { ctx: () => ZhCtx } }).__zh.ctx()).catch(() => null)
 
 /**
  * 媽媽回應他（T-144C，調查報告 2026-11-13 C 案）：親子共讀裡大人的回應本來就是主要的回饋。
  * 只照 App 已經寫給大人的話（陪玩小字、說明卡、聊一聊字條），不多加；同一件事只回一次：
  * - 念課文時他點了亮的那一行的圖（或課本空白處、探頭的角色，App 當作點了那張圖）：「對，小豬！」
- * - 聊一聊時他點了主角的圖（用指的回答）：照字條那一句接下去「是兔子！兔子跑得快快快。」（陪玩小字：他說一兩個字，你幫他說成完整的一句）
- * - 選圖選錯了（App 響低低的「咚」）：「這是小狗，我們找樹。」
+ * - 聊一聊時他點了主角的圖（用指的回答）：照字條那一句的第一小句「是兔子！」（陪玩小字：他說一兩個字，你幫他說成完整的一句）
+ * - 選圖選錯了（App 響低低的「咚」）：「那是小狗。樹呢？」
+ * - 找一樣的字：對了「一模一樣！」、錯了「不一樣喔！」（不念那是什麼字）
+ * T-145：都縮成 3～6 個字的短句（盲測 fb621aa：「這是小豬，我們找房子。」太長）；聊一聊照字條那一句只說第一小句（「是三隻小豬！」）
  */
 function momReply(zc: ZhCtx | null, touch: Touch | null, moved: Move[], sounds: string[]): string {
   if (!zc || !touch || touch.kind !== 'tap') return ''
@@ -584,12 +612,22 @@ function momReply(zc: ZhCtx | null, touch: Touch | null, moved: Move[], sounds: 
     const word = zc.lit.find((w) => w === label) ?? moved.find((m) => m.word && zc.lit.includes(m.word))?.word
     return word ? once(`lit:${zc.at}:${word}`, `媽媽說：「對，${word}！」`) : ''
   }
-  if (zc.mode === 'talk') return label && label === zc.star && zc.model ? once('talk-said', `媽媽說：「${zc.model}」`) : ''
-  if (zc.mode === 'quiz' && zc.ask && sounds.some((s) => s.startsWith('低低的「咚」'))) {
-    const pt = touch.got[0]
-    const tile = zc.tiles.find((r) => pt.x >= r.x && pt.x <= r.x + r.w && pt.y >= r.y && pt.y <= r.y + r.h)
+  if (zc.mode === 'talk') {
+    const say = zc.model ? short(zc.model) : ''
+    return label && label === zc.star && say ? once('talk-said', `媽媽說：「${say}」`) : ''
+  }
+  const pt = touch.got[0]
+  const tile = zc.tiles.find((r) => pt.x >= r.x && pt.x <= r.x + r.w && pt.y >= r.y && pt.y <= r.y + r.h)
+  const wrong = sounds.some((s) => s.startsWith('低低的「咚」'))
+  if (zc.mode === 'quiz' && zc.ask && wrong) {
     if (!tile || tile.word === zc.ask) return ''
-    return once(`wrong:${zc.ask}:${tile.word}`, tile.word ? `媽媽說：「這是${tile.word}，我們找${zc.ask}。」` : `媽媽說：「我們找${zc.ask}。」`)
+    // 兩個短句：說他點的是什麼，再把題目問一次（不指答案）
+    return once(`wrong:${zc.ask}:${tile.word}`, tile.word ? `媽媽說：「那是${tile.word}。${zc.ask}呢？」` : `媽媽說：「${zc.ask}呢？」`)
+  }
+  // 找一樣的字：不念那是什麼字。對了照陪玩小字「一模一樣！」，錯了「不一樣喔！」（T-145）
+  if (zc.mode === 'glyph' && zc.glyph && !zc.demo && tile?.word) {
+    if (tile.word === zc.glyph && sounds.some((s) => s.startsWith('好聽的「叮叮噹」'))) return once(`glyph-ok:${zc.glyph}`, '媽媽說：「一模一樣！」')
+    if (tile.word !== zc.glyph && wrong) return once(`glyph-no:${zc.glyph}:${tile.word}`, '媽媽說：「不一樣喔！」')
   }
   return ''
 }
