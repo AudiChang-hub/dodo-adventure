@@ -10,7 +10,7 @@ import { say, sfx, stopSpeech } from '../../lib/audio'
 import { hasLine } from '../../content/lines'
 import { logTeach } from '../../lib/record'
 import { pointIn } from '../math/kit'
-import { letterOf, taughtWords } from './abc'
+import { letterOf, taughtWords, type More } from './abc'
 import { wordId } from './data'
 
 /** 點幾下、或過多久，右下角出「下一步」大箭頭（設計稿 1-1：6 下或 20 秒） */
@@ -19,10 +19,16 @@ export const WALL_MS = 20_000
 /** 一直沒點：手出來點今天的字母（我做） */
 const WALL_HINT_MS = 4000
 
-/** 一塊積木念什麼：A, A, A… a, a… apple!（認字母那一句）；沒有那一句就念字母音＋代表字 */
-const linesOf = (L: string) => {
+/**
+ * 一塊積木念什麼：A, A, A… a, a… apple!（認字母那一句）；沒有那一句就念字母音＋代表字。
+ * 教過第 3 個字的字母（T-150 E 新朋友）：點第 2、3 下輪到別的字，念 A… a, a…（字母音）＋ 那個字
+ */
+const linesOf = (L: string, k = 0, more?: More) => {
   const x = letterOf(L)
-  return hasLine(`ph.${x.l}.says`) ? [`ph.${x.l}.says`] : [`ph.${x.l}.sound`, `ph.word.${wordId(taughtWords(x)[0].w)}`]
+  const ws = taughtWords(x, more)
+  const w = ws[k % ws.length]
+  if (k % ws.length === 0) return hasLine(`ph.${x.l}.says`) ? [`ph.${x.l}.says`] : [`ph.${x.l}.sound`, `ph.word.${wordId(w.w)}`]
+  return [`ph.${x.l}.sound`, `ph.word.${wordId(w.w)}`]
 }
 
 /**
@@ -33,10 +39,23 @@ const linesOf = (L: string) => {
  * - 4 秒都沒點：手出來點今天的字母（不幫他點）。
  * - 點了 6 下或過了 20 秒：onReady（課在右下角出「下一步」大箭頭；之後照樣可以點）。
  * - 只記 teach（logTeach），不記作答。
+ * - 教過第 3 個字的字母（more，T-150 E）：每點一下輪到下一個字，圖跟著換（3 個字輪流）。
  * - 今天新學的那一塊第一次放上牆（fresh，T-149 E5）：別的積木先在原位淡淡出來（不動），它從上面落下、輕輕彈一下（約 1 秒），
  *   讓孩子看到「我又多一個」。不加星星、分數、連續天數；減少動態效果時只淡入。
  */
-export function Wall({ letters, fresh = null, onReady }: { letters: string[]; /** 今天新學、第一次放上牆的那一塊（T-149 E5） */ fresh?: string | null; onReady: () => void }) {
+export function Wall({
+  letters,
+  fresh = null,
+  more,
+  onReady,
+}: {
+  letters: string[]
+  /** 今天新學、第一次放上牆的那一塊（T-149 E5） */
+  fresh?: string | null
+  /** 教過第 3 個字的字母（T-150 E）：點了輪流出 3 個字 */
+  more?: More
+  onReady: () => void
+}) {
   const still = useReducedMotion()
   const [lit, setLit] = useState<string | null>(null)
   const [seen, setSeen] = useState<string[]>([])
@@ -51,6 +70,9 @@ export function Wall({ letters, fresh = null, onReady }: { letters: string[]; /*
   const blocks = useRef(new Map<string, HTMLElement>())
   const flow = useFlow()
   const talking = useRef<string | null>(null)
+  /** 每塊點過幾次（輪流出第幾個字） */
+  const turns = useRef(new Map<string, number>())
+  const [word, setWord] = useState<Record<string, number>>({})
 
   const done = () => {
     if (ready.current || !live.current) return
@@ -100,12 +122,15 @@ export function Wall({ letters, fresh = null, onReady }: { letters: string[]; /*
     flow.cut()
     const mine = flow.begin(live)
     talking.current = L
+    const k = turns.current.get(L) ?? 0
+    turns.current.set(L, k + 1)
+    setWord((m) => ({ ...m, [L]: k }))
     setLit(L)
     setSeen((s) => (s.includes(L) ? s : [...s, L]))
     sfx.tap()
     const t = performance.now()
     if (++taps.current >= WALL_TAPS) done()
-    await say(...linesOf(L))
+    await say(...linesOf(L, k, more))
     if (!mine()) return
     void logTeach({ station: 'english', game: 'abc-wall', itemId: `wall:${L}`, skill: `abc:${L}`, level: 1, ms: Math.round(performance.now() - t) })
     talking.current = null
@@ -117,7 +142,8 @@ export function Wall({ letters, fresh = null, onReady }: { letters: string[]; /*
     <div className={`en-wall n${letters.length}`} ref={layer} data-seen={seen.length}>
       {letters.map((L, i) => {
         const x = letterOf(L)
-        const w = taughtWords(x)[0]
+        const ws = taughtWords(x, more)
+        const w = ws[(word[L] ?? 0) % ws.length]
         const on = lit === L
         const isNew = fresh === L
         return (
@@ -148,7 +174,7 @@ export function Wall({ letters, fresh = null, onReady }: { letters: string[]; /*
             <AnimatePresence>
               {on && (
                 <motion.span
-                  key="peek"
+                  key={`peek${w.icon}`}
                   className="en-block-peek"
                   aria-hidden="true"
                   initial={still ? { opacity: 0 } : { y: '60%', opacity: 0 }}
