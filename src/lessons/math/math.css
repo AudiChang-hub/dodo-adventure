@@ -699,3 +699,321 @@
 .ma-plant .is-bloom .ma-sprout {
   scale: 1.28;
 }
+
+/* ── 小遊戲（T-147，Game.tsx、skins.tsx）：比多少放在船上、找數字寫在氣球上 ── */
+.ma-skin-boat .ma-tile {
+  background: #e3eff2;
+}
+.ma-skin-boat .ma-tile .tile-in {
+  inset: 4% 4% 0;
+}
+.ma-boat {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  display: grid;
+  grid-template-rows: 1fr auto;
+}
+.ma-boat-load {
+  min-height: 0;
+  display: grid;
+  place-items: end center;
+  padding: 0 10% 2%;
+  container-type: size;
+}
+.ma-boat-load > * {
+  width: 100%;
+  height: 100%;
+}
+.ma-boat-hull {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+/* 答對的那艘船：往右開一下 */
+.ma-skin-boat .ma-tile.correct .ma-boat {
+  animation: ma-sail 1.1s var(--ease-out) both;
+}
+@keyframes ma-sail {
+  40% {
+    translate: 4% -2%;
+  }
+  to {
+    translate: 0 0;
+  }
+}
+/* 氣球：卡片不畫底，只有氣球；答對的那顆破掉（氣球縮掉、數字留著，外面一圈綠框照舊） */
+.ma-skin-balloon .ma-tile {
+  background: transparent;
+  box-shadow: none;
+  aspect-ratio: 0.78;
+}
+.ma-skin-balloon .ma-tile .tile-in {
+  inset: 0;
+}
+.ma-balloon {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  display: grid;
+  place-items: center;
+}
+.ma-balloon-body {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  filter: saturate(0.75);
+  transform-origin: 50% 40%;
+}
+.ma-balloon-num.glyph {
+  position: relative;
+  font-size: 46cqmin;
+  line-height: 1;
+  margin-top: -18%;
+  color: var(--ink);
+}
+.ma-skin-balloon .ma-tile.correct {
+  background: #e6f3ea;
+}
+.ma-skin-balloon .ma-tile.correct .ma-balloon-body {
+  animation: ma-pop 0.4s var(--ease-out) both;
+}
+.ma-skin-balloon .ma-tile.correct .ma-balloon-num {
+  margin-top: 0;
+}
+@keyframes ma-pop {
+  30% {
+    scale: 1.15;
+    opacity: 1;
+  }
+  to {
+    scale: 0.2;
+    opacity: 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ma-skin-boat .ma-tile.correct .ma-boat {
+    animation: none;
+  }
+  .ma-skin-balloon .ma-tile.correct .ma-balloon-body {
+    animation: none;
+    opacity: 0;
+  }
+}
+
+/* ── 開場「玩著數數」（T-147，Warm.tsx）：青蛙跳荷葉、手指數數、找找看 ─────────────── */
+.ma-warm {
+  position: absolute;
+  inset: 0;
+  touch-action: none;
+}
+.ma-warm-burst {
+  position: absolute;
+  left: calc(50% + 7cqw);
+  top: 40%;
+  pointer-events: none;
+}
+/* 動作數數：一條小河，荷葉一排（6 片以上兩排），青蛙一下跳一片；跳過的荷葉亮起來、寫著數字（看得到跳了幾下） */
+.ma-pond {
+  position: absolute;
+  left: 22cqw;
+  right: 4cqw;
+  top: 30%;
+  bottom: 10%;
+  border-radius: 48% 52% 46% 54% / 50%;
+  background: #c5dde2;
+  box-shadow: inset 0 -1.4cqh 0 rgba(46, 42, 37, 0.07);
+}
+.ma-pad {
+  position: absolute;
+  width: 12cqmin;
+  aspect-ratio: 1.3;
+  translate: -50% -50%;
+  border-radius: 50%;
+  background: #9fc49a;
+  box-shadow: inset 0 -0.8cqmin 0 rgba(46, 42, 37, 0.12);
+  display: grid;
+  place-items: center;
+  transition: background 0.25s var(--ease-out);
+}
+.ma-pad.on {
+  background: #6fa66a;
+}
+.ma-pad-num {
+  translate: 0 70%;
+  font-family: 'Fredoka', sans-serif;
+  font-weight: 600;
+  font-size: 4.6cqmin;
+  line-height: 1;
+  color: var(--card);
+}
+.ma-frog {
+  position: absolute;
+  width: 13cqmin;
+  aspect-ratio: 1;
+  translate: -50% -78%;
+  pointer-events: none;
+}
+.ma-frog-in,
+.ma-frog-in svg {
+  width: 100%;
+  height: 100%;
+}
+.ma-frog-in svg,
+.ma-spot svg,
+.ma-finger-thing svg {
+  filter: saturate(0.6) sepia(0.1);
+}
+/* 手指數數：一隻大手（6 以上兩隻），旁邊同樣數量的蘋果、大大的數字 */
+/* 手的寬度跟著可用的空間縮（兩隻手、手機直式都不會超出去或疊到蘋果） */
+.ma-hands {
+  position: absolute;
+  left: 22cqw;
+  right: 40cqw;
+  top: 12%;
+  height: 76%;
+  display: flex;
+  justify-content: center;
+  gap: 2cqw;
+  pointer-events: none;
+}
+.ma-hand {
+  flex: 1 1 0;
+  min-width: 0;
+  height: 100%;
+}
+/* 6 以上兩隻手：手放大一點佔上面，蘋果在手下面排一排、數字在右邊 */
+.ma-hands.two {
+  right: 16cqw;
+  top: 8%;
+  height: 58%;
+}
+.ma-palm,
+.ma-finger,
+.ma-knuckle {
+  fill: #f2c9a5;
+  stroke: #c98f6b;
+  stroke-width: 3;
+}
+.ma-finger.up {
+  fill: #f5d1b0;
+}
+.ma-nail {
+  fill: #fbe6d6;
+}
+.ma-finger-things {
+  position: absolute;
+  left: 62cqw;
+  right: 4cqw;
+  top: 52%;
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 1.4cqmin;
+  pointer-events: none;
+}
+.ma-hands.two ~ .ma-finger-things {
+  left: 24cqw;
+  right: 6cqw;
+  top: auto;
+  bottom: 4%;
+  grid-template-columns: repeat(10, 1fr);
+}
+.ma-finger-thing {
+  aspect-ratio: 1;
+}
+.ma-finger-thing svg {
+  width: 100%;
+  height: 100%;
+}
+.ma-finger-num {
+  position: absolute;
+  left: 76cqw;
+  top: 14%;
+  translate: -50% 0;
+  font-family: 'Fredoka', sans-serif;
+  font-weight: 600;
+  font-size: min(26cqh, 18cqw);
+  line-height: 1;
+  color: var(--ma-ink);
+  pointer-events: none;
+}
+.ma-hands.two ~ .ma-finger-num {
+  left: 91cqw;
+  top: 18%;
+  font-size: min(22cqh, 13cqw);
+}
+@media (orientation: portrait) {
+  .ma-hands,
+  .ma-hands.two {
+    right: 12cqw;
+    top: 26%;
+    height: 36%;
+  }
+  .ma-finger-things,
+  .ma-hands.two ~ .ma-finger-things {
+    left: 26cqw;
+    right: 12cqw;
+    top: 66%;
+    bottom: auto;
+    grid-template-columns: repeat(5, 1fr);
+  }
+  .ma-finger-num,
+  .ma-hands.two ~ .ma-finger-num {
+    left: 57cqw;
+    top: 8%;
+    font-size: 17cqw;
+  }
+}
+/* 找找看：一片草地，要找的和少少幾個別的東西；點到的亮一圈、寫上數字 */
+.ma-meadow {
+  position: absolute;
+  left: 22cqw;
+  right: 3cqw;
+  top: 14%;
+  bottom: 4%;
+  border-radius: 44% 56% 40% 60% / 34%;
+  background: #d9e6c4;
+  box-shadow: inset 0 -1.4cqh 0 rgba(46, 42, 37, 0.06);
+  pointer-events: none;
+}
+.ma-spot {
+  position: absolute;
+  width: 15cqmin;
+  aspect-ratio: 1;
+  translate: -50% -50%;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: none;
+}
+.ma-spot > svg {
+  width: 100%;
+  height: 100%;
+}
+.ma-spot.on {
+  background: color-mix(in srgb, var(--card) 80%, transparent);
+  box-shadow: 0 0 0 5px var(--good);
+}
+
+/* 下課畫面給大人的一句（C1，index.tsx 的 HomeTip）：疊在下課遮罩（z 40）上面、挑貼紙（z 60）下面 */
+.ma-home-tip {
+  position: fixed;
+  z-index: 45;
+}
+@media (orientation: portrait) {
+  .ma-home-tip {
+    top: auto;
+    bottom: 64px;
+    left: 16px;
+    right: 16px;
+    max-width: none;
+    font-size: 13px;
+    text-align: left;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ma-pad {
+    transition: none;
+  }
+}

@@ -5,7 +5,7 @@ import { Checker, alive, audit, checkDoubleRecords, doorAt, grabDuringTeach, ign
 import type { GameDef } from './catalog'
 
 /**
- * 學校的數學課（src/lessons/math/，波波帶）：開場 → 數數 → 拿給波波 → 比多少 → 寫數字 → 小複習 → 貼紙。
+ * 學校的數學課（src/lessons/math/，波波帶）：開場 → 玩著數數（青蛙、手指、找找看輪流，T-147）→ 數數 → 拿給波波 → 小遊戲（船、氣球）→ 寫數字 → 貼紙。
  * 三歲孩子會做的事：連點門進來、亂點、連點、示範時搶著點和畫、上到一半按返回（返回鍵、Android 返回）再進來、同一天再上一次。
  * 一邊亂玩一邊把課往下上（點東西數、挑一張、沿著跑道描），每一段都要走得到、不卡住、不誤記作答。
  */
@@ -18,14 +18,18 @@ const LESSON = { id: 'lesson-math', station: 'math', kind: 'lesson', title: '數
 
 /** 「拿給波波」那一段的玩法（T-127，src/lessons/math/plays.ts）：每天輪流，測試指定一種（localStorage 的 dodo:variety:math.give） */
 type GivePlay = 'give' | 'train' | 'plant'
+/** 開場「玩著數數」的三種玩法（T-147，src/lessons/math/warmup.ts） */
+type WarmPlay = 'hop' | 'fingers' | 'find'
 
-async function setup(page: Page, info: Parameters<Parameters<typeof test>[2]>[1], name: string, lessonSticker?: boolean, autoNext = true, play: GivePlay = 'give') {
+async function setup(page: Page, info: Parameters<Parameters<typeof test>[2]>[1], name: string, lessonSticker?: boolean, autoNext = true, play: GivePlay = 'give', warm?: WarmPlay) {
   const seed = hashSeed(BASE_SEED, 'lesson-math', name, info.project.name)
   const k = new Toddler(page, info, seed, info.project.name)
   const c = new Checker(k, page)
   k.where = `數學課／${name}`
   // 原本的測試都是測「拿給波波」：固定用那一種（不然每天輪到小火車、種花，.ma-give-plate 那些就找不到）
   await page.addInitScript((play) => localStorage.setItem('dodo:variety:math.give', play), play)
+  // 開場玩著數數（T-147）：要測某一種就固定那一種，不然照 app 自己輪
+  if (warm) await page.addInitScript((warm) => localStorage.setItem('dodo:variety:math.warm', warm), warm)
   await boot(page, seed, { to: 'home', lessonSticker, autoNext })
   await k.init()
   // 今天的數字：每個 seed 不一樣（1～10），10 是兩筆的「10」。
@@ -42,7 +46,7 @@ function finish(k: Toddler, c: Checker, name: string) {
   expect.soft(k.findings.length, `全部問題：${k.findings.map((f) => f.title).join(' | ')}`).toBe(0)
 }
 
-type MathKV = { next: number; firm?: boolean; day?: string; n?: number; mode?: string; part?: number; asked?: number; missed?: number }
+type MathKV = { next: number; firm?: boolean; day?: string; n?: number; mode?: string; max?: number; part?: number; pv?: number; partId?: string; asked?: number; missed?: number }
 
 const kvRW = (page: Page, value?: MathKV) =>
   page.evaluate(
@@ -66,8 +70,47 @@ const kvRW = (page: Page, value?: MathKV) =>
 const setMath = (page: Page, v: MathKV) => kvRW(page, v)
 const getMath = (page: Page) => kvRW(page)
 
-/** 課裡現在是哪一段（open、count、give、compare、write、review、over），不在課裡是 null */
+/** 今天（YYYY-MM-DD，照瀏覽器的時區，跟 app 的 today() 一樣） */
+const today = (page: Page) =>
+  page.evaluate(() => {
+    const d = new Date()
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+  })
+
+/** 開場、一段做完：右下角的「下一步」大箭頭（ui/NextStep），沒有就是 null */
+const nextArrow = (page: Page) =>
+  page.evaluate(() => {
+    const e = document.querySelector('[data-next-step]')
+    const b = e?.getBoundingClientRect()
+    return b && b.width > 4 ? { x: b.left + b.width / 2, y: b.top + b.height / 2 } : null
+  })
+
+/** 作答紀錄（含 skill、選項：lib/app 的 attempts 沒有這兩欄；T-147 要看開場、氣球記成什麼） */
+const records = (page: Page) =>
+  page.evaluate(
+    () =>
+      new Promise<{ game: string; phase: string; skill: string; options: string[] }[]>((res) => {
+        const rq = indexedDB.open('dodo-adventure')
+        rq.onsuccess = () => {
+          const db = rq.result
+          const g = db.transaction('attempts').objectStore('attempts').getAll()
+          g.onsuccess = () => {
+            db.close()
+            res((g.result as { game: string; phase?: string; skill: string; options?: string[] }[]).map((a) => ({ game: a.game, phase: a.phase ?? 'quiz', skill: a.skill, options: a.options ?? [] })))
+          }
+          g.onerror = () => res([])
+        }
+        rq.onerror = () => res([])
+      }),
+  )
+
+/**
+ * 舊格式（T-147 以前）的五段：setMath 寫的進度沒有 pv，part 是這個的位置；app 會換到新流程（比多少、小複習 → 小遊戲），
+ * 所以下面直接寫舊格式的進度，順便測舊進度相容（plan.ts 的 resumePart）
+ */
 const PARTS = ['count', 'give', 'compare', 'write', 'review']
+/** 課裡現在是哪一段（open、warm、count、give、game、write、over），不在課裡是 null（T-147 的五段） */
+const PARTS_NOW = ['warm', 'count', 'give', 'game', 'write']
 const partNow = (page: Page) =>
   page.evaluate(() => {
     const s = [...document.querySelectorAll('.scene')].filter((e) => !(e as HTMLElement).inert).pop()
@@ -118,9 +161,13 @@ async function solve(k: Toddler) {
         return { x: m.a * q.x + m.e, y: m.d * q.y + m.f }
       })
     }
-    return { give, thing: thing[0] ?? null, hint, tiles, stroke }
+    // 開場玩著數數（T-147）：找找看點下一個要找的；青蛙、手指點畫面中間
+    const warm = live.querySelector('[data-warm]:not([data-warm-done])')
+    const warmAt = !warm ? null : warm.getAttribute('data-warm') === 'find' ? c(warm.querySelector('.ma-spot[data-target]:not(.on)')) : c(warm.querySelector('.ma-frog, .ma-hands'))
+    return { give, thing: thing[0] ?? null, hint, tiles, stroke, warmAt }
   })
   if (!s) return
+  if (s.warmAt) return k.tap(s.warmAt as Pt, '開場數一下')
   if (s.give) return k.tap(s.give as Pt, '拿給波波')
   if (s.thing) return k.tap(s.thing as Pt, '數下一個')
   if (s.hint) return k.tap(s.hint as Pt, '點發光的')
@@ -300,7 +347,7 @@ test.describe('數學課', () => {
       const rows = (await attempts(page)).slice(before).filter((a) => a.game === 'm-compare')
       const taught = rows.some((a) => a.phase === 'teach')
       const answered = rows.filter((a) => a.phase !== 'teach').length
-      const held = st.part === 'compare' && taught && answered === 0
+      const held = st.part === 'game' && taught && answered === 0
       c.outcome('連點不會觸發別的功能（比多少手的示範照常做完、沒有被記成作答）', held, `${st.part}，示範${taught ? '做完了' : st.demo ? '還在' : '沒有做'}，作答 ${answered} 筆`)
       if (!held) await c.once('carry-tap', '困惑', '按完打勾後連點同一個位置，比多少的示範被跳過或被記成作答', `停在 ${st.part}，示範${taught ? '做完了' : '沒做完'}，作答 ${answered} 筆`)
       // 停一下、點答案：照常作答（原本的功能還在）
@@ -361,7 +408,7 @@ test.describe('數學課', () => {
           .waitForFunction(
             () => {
               const part = [...document.querySelectorAll('[data-lesson-part]')].pop()?.getAttribute('data-lesson-part')
-              const can = part === 'compare' && !!document.querySelector('.ma-lesson [data-accepting="true"]')
+              const can = part === 'game' && !!document.querySelector('.ma-lesson [data-accepting="true"]')
               return can ? performance.now() : false
             },
             null,
@@ -525,23 +572,25 @@ test.describe('數學課', () => {
   })
 
   // T-99（盲測三次都碰到）：下課畫面剛出來時，左上角的房子還看得到，點下去卻沒反應。
-  // 同一天停在最後一段（小複習），只教過 1 的那一天沒有小複習：開場說完就直接下課，很快就走到下課畫面。
+  // 同一天停在最後一段（T-147 以後是寫數字，舊格式的進度 part 3）：描完兩次就下課，很快就走到下課畫面。
   for (const sticker of [false, true]) {
     test(`下課畫面一出現就點左上角的房子 → 回首頁（${sticker ? '有' : '沒有'}貼紙）`, async ({ page }, info) => {
       test.skip(!want())
-      test.setTimeout(2 * 60_000)
+      test.setTimeout(4 * 60_000)
       const { k, c } = await setup(page, info, `下課點左上角-${sticker ? '貼紙' : '沒貼紙'}`, sticker)
       try {
         const day = await page.evaluate(() => {
           const d = new Date()
           return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
         })
-        await setMath(page, { next: 2, firm: false, day, n: 1, mode: 'new', part: 4, asked: 0, missed: 0 })
+        await setMath(page, { next: 2, firm: false, day, n: 1, mode: 'new', part: PARTS.indexOf('write'), asked: 0, missed: 0 })
         k.behavior = '進數學課'
         if (!(await enter(k, c))) return
-        const end = await page.waitForSelector('.cheer-scrim', { timeout: 20_000 }).catch(() => null)
+        // 描完兩次（不亂點）：下課畫面一出來 play 就停
+        await play(k, c, async () => lessonEnd(page), { mess: 0, budget: 3 * 60_000 })
+        const end = await page.waitForSelector('.cheer-scrim', { timeout: 5_000 }).catch(() => null)
         c.outcome('走到下課畫面', !!end, end ? ((await stickerUp(page)) ? '挑貼紙' : '沒有貼紙的下課') : '沒有走到下課')
-        if (!end) return void (await c.once('end', '卡死', '開場說完沒有下課', `停在 ${await partNow(page)}`))
+        if (!end) return void (await c.once('end', '卡死', '寫數字描完沒有下課', `停在 ${await partNow(page)}`))
         // 一出現就點左上角：返回鍵原本的位置（Shell 的 stage-top、英文課的 en-back 都在這裡）
         k.behavior = '下課畫面一出現就點左上角的房子'
         const corner = await page.evaluate(() => {
@@ -549,7 +598,25 @@ test.describe('數學課', () => {
           const top = hits[0] as HTMLElement | undefined
           return { top: top?.closest('[data-back]') ? 'back' : (top?.className?.toString() ?? '') }
         })
+        // C1（T-147）：沒有貼紙的下課畫面，右上角給大人一句在家可以做的事（看得到、沒被遮住）
+        const tip = sticker
+          ? null
+          : await page.evaluate(() => {
+              const e = document.querySelector('[data-home-tip]')
+              if (!e) return { text: '', top: false }
+              // 小字不接收點擊（elementsFromPoint 找不到它）：改看它在畫面裡、而且疊在下課遮罩（z-index 40）上面
+              const b = e.getBoundingClientRect()
+              const cs = getComputedStyle(e)
+              const scrim = document.querySelector('.cheer-scrim')
+              const inView = b.width > 20 && b.left >= 0 && b.right <= innerWidth && b.top >= 0 && b.bottom <= innerHeight
+              const above = cs.position === 'fixed' && Number(cs.zIndex) > Number(scrim ? getComputedStyle(scrim).zIndex : 0) && e.parentElement === document.body
+              return { text: e.textContent ?? '', top: inView && above && cs.visibility !== 'hidden' && Number(cs.opacity) > 0.5 }
+            })
         await k.tap({ x: 72, y: 64, nav: true }, '左上角的房子')
+        if (tip) {
+          c.outcome('下課給大人一句在家可以做的事（C1）', !!tip.text && tip.top, tip.text || '沒有')
+          if (!tip.text || !tip.top) await c.once('home-tip', '困惑', '下課畫面沒有給大人的一句在家可以做的事，或被蓋住了', tip.text || '沒有')
+        }
         const home = await waitLive(page, (l) => l === 'home', 4000)
         c.outcome('點左上角 → 首頁', home === 'home', `到 ${home}（最上面的是 ${corner.top}）`)
         if (home !== 'home') await c.once('end-corner', '無法返回', '下課畫面左上角的房子看得到卻點不動', `停在 ${home}，左上角最上面是 ${corner.top}`)
@@ -585,13 +652,12 @@ test.describe('數學課', () => {
       const seen = new Set<string>()
       const done = await play(k, c, async () => lessonEnd(page), { seen })
       for (const p of await page.evaluate(() => (window as unknown as { __parts?: string[] }).__parts ?? [])) seen.add(p)
-      // 今天的數字是 1、2：教過的數字湊不到 3 選 1，沒有小複習（plan.ts 的 reviewQs）
-      const want = n < 3 ? PARTS.filter((p) => p !== 'review') : PARTS
+      // T-147：五段每天都有（只教了 1、2 的那兩天，小遊戲只有船，plan.ts 的 gameQs）
+      const want = PARTS_NOW
       const parts = want.filter((p) => seen.has(p))
       c.outcome(`${want.length} 段都走得到`, parts.length === want.length, `走過：${[...seen].filter((s) => !s.startsWith('grab:')).join(' → ')}`)
       const pick = done && (await stickerUp(page))
       c.outcome('上完有貼紙', pick, pick ? '貼紙出現' : done ? '出現的是沒有貼紙的下課畫面' : '沒有走到下課')
-      if (n < 3 && seen.has('review')) await c.once('review-1-2', '困惑', '只教了 1、2 卻出了小複習（湊不到 3 選 1）', `今天 ${n}`)
       if (done && parts.length < want.length) await c.once('skip-part', '困惑', '有一段沒上到就下課了', `走過：${parts.join('、')}`)
 
       // 貼紙出來時按 Android 返回：回首頁（貼紙留著下次挑）
@@ -607,7 +673,7 @@ test.describe('數學課', () => {
       // 進度：上完了；沒錯很多就明天教下一個
       const kv = await getMath(page)
       const again = (kv?.missed ?? 0) >= 3 && (kv?.missed ?? 0) * 2 >= (kv?.asked ?? 0)
-      const nextOk = kv?.part === PARTS.length && kv.n === n && kv.next === (again ? n : Math.min(11, n + 1))
+      const nextOk = kv?.part === PARTS_NOW.length && kv.partId === 'done' && kv.pv === 2 && kv.n === n && kv.next === (again ? n : Math.min(11, n + 1))
       c.outcome('進度記下了', !done || nextOk, JSON.stringify(kv))
       if (done && !nextOk) await c.once('progress', '誤記作答', '上完一堂之後進度不對', `今天 ${n}，記成 ${JSON.stringify(kv)}`, false)
 
@@ -620,6 +686,16 @@ test.describe('數學課', () => {
       const recOk = ['m-count', 'm-give', 'm-compare', 'd-glyph'].every((g) => games.includes(g))
       c.outcome('作答寫進紀錄', !done || recOk, `${rows.length} 筆；自己答：${byPhase('quiz')}；一起練：${byPhase('guided')}`)
       if (done && !recOk) await c.once('records', '誤記作答', '上完一堂，有一段沒有寫進作答紀錄', `有記的：${games.join('、')}`, false)
+      const all = await records(page)
+      // 開場玩著數數（T-147）：只記一筆教學（warm:<玩法>），不記作答；氣球（找數字）照舊記成 num:N
+      const warms = all.filter((a) => a.game.startsWith('m-warm-'))
+      const warmOk = warms.length === 1 && warms[0].phase === 'teach' && warms[0].skill.startsWith('warm:')
+      c.outcome('開場只記一筆教學', !done || warmOk, warms.map((a) => `${a.phase} ${a.skill}`).join('、') || '沒有')
+      if (done && !warmOk) await c.once('warm-record', '誤記作答', '開場玩著數數的紀錄不對（應該只有一筆 teach、warm:<玩法>）', JSON.stringify(warms.map((a) => [a.phase, a.skill])), false)
+      const finds = all.filter((a) => a.game === 'm-find')
+      const findOk = n < 3 ? finds.length === 0 : finds.length === 1 && finds[0].skill === `num:${n}` && finds[0].options.length === 3
+      c.outcome('氣球記成找數字（換皮不換題）', !done || findOk, finds.map((a) => `${a.skill} ${a.options.join('/')}`).join('、') || '沒有')
+      if (done && !findOk) await c.once('find-record', '誤記作答', '氣球沒有記成找數字 num:N、3 選 1', JSON.stringify(finds.map((a) => [a.skill, a.options])), false)
       await checkDoubleRecords(k, c)
       await c.flush()
     } finally {
@@ -632,11 +708,11 @@ test.describe('數學課', () => {
     test.setTimeout(12 * 60_000)
     const { k, c, n } = await setup(page, info, '中途返回')
     try {
-      // 數完就按返回鍵：回首頁；再進來從比多少接著上
+      // 數完、拿給波波上完就按返回鍵：回首頁；再進來從小遊戲接著上
       k.behavior = '數數上完按返回'
       if (!(await enter(k, c))) return
       const seen = new Set<string>()
-      if (!(await play(k, c, (p) => p === 'compare', { mess: 0.2, seen, budget: 3 * 60_000 }))) return
+      if (!(await play(k, c, (p) => p === 'game', { mess: 0.2, seen, budget: 3 * 60_000 }))) return
       await k.wait(800)
       const h = await homeButton(page)
       if (h) await pressBack(k, h)
@@ -647,8 +723,8 @@ test.describe('數學課', () => {
       k.behavior = '再進來'
       if (!(await enter(k, c))) return
       let p = await firstPart(page)
-      c.outcome('再進來接著上（比多少）', p === 'compare', `從 ${p} 開始`)
-      if (p !== 'compare') await c.once('resume', '困惑', '上到一半離開，再進來沒有接著上', `應該從比多少開始，實際是 ${p}`)
+      c.outcome('再進來接著上（小遊戲）', p === 'game', `從 ${p} 開始`)
+      if (p !== 'game') await c.once('resume', '困惑', '上到一半離開，再進來沒有接著上', `應該從小遊戲開始，實際是 ${p}`)
 
       // 寫數字的示範中按 Android 返回：回首頁，再進來從寫數字開始
       k.behavior = '寫數字示範中按 Android 返回'
@@ -678,11 +754,11 @@ test.describe('數學課', () => {
       if (!(await enter(k, c))) return
       p = await firstPart(page)
       const kv = await getMath(page)
-      const ok = p === 'count' && kv?.mode === 'review' && kv.n === n
+      const ok = p === 'warm' && kv?.mode === 'review' && kv.n === n
       c.outcome('同一天再進來是複習', !done || ok, `從 ${p} 開始，${JSON.stringify(kv)}`)
       if (done && !ok) await c.once('review', '困惑', '同一天再上數學課沒有變成複習', `從 ${p} 開始，進度 ${JSON.stringify(kv)}`)
       // 複習也亂玩一下，再連點返回鍵 6 下：只回首頁
-      await play(k, c, (p) => p === 'compare', { mess: 0.5, seen, budget: 2 * 60_000 })
+      await play(k, c, (p) => p === 'count', { mess: 0.5, seen, budget: 2 * 60_000 })
       k.behavior = '複習中連點返回鍵'
       const h2 = await homeButton(page)
       if (h2) await k.spam(h2, 6, h2.label)
@@ -698,13 +774,195 @@ test.describe('數學課', () => {
     }
   })
 
+  // T-147：開場玩著數數（動作數數、手指數數、找找看，src/lessons/math/Warm.tsx）。三種各測一次：
+  // 波波說題目時搶著點（算第一下、停掉題目）、連點、多指一起壓（兩下之間至少隔一下，只算一下）、點不是要找的、點已經數過的（找找看不算）、
+  // 數到一半返回回首頁、再進來從開場重來；發呆 7 秒手出來指；數到今天的數字就停（多點不會超過），說總數、停著等大箭頭，只記一筆教學 warm:<玩法>
+  for (const warm of ['hop', 'fingers', 'find'] as const) {
+    const title = { hop: '動作數數（青蛙）', fingers: '手指數數', find: '找找看' }[warm]
+    test(`開場${title}（T-147）：搶著點、連點、多指、點錯、發呆、數到一半返回，數到今天的數字就停、只記一筆教學`, async ({ page }, info) => {
+      test.skip(!want())
+      test.setTimeout(5 * 60_000)
+      const { k, c, n: seedN } = await setup(page, info, `開場-${warm}`, false, false, 'give', warm)
+      // 找找看要數的 ≤ 5：今天的數字 2～5；其他 2～7（6、7 測兩排荷葉、兩隻手）
+      const n = warm === 'find' ? 2 + (seedN % 4) : 2 + (seedN % 6)
+      await setMath(page, { next: n, firm: true })
+      const st = () =>
+        page.evaluate(() => {
+          const w = document.querySelector('.ma-lesson [data-warm]')
+          const box = (e: Element | null | undefined) => {
+            if (!e) return null
+            const b = e.getBoundingClientRect()
+            return b.width > 4 ? { x: b.left + b.width / 2, y: b.top + b.height / 2 } : null
+          }
+          return {
+            kind: w?.getAttribute('data-warm') ?? null,
+            count: Number(w?.getAttribute('data-warm-count') ?? -1),
+            goal: Number(w?.getAttribute('data-warm-goal') ?? -1),
+            done: w?.hasAttribute('data-warm-done') ?? false,
+            hand: !!w?.querySelector('.demo-hand'),
+            main: box(w?.querySelector('.ma-frog, .ma-hands') ?? null),
+            next: box(w?.querySelector('.ma-spot[data-target]:not(.on)') ?? null),
+            seen: box(w?.querySelector('.ma-spot[data-target].on') ?? null),
+            other: box(w?.querySelector('.ma-spot:not([data-target])') ?? null),
+          }
+        })
+      /** 開場說完：點大箭頭進玩著數數（這個測試自己點，autoNext 關掉） */
+      const toWarm = async () => {
+        for (let i = 0; i < 40; i++) {
+          if ((await partNow(page)) === 'warm') return true
+          const arrow = await nextArrow(page)
+          if (arrow) await k.tap(arrow, '下一步')
+          await k.wait(500)
+        }
+        return (await partNow(page)) === 'warm'
+      }
+      /** 數一下要點的地方：找找看是下一個還沒找到的，其他是青蛙、大手 */
+      const spot = async () => {
+        const s = await st()
+        return s.kind === 'find' ? s.next : s.main
+      }
+      try {
+        if (!(await enter(k, c))) return
+        let ok = await toWarm()
+        c.outcome('開場說完點大箭頭 → 玩著數數', ok, `${await partNow(page)}`)
+        if (!ok) return void (await c.once('to-warm', '卡死', '開場之後沒有進到玩著數數', `${await partNow(page)}`))
+        let s = await st()
+        c.outcome(`今天是${title}`, s.kind === warm, `${s.kind}`)
+        await audit(k, c, `數學課 開場${title}`)
+        const before = (await records(page)).length
+
+        // 波波說題目的時候搶著點：算第一下（題目停掉）
+        k.behavior = '說題目時搶著點'
+        await k.wait(600)
+        const p1 = await spot()
+        if (p1) await k.tap(p1, '搶著點')
+        await k.wait(300)
+        s = await st()
+        c.outcome('說題目時點了算第一下', s.count === 1, `數到 ${s.count}`)
+        if (s.count !== 1) await c.once('warm-grab', '困惑', '波波說題目時點了沒有算', `數到 ${s.count}`)
+
+        // 連點、多指一起壓：只算一下（節奏慢而穩）
+        k.behavior = '連點、多指'
+        await k.wait(800)
+        const p2 = await spot()
+        if (p2) {
+          const before2 = (await st()).count
+          const ts = Date.now()
+          await k.spam(p2, 5, '連點')
+          const ms = Date.now() - ts
+          await k.wait(150)
+          const after = (await st()).count
+          // 兩下之間至少隔 0.65 秒（warmup.ts 的 COUNT_GAP_MS）：連點 5 下花了多久，最多就只能算幾下
+          const cap = 1 + Math.floor(ms / 650)
+          c.outcome(`連點 5 下（${ms}ms）最多算 ${cap} 下`, after - before2 <= cap, `${before2} → ${after}`)
+          if (after - before2 > cap) await c.once('warm-spam', '困惑', '連點一下子數了好幾下', `${before2} → ${after}（連點 ${ms}ms）`)
+        }
+        // 找找看：點已經數過的、點不是要找的，都不算
+        if (warm === 'find') {
+          await k.wait(800)
+          s = await st()
+          const c0 = s.count
+          if (s.seen) await k.tap(s.seen, '點已經數過的')
+          await k.wait(800)
+          if (s.other) await k.tap(s.other, '點不是要找的')
+          await k.wait(300)
+          const c1 = (await st()).count
+          c.outcome('點過的、不是要找的不算', c1 === c0, `${c0} → ${c1}`)
+          if (c1 !== c0) await c.once('find-recount', '誤記作答', '找找看點過的或不是要找的被算進去了', `${c0} → ${c1}`)
+        }
+
+        // 數到一半按返回：回首頁；再進來從開場重來（還沒數完不算上過）
+        s = await st()
+        if (s.count < s.goal) {
+          k.behavior = '數到一半按返回'
+          const h = await homeButton(page)
+          if (h) await pressBack(k, h)
+          const live = await waitLive(page, (l) => l === 'home', 4000)
+          c.outcome('數到一半按返回 → 首頁', live === 'home', `到 ${live}`)
+          if (live !== 'home') return void (await c.once('warm-back', '無法返回', '開場數到一半按返回沒有回首頁', `停在 ${live}`))
+          await k.wait(1200)
+          if (!(await enter(k, c))) return
+          ok = await toWarm()
+          s = await st()
+          c.outcome('再進來從開場重來', ok && s.count === 0, `${await partNow(page)} 數到 ${s.count}`)
+          if (!ok) return void (await c.once('warm-resume', '困惑', '開場數到一半離開，再進來沒有從開場開始', `${await partNow(page)}`))
+        }
+
+        // 發呆：7 秒後手出來指（今天的數字小、已經數完了就不用）
+        k.behavior = '發呆'
+        await page.waitForFunction(() => !!document.querySelector('[data-warm] .demo-hand'), null, { timeout: 4000 }).catch(() => {})
+        if ((await st()).count === 0) {
+          const p3 = await spot()
+          if (p3) await k.tap(p3, '數一下')
+          await k.wait(800)
+        }
+        if (!(await st()).done) {
+          const handBack = await page.waitForFunction(() => !!document.querySelector('[data-warm] .demo-hand'), null, { timeout: 11_000 }).then(() => true).catch(() => false)
+          c.outcome('發呆一下手出來指', handBack, '')
+          if (!handBack) await c.once('warm-idle', '困惑', '開場發呆很久沒有提示要點哪裡', '')
+        }
+
+        // 一下一下數到今天的數字，再多點幾下：不會超過
+        k.behavior = '數到今天的數字'
+        for (let i = 0; i < 16; i++) {
+          s = await st()
+          if (s.done) break
+          const p = await spot()
+          if (p) await k.tap(p, '數一下')
+          await k.wait(800)
+        }
+        s = await st()
+        c.outcome(`數到 ${s.goal} 就停`, s.done && s.count === s.goal, `數到 ${s.count}／${s.goal}`)
+        if (!s.done) return void (await c.once('warm-done', '卡死', '開場數不完', `數到 ${s.count}／${s.goal}`))
+        if (warm !== 'find') c.outcome('數到今天的數字', s.goal === n, `${s.goal}`)
+        const main = s.main ?? s.seen
+        if (main) await k.spam(main, 4, '數完了還一直點')
+        await k.wait(600)
+        const over = (await st()).count
+        c.outcome('數完了多點不會再數', over === s.goal, `${over}`)
+        if (over !== s.goal) await c.once('warm-over', '誤記作答', '數完了多點還在數', `${over}／${s.goal}`)
+
+        // 說完總數：停著等大箭頭，只記一筆教學
+        const arrow = await page.waitForFunction(() => !!document.querySelector('[data-next-step]'), null, { timeout: 15_000 }).then(() => true).catch(() => false)
+        const p = await partNow(page)
+        c.outcome('說完總數停著等大箭頭', arrow && p === 'warm', `${p}`)
+        if (!arrow) await c.once('warm-arrow', '卡死', '開場數完沒有出大箭頭', `${p}`)
+        const said = await page.evaluate(() => window.__toddler.voices.slice(-6).map((v) => v.text ?? ''))
+        const totalOk = said.some((v) => /(jumps?|fingers?|ducks?|ladybugs?|butterfl(y|ies)|chicks?|snails?)!$/i.test(v))
+        c.outcome('數完說總數', totalOk, said.join('、'))
+        if (!totalOk) await c.once('warm-total', '困惑', '開場數完沒有說總數', said.join('、'))
+        const recs = (await records(page)).slice(before)
+        const recOk = recs.length === 1 && recs[0].phase === 'teach' && recs[0].skill === `warm:${warm}`
+        c.outcome(`只記一筆教學 warm:${warm}`, recOk, JSON.stringify(recs.map((a) => [a.game, a.phase, a.skill])))
+        if (!recOk) await c.once('warm-rec', '誤記作答', '開場記了作答，或沒記教學', JSON.stringify(recs.map((a) => [a.game, a.phase, a.skill])), false)
+        let counting = false
+        for (let i = 0; i < 4 && !counting; i++) {
+          await k.wait(900)
+          const go = await nextArrow(page)
+          if (go) await k.tap(go, '下一步')
+          counting = await page
+            .waitForFunction(() => [...document.querySelectorAll('[data-lesson-part]')].pop()?.getAttribute('data-lesson-part') === 'count', null, { timeout: 3000 })
+            .then(() => true)
+            .catch(() => false)
+        }
+        c.outcome('點大箭頭 → 數數', counting, `${await partNow(page)}`)
+        if (!counting) await c.once('warm-next', '卡死', '開場數完點大箭頭沒有到數數', `${await partNow(page)}`)
+        await c.flush()
+      } finally {
+        finish(k, c, `開場-${warm}`)
+      }
+    })
+  }
+
   test('波波數到一半按返回：回到首頁就不再數（T-92）', async ({ page }, info) => {
     test.skip(!want())
     test.setTimeout(4 * 60_000)
     const { k, c, n: seedN } = await setup(page, info, '數到一半返回')
     // 今天的新數字（3～6）：數數第一回合波波先示範，手指一個一個點、邊點邊數
     const n = 3 + (seedN % 4)
-    await setMath(page, { next: n, firm: true })
+    // T-147 開場先玩著數數：直接從數數開始（舊格式的進度，part 0 是數數）
+    const day = await today(page)
+    await setMath(page, { next: n, firm: true, day, n, mode: 'new', max: n, part: 0, asked: 0, missed: 0 })
     // 字幕會留著上一句（「One! Two!」），所以看結尾：波波數的數字（大寫開頭）、或「There are four!」
     const NUM = /\b(One|Two|Three|Four|Five|Six|Seven|Eight|Nine|Ten)!$|There (are|is)/
     try {
@@ -1442,7 +1700,7 @@ test.describe('數學課', () => {
         // 9. 往下一段（比多少）走得到
         k.behavior = '等下一段'
         const next = await page
-          .waitForFunction(() => [...document.querySelectorAll('[data-lesson-part]')].pop()?.getAttribute('data-lesson-part') === 'compare', null, { timeout: 30_000 })
+          .waitForFunction(() => [...document.querySelectorAll('[data-lesson-part]')].pop()?.getAttribute('data-lesson-part') === 'game', null, { timeout: 30_000 })
           .then(() => true)
           .catch(() => false)
         c.outcome(`${title}：做完往下一段（比多少）`, next, `停在 ${await partNow(page)}`)

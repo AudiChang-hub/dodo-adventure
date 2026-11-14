@@ -20,9 +20,18 @@ const KV_KEY = 'lesson:math'
  */
 export type Mode = 'new' | 'review' | 'mix'
 
-/** 一堂課的五段（家長定的數數、比多少、寫數字、小複習；數數之後多一段「拿給波波」） */
-export const PARTS = ['count', 'give', 'compare', 'write', 'review'] as const
+/**
+ * 一堂課的五段（T-147 遊戲為主）：開場玩著數數（動作、手指、找找看三種輪流，warmup.ts）→ 數數 → 拿給波波 → 小遊戲 2 題（比多少 1、找數字 1）→ 寫數字。
+ * 家長 2026-11-14：不做童謠（TTS 唱歌太難聽），開場改成三種玩著數數；寫數字照舊描兩次（描數字也是很重要的練習）。
+ */
+export const PARTS = ['warm', 'count', 'give', 'game', 'write'] as const
 export type Part = (typeof PARTS)[number]
+/** 進度格式的版本：2 是 T-147 的 PARTS（part 是新 PARTS 的位置，另外記 partId） */
+const PV = 2
+/** T-147 以前的五段（進度沒有 pv 的時候，part 是這個的位置） */
+const OLD_PARTS = ['count', 'give', 'compare', 'write', 'review'] as const
+/** 舊的段落在新流程裡對到哪一段（設計稿 3-4 案 A）：比多少、小複習 → 小遊戲；其他同名 */
+const OLD_TO_NEW: Record<(typeof OLD_PARTS)[number], Part> = { count: 'count', give: 'give', compare: 'game', write: 'write', review: 'game' }
 
 interface Progress {
   /** 下一個要教的新數字；LAST + 1 表示 1～10 都教過了 */
@@ -36,6 +45,10 @@ interface Progress {
   /** 今天這一堂的「教過的最大數字」（1～5 混合複習時是 5） */
   max?: number
   part?: number
+  /** 進度格式（PV）；沒有的是 T-147 以前寫的，part 要照 OLD_PARTS 換算 */
+  pv?: number
+  /** 下一段的名字（PARTS 的一個；上完了是 'done'）：換 PARTS 的時候對得回來 */
+  partId?: Part | 'done'
   /** 今天這一堂自己答了幾題、幾題不是一次就對（決定明天要不要重上同一個數字；不含寫數字） */
   asked?: number
   missed?: number
@@ -49,6 +62,24 @@ export interface Lesson {
   max: number
   /** 從第幾段開始（中途離開、同一天再進來：接著上） */
   part: number
+}
+
+/** 存著的進度（給 resumePart 換算用的欄位） */
+export type SavedPart = Pick<Progress, 'part' | 'pv' | 'partId'>
+
+/**
+ * 存著的進度上到第幾段（新 PARTS 的位置，PARTS.length 是上完了）。
+ * T-147 以前寫的（沒有 pv）：part 是舊的五段的位置，換成名字再對到新流程（比多少、小複習 → 小遊戲；寫數字 → 寫數字）。
+ */
+export function resumePart(p: SavedPart): number {
+  const at = p.part ?? 0
+  if (p.pv === PV) {
+    if (p.partId === 'done') return PARTS.length
+    const i = p.partId ? PARTS.indexOf(p.partId) : -1
+    return i >= 0 ? i : Math.min(Math.max(0, at), PARTS.length)
+  }
+  if (at >= OLD_PARTS.length) return PARTS.length
+  return PARTS.indexOf(OLD_TO_NEW[OLD_PARTS[Math.max(0, at)]])
 }
 
 let prog: Progress = { next: 1 }
@@ -95,8 +126,16 @@ export async function openLesson(): Promise<Lesson> {
   if (prog.day === d && prog.n && prog.mode) {
     const n = prog.n
     const max = prog.max ?? Math.max(n, Math.min(LAST, next - 1))
-    if ((prog.part ?? 0) < PARTS.length) return { mode: prog.mode, n, max, part: Math.min(prog.part ?? 0, PARTS.length - 1) }
-    prog = { ...prog, next, day: d, n, mode: prog.mode === 'new' ? 'review' : prog.mode, max, part: 0, asked: 0, missed: 0 }
+    const at = resumePart(prog)
+    if (at < PARTS.length) {
+      // 舊格式的進度換成新的寫回去（之後 partDone 照新的 PARTS 記）
+      if (prog.pv !== PV) {
+        prog = { ...prog, pv: PV, part: at, partId: PARTS[at] }
+        void setKV(KV_KEY, prog)
+      }
+      return { mode: prog.mode!, n, max, part: at }
+    }
+    prog = { ...prog, next, day: d, n, mode: prog.mode === 'new' ? 'review' : prog.mode, max, part: 0, pv: PV, partId: PARTS[0], asked: 0, missed: 0 }
     void setKV(KV_KEY, prog)
     return { mode: prog.mode!, n, max, part: 0 }
   }
@@ -107,7 +146,7 @@ export async function openLesson(): Promise<Lesson> {
   const max = mode === 'new' ? next : waiting ? FIRM : LAST
   // 混合複習：每天挑一個當今天的數字，不跟上一次一樣
   const n = mode === 'mix' ? pick(range(1, max).filter((x) => x !== prog.n)) : next
-  prog = { next, firm, day: d, n, mode, max, part: 0, asked: 0, missed: 0 }
+  prog = { next, firm, day: d, n, mode, max, part: 0, pv: PV, partId: PARTS[0], asked: 0, missed: 0 }
   void setKV(KV_KEY, prog)
   return { mode, n, max, part: 0 }
 }
@@ -116,7 +155,8 @@ export async function openLesson(): Promise<Lesson> {
 export function partDone(part: number, asked: number, missed: number) {
   // 寫數字描得好不好不影響明天上什麼（A5）
   const counted = PARTS[part] === 'write' ? { asked: 0, missed: 0 } : { asked, missed }
-  prog = { ...prog, part: part + 1, asked: (prog.asked ?? 0) + counted.asked, missed: (prog.missed ?? 0) + counted.missed }
+  const at = part + 1
+  prog = { ...prog, part: at, pv: PV, partId: at < PARTS.length ? PARTS[at] : 'done', asked: (prog.asked ?? 0) + counted.asked, missed: (prog.missed ?? 0) + counted.missed }
   // 新數字上完了：錯很多（一半以上、至少 3 題）就明天重上同一個數字，不然明天教下一個（5 之後要不要開 6，明天進教室時看熟練）
   if (prog.part! >= PARTS.length && prog.mode === 'new') {
     const again = (prog.missed ?? 0) >= 3 && prog.missed! * 2 >= (prog.asked ?? 0)
@@ -259,6 +299,7 @@ export function compareQs(l: Lesson): CompareQ[] {
 /**
  * 寫數字：描幾次（A5，AI 小男生測試 #2）：一律兩次，第二次換一個樣子（Write.tsx 的 LOOKS），每一次描完就慶祝。
  * T-112（家長：「手寫的比例可以多一些」）：新的數字以前只描一次，改成兩次，比多少少一題來換，一堂不變長。
+ * T-147 照舊兩次（家長 2026-11-14：描數字也是很重要的練習；一堂太長先縮開場或小遊戲，不縮描數字）。
  * 寫數字不是 3 歲的目標（MA-9），描得好不好不影響明天上什麼（partDone）。
  */
 export const writeReps = (_l: Lesson) => 2
@@ -301,4 +342,18 @@ export function reviewQs(l: Lesson): ReviewQ[] {
   const other = l.mode === 'new' ? l.n : pick(pool.filter((x) => x !== l.n)) ?? l.n
   const q = (kind: ReviewQ['kind'], n: number): ReviewQ => ({ kind, n, icon, options: shuffle([n, ...distractors(n, k, l.max)]) })
   return [q('find', l.n), q('howmany', other)]
+}
+
+/**
+ * 小遊戲（T-147，設計稿 3-1）：比多少和找數字各 1 題，包成遊戲（換皮不換題，3-4 案 A）：
+ * - 比多少：「哪艘船的魚多？」兩艘船，skill 照舊 compare:more|less（compareQs 的第一題，第一次問先示範）。
+ * - 找數字：「Pop the three!」三顆氣球，skill 照舊 num:N、3 選 1（reviewQs 的 Where is N?）。只教了 1、2 的那兩天湊不到 3 選 1，只有比多少。
+ * 「有幾個」（How many?）拿掉：熟練判斷的 count:N、give:N 照樣有拿給波波每堂一題。
+ */
+export interface GameQs {
+  compare: CompareQ
+  find: ReviewQ | null
+}
+export function gameQs(l: Lesson): GameQs {
+  return { compare: compareQs(l)[0], find: reviewQs(l).find((q) => q.kind === 'find') ?? null }
 }
