@@ -1,18 +1,24 @@
 # 學校的三堂課（src/lessons/）
 
-2026-10-31 家長決定孩子端照學校的教法：首頁三個大門＝英文字母（豆豆）、中文課文（莫莫）、數學數字（波波），旁邊是畫畫（2026-11-14 起首頁沒有故事門，T-147）。
+2026-10-31 家長決定孩子端照學校的教法：首頁三個大門＝英文字母（豆豆）、中文課文（莫莫）、數學數字（波波），旁邊是畫畫和貼紙本。
 這個資料夾是三堂課的家。三個工作階段平行做，**各自只改自己的資料夾**，不用動 `App.tsx`、`Home.tsx`、`nav.ts`。
 
 | 課 | 資料夾 | 守門的恐龍 | 要教的（家長定的順序） |
 |---|---|---|---|
-| 英文字母 | `english/` | 豆豆 `dodo` | 認字母 → 描字 → 單字範例 → 選擇 |
+| 英文字母 | `english/` | 豆豆 `dodo` | 認字母 → 描大寫、小寫 → 2 個代表字 → 寫寫看 → 泡泡或餵豆豆（字母題＋聽字找圖 Where's the apple?）→ 泡泡派對。同一天上完再進來是字母遊戲時間：字母牆＋放進籃子或翻翻卡（`Play.tsx`、`abc.ts`） |
 | 中文課文 | `chinese/` | 莫莫 `momo` | 親子共讀（2026-11-03 起 App 不出聲，大人念）：短課文一行一行念，重點字詞標紅，聊一聊，選圖（哪個是包子），最後找一樣的字 |
-| 數學數字 | `math/` | 波波 `bobo` | 數數、比多少、寫數字 |
+| 數學數字 | `math/` | 波波 `bobo` | 玩著數數開場（青蛙跳、手指從食指開始、找找看，三種輪流，`warmup.ts`）→ 數數 → 拿給波波 → 小遊戲 2 題（比多少、找數字）→ 描數字 2 次 |
 
 中文課最後一題「找一樣的字」（T-117，2026-11-09 家長要的）：上面一個大字，下面兩、三個字，點長得一模一樣的那個。比的是字的樣子，不用會念（幼教指引 CG-1 找一樣的、ZH-5 對文字的覺察；ZH-6 不考認字，所以不問「哪個是豬？」）。
 - 答案是當篇紅字詞裡的一個字（小豬 → 豬），干擾字只用當篇課文裡的字（不教不考）；2 選 1 起，熟練了才 3 選 1、才放有點像的字。
 - 程式：畫面 `chinese/Glyph.tsx`，出題和升降級 `chinese/match.ts`，字形資料 `chinese/glyphs.generated.json`（課文多了新字要重跑 `node scripts/build-zh-glyphs.mjs`）。
 - 作答紀錄是 `zh-glyph`／`zhglyph:<字>`，跟選圖的 `zhtext:` 分開，不算進下一步準備度 NEXT-3。設計：主 repo `docs/T-117-認字配對設計.md`。
+
+## 熟練才開的 4 歲內容（T-150）
+
+- 每科一個 `src/lessons/<科>/stage4.ts`（純函式）：export `gates(attempts, kv, today): Gate[]`、`STAGE4_KEY`（門存的 kv，`lesson.<科>.stage4`）、`PAUSE_KEY`（暫停旗標 `stage4.paused.<科>`，存 true 就照 3 歲的上、門也不開）。`Gate` 的形狀見 `src/screens/parent/stage4-registry.ts`。
+- 家長區讀 `stage4-registry.ts` 的註冊表；新的一科有了 `stage4.ts`，就把那裡的 `const EN／MATH = null` 換成 import。
+- 中文已上線（加長版課文、找一樣的字 4 選 1，`chinese/stage4.ts`）；英文、數學的 4 歲內容進行中。
 
 ## 不自己換頁、不自己結束（T-118，2026-11-09 家長決定）
 
@@ -62,7 +68,7 @@ export function EnglishLesson({ onDone }: LessonProps) {
 | 描字（字母、數字） | 筆順 `GLYPHS`、零件 `PARTS`；描的跑道 `PathTracker`、畫布 `Ink` | `src/games/draw/glyphs.ts`、`src/games/draw/track.ts`、`src/games/draw/Ink.tsx` | 英文課的 `Trace.tsx`、數學課的 `Write.tsx` 是現成的例子 |
 | 選擇題、數數 | 舊的站點遊戲（ChoiceGame、CountGame…）T-75 已經拿掉，各課自己組（中文課的 `Quiz.tsx`、數學課的 `kit.tsx` 的 `Quiz`、`Count.tsx`） | `src/lessons/<科>/` | 互動做法照抄現有的課 |
 | 教學卡（恐龍拿出來念、孩子點一下再聽一次） | `TeachCard`，內容是 `TeachSpec` | `src/games/Teach.tsx`、型別在 `src/content/games.ts` | `<TeachCard spec={…} onDone={(ms) => …} />` |
-| 說話、音效 | `say(...keys)`（依序念、會被新的 say 打斷）、`stopSpeech()`、`sfx.pop()` 等 | `src/lib/audio.ts` | 台詞要先登記：`def(key, 'dodo', 'text')`（`src/content/lines.ts` 或自己檔案再 import 進 `lines.ts`），再 `npm run phrases && python scripts/gen_audio.py --only <key 前綴>` 產生音檔 |
+| 說話、音效 | `say(...keys)`（依序念、會被新的 say 打斷）、`stopSpeech()`、`sfx.pop()` 等 | `src/lib/audio.ts` | 台詞要先登記：`def(key, 'dodo', 'text')`（`src/content/lines.ts` 或自己檔案再 import 進 `lines.ts`），再 `npm run audio` 產生音檔（只產有變動的） |
 | 中文的詞 | 中文三明治（中文 → 停一下 → 英文）`ZH_WORDS`、`bridgeKey` | `src/content/zh-words.ts`、`src/content/lines-zh.ts` | 中文語音是另一套（BreezyVoice，`scripts/gen_zh_words.py`）；`scripts/check-zh.ts` 檢查缺漏。中文課文 2026-11-03 起是親子共讀，App 不念課文和題目（`scripts/test-zh-course.ts` 會檢查） |
 | 字幕 | 跟著語音自動出現（App 最上層的 `Subtitle`），重點字上色 `tintTarget`、`tintWord` | `src/ui/Subtitle.tsx`、`src/content/subtitles.ts` | 不用自己放；say 了就有 |
 | 恐龍 | `<Dino who="dodo" mood="happy" size="100%" onTap={…} />`（說話時嘴巴會動） | `src/art/Dino.tsx` | |
@@ -72,7 +78,7 @@ export function EnglishLesson({ onDone }: LessonProps) {
 
 ## 其他規矩
 
-- 舊的地圖、冒險、魔法屋、貼紙本、站點遊戲 T-75 已經從程式拿掉（要找回來從 git 歷史救）；`src/lib/features.ts` 只剩成長系統的關卡鎖和睡覺畫面兩個開關。
+- 舊的地圖、冒險、魔法屋、站點遊戲 T-75 已經從程式拿掉（要找回來從 git 歷史救）；貼紙本 2026-11-11 恢復成只看不改（`src/screens/StickerBook.tsx`）。`src/lib/features.ts` 只剩睡覺畫面一個開關。
 - 孩子的名字、幼兒園、生日不能寫進 repo（台詞裡用 `lines.ts` 的 `N`）。
 - 三歲測試：`npm run test:toddler -- --changed`。只改自己的資料夾時，會跑 `home.spec.ts` 的「三大門」（進出每一課、連點、返回）；
   自己的課要加測試，寫一個新的 spec（例如 `tests/toddler/lesson-english.spec.ts`），加進 `playwright.config.ts` 的 `testMatch`。
