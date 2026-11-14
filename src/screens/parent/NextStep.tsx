@@ -4,6 +4,7 @@ import { lessonRuns } from '../../lib/lesson-log'
 import { OBSERVE, OBSERVE_DAYS, OBSERVE_NEED, readiness, type LessonRun, type Observation } from '../../lib/readiness'
 import type { ParentData } from './data'
 import { afterChecks, useChecks } from '../../lib/parent-check'
+import { FRESH_DAYS, STAGE4_SUBJECTS, subjectView, type GateRow, type SubjectView } from './stage4-registry'
 import './next.css'
 
 /** 家長每月勾的觀察（最新的在最後；只存在這台裝置） */
@@ -52,6 +53,7 @@ export function NextStep({ d }: { d: ParentData }) {
       </ul>
       <p className={`next-advice${r.ready ? ' is-ready' : ''}`}>{r.advice}</p>
       {d.source === 'cloud' && <p className="note">作答紀錄看的是雲端；上課紀錄、家長觀察只存在這台裝置。</p>}
+      <Stage4 d={d} />
       <ObserveForm last={last} onSave={save} />
     </div>
   )
@@ -111,5 +113,113 @@ function ObserveForm({ last, onSave }: { last: Observation | null; onSave: (o: O
         {saved && <span className="next-saved">存好了</span>}
       </div>
     </details>
+  )
+}
+
+/** 每科存的東西：門（kvKey）、暫停（pauseKey） */
+type Stored = Record<string, { kv: unknown; paused: boolean }>
+
+/**
+ * 4 歲的內容（T-150 P，設計稿第六節）：每科每道門一行（開了沒、哪天開的、每堂出多少、目前級數、還差什麼），
+ * 每科一個「暫停 4 歲內容」開關（kv 的 stage4.paused.<科>，存 true 就暫停）。三科的門從 ./stage4-registry.ts 讀。
+ */
+function Stage4({ d }: { d: ParentData }) {
+  const [stored, setStored] = useState<Stored | null>(null)
+  const [busy, setBusy] = useState<string | null>(null)
+  useEffect(() => {
+    let live = true
+    void Promise.all(
+      STAGE4_SUBJECTS.map(async (s) => {
+        const [kv, paused] = await Promise.all([getKV<unknown>(s.kvKey, {}), getKV<boolean | null>(s.pauseKey, null)])
+        return [s.id, { kv, paused: paused === true }] as const
+      }),
+    ).then((xs) => {
+      if (live) setStored(Object.fromEntries(xs))
+    })
+    return () => {
+      live = false
+    }
+  }, [])
+  const t = today()
+  const views = useMemo(
+    () => (stored ? STAGE4_SUBJECTS.map((s) => subjectView(s, d.attempts, stored[s.id]?.kv, stored[s.id]?.paused ?? false, t)) : []),
+    [stored, d.attempts, t],
+  )
+  const setPaused = async (v: SubjectView, on: boolean) => {
+    const id = v.subject.id
+    setBusy(id)
+    setStored((x) => x && { ...x, [id]: { ...x[id], paused: on } })
+    try {
+      await setKV(v.subject.pauseKey, on)
+    } catch {
+      setStored((x) => x && { ...x, [id]: { ...x[id], paused: !on } })
+    } finally {
+      setBusy(null)
+    }
+  }
+  return (
+    <section className="stage4" aria-labelledby="stage4-title">
+      <h4 id="stage4-title">4 歲的內容</h4>
+      <p className="sub stage4-sub">
+        每個能力熟練了，下次進那一課就自動開一道門（同一科一天最多開一道）。開了不會再關；答不好時，內容自己退一級。剛開的頭 {FRESH_DAYS} 天每堂最多 1 個 4 歲回合，之後每堂最多一半。
+      </p>
+      {!stored ? (
+        <p className="sub">讀取中…</p>
+      ) : (
+        <div className="stage4-subjects">
+          {views.map((v) => (
+            <div key={v.subject.id} className={`stage4-subject${v.paused ? ' is-paused' : ''}${v.ready ? '' : ' is-none'}`} data-subject={v.subject.id}>
+              <div className="stage4-head">
+                <h5>{v.subject.name}</h5>
+                <label className={`stage4-pause${v.paused ? ' is-on' : ''}`}>
+                  <input
+                    type="checkbox"
+                    role="switch"
+                    checked={v.paused}
+                    disabled={busy === v.subject.id}
+                    aria-describedby={`stage4-pause-${v.subject.id}`}
+                    onChange={(e) => void setPaused(v, e.target.checked)}
+                  />
+                  暫停{v.subject.name}的 4 歲內容
+                </label>
+              </div>
+              <p className="stage4-pause-note" id={`stage4-pause-${v.subject.id}`}>
+                {v.paused ? '暫停中：' : '打勾就暫停：'}
+                {v.subject.name}課照 3 歲的上，還沒開的門也不會開；已經開的門會記著，取消暫停就接著用。
+              </p>
+              {v.ready ? (
+                <ul className="stage4-list">
+                  {v.rows.map((r) => (
+                    <GateLine key={r.id} r={r} />
+                  ))}
+                </ul>
+              ) : (
+                <p className="stage4-none">尚未提供：{v.subject.name}的 4 歲內容還在做，好了會自動出現在這裡。</p>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+      <p className="note">門和暫停都只存在這台裝置；「重置學習進度」會把門和暫停一起清掉。</p>
+    </section>
+  )
+}
+
+function GateLine({ r }: { r: GateRow }) {
+  return (
+    <li className={`is-${r.state}`} data-gate={r.id}>
+      <span className="next-mark" aria-hidden="true">
+        {r.state === 'open' ? '✓' : r.state === 'paused' ? 'Ⅱ' : '○'}
+      </span>
+      <span className="stage4-label">{r.label}</span>
+      <span className="stage4-detail">
+        <span className="stage4-status">
+          {r.status}
+          {r.dose && `：${r.dose}`}
+          {r.level && `；${r.level}`}
+        </span>
+        {r.need && <span className="stage4-need">{r.need}</span>}
+      </span>
+    </li>
   )
 }

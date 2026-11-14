@@ -133,6 +133,117 @@
   font-size: 14px;
 }
 
+/* 4 歲的內容（NextStep.tsx 的 Stage4，T-150 P） */
+.parent .stage4 {
+  margin-top: 18px;
+  padding-top: 12px;
+  border-top: 1px solid var(--paper-edge);
+}
+.parent .stage4 h4 {
+  margin: 0 0 4px;
+  font-size: 16px;
+}
+.parent .stage4-sub {
+  margin: 0 0 12px;
+}
+.parent .stage4-subjects {
+  display: grid;
+  gap: 12px;
+}
+.parent .stage4-subject {
+  padding: 10px 14px 8px;
+  border-radius: 12px;
+  border: 1px solid var(--paper-edge);
+}
+.parent .stage4-subject.is-paused {
+  background: #fbf1ea;
+}
+.parent .stage4-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px 12px;
+}
+.parent .stage4-head h5 {
+  margin: 0;
+  font-size: 15.5px;
+}
+.parent .stage4-pause {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 44px;
+  padding: 6px 12px;
+  border-radius: 12px;
+  background: var(--paper);
+  font-size: 14.5px;
+  cursor: pointer;
+}
+.parent .stage4-pause.is-on {
+  background: #f6dccf;
+}
+.parent .stage4-pause input {
+  width: 20px;
+  height: 20px;
+  margin: 0;
+  accent-color: #a4502c;
+}
+.parent .stage4-pause:focus-within {
+  outline: 2px solid var(--dodo-deep);
+  outline-offset: 2px;
+}
+.parent .stage4-pause-note {
+  margin: 6px 0 4px;
+  font-size: 13.5px;
+  line-height: 1.55;
+  color: var(--ink-soft);
+}
+.parent .stage4-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.parent .stage4-list li {
+  display: grid;
+  grid-template-columns: 26px 190px 1fr;
+  align-items: baseline;
+  gap: 8px;
+  padding: 8px 0;
+  border-top: 1px dashed var(--paper-edge);
+  font-size: 14.5px;
+  line-height: 1.55;
+}
+.parent .stage4-list li.is-open .next-mark {
+  background: #dcefe3;
+  color: #2f7a52;
+}
+.parent .stage4-list li.is-paused .next-mark {
+  background: #f6dccf;
+  color: #a4502c;
+}
+.parent .stage4-label {
+  font-weight: 600;
+}
+.parent .stage4-detail {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.parent .stage4-list li.is-open .stage4-status {
+  color: #2f7a52;
+  font-weight: 600;
+}
+.parent .stage4-need {
+  color: var(--ink-soft);
+}
+.parent .stage4-none {
+  margin: 4px 0 6px;
+  font-size: 14px;
+  color: var(--ink-soft);
+}
+
 /* ── 學習進度：熟練格（Progress.tsx）──────────────────────────── */
 .parent .mrow {
   margin-bottom: 14px;
@@ -296,5 +407,17 @@
   .parent .listen-list li {
     grid-template-columns: 1fr;
     gap: 4px;
+  }
+  .parent .stage4-subject {
+    padding: 10px 10px 6px;
+  }
+  .parent .stage4-pause {
+    width: 100%;
+  }
+  .parent .stage4-list li {
+    grid-template-columns: 24px 1fr;
+  }
+  .parent .stage4-detail {
+    grid-column: 2;
   }
 }
