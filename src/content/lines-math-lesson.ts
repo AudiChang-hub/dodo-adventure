@@ -86,3 +86,15 @@ for (const t of FIND_THINGS)
 
 // 小遊戲（T-147）：找數字包成氣球，「Three! Pop the three!」（關鍵字先念，T-109）
 for (let n = 1; n <= 10; n++) def(`ma.pop.${n}`, 'bobo', `Pop the ${NUM[n]}!`)
+
+// ── 4 歲內容（T-150 M，math/stage4.ts）──────────────────────────────
+// 一眼看出幾個（math/Subitize.tsx）：布掀開「Look!」、蓋回去問「How many? Find the same!」、點波波再閃一次「Look again!」。
+// 數的時候、答錯時說的數字用 lines.ts 的 m.num.N（One! Two! Three!）
+def('ma.sub.peek', 'bobo', 'Look!')
+def('ma.sub.ask', 'bobo', 'How many? | Find the same!')
+def('ma.sub.again', 'bobo', 'Look again!')
+// 數字小路（math/Path.tsx）：擲骰子、點小恐龍一格一格走（每格念 m.num.N），走到 10 就停
+def('ma.path.go', 'bobo', "Let's walk to | ten!")
+def('ma.path.roll', 'bobo', 'Roll the dice!')
+def('ma.path.walk', 'bobo', 'Tap the dino!')
+def('ma.path.done', 'bobo', 'Ten! | You did it!')

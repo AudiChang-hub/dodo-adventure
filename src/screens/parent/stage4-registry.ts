@@ -33,7 +33,7 @@ export interface Stage4Module {
 }
 
 const EN: Stage4Module | null = null
-const MATH: Stage4Module | null = null
+import * as MATH from '../../lessons/math/stage4'
 
 export type Subject = 'zh' | 'en' | 'math'
 

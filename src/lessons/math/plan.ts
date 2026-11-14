@@ -151,6 +151,9 @@ export async function openLesson(): Promise<Lesson> {
   return { mode, n, max, part: 0 }
 }
 
+/** 1～5 熟練過了（openLesson 以後讀；4 歲內容的門要看，./stage4-store.ts） */
+export const firmSaved = () => !!prog.firm
+
 /** 一段上完：記下上到哪裡（中途離開再進來就從下一段開始）和這一段的成績 */
 export function partDone(part: number, asked: number, missed: number) {
   // 寫數字描得好不好不影響明天上什麼（A5）

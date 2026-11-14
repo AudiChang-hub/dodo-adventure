@@ -13,7 +13,7 @@ import { DUR, EASE } from '../../ui/motion'
 import type { Mood } from '../../art/Dino'
 import { leaveLesson } from '../LessonScreen'
 import type { LessonProps } from '../types'
-import { openLesson, partDone, PARTS, type Lesson } from './plan'
+import { firmSaved, openLesson, partDone, PARTS, type Lesson } from './plan'
 import { Fade, useLive, type PartCtx } from './kit'
 import { loadFormats } from '../formats'
 import { CountPart } from './Count'
@@ -22,6 +22,9 @@ import { WritePart } from './Write'
 import { GamePart } from './Game'
 import { WarmPart } from './Warm'
 import { homeTip, pickWarmPlay, warmFor, type WarmPlay } from './warmup'
+import { PathPart } from './Path'
+import { loadStage4, pickGameSet } from './stage4-store'
+import { GAME_SETS, NO_STAGE4, subAllowed, type GameSet, type MathToday } from './stage4'
 import { TrainPart } from './Train'
 import { PlantPart } from './Plant'
 import { loadPlays, pickGivePlay, type GivePlay } from './plays'
@@ -29,13 +32,22 @@ import { getTodayWorld } from '../../lib/today-world'
 import { Scene } from '../../art/storybook/scenes'
 import './math.css'
 
-const PART_VIEW = { count: CountPart, give: GivePart, game: GamePart, write: WritePart }
+const PART_VIEW = { count: CountPart, give: GivePart, write: WritePart }
 /** 開場「玩著數數」今天的玩法（T-147，warmup.ts）的陪玩小字 */
 const WARM_HINT: Record<WarmPlay, (n: number) => string> = {
   hop: (n) => `請他點青蛙，一下跳一片荷葉，一起數到 ${n}`,
   fingers: () => '跟他一起舉手指（從食指開始比）',
   find: () => '請他一個一個點出波波要找的，點過的不用再點',
+  // 數字小路（T-150 M）：研究的做法是大人和孩子輪流擲、孩子大聲念數字；App 只有一隻小恐龍
+  path: () => '請他點骰子、點小恐龍一格一格走；你也擲一次，輪流走，邊走邊說數字',
 }
+/** 小遊戲今天出的那兩題（T-150 M：一眼看出的門開了，三種輪兩種）的陪玩小字 */
+const GAME_HINT: Record<'compare' | 'find' | 'sub', string> = {
+  compare: '請他點東西比較多的那艘船',
+  find: '氣球是點波波說的那個數字',
+  sub: '點點只亮一下就蓋起來，請他點一樣多的那一張（不用數）',
+}
+const gameHint = (set: GameSet | null) => (set ? GAME_SETS[set].map((k) => GAME_HINT[k]).join('；') : null)
 /** 「拿給波波」那一段今天的玩法（T-127，plays.ts） */
 const GIVE_VIEW: Record<GivePlay, typeof GivePart> = { give: GivePart, train: TrainPart, plant: PlantPart }
 const GIVE_HINT: Record<GivePlay, (n: number) => string> = {
@@ -89,6 +101,9 @@ export function MathLesson({ onDone }: LessonProps) {
   const [lesson, setLesson] = useState<Lesson | null>(null)
   const [play, setPlay] = useState<GivePlay>('give')
   const [warm, setWarm] = useState<WarmPlay>('hop')
+  /** 這一堂的 4 歲內容（T-150 M，./stage4.ts）和小遊戲今天的那一組 */
+  const [today4, setToday4] = useState<MathToday>(NO_STAGE4)
+  const [gameSet, setGameSet] = useState<GameSet | null>(null)
   /** -1 是開場；PARTS.length 是下課 */
   const [part, setPart] = useState(-1)
   const [mood, setMood] = useState<Mood>('idle')
@@ -105,12 +120,19 @@ export function MathLesson({ onDone }: LessonProps) {
   const skipOpen = useRef<(() => void) | null>(null)
 
   useEffect(() => {
-    void Promise.all([openLesson(), loadFormats(), loadPlays(), pickGivePlay(), pickWarmPlay()]).then(([l, , , p, w]) => {
+    void (async () => {
+      const [l, , , p] = await Promise.all([openLesson(), loadFormats(), loadPlays(), pickGivePlay()])
+      // 4 歲內容（T-150 M）：門開了才有數字小路、一眼看出；讀不到就照 3 歲的上
+      const t4 = await loadStage4(firmSaved())
+      const w = warmFor(await pickWarmPlay(undefined, t4.path), l.n)
+      const set = subAllowed(t4, w) ? await pickGameSet() : null
       if (!live.current) return
       setPlay(p)
-      setWarm(warmFor(w, l.n))
+      setWarm(w)
+      setToday4(t4)
+      setGameSet(set)
       setLesson(l)
-    })
+    })()
     return () => stopSpeech()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
@@ -220,7 +242,7 @@ export function MathLesson({ onDone }: LessonProps) {
   }
 
   const name = part >= 0 && part < PARTS.length ? PARTS[part] : null
-  const View = name === 'give' ? GIVE_VIEW[play] : name && name !== 'warm' ? PART_VIEW[name] : null
+  const View = name === 'give' ? GIVE_VIEW[play] : name && name !== 'warm' && name !== 'game' ? PART_VIEW[name] : null
   const opening = part < 0
   const over = part >= PARTS.length
   return (
@@ -231,7 +253,17 @@ export function MathLesson({ onDone }: LessonProps) {
       onExit={leaveLesson}
       onHost={() => host.current?.()}
       demo={demo}
-      hintText={pending ? NEXT_HINT : name === 'give' ? GIVE_HINT[play](lesson.n) : name === 'warm' ? WARM_HINT[warm](lesson.n) : HINT[name ?? 'open'](lesson.n)}
+      hintText={
+        pending
+          ? NEXT_HINT
+          : name === 'give'
+            ? GIVE_HINT[play](lesson.n)
+            : name === 'warm'
+              ? WARM_HINT[warm](lesson.n)
+              : name === 'game' && today4.sub && gameHint(gameSet)
+                ? gameHint(gameSet)!
+                : HINT[name ?? 'open'](lesson.n)
+      }
     >
       <div className={`ma-lesson ma-${name ?? (over ? 'over' : 'open')}`} data-lesson-part={name ?? (over ? 'over' : 'open')} data-give-play={play} data-warm-play={warm}>
         <WorldBackdrop />
@@ -248,7 +280,13 @@ export function MathLesson({ onDone }: LessonProps) {
         </AnimatePresence>
         <Fade id={name ?? (over ? 'over' : 'open')}>
           {name === 'warm' ? (
-            <WarmPart ctx={ctx} play={warm} />
+            warm === 'path' ? (
+              <PathPart ctx={ctx} />
+            ) : (
+              <WarmPart ctx={ctx} play={warm} />
+            )
+          ) : name === 'game' ? (
+            <GamePart ctx={ctx} today4={today4} set={gameSet} />
           ) : View ? (
             <View ctx={ctx} />
           ) : (

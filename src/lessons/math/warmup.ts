@@ -9,12 +9,14 @@ import { pickVariety } from '../../lib/variety'
 import { pick, shuffle } from '../../lib/random'
 
 export const WARM_PLAYS = ['hop', 'fingers', 'find'] as const
-export type WarmPlay = (typeof WARM_PLAYS)[number]
+/** 數字小路的門開了（T-150 M，./stage4.ts 的 math-path）：開場四種輪流，數字小路每 4 堂輪到一次（連續兩天一定不一樣，每 2 天最多 1 次） */
+export const WARM_PLAYS4 = [...WARM_PLAYS, 'path'] as const
+export type WarmPlay = (typeof WARM_PLAYS4)[number]
 /** lib/variety.ts 裡這一段的名字（測試可以用 localStorage 的 dodo:variety:math.warm 固定一種） */
 export const WARM_VARIETY = 'math.warm'
 
 /** 今天的玩法（同一天再進來沿用；讀不到資料庫也會回傳一種） */
-export const pickWarmPlay = (date?: Date) => pickVariety<WarmPlay>(WARM_VARIETY, WARM_PLAYS, date)
+export const pickWarmPlay = (date?: Date, path = false) => pickVariety<WarmPlay>(WARM_VARIETY, path ? WARM_PLAYS4 : WARM_PLAYS, date)
 
 /** 找找看要數的東西最多幾個（M3：3 歲範圍 ≤ 5） */
 export const FIND_MAX = 5

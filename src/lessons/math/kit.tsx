@@ -82,6 +82,8 @@ export interface QuizSpec {
   wide?: boolean
   /** 題型（../formats.ts）：孩子還不會這種題型，手先做一次（T-96） */
   format?: Format
+  /** 這一題手先做一次（不看 format；一眼看出第一次出，T-150 M）。有給就用這個 */
+  demo?: boolean
   /** 這一堂的最後一題：答對了不等稱讚念完，馬上交給下課的慶祝（T-113） */
   last?: boolean
   /**
@@ -140,7 +142,7 @@ export function Quiz({ spec, host, onDone, showing }: { spec: QuizSpec; host: Pa
   const heard = useRef(false)
   /** 第一次點的時候手正指著答案（T-111） */
   const led = useRef(false)
-  const shown = useRef(!!spec.format && needsDemo(spec.format))
+  const shown = useRef(spec.demo ?? (!!spec.format && needsDemo(spec.format)))
   const bubble = useRef<HTMLDivElement | null>(null)
   const pile = useRef<HTMLDivElement | null>(null)
   const live = useLive()
