@@ -1,5 +1,5 @@
 /* ── 學校的首頁（screens/Home.tsx 的 SchoolHome）────────────────────
-   三個大門站在地面線上，門的顏色跟守門的恐龍一樣；故事、畫畫是旁邊兩扇小圓窗。
+   三個大門站在地面線上，門的顏色跟守門的恐龍一樣；畫畫是旁邊一扇小圓窗（T-147 拿掉了故事門）。
    門的大小跟著畫面的寬和高取比較小的那個，平板橫向、手機直式都不會超出畫面。 */
 .school {
   --door-w: min(21.5vw, 34vh);
@@ -185,12 +185,12 @@
   white-space: nowrap;
 }
 
-/* 故事、畫畫：比門小一號的圓窗，疊在門的旁邊 */
+/* 畫畫：比門小一號的圓窗，跟三扇門一起站在地面線上（T-147：故事門拿掉了，只剩這一扇）。
+   圓窗底邊對齊門底、下面的字跟門下的字排在同一條線上，看起來是同一排的第四扇門 */
 .side-doors {
   display: flex;
   flex-direction: column;
-  gap: calc(max(28px, 4.4vh) + 40px);
-  padding-bottom: 6px;
+  align-items: center;
 }
 .side-door {
   position: relative;
@@ -222,11 +222,12 @@
     0 0 0 10px rgba(251, 248, 242, 0.7);
 }
 .side-door .door-label {
-  top: calc(100% + 12px);
+  /* 比門下的字少 2px 的上下內距：往下 2px，兩邊的字中心才對齊 */
+  top: calc(100% + 20px);
   padding: 4px 16px;
 }
 
-/* 手機直式（家長遠端看）：三扇門一排、小圓窗排在下面一排，不壞版就好 */
+/* 手機直式（家長遠端看）：三扇門一排、畫畫的小圓窗在下面置中，不壞版就好 */
 @media (orientation: portrait) {
   .school {
     --door-w: min(27vw, 24vh);
@@ -238,8 +239,6 @@
     gap: 64px;
   }
   .side-doors {
-    flex-direction: row;
-    gap: 48px;
     padding-bottom: 36px;
   }
   .school-hint {

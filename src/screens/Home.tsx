@@ -95,15 +95,17 @@ const TINT: Record<Speaker, { door: string; deep: string; glass: string }> = {
   bobo: { door: '#F0B088', deep: '#D38A5E', glass: '#FBE8DA' },
 }
 
-/** 首頁另外兩個小入口：故事書、自由畫畫（遊戲畫面還是畫畫小屋的那一個） */
-const SIDE: { id: 'story' | 'draw'; label: string; icon: string; to: Route }[] = [
-  { id: 'story', label: '故事', icon: 'open-book', to: { name: 'storybook' } },
+/**
+ * 首頁另外的小入口：畫畫（進去先選白紙還是著色本）。
+ * T-147（2026-11-14 親師晤談：英文故事太難）拿掉了故事門；故事書的程式、路由和進度這一版都還留著，下一版才刪。
+ */
+const SIDE: { id: 'draw'; label: string; icon: string; to: Route }[] = [
   { id: 'draw', label: '畫畫', icon: 'artist-palette', to: { name: 'draw' } },
 ]
 
 /**
  * 學校的首頁（2026-10-31 家長決定照學校分科）：三個大門＝英文字母（豆豆）、中文課文（莫莫）、數學數字（波波），
- * 旁邊兩個小一點的故事、畫畫；牆上掛一塊貼紙板（最新的幾張貼紙），點了進貼紙本（T-132）。
+ * 旁邊一扇小一點的畫畫圓窗；牆上掛一塊貼紙板（最新的幾張貼紙），點了進貼紙本（T-132）。
  * 除了家長角落沒有別的按鈕；點門任何地方一下就進去。
  * 畫面靜止（MOTION-2）：只有剛打開 App 時大家走進來一次，之後不閃、不晃。
  */

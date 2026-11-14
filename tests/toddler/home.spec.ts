@@ -1,12 +1,13 @@
 import { test, expect, type Page } from '@playwright/test'
-import { boot, homeButton, inkAt, now, settle, snap, storyToldToday, targets } from './lib/app'
+import { boot, homeButton, inkAt, now, settle, snap, targets } from './lib/app'
 import fs from 'node:fs'
 import path from 'node:path'
 import { Toddler, hashSeed } from './lib/toddler'
 import { Checker, centerOf, doorAt, drawAndMeasure, holdHome, pressBack, tapDoor, toHome, toddlerStep, waitLive } from './lib/flows'
 
 /**
- * 學校的首頁（2026-10-31，src/screens/Home.tsx 的 SchoolHome）：三個大門（英文字母、中文課文、數學數字）＋故事、畫畫，牆上的貼紙板（T-132）。
+ * 學校的首頁（2026-10-31，src/screens/Home.tsx 的 SchoolHome）：三個大門（英文字母、中文課文、數學數字）＋畫畫，牆上的貼紙板（T-132）。
+ * T-147（2026-11-14）拿掉了故事門：首頁點得到的只剩這五個，舊的平板停在故事書的也要回首頁。
  * 三歲孩子會做的事：亂點、連點門、一進去就想回來（返回鍵、Android 返回、連點返回鍵）、點了門馬上又按返回、
  * 點了畫畫馬上就畫（轉場還沒走完，T-72 找到的「之後每一筆都沒有墨」）。
  */
@@ -14,20 +15,23 @@ const BASE_SEED = Number(process.env.TODDLER_SEED || 20261029)
 const only = (process.env.TODDLER_GAMES ?? '').split(',').map((s) => s.trim()).filter(Boolean)
 const want = (name: string) => !only.length || only.some((s) => s === 'screens' || s === 'home' || s === name)
 
-/** 每一扇門點進去之後應該在的畫面（故事書的書架是故事書裡面那一層 shelf） */
+/** 每一扇門點進去之後應該在的畫面 */
 const DOORS = [
   { door: 'english', name: '英文字母', live: 'lesson-english' },
   { door: 'chinese', name: '中文課文', live: 'lesson-chinese' },
   { door: 'math', name: '數學數字', live: 'lesson-math' },
-  { door: 'story', name: '故事', live: 'shelf' },
   // 畫畫（T-138）：先到「白紙自由畫／著色本」
   { door: 'draw', name: '畫畫', live: 'draw' },
   // 牆上的貼紙板（T-132）：點進去是貼紙本
   { door: 'stickers', name: '貼紙本', live: 'stickers' },
 ] as const
 const LABELS = new Set<string>(DOORS.map((d) => d.name))
-/** 進到這扇門了（故事書剛換上來時外層是 storybook，裡面的書架接著淡入） */
-const inDoor = (d: (typeof DOORS)[number], l: string | null) => l === d.live || (d.door === 'story' && l === 'storybook')
+type Door = (typeof DOORS)[number]
+/** 進到這扇門了 */
+const inDoor = (d: Door, l: string | null) => l === d.live
+const doorOf = (id: Door['door']) => DOORS.find((d) => d.door === id)!
+/** 故事書的畫面（外層 storybook、書架 shelf、英文版課文 en-*、重聽 replay-*）：T-147 起首頁到不了 */
+const isStory = (l: string | null) => !!l && /^(storybook|shelf|en-|endone-|replay-|done-)/.test(l)
 
 async function setup(page: Page, info: Parameters<Parameters<typeof test>[2]>[1], name: string) {
   const seed = hashSeed(BASE_SEED, 'home', name, info.project.name)
@@ -104,16 +108,14 @@ test.describe('學校首頁', () => {
     test.skip(!want('home-doors'))
     test.setTimeout(10 * 60_000)
     const { k, c } = await setup(page, info, '三大門')
-    // 故事門照舊直接進書架（新章節的流程在 story.spec.ts）
-    await storyToldToday(page)
     try {
-      // 首頁只有五扇門和牆上的貼紙板（家長角落另外量）
+      // 首頁只有三大門、畫畫和牆上的貼紙板（家長角落另外量）
       k.behavior = '首頁有什麼'
       await settle(page)
       // 按鈕（門裡面的恐龍、圖是門的一部分，不算）
       const ts = (await targets(page)).filter((t) => t.kind === 'btn').map((t) => t.label)
       const extra = ts.filter((l) => !LABELS.has(l))
-      c.outcome('首頁只有三大門＋故事、畫畫、貼紙板', !extra.length && ts.length === LABELS.size, `點得到：${ts.join('、')}`)
+      c.outcome('首頁只有三大門＋畫畫、貼紙板', !extra.length && ts.length === LABELS.size, `點得到：${ts.join('、')}`)
       if (extra.length) await c.once('home-extra', '困惑', `首頁多了別的按鈕：${extra.join('、')}`, '')
       const corner = await page.evaluate(() => !!document.querySelector('.parent-corner'))
       c.outcome('家長角落還在', corner, corner ? '右上角' : '不見了')
@@ -123,6 +125,7 @@ test.describe('學校首頁', () => {
       k.behavior = '首頁亂點'
       for (let i = 0; i < 14; i++) {
         const s = await snap(page)
+        if (isStory(s.live)) await c.once('tap-story', '困惑', '首頁亂點進了故事書', `到 ${s.live}（T-147 首頁沒有故事門）`)
         if (s.live !== 'home') {
           k.act(`亂點進了 ${s.live}`)
           await c.screenOk(`亂點進了 ${s.live}`)
@@ -156,19 +159,12 @@ test.describe('學校首頁', () => {
           await toddlerStep(k, c, { drawing: d.door === 'draw', free: d.door === 'draw' })
         }
         await c.flush()
-        live = (await snap(page)).live
-        // 故事書亂玩可能點進一本書（重聽、英文版課文）：先回書架
-        if (d.door === 'story' && /^(replay|en)/.test(live ?? '')) {
-          const h = await homeButton(page)
-          if (h) await pressBack(k, h)
-          await waitLive(page, (l) => l === 'shelf', 4000)
-        }
 
         // Android 的返回：回首頁
         k.behavior = `「${d.name}」按 Android 返回`
         if (inDoor(d, (await snap(page)).live)) {
           await settle(page)
-          // 亂玩時可能剛按過返回（重聽 → 書架）：App 返回之後 1 秒內不收下一次返回（連點不多跳一層，lib/nav.ts），等它過去
+          // 亂玩時可能剛按過返回：App 返回之後 1 秒內不收下一次返回（連點不多跳一層，lib/nav.ts），等它過去
           await k.wait(1200)
           k.act('history.back()')
           await page.evaluate(() => history.back())
@@ -199,7 +195,7 @@ test.describe('學校首頁', () => {
 
       // 點了門馬上又按返回（轉場還沒走完）：回首頁，畫面不閃（透明度只往一個方向變）
       for (const [i, ms] of [60, 150, 260].entries()) {
-        const d = DOORS[i * 2]
+        const d = doorOf((['english', 'math', 'draw'] as const)[i])
         k.behavior = `點「${d.name}」後 ${ms}ms 按返回`
         if (!(await toHome(k, c))) break
         await settle(page)
@@ -218,7 +214,7 @@ test.describe('學校首頁', () => {
       }
 
       // 平板忙的時候連點門（T-67）：換畫面那一下之後主執行緒卡 1.2 秒，排隊的連點不會在新畫面變成別的事
-      for (const d of [DOORS[2], DOORS[4]]) {
+      for (const d of [doorOf('math'), doorOf('draw')]) {
         k.behavior = `平板忙時連點「${d.name}」`
         if (!(await toHome(k, c))) break
         await settle(page)
@@ -235,6 +231,82 @@ test.describe('學校首頁', () => {
       await c.flush()
     } finally {
       finish(k, c, '三大門')
+    }
+  })
+
+  test('T-147 沒有故事門：舊的平板停在故事書回首頁、版面不跑版', async ({ page }, info) => {
+    test.skip(!want('home-doors'))
+    test.setTimeout(3 * 60_000)
+    const { k, c } = await setup(page, info, '沒有故事門')
+    try {
+      // 舊的平板：App 更新前停在故事書（lib/update.ts 記下畫面名稱，lib/nav.ts 的 RESUME_KEY），重新載入後要回首頁，不白屏
+      k.behavior = '更新前停在故事書'
+      k.act('sessionStorage dodo.resume = storybook，重新載入')
+      await page.evaluate(() => sessionStorage.setItem('dodo.resume', 'storybook'))
+      await page.reload()
+      await page.waitForSelector('.screen.home', { timeout: 20_000 }).catch(() => null)
+      await settle(page)
+      await k.wait(800)
+      const live = (await snap(page)).live
+      c.outcome('更新前停在故事書 → 重新載入後在首頁', live === 'home', `到 ${live}`)
+      if (live !== 'home') await c.once('resume-story', '卡死', '更新前停在故事書，重新載入後沒有回首頁', `停在 ${live}`)
+      await c.screenOk('更新前停在故事書，重新載入後')
+      const door = await page.evaluate(() => !!document.querySelector('[data-door="story"]'))
+      c.outcome('首頁沒有故事門', !door, door ? '還在' : '沒有')
+      if (door) await c.once('story-door', '困惑', '首頁還有故事門', '')
+
+      // 版面：平板橫向（TCL NXTPAPER 11 Plus 約 1200×786）、這個尺寸、手機直式（家長遠端看，只要求不跑版）
+      k.behavior = '首頁版面'
+      const dir = path.resolve('test-results', 't147')
+      fs.mkdirSync(dir, { recursive: true })
+      const vp0 = page.viewportSize()!
+      for (const [name, vp] of [
+        ['橫向', vp0],
+        ['平板1200x786', { width: 1200, height: 786 }],
+        ['手機直式', { width: 390, height: 844 }],
+      ] as const) {
+        await page.setViewportSize(vp)
+        await k.wait(600)
+        await settle(page)
+        const m = await page.evaluate(() => {
+          const els = [...document.querySelectorAll<HTMLElement>('.screen.home [data-door]')]
+          const box = (el: Element) => {
+            const r = el.getBoundingClientRect()
+            return { l: r.left, t: r.top, r: r.right, b: r.bottom }
+          }
+          // 點得到的地方：門、圓窗、貼紙板本身（下面的字另外看）
+          const hit = els.map((el) => ({ id: el.dataset.door!, ...box(el.querySelector('.door-arch, .side-window, .sbd-paper') ?? el) }))
+          const labels = els.map((el) => ({ id: el.dataset.door!, ...box(el.querySelector('.door-label') ?? el) }))
+          const all = [...hit, ...labels.map((x) => ({ ...x, id: `${x.id}的字` }))]
+          const W = innerWidth
+          const H = innerHeight
+          const out = all.filter((x) => x.l < -1 || x.t < -1 || x.r > W + 1 || x.b > H + 1).map((x) => x.id)
+          const overlap: string[] = []
+          for (let i = 0; i < all.length; i++)
+            for (let j = i + 1; j < all.length; j++) {
+              const a = all[i]
+              const b = all[j]
+              if (a.l < b.r - 1 && b.l < a.r - 1 && a.t < b.b - 1 && b.t < a.b - 1) overlap.push(`${a.id}×${b.id}`)
+            }
+          const lab = Object.fromEntries(labels.map((x) => [x.id, Math.round((x.t + x.b) / 2)]))
+          return { ids: hit.map((x) => x.id), out, overlap, scroll: document.documentElement.scrollWidth > W + 1, lab }
+        })
+        const ok = !m.out.length && !m.overlap.length && !m.scroll
+        const note = `門：${m.ids.join('、')}；超出畫面：${m.out.join('、') || '無'}；重疊：${m.overlap.join('、') || '無'}；水平捲動：${m.scroll ? '有' : '無'}；字的中心 y：${JSON.stringify(m.lab)}`
+        c.outcome(`首頁版面（${name} ${vp.width}×${vp.height}）`, ok, note)
+        if (!ok) await c.once(`layout:${name}`, '小問題', `首頁跑版（${name}）`, note)
+        // 平板橫向：畫畫圓窗下的字跟三扇門下的字排在同一條線上
+        if (vp.width > vp.height) {
+          const dy = Math.abs(m.lab.draw - m.lab.math)
+          c.outcome(`畫畫的字跟門下的字同一條線（${name}）`, dy <= 3, `差 ${dy}px`)
+        }
+        await page.screenshot({ path: path.join(dir, `${info.project.name}-首頁-${name}.png`) })
+      }
+      await page.setViewportSize(vp0)
+      await settle(page)
+      await c.flush()
+    } finally {
+      finish(k, c, '沒有故事門')
     }
   })
 
