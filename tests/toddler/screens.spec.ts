@@ -22,6 +22,129 @@ async function setup(page: Page, info: Parameters<Parameters<typeof test>[2]>[1]
   return { k, c }
 }
 
+// ── 家長區「4 歲的內容」（T-150 P，src/screens/parent/NextStep.tsx）──────────────
+const ZH_STAGE4_KEY = 'lesson.chinese.stage4'
+
+/** 這台平板的 kv（IndexedDB dodo-adventure 的 kv 表） */
+const kvOp = (page: Page, key: string, value?: unknown, put = false) =>
+  page.evaluate(
+    ({ key, value, put }) =>
+      new Promise<unknown>((res, rej) => {
+        const rq = indexedDB.open('dodo-adventure')
+        rq.onerror = () => rej(rq.error)
+        rq.onsuccess = () => {
+          const tx = rq.result.transaction('kv', put ? 'readwrite' : 'readonly')
+          const st = tx.objectStore('kv')
+          if (put) st.put({ key, value })
+          const g = st.get(key)
+          let out: unknown
+          g.onsuccess = () => (out = g.result?.value)
+          tx.oncomplete = () => {
+            rq.result.close()
+            res(out)
+          }
+          tx.onerror = () => rej(tx.error)
+        }
+      }),
+    { key, value, put },
+  )
+const putKV = (page: Page, key: string, value: unknown) => kvOp(page, key, value, true)
+const readKV = (page: Page, key: string) => kvOp(page, key)
+/** 平板上的日期（YYYY-MM-DD），往前後推幾天 */
+const pageDay = (page: Page, add: number) =>
+  page.evaluate((add) => {
+    const d = new Date(Date.now() + add * 86_400_000)
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+  }, add)
+
+/**
+ * 家長區總覽「下一步準備度」底下的「4 歲的內容」：三科都在（英文、數學還沒有 stage4.ts 寫尚未提供）、中文開了的門寫哪天開的，
+ * 「暫停中文的 4 歲內容」打勾寫 kv stage4.paused.zh＝true、再按一次回 false；平板橫向和手機直式都沒有水平捲動。
+ * 截圖（只在 tab1200 拍）：test-results 這一項的資料夾 stage4-*.png。
+ */
+async function stage4Check(page: Page, c: Checker, info: Parameters<Parameters<typeof test>[2]>[1]) {
+  const sec = await page.waitForSelector('.stage4 .stage4-subject', { timeout: 8000 }).catch(() => null)
+  c.outcome('家長區看得到 4 歲的內容', !!sec, sec ? '' : '找不到 .stage4')
+  expect.soft(!!sec, '家長區有「4 歲的內容」').toBe(true)
+  if (!sec) return
+  // 「下一步準備度」卡在家長區內容裡（以前跟孩子端的大箭頭 .next-step 同名，被蓋成右下角 128px 的圓，T-150 P 改名 .ready-card）
+  const box = await page.evaluate(() => {
+    const card = document.querySelector('.parent main .ready-card')?.getBoundingClientRect()
+    const main = document.querySelector('.parent main')?.getBoundingClientRect()
+    return card && main ? { card: Math.round(card.width), main: Math.round(main.width), pos: getComputedStyle(document.querySelector('.ready-card')!).position } : null
+  })
+  const inFlow = !!box && box.pos !== 'fixed' && box.card >= box.main * 0.8
+  c.outcome('下一步準備度卡在內容欄裡', inFlow, JSON.stringify(box))
+  expect.soft(inFlow, `下一步準備度卡要佔滿內容欄：${JSON.stringify(box)}`).toBe(true)
+  const view = () =>
+    page.$$eval('.stage4-subject', (els) =>
+      els.map((e) => ({
+        id: (e as HTMLElement).dataset.subject,
+        paused: (e.querySelector('input[role=switch]') as HTMLInputElement | null)?.checked ?? null,
+        none: !!e.querySelector('.stage4-none'),
+        rows: [...e.querySelectorAll('.stage4-list li')].map((li) => ({ id: (li as HTMLElement).dataset.gate, cls: li.className, text: li.textContent ?? '' })),
+      })),
+    )
+  const v = await view()
+  const zh = v.find((x) => x.id === 'zh')
+  const long = zh?.rows.find((r) => r.id === 'zh-long')
+  const ok =
+    v.map((x) => x.id).join() === 'zh,en,math' &&
+    !!long && /is-open/.test(long.cls) && /開的/.test(long.text) && /每堂最多 1 個/.test(long.text) &&
+    v.filter((x) => x.id !== 'zh').every((x) => x.none || x.rows.length > 0)
+  c.outcome('4 歲的內容：三科、中文加長版寫哪天開的', ok, JSON.stringify(v.map((x) => ({ id: x.id, none: x.none, rows: x.rows.map((r) => r.text) }))))
+  expect.soft(ok, '三科都在、中文開了的門寫哪天開的、剛開每堂最多 1 個').toBe(true)
+
+  const noHScroll = () => page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)
+  const shoot = async (name: string) => {
+    if (info.project.name !== 'tab1200') return
+    await page.locator('.stage4').scrollIntoViewIfNeeded()
+    await page.locator('.stage4').screenshot({ path: info.outputPath(`stage4-${name}.png`), animations: 'disabled' })
+  }
+  expect.soft(await noHScroll(), '平板橫向沒有水平捲動').toBe(true)
+  await shoot('平板橫向')
+
+  // 暫停中文：打勾寫 kv、畫面寫暫停中；再按一次取消
+  const sw = page.locator('.stage4-subject[data-subject="zh"] .stage4-pause')
+  await sw.click()
+  await expect.poll(() => readKV(page, 'stage4.paused.zh'), { timeout: 3000 }).toBe(true)
+  const pausedText = (await page.locator('.stage4-subject[data-subject="zh"]').textContent()) ?? ''
+  c.outcome('暫停中文的 4 歲內容', /暫停中/.test(pausedText), pausedText.slice(0, 80))
+  expect.soft(pausedText, '暫停後寫暫停中').toMatch(/暫停中/)
+  await shoot('平板橫向-暫停中文')
+  await sw.click()
+  await expect.poll(() => readKV(page, 'stage4.paused.zh'), { timeout: 3000 }).toBe(false)
+  c.outcome('取消暫停中文', true)
+
+  // 手機直式（家長遠端看）：不跑版
+  // 三歲測試的瀏覽器是全螢幕，setViewportSize 改不了：用 CDP 模擬手機尺寸，量完還原
+  const cdp = await page.context().newCDPSession(page)
+  await cdp.send('Emulation.setDeviceMetricsOverride', { width: 390, height: 844, deviceScaleFactor: 1, mobile: true })
+  await page.waitForTimeout(400)
+  const phone = await page.evaluate(() => {
+    const over = [...document.querySelectorAll('.stage4 *')].filter((e) => e.getBoundingClientRect().right > window.innerWidth + 1).length
+    return { w: window.innerWidth, scroll: document.documentElement.scrollWidth, over }
+  })
+  const phoneOk = phone.w === 390 && phone.scroll <= phone.w + 1 && phone.over === 0
+  c.outcome('手機直式 4 歲的內容不跑版', phoneOk, JSON.stringify(phone))
+  expect.soft(phoneOk, `手機直式不跑版：${JSON.stringify(phone)}`).toBe(true)
+  if (info.project.name === 'tab1200') {
+    // 模擬尺寸下元素截圖會錯位：用 CDP 拍整個畫面，「4 歲的內容」的開頭和結尾各一張
+    for (const [name, block] of [
+      ['手機直式-上', 'start'],
+      ['手機直式-下', 'end'],
+    ] as const) {
+      await page.evaluate((block) => document.querySelector('.stage4')?.scrollIntoView({ block }), block)
+      await page.waitForTimeout(300)
+      const { data } = await cdp.send('Page.captureScreenshot', { format: 'png' })
+      fs.writeFileSync(info.outputPath(`stage4-${name}.png`), Buffer.from(data, 'base64'))
+    }
+  }
+  await cdp.send('Emulation.clearDeviceMetricsOverride')
+  await cdp.detach()
+  await page.waitForTimeout(400)
+}
+
 function finish(k: Toddler, c: Checker, name: string) {
   k.save(`screen-${name}`, { screen: name, base: BASE_SEED, outcomes: c.outcomes, stats: c.stats, rules: c.rules })
   const serious = k.findings.filter((f) => f.severity === '卡死' || f.severity === '無法返回' || f.severity === '誤記作答')
@@ -38,6 +161,8 @@ test.describe('畫面', () => {
     test.skip(!want('parent'))
     const { k, c } = await setup(page, info, '家長區', { to: 'home' })
     try {
+      // T-150 P：中文的加長版課文 3 天前開了（家長區「4 歲的內容」要寫得出哪天開的、剛開每堂最多 1 個）
+      await putKV(page, ZH_STAGE4_KEY, { 'zh-long': { opened: await pageDay(page, -3), level: 1 } })
       const vp = page.viewportSize()!
       // PARENT-2：孩子點右上角 10 下不會開閘門
       k.behavior = '孩子點右上角'
@@ -84,6 +209,7 @@ test.describe('畫面', () => {
       let live = await waitLive(page, (l) => l === 'parent')
       c.outcome('答對進家長區', live === 'parent', `到 ${live}`)
       await settle(page)
+      if (live === 'parent') await stage4Check(page, c, info)
       // 家長區按返回（Android 返回）
       k.act('history.back()')
       await page.evaluate(() => history.back())
