@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { AnimatePresence, motion } from 'motion/react'
 import { NEXT_HINT, cancelNextStep, nextStep, useNextPending } from '../../ui/NextStep'
 import { Shell } from '../../games/Shell'
@@ -12,14 +13,15 @@ import { DUR, EASE } from '../../ui/motion'
 import type { Mood } from '../../art/Dino'
 import { leaveLesson } from '../LessonScreen'
 import type { LessonProps } from '../types'
-import { REVIEW_FROM, openLesson, partDone, PARTS, type Lesson } from './plan'
+import { openLesson, partDone, PARTS, type Lesson } from './plan'
 import { Fade, useLive, type PartCtx } from './kit'
 import { loadFormats } from '../formats'
 import { CountPart } from './Count'
 import { GivePart } from './Give'
-import { ComparePart } from './Compare'
 import { WritePart } from './Write'
-import { ReviewPart } from './Review'
+import { GamePart } from './Game'
+import { WarmPart } from './Warm'
+import { homeTip, pickWarmPlay, warmFor, type WarmPlay } from './warmup'
 import { TrainPart } from './Train'
 import { PlantPart } from './Plant'
 import { loadPlays, pickGivePlay, type GivePlay } from './plays'
@@ -27,7 +29,13 @@ import { getTodayWorld } from '../../lib/today-world'
 import { Scene } from '../../art/storybook/scenes'
 import './math.css'
 
-const PART_VIEW = { count: CountPart, give: GivePart, compare: ComparePart, write: WritePart, review: ReviewPart }
+const PART_VIEW = { count: CountPart, give: GivePart, game: GamePart, write: WritePart }
+/** 開場「玩著數數」今天的玩法（T-147，warmup.ts）的陪玩小字 */
+const WARM_HINT: Record<WarmPlay, (n: number) => string> = {
+  hop: (n) => `請他點青蛙，一下跳一片荷葉，一起數到 ${n}`,
+  fingers: () => '跟他一起舉手指（從食指開始比）',
+  find: () => '請他一個一個點出波波要找的，點過的不用再點',
+}
 /** 「拿給波波」那一段今天的玩法（T-127，plays.ts） */
 const GIVE_VIEW: Record<GivePlay, typeof GivePart> = { give: GivePart, train: TrainPart, plant: PlantPart }
 const GIVE_HINT: Record<GivePlay, (n: number) => string> = {
@@ -52,11 +60,11 @@ function WorldBackdrop() {
 /** 給大人看的一行陪玩提示（角落小字，孩子看不懂也不需要懂） */
 const HINT: Record<(typeof PARTS)[number] | 'open', (n: number) => string> = {
   open: (n) => `今天的數字是 ${n}`,
+  warm: (n) => `一起數到 ${n}`,
   count: (n) => (n === 1 ? '請他點一下畫面上那個東西，一起說「one」' : `請他一個一個點，邊點邊一起數到 ${n}`),
   give: () => '請他把東西拖到波波那裡，拿夠了按綠色勾勾',
-  compare: () => '請他點東西比較多的那一邊',
+  game: () => '請他點東西比較多的那艘船；氣球是點波波說的那個數字',
   write: () => '請他從綠點開始，沿著發亮的路描到星星',
-  review: () => '請他點波波說的那一個',
 }
 
 /** 數量點點：今天的數字旁邊一顆一顆的點（數字和數量放在一起看） */
@@ -71,13 +79,16 @@ function Dots({ n }: { n: number }) {
 }
 
 /**
- * 數學課（波波帶，約 5 分鐘）：開場「Today's number is three!」→ 數數 → 拿給波波 → 比多少 → 寫數字 → 小複習 → 下課（onDone，LessonScreen 放下課畫面、不定時給貼紙）。
+ * 數學課（波波帶，約 4.5～5 分鐘）：開場「Today's number is three!」→ 玩著數數（動作、手指、找找看每天輪一種，warmup.ts）→ 數數 → 拿給波波 → 小遊戲（船、氣球各 1 題）→ 寫數字（描兩次）
+ * → 下課（onDone，LessonScreen 放下課畫面、不定時給貼紙；下課畫面右上角給大人一句在家可以做的事，C1）。
+ * T-147 遊戲為主：家長 2026-11-14 不做童謠，開場改成三種玩著數數（主 repo docs/T-149-熱門幼兒App參考.md 第 3 節 M1～M3、C1）。
  * 進度（一天一個新數字、同一天再進來複習、錯很多隔天重上）在 ./plan.ts。
  * 每一段原地淡入淡出（不縮放、沒有整頁的段落卡片）；右上角一直掛著「今天的數字」。中途離開，同一天再進來從下一段接著上。
  */
 export function MathLesson({ onDone }: LessonProps) {
   const [lesson, setLesson] = useState<Lesson | null>(null)
   const [play, setPlay] = useState<GivePlay>('give')
+  const [warm, setWarm] = useState<WarmPlay>('hop')
   /** -1 是開場；PARTS.length 是下課 */
   const [part, setPart] = useState(-1)
   const [mood, setMood] = useState<Mood>('idle')
@@ -94,9 +105,10 @@ export function MathLesson({ onDone }: LessonProps) {
   const skipOpen = useRef<(() => void) | null>(null)
 
   useEffect(() => {
-    void Promise.all([openLesson(), loadFormats(), loadPlays(), pickGivePlay()]).then(([l, , , p]) => {
+    void Promise.all([openLesson(), loadFormats(), loadPlays(), pickGivePlay(), pickWarmPlay()]).then(([l, , , p, w]) => {
       if (!live.current) return
       setPlay(p)
+      setWarm(warmFor(w, l.n))
       setLesson(l)
     })
     return () => stopSpeech()
@@ -107,8 +119,6 @@ export function MathLesson({ onDone }: LessonProps) {
     partRef.current = p
     setPart(p)
   }
-  /** 這一段今天沒有東西可以做（只教了 1、2 的那兩天沒有小複習，plan.ts 的 reviewQs） */
-  const skip = (p: number, l: Lesson) => PARTS[p] === 'review' && l.max < REVIEW_FROM
 
   // 開場：波波說今天的數字，數字和點點在中間；說完就開始數數（中途離開過的從那一段接著上）。
   // 只說一句（T-108：以前複習、混合複習還先說 Let's practice again! 等等，輪到孩子之前話太多）；
@@ -123,10 +133,6 @@ export function MathLesson({ onDone }: LessonProps) {
       went = true
       host.current = null
       setMood('idle')
-      if (skip(lesson.part, lesson)) {
-        void partDone(lesson.part, 0, 0)
-        return void finish()
-      }
       go(lesson.part)
     }
     let atGate = false
@@ -200,8 +206,7 @@ export function MathLesson({ onDone }: LessonProps) {
       const p = partRef.current
       if (p < 0 || p >= PARTS.length) return
       void partDone(p, asked, missed)
-      if (p + 1 < PARTS.length && skip(p + 1, lesson)) void partDone(p + 1, 0, 0)
-      if (p + 1 >= PARTS.length || skip(p + 1, lesson)) void finish()
+      if (p + 1 >= PARTS.length) void finish()
       // 這一段做完：停在做完的樣子，等孩子點「下一步」才換下一段（T-118，家長：每一段都要自己點下一步）。進度已經記下了
       else
         void nextStep({ cue: opts?.cue }).then((ok) => {
@@ -215,7 +220,7 @@ export function MathLesson({ onDone }: LessonProps) {
   }
 
   const name = part >= 0 && part < PARTS.length ? PARTS[part] : null
-  const View = name === 'give' ? GIVE_VIEW[play] : name ? PART_VIEW[name] : null
+  const View = name === 'give' ? GIVE_VIEW[play] : name && name !== 'warm' ? PART_VIEW[name] : null
   const opening = part < 0
   const over = part >= PARTS.length
   return (
@@ -226,9 +231,9 @@ export function MathLesson({ onDone }: LessonProps) {
       onExit={leaveLesson}
       onHost={() => host.current?.()}
       demo={demo}
-      hintText={pending ? NEXT_HINT : name === 'give' ? GIVE_HINT[play](lesson.n) : HINT[name ?? 'open'](lesson.n)}
+      hintText={pending ? NEXT_HINT : name === 'give' ? GIVE_HINT[play](lesson.n) : name === 'warm' ? WARM_HINT[warm](lesson.n) : HINT[name ?? 'open'](lesson.n)}
     >
-      <div className={`ma-lesson ma-${name ?? (over ? 'over' : 'open')}`} data-lesson-part={name ?? (over ? 'over' : 'open')} data-give-play={play}>
+      <div className={`ma-lesson ma-${name ?? (over ? 'over' : 'open')}`} data-lesson-part={name ?? (over ? 'over' : 'open')} data-give-play={play} data-warm-play={warm}>
         <WorldBackdrop />
         {/* 右上角：今天的數字（開場在正中間，開始上課就掛到這裡；數到最後一個、寫好一次就跳一下） */}
         <AnimatePresence>
@@ -242,7 +247,9 @@ export function MathLesson({ onDone }: LessonProps) {
           )}
         </AnimatePresence>
         <Fade id={name ?? (over ? 'over' : 'open')}>
-          {View ? (
+          {name === 'warm' ? (
+            <WarmPart ctx={ctx} play={warm} />
+          ) : View ? (
             <View ctx={ctx} />
           ) : (
             <div className="ma-hero">
@@ -258,6 +265,22 @@ export function MathLesson({ onDone }: LessonProps) {
           )}
         </Fade>
       </div>
+      {over && createPortal(<HomeTip n={lesson.n} />, document.body)}
     </Shell>
+  )
+}
+
+/**
+ * 下課畫面給大人的一句「今天在家可以做的事」（C1，主 repo docs/T-149-熱門幼兒App參考.md）：右上角、跟陪玩小字同一種樣子，
+ * 疊在下課畫面（LessonScreen 的遮罩）上面、挑貼紙的畫面下面（挑貼紙有自己的陪玩小字）。不念、不能點。
+ * 放在數學課自己這裡，不改三堂課共用的 LessonBye.tsx。
+ */
+function HomeTip({ n }: { n: number }) {
+  const [tip] = useState(() => homeTip(n))
+  return (
+    <p className="coplay-hint ma-home-tip" aria-hidden="true" data-home-tip="">
+      <span className="coplay-tag">在家</span>
+      {tip}
+    </p>
   )
 }

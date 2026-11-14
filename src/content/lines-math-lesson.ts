@@ -1,6 +1,7 @@
 // 學校的數學課（src/lessons/math/）：波波帶。數字的念法、比多少、找數字、有幾個沿用 lines.ts 的 m.*、teach.*，這裡只放課裡多的句子。
 import { def } from './registry'
 import { THING_NOUNS } from '../lib/today-world'
+import { FIND_THINGS } from '../lessons/math/warmup'
 
 const NUM = ['zero', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten']
 
@@ -63,3 +64,25 @@ def('ma.write.done', 'bobo', 'Great writing!')
 def('ma.again', 'bobo', "Let's practice again!")
 def('ma.mix', 'bobo', "Let's play with numbers!")
 def('ma.bye', 'bobo', 'Great job today!')
+
+// ── 開場「玩著數數」（T-147，家長 2026-11-14 選定，取代童謠；math/warmup.ts、math/Warm.tsx）──────────
+// 每點一下念一個數用 lines.ts 的 m.num.N（One! Two!），這裡是題目和最後強調的總數（M1～M3：數完停住、說總數）
+const Cap = (s: string) => s[0].toUpperCase() + s.slice(1)
+for (let n = 1; n <= 10; n++) {
+  // 動作數數（M2）：點青蛙，跳一下數一下
+  def(`ma.hop.go.${n}`, 'bobo', n === 1 ? 'Jump | one time!' : `Jump | ${NUM[n]} times!`)
+  def(`ma.hop.total.${n}`, 'bobo', n === 1 ? 'One jump!' : `${Cap(NUM[n])} jumps!`)
+  // 手指數數（M1）：Show me three! … Three fingers!
+  def(`ma.fingers.show.${n}`, 'bobo', `Show me | ${NUM[n]}!`)
+  def(`ma.fingers.total.${n}`, 'bobo', n === 1 ? 'One finger!' : `${Cap(NUM[n])} fingers!`)
+}
+// 找找看（M3）：要找的 ≤ 5 個
+for (const t of FIND_THINGS)
+  for (let n = 1; n <= 5; n++) {
+    const noun = n === 1 ? t.one : t.many
+    def(`ma.find.${t.icon}.${n}`, 'bobo', `Find | ${NUM[n]} ${noun}!`)
+    def(`ma.found.${t.icon}.${n}`, 'bobo', `${Cap(NUM[n])} ${noun}!`)
+  }
+
+// 小遊戲（T-147）：找數字包成氣球，「Three! Pop the three!」（關鍵字先念，T-109）
+for (let n = 1; n <= 10; n++) def(`ma.pop.${n}`, 'bobo', `Pop the ${NUM[n]}!`)

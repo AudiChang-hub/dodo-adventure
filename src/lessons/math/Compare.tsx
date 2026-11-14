@@ -9,7 +9,8 @@ import { PACE } from '../../games/pace'
 import { say, sfx } from '../../lib/audio'
 import { logAttempt, logTeach } from '../../lib/record'
 import { FADE } from '../../ui/motion'
-import { compareQs, countIcons, type CompareQ } from './plan'
+import { compareQs, countIcons, type CompareQ, type Lesson } from './plan'
+import { Boat } from './skins'
 import { Fade, Quiz, pointIn, useLive, type PartCtx, type QuizResult } from './kit'
 import { nextStep } from '../../ui/NextStep'
 
@@ -24,10 +25,10 @@ const NUDGE_MS = 10_000
  * 第一次問「多」或「少」先由手做一次給他看（CompareDemo），教過才考。
  * 輪到他選、10 秒沒點：手點一下答案、再念一次題目（NUDGE_MS）。
  */
-export function ComparePart({ ctx }: { ctx: PartCtx }) {
+export function ComparePart({ ctx, pick = compareQs, skin }: { ctx: PartCtx; pick?: (l: Lesson) => CompareQ[]; skin?: 'boat' }) {
   const [qs] = useState(() => {
     const icons = countIcons(3)
-    return compareQs(ctx.lesson).map((q, k) => ({ ...q, icon: icons[k] }))
+    return pick(ctx.lesson).map((q, k) => ({ ...q, icon: icons[k] }))
   })
   const [i, setI] = useState(0)
   // 要先教的題目：手先做一次，做完才出題（跟換題同一次決定，題目不會先閃一下）
@@ -79,7 +80,7 @@ export function ComparePart({ ctx }: { ctx: PartCtx }) {
   return (
     <Fade id={`${i}-${card ? 'card' : 'q'}`}>
       {card ? (
-        <CompareDemo q={q} showing={ctx.demo} onDone={taught} />
+        <CompareDemo q={q} showing={ctx.demo} onDone={taught} skin={skin} />
       ) : (
         <Quiz
           host={ctx.host}
@@ -99,7 +100,11 @@ export function ComparePart({ ctx }: { ctx: PartCtx }) {
                 <CueArt cue={q.ask} icon={q.icon} />
               </div>
             ),
-            options: [q.a, q.b].map((c, k) => ({ id: String(c), label: k ? '右邊' : '左邊', view: <VisualView v={{ t: 'group', icon: q.icon, count: c }} fit={fit} /> })),
+            options: [q.a, q.b].map((c, k) => {
+              const pile = <VisualView v={{ t: 'group', icon: q.icon, count: c }} fit={fit} />
+              // 小遊戲（T-147）：兩堆坐在兩艘船上
+              return { id: String(c), label: k ? '右邊' : '左邊', view: skin === 'boat' ? <Boat>{pile}</Boat> : pile }
+            }),
           }}
         />
       )}
@@ -118,7 +123,7 @@ export function ComparePart({ ctx }: { ctx: PartCtx }) {
  * 示範中點空白、點另一堆：只有「看這裡」的圈圈，不會把示範搶掉（他還沒看到手點下去）；
  * 點到「多」的那一堆（看手學會了）：那一堆亮綠框、波一聲，直接換他。
  */
-function CompareDemo({ q, showing, onDone }: { q: CompareQ & { icon: string }; showing: PartCtx['demo']; onDone: (ms: number) => void }) {
+function CompareDemo({ q, showing, onDone, skin }: { q: CompareQ & { icon: string }; showing: PartCtx['demo']; onDone: (ms: number) => void; skin?: 'boat' }) {
   const less = q.ask === 'less'
   const piles = [5, 1]
   const answer = less ? 1 : 0
@@ -218,7 +223,13 @@ function CompareDemo({ q, showing, onDone }: { q: CompareQ & { icon: string }; s
             style={{ pointerEvents: opts ? undefined : 'none' }}
           >
             <div className="tile-in">
-              <VisualView v={{ t: 'group', icon: q.icon, count: c }} fit={5} />
+              {skin === 'boat' ? (
+                <Boat>
+                  <VisualView v={{ t: 'group', icon: q.icon, count: c }} fit={5} />
+                </Boat>
+              ) : (
+                <VisualView v={{ t: 'group', icon: q.icon, count: c }} fit={5} />
+              )}
             </div>
           </motion.button>
         ))}
