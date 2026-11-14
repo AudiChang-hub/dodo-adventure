@@ -45,6 +45,7 @@ const CHECKS = [
   { id: 'test-draw-brushes', name: '單元：畫畫的魔法筆（連續兩次不一樣）、印章、發呆時今天的一句', cmd: ['npx', 'tsx', 'scripts/test-draw-brushes.ts'], check: unit },
   { id: 'test-math-plan', name: '單元：數學課出題與熟練', cmd: ['npx', 'tsx', 'scripts/test-math-plan.ts'], check: unit },
   { id: 'test-zh-course', name: '單元：中文課文一天兩篇（一舊一新）、聊一聊、中文課不出聲', cmd: ['npx', 'tsx', 'scripts/test-zh-course.ts'], check: unit },
+  { id: 'test-zh-stage4', name: '單元：中文 4 歲內容（門的開、退級、暫停、加長版、找字 4 選 1）', cmd: ['npx', 'tsx', 'scripts/test-zh-stage4.ts'], check: unit },
   {
     id: 'zh-layout',
     name: '中文課文排版（180 篇 × 每行亮起來 × 3 種尺寸，字不被圖蓋住、不超出課本）',

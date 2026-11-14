@@ -4,6 +4,7 @@
 //   - 不能跟任何一張圖（含放大的）重疊；
 //   - 不能超出課本那一頁；圖也不能超出課本那一頁。
 // 開一個 vite dev（tests/layout/zh-layout.html，真的舞台 games/Shell 裡排 Reader），在瀏覽器裡一篇一篇換著量。
+// 加長版課文（T-150，texts.json 的 linesLong）也一樣量（第二輪，報告寫「（加長版）」）。
 // 用法：node scripts/check-zh-layout.mjs [--day 2] [--shots DIR]（--shots：把每個有問題的畫面截圖存下來）
 // 聊一聊（T-126）：每篇量一次——大圖、給大人的小字條、往下走的按鈕都在畫面裡、不互相蓋住，小字條的字不被圖蓋住。
 // 結果最後一行：「排版問題 N 個」；不是 0 就以 1 結束（npm run verify 的「中文課文排版」）。
@@ -58,8 +59,23 @@ try {
     })
     await page.waitForTimeout(300)
     const days = onlyDay ? [onlyDay] : await page.evaluate(() => window.zhDays)
-    const res = await page.evaluate(
-      ({ days }) => {
+    // 量兩輪：短版；加長版（T-150：有寫 linesLong 的篇換成 data.ts 的 longOf，同一個 day，聊一聊照常找得到）
+    const measure = (arg) => page.evaluate(
+      async ({ days, long }) => {
+        if (long) {
+          const m = await import(long)
+          // 讀到的不是這個 repo 的 data.ts（埠被別的工作階段的 vite 佔著）：換 ZH_LAYOUT_PORT 再跑
+          if (!m.longOf) throw new Error('data.ts 沒有 longOf：埠可能被別的 vite 佔著，換 ZH_LAYOUT_PORT')
+          const has = []
+          m.ZH_TEXTS.forEach((t, i) => {
+            const x = m.longOf(t)
+            if (!x) return
+            m.ZH_TEXTS[i] = x
+            window.zhLines[t.day] = x.lines.length
+            has.push(t.day)
+          })
+          days = days.filter((d) => has.includes(d))
+        }
         const out = []
         let n = 0
         const hit = (a, b, tol = 0.5) => a.left < b.right - tol && b.left < a.right - tol && a.top < b.bottom - tol && b.top < a.bottom - tol
@@ -139,10 +155,14 @@ try {
             }
           }
         }
-        return { out, n }
+        return { out: out.map((p) => ({ ...p, long: !!long })), n }
       },
-      { days },
+      arg,
     )
+    const short = await measure({ days })
+    // 量完加長版，這一頁的課文就換成加長版了：截圖（--shots）照加長版的樣子
+    const longer = await measure({ days, long: '/dodo-adventure/src/lessons/chinese/data.ts' })
+    const res = { out: [...short.out, ...longer.out], n: short.n + longer.n, nLong: longer.n }
     measured += res.n
     for (const p of res.out) problems.push({ vp: vp.name, ...p })
     if (shots && res.out.length) {
@@ -157,18 +177,18 @@ try {
       }
     }
     await page.close()
-    console.log(`${vp.name}：量了 ${res.n} 個畫面，問題 ${res.out.length} 個`)
+    console.log(`${vp.name}：量了 ${res.n} 個畫面（加長版 ${res.nLong} 個），問題 ${res.out.length} 個`)
   }
   await browser.close()
   // 同一篇同一個字只列一次
   const uniq = new Map()
   for (const p of problems) {
-    const k = `${p.vp}|${p.day}|${p.line}|${p.row}|${p.ch}|${p.what}`
+    const k = `${p.vp}|${p.day}|${p.long}|${p.line}|${p.row}|${p.ch}|${p.what}`
     if (!uniq.has(k)) uniq.set(k, p)
   }
   for (const p of [...uniq.values()].slice(0, 40))
-    console.log(`  ${p.vp} 第 ${p.day} 篇 ${p.line === 'talk' ? '聊一聊' : `亮第 ${p.line + 1} 行`}：${p.row >= 0 ? `第 ${p.row + 1} 行「${p.ch}」` : ''}${p.what}`)
-  console.log(`180 篇 × 3 種尺寸共 ${measured} 個畫面，排版問題 ${uniq.size} 個`)
+    console.log(`  ${p.vp} 第 ${p.day} 篇${p.long ? '（加長版）' : ''} ${p.line === 'talk' ? '聊一聊' : `亮第 ${p.line + 1} 行`}：${p.row >= 0 ? `第 ${p.row + 1} 行「${p.ch}」` : ''}${p.what}`)
+  console.log(`180 篇（加上有寫的加長版）× 3 種尺寸共 ${measured} 個畫面，排版問題 ${uniq.size} 個`)
   code = uniq.size ? 1 : 0
 } finally {
   kill()

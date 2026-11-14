@@ -1,9 +1,10 @@
 // 今天上哪一篇、第幾次、上過哪幾篇（存在這台平板的 kv；家長重置學習進度時跟著清掉）。
 // 排課規則（一天兩篇：一舊一新、照上過幾次走，T-136）在 ./course.ts。
-import { getKV, setKV, today } from '../../lib/db'
+import { db, getKV, setKV, today, type Attempt } from '../../lib/db'
 import { ZH_TEXTS, type ZhText } from './data'
 import { applyPick, current, finishRun, logSession, migrate, planOf, reviewDone, seedLog, undoPick, type Course, type OldMark, type Plan, type Session } from './course'
 import { GLYPH_START, afterGlyph, type GlyphState } from './match'
+import { PAUSE_KEY, STAGE4_KEY, advance, gates, glyphMax, planToday, type Gate, type Stage4Kv, type Stage4Plan } from './stage4'
 
 /** 上過至少一次的篇（day 的陣列）：紅字算教過了（data.ts 的 questionsOf），家長區的「上過幾篇」 */
 const DONE_KEY = 'zhLesson:done'
@@ -60,11 +61,11 @@ export async function lessonToday(): Promise<{ t: ZhText; n: number }> {
 }
 
 /** 中文課這一堂：新篇、舊篇（今天上完或跳過了的話 oldDone）、結尾小複習的篇 */
-export async function lessonPlan(): Promise<{ t: ZhText; n: number; old: ZhText | null; oldDone: boolean; review: ZhText[] }> {
+export async function lessonPlan(): Promise<{ t: ZhText; n: number; idx: number; old: ZhText | null; oldDone: boolean; review: ZhText[] }> {
   const date = today()
   const [r, o] = await Promise.all([plan(date), getKV<OldMark | null>(OLD_KEY, null)])
   const old = r.old == null ? null : textOf(r.old)
-  return { t: textOf(r.day), n: r.n, old, oldDone: reviewDone(o, r, date), review: r.review.map(textOf) }
+  return { t: textOf(r.day), n: r.n, idx: r.idx, old, oldDone: reviewDone(o, r, date), review: r.review.map(textOf) }
 }
 
 /** 舊篇上完（或大人跳過）：這一次課的複習做過了，再進來（同一天或隔天）直接上新篇（T-142）；上完的算這一篇多上一次（家長區） */
@@ -108,9 +109,51 @@ export const doneDays = async () => new Set(await getKV<number[]>(DONE_KEY, []))
 const GLYPH_KEY = 'zhLesson:glyph'
 export const glyphState = () => getKV<GlyphState>(GLYPH_KEY, GLYPH_START)
 
-/** 答完一題找一樣的字：升降級、記下示範過了 */
-export async function saveGlyph(r: { first: boolean; demo: boolean; led: boolean }) {
-  await setKV(GLYPH_KEY, afterGlyph(await glyphState(), { ...r, date: today() }))
+/** 答完一題找一樣的字：升降級（4 選 1 的門開了、沒暫停才升得到第 4 級）、記下示範過了。level 是這一題第幾級出的 */
+export async function saveGlyph(r: { first: boolean; demo: boolean; led: boolean; level?: number }) {
+  const [kv, paused, g] = await Promise.all([stage4Kv(), stage4Paused(), glyphState()])
+  await setKV(GLYPH_KEY, afterGlyph(g, { ...r, date: today() }, glyphMax(kv, paused)))
+  // 第一題 4 選 1 手示範過了：之後不再示範（./stage4.ts 的 demo4）
+  const G = kv['zh-glyph4']
+  if (r.demo && r.level === 4 && G && !G.demoed) await setKV(STAGE4_KEY, { ...kv, 'zh-glyph4': { ...G, demoed: true } } satisfies Stage4Kv)
+}
+
+// ── 4 歲的內容（T-150，./stage4.ts）────────────────────────────
+
+const stage4Kv = () => getKV<Stage4Kv>(STAGE4_KEY, {})
+/** 家長區的「暫停中文 4 歲內容」（T-150 P 做開關；kv 是 true 就暫停） */
+export const stage4Paused = async () => (await getKV<boolean | null>(PAUSE_KEY, null)) === true
+
+/** 中文課的作答紀錄（選圖 zhtext:、找字 zhglyph:）：門的判斷只看這些 */
+async function zhAttempts(): Promise<Attempt[]> {
+  try {
+    return await db.attempts.where('skill').startsWithAnyOf(['zhtext:', 'zhglyph:']).toArray()
+  } catch {
+    return []
+  }
+}
+
+/**
+ * 進中文課時算一次：該開的門開（同一天最多一道）、加長版該退就退；4 選 1 的門今天剛開、找字在第 3 級，直接升到第 4 級（門的條件就是第 3 級熟練）。
+ * 回傳這一堂的 4 歲內容（idx：第幾次課）。
+ */
+export async function stage4Today(idx: number): Promise<Stage4Plan> {
+  const date = today()
+  const [kv, paused, attempts, g] = await Promise.all([stage4Kv(), stage4Paused(), zhAttempts(), glyphState()])
+  const next = advance(kv, attempts, date, paused)
+  if (next !== kv) await setKV(STAGE4_KEY, next)
+  let level = g.level
+  if (!kv['zh-glyph4'] && next['zh-glyph4'] && g.level === 3) {
+    level = 4
+    await setKV(GLYPH_KEY, { ...g, level: 4, recent: [] } satisfies GlyphState)
+  }
+  return planToday(next, date, idx, level, paused)
+}
+
+/** 家長區（T-150 P）：中文每道門現在怎樣、暫停了沒 */
+export async function stage4Gates(): Promise<{ gates: Gate[]; paused: boolean }> {
+  const [kv, paused, attempts] = await Promise.all([stage4Kv(), stage4Paused(), zhAttempts()])
+  return { gates: gates(attempts, kv, today()), paused }
 }
 
 /** 每篇上過幾次（舊版照日期上過的算 1 次） */

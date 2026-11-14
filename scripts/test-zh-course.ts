@@ -9,7 +9,7 @@ import { enTodayOf, type EnSkip, type Heard } from '../src/screens/story/en-page
 import { ZH_RUN_MAX, zhRunKV, zhRunToday } from '../tests/ai-toddler/lib/zh-run'
 import { readFileSync, readdirSync, statSync } from 'node:fs'
 import { join } from 'node:path'
-import { ZH_TEXTS, linePics, plain, questionsOf, readPics, talkFor, talkOf, type ZhText } from '../src/lessons/chinese/data'
+import { ZH_TEXTS, hanCount, linePics, longOf, plain, questionsOf, readPics, talkFor, talkOf, type ZhText } from '../src/lessons/chinese/data'
 import { FAR, GLYPH_START, NEAR_MAX, afterGlyph, charOf, glyphPool, glyphQuestion, glyphSim, needsDemo, type GlyphQuestion, type GlyphState } from '../src/lessons/chinese/match'
 
 /** 固定的亂數（同一個 seed 每次一樣） */
@@ -524,6 +524,68 @@ function main() {
     // 別的一次課的複習紀錄不算
     assert.equal(reviewDone({ date: D(0), day: 1, for: 4 }, { day: 5, old: 2 }, D(1)), false)
     console.log('ok 15 第二篇是提議（T-142）：複習上完就下課，新篇不消耗；下次直接上那篇新篇（不再複習），之後複習、新篇輪流，不跳篇、不重複；中文課和英文故事一樣\n   ' + did.join('\n   '))
+  }
+  // ── 加長版課文（T-150，4 歲：複習時換成加長版）─────────────────
+  {
+    const longs = ZH_TEXTS.filter((t) => t.linesLong)
+    assert.ok(longs.length >= 30, `至少 30 篇（現在 ${longs.length} 篇）`)
+    const reds = (ls: string[]) => [...new Set(ls.join('').match(/【([^】]+)】/g)?.map((m) => m.slice(1, -1)) ?? [])].sort()
+    for (const t of longs) {
+      const L = t.linesLong!
+      const where = `第 ${t.day} 篇〈${t.title}〉加長版`
+      assert.ok(L.length >= 5 && L.length <= 6, `${where}：${L.length} 行（要 5～6 行）`)
+      const n = hanCount(L.join(''))
+      assert.ok(n >= 45 && n <= 60, `${where}：${n} 字（要 45～60 字）`)
+      L.forEach((l, i) => assert.ok(hanCount(l) <= 10, `${where}第 ${i + 1} 行 ${hanCount(l)} 字（一行最多 10 字）`))
+      assert.deepEqual(reds(L), [...t.redWords].sort(), `${where}：紅字詞跟短版一樣`)
+      assert.ok(/先|然後|再|最後|因為|所以/.test(L.join('')), `${where}：要有順序（先……然後……）或原因`)
+      // 加長版的字都畫過小圖（找一樣的字比得了像不像：node scripts/build-zh-glyphs.mjs）
+      for (const c of new Set(plain(L.join('')))) if (/[一-鿿]/.test(c)) assert.ok(glyphSim(c, c) != null, `${where}「${c}」沒有字形資料，要重跑 build-zh-glyphs`)
+      // 加長版多一題（順序或為什麼），示範的回答一句、不長
+      const k = t.parentTipLong
+      assert.ok(k && /先|然後|為什麼|怎麼/.test(k.q) && /[？?]$/.test(k.q), `${where}：要有一題順序或「為什麼」`)
+      assert.ok([...k!.a].length <= 16 && /[。！]$/.test(k!.a), `${where}「${k!.a}」：示範的回答 ≤ 16 字、一句`)
+      // 選圖題跟短版一樣、每一行旁邊的圖排得出來
+      const x = longOf(t)!
+      assert.ok(x.long && x.lines === L && x.parentTip === t.parentTip)
+      assert.deepEqual(questionsOf(x, new Set([t.day])), questionsOf(t, new Set([t.day])), `${where}：選圖題跟短版一樣`)
+      assert.equal(readPics(x).length, L.length)
+      // 不能出現孩子的名字（課文裡的人都是故事裡的人）
+      assert.ok(!/善鈞/.test(L.join('') + k!.q + k!.a), `${where}：出現孩子的名字`)
+    }
+    assert.equal(longOf(ZH_TEXTS.find((t) => !t.linesLong)!), null, '沒有加長版的篇：用短版')
+    console.log(`ok 16 加長版課文 ${longs.length} 篇（第 ${longs.map((t) => t.day).join('、')} 篇）：5～6 行、45～60 字、一行最多 10 字、紅字詞和選圖題跟短版一樣、有順序或原因、多一題順序或為什麼、字都有字形資料`)
+  }
+
+  // ── 找一樣的字第 4 級（T-150）：4 選 1，一個有一點像、兩個差很多，都從加長版挑 ───
+  {
+    let n = 0
+    let none = 0
+    for (const t of ZH_TEXTS.filter((x) => x.linesLong).map((x) => longOf(x)!))
+      for (let run = 1; run <= 3; run++)
+        for (let seed = 1; seed <= 4; seed++) {
+          const q = glyphQuestion(t, run, 4, rng(seed))
+          if (!q) {
+            none++
+            continue
+          }
+          n++
+          const where = `第 ${t.day} 篇加長版 第 ${run} 次`
+          assert.equal(q.options.length, 4, where)
+          assert.equal(new Set(q.options).size, 4, `${where}：選項重複 ${q.options.join('')}`)
+          const text = new Set(plain(t.lines.join('')))
+          const sims = q.options.slice(1).map((d) => {
+            assert.ok(text.has(d), `${where}：干擾字「${d}」不在加長版課文裡`)
+            assert.ok(![...q.word].includes(d), `${where}：干擾字「${d}」是答案那個詞裡的字`)
+            return glyphSim(q.char, d)!
+          })
+          assert.ok(sims.every((x) => x <= NEAR_MAX), `${where}：有只差一點點的字（${sims.map((x) => x.toFixed(2))}）`)
+          assert.ok(sims[0] >= FAR, `${where}：第一個干擾字要有一點像`)
+          const least = glyphPool(t, q.word).map((c) => glyphSim(q.char, c)!).sort((a, b) => a - b).slice(0, 3)
+          for (const x of sims.slice(1)) assert.ok((x < FAR || least.includes(x)) && x <= 0.5, `${where}：另外兩個要差很多（${x.toFixed(2)}）`)
+        }
+    assert.ok(n > none, `出得了的要多（出了 ${n} 題、出不了 ${none} 題）`)
+    console.log(`ok 17 找一樣的字第 4 級：加長版 ${n} 題都是 4 選 1、一個有一點像（${FAR}～${NEAR_MAX}）、兩個差很多、都在加長版課文裡；出不了的 ${none} 題照第 3 級出`)
   }
   console.log('ALL PASS')
 }

@@ -552,6 +552,16 @@
   letter-spacing: 0.06em;
   color: var(--ink-faint);
 }
+/* 加長版（T-150）多的一題：順序或「為什麼」，跟上面那題用一條淡虛線分開 */
+.zh-talk-long {
+  margin-top: 0.6cqh !important;
+  padding-top: 0.6cqh;
+  border-top: 1px dashed rgba(46, 42, 37, 0.18);
+  color: var(--ink);
+}
+.zh-talk-long .zh-talk-q {
+  font-size: 17px;
+}
 .zh-talk-more {
   font-size: 14px;
   line-height: 1.45;
@@ -806,6 +816,10 @@
 .zh-glyph-options[data-dim] .tile:not([data-pick]) {
   filter: opacity(0.5) saturate(0.55);
 }
+/* 第 4 級（T-150，4 歲）4 選 1：四張卡排一排，每張小一點才放得進（字還是很大） */
+.zh-glyph-options[data-n='4'] .tile {
+  width: min(24cqh, 16.5cqw);
+}
 
 /*
  * 跳過舊篇（T-136：一天兩篇，一舊一新；他累了大人可以跳過舊篇）：大人用的，放在右上角陪玩小字下面那一欄
@@ -1039,6 +1053,10 @@
   .zh-talk {
     padding: 2cqh 0;
   }
+  /* 加長版多一題（T-150）：手機直式放不下那麼多字，「還可以」那一句收起來，大圖才不會太小 */
+  .zh-talk-note.has-long .zh-talk-more {
+    display: none;
+  }
   .zh-read.talking .zh-controls {
     grid-area: 2 / 1;
   }
@@ -1065,6 +1083,9 @@
   }
   .zh-quiz .options.with-stim .tile {
     width: min(26cqh, 28vw);
+  }
+  .zh-quiz .zh-glyph-options[data-n='4'] .tile {
+    width: min(22cqh, 21vw);
   }
   .zh-ask {
     left: 50%;

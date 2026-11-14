@@ -216,7 +216,8 @@ export function Quiz({
         skill: `zhtext:${q.word}`,
         level: 1,
         phase: led.current ? 'guided' : 'quiz',
-        ...(led.current ? { metrics: { led: 1 } } : {}),
+        // 加長版（T-150）裡的選圖記 long：./stage4.ts 看它答得好不好、要不要退回短版
+        ...(led.current || t.long ? { metrics: { ...(led.current ? { led: 1 } : {}), ...(t.long ? { long: 1 } : {}) } } : {}),
         options: opts.map((o) => o.word),
         answer: q.word,
         taps: taps.current,

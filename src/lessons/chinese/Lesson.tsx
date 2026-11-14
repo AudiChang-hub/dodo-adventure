@@ -11,7 +11,7 @@ import { leaveLesson } from '../LessonScreen'
 import type { LessonProps } from '../types'
 import { type ZhText } from './data'
 import { stepsOf, weight, type Part, type Step } from './steps'
-import { doneDays, glyphState, lessonPlan, markDone, markOld, saveGlyph } from './progress'
+import { doneDays, glyphState, lessonPlan, markDone, markOld, saveGlyph, stage4Today } from './progress'
 import { NEXT_HINT, cancelNextStep, nextStep, useNextPending } from '../../ui/NextStep'
 import { Reader } from './Reader'
 import { Between, Breath, CHEER_BEAT_MS } from './Between'
@@ -58,6 +58,8 @@ function hintOf(s: Step | 'intro', talk: boolean, demo: boolean, hadOld: boolean
   if (s.k === 'quiz') return `${tag}念題目給他聽：「哪個是〇〇？」再指著${COUNT[s.q.options.length] ?? s.q.options.length}張有黃框的圖說「點一下」。點錯會有提示，不用幫他點。`
   if (talk) return `${tag}照下面的小字條問他，指著圖等他回答；答不出來就照字條說一次給他聽。右下角的「${s.go}」過幾秒才按得動。`
   // 複習篇孩子翻行（T-144）：他點亮的圖就翻下一行（Reader 的 childTurns）
+  // 加長版（T-150）：多了「先……然後……」和一個原因，念完聊一聊多一題
+  if (s.part === 'old' && s.t.long) return '這次念長一點的版本，多了「先……然後……」：你念這一行，他點亮的圖就翻下一行（你也可以按下一行）'
   if (s.part === 'old') return '他聽過這篇了：你念這一行，他點亮的圖就翻下一行（你也可以按下一行）'
   return `${hadOld ? '新的一篇：' : ''}念到這行時，請他點亮起來的圖（點了圖會動、不出聲）。指著字一行一行念，念完一行按右下「下一行」。`
 }
@@ -95,12 +97,15 @@ export function ChineseLessonBody({ onDone }: LessonProps) {
 
   useEffect(() => {
     let off = false
-    void Promise.all([lessonPlan(), doneDays(), getKV<boolean>(INTRO_KV, false), glyphState()]).then(([p, done, seen, g]) => {
+    void Promise.all([lessonPlan(), doneDays(), getKV<boolean>(INTRO_KV, false)]).then(async ([p, done, seen]) => {
+      // 4 歲的內容（T-150，./stage4.ts）：進課算一次門，可能把找字升到第 4 級，所以找字的級數在它之後讀
+      const s4 = await stage4Today(p.idx)
+      const g = await glyphState()
       if (off) return
       const o = p.oldDone ? null : p.old
       setT(p.t)
       setOld(o)
-      setSteps(stepsOf({ ...p, old: o }, done, g))
+      setSteps(stepsOf({ ...p, old: o }, done, g, Math.random, s4))
       setAt(seen ? 0 : 'intro')
     })
     return () => {
@@ -245,7 +250,7 @@ export function ChineseLessonBody({ onDone }: LessonProps) {
           ) : s.k === 'read' ? (
             <Reader t={s.t} host={host} goLabel={s.go} onTalk={setTalk} onNext={afterRead} onLine={onLine} setMood={setMood} childTurns={s.part === 'old'} />
           ) : s.k === 'glyph' ? (
-            <Glyph t={s.t} q={s.q} demo={s.demo} host={host} setMood={setMood} onResult={(r) => void saveGlyph(r)} onDemoEnd={() => setGDemoing(false)} onNext={next} />
+            <Glyph t={s.t} q={s.q} demo={s.demo} host={host} setMood={setMood} onResult={(r) => void saveGlyph({ ...r, level: s.q.level })} onDemoEnd={() => setGDemoing(false)} onNext={next} />
           ) : (
             <Quiz key={at} t={s.t} q={s.q} last={at + 1 >= steps.length} first={s.first} host={host} setMood={setMood} onNext={next} />
           )}

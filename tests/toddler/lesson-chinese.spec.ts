@@ -1204,6 +1204,133 @@ test.describe('中文課', () => {
   })
 
   /**
+   * T-150 4 歲的內容（src/lessons/chinese/stage4.ts）：兩道門都開了（開了 14 天以上）。第 5 次課：複習 3 次前的〈卡佛和花生〉用加長版（6 行），
+   * 聊一聊多一題順序或為什麼；舊篇的找一樣的字是 4 選 1（一半的找字），新篇〈三隻熊〉照舊短版、3 選 1。App 照舊不念中文。
+   * 三歲孩子：加長版念的時候亂點、手掌壓、念到一半返回再進來；4 選 1 時兩指一起按、連點錯的、連點答案。
+   */
+  test('T-150 4 歲內容：門開了，複習用加長版、聊一聊多一題、找字 4 選 1；亂點、返回、兩指、連點；新篇照舊短版', async ({ page }, info) => {
+    test.skip(!want('lesson-chinese-stage4'))
+    test.setTimeout(10 * 60_000)
+    // 記下開始播的音檔（要在 boot 之前注入）
+    await page.addInitScript({ path: path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'ai-toddler', 'heard.js') })
+    const { k, c } = await setup(page, info, '4歲內容')
+    try {
+      const voice = await watchVoice(page)
+      await putKV(page, 'zhLesson:introSeen', true)
+      await putKV(page, 'zhLesson:done', [8, 9, 10, 11])
+      await putKV(page, 'zhLesson:course', { day: 11, runs: ['2026-01-04'] })
+      await putKV(page, 'zhLesson:log', [8, 9, 10, 11].map((day, i) => ({ date: `2026-01-0${i + 1}`, day })))
+      await putKV(page, 'lesson.chinese.stage4', { 'zh-long': { opened: '2026-01-01', level: 1 }, 'zh-glyph4': { opened: '2026-01-02', demoed: true } })
+      await putKV(page, 'zhLesson:glyph', { level: 4, recent: [], demos: 3, learned: true })
+      if (!(await enter(k, c))) return
+      let s = await state(page)
+      c.outcome('先複習〈卡佛和花生〉，用加長版（6 行）', s.title === '卡佛和花生' && s.lines === 6, `〈${s.title}〉${s.lines} 行`)
+      if (s.lines !== 6) return void (await c.once('s4-long', '困惑', '門開了，複習沒有用加長版', `〈${s.title}〉${s.lines} 行`))
+      await c.screenOk('加長版・念課文')
+      await shot(page, info, '加長版-念課文')
+
+      // 加長版念的時候亂點：連點亮的圖、手掌壓課本、亂點課本；不會跳過、不會一下翻好幾行
+      k.behavior = '加長版念的時候亂點'
+      const pic = (await points(page, '.zh-line.on .zh-pic'))[0]
+      if (pic) await k.spam(pic, 4, '亮的圖')
+      const book = (await points(page, '.zh-page'))[0]
+      if (book) {
+        await k.palm([{ x: book.x - 60, y: book.y }, { x: book.x, y: book.y + 40 }, { x: book.x + 60, y: book.y }], 250)
+        await k.spam({ x: book.x + k.r.range(-120, 120), y: book.y + k.r.range(-60, 60) }, 3, '課本')
+      }
+      await k.wait(800)
+      s = await state(page)
+      c.outcome('亂點不跳過加長版、不會一下翻好幾行', s.title === '卡佛和花生' && !s.talk && Number(s.at) <= 2, `〈${s.title}〉第 ${s.at} 行`)
+
+      // 念到一半返回 → 首頁；再進來還是加長版、從第一行開始
+      k.behavior = '加長版念到一半返回'
+      await adult(k, '.zh-next', '下一行（大人）')
+      if (!(await toHome(k, c))) return
+      if (!(await enter(k, c))) return
+      s = await state(page)
+      c.outcome('返回再進來：還是加長版、從第一行', s.title === '卡佛和花生' && s.lines === 6 && s.at === '0', `〈${s.title}〉${s.lines} 行、第 ${s.at} 行`)
+
+      // 念完：聊一聊多一題（順序或為什麼）
+      k.behavior = '加長版念完、聊一聊'
+      const longQ = page.waitForSelector('.zh-talk-long', { timeout: 90_000 }).then(
+        async () => {
+          await page.waitForTimeout(600)
+          await shot(page, info, '加長版-聊一聊')
+          return (await page.textContent('.zh-talk-long')) ?? ''
+        },
+        () => '',
+      )
+      if (!(await readAll(k, c))) return
+      const q = await longQ
+      c.outcome('聊一聊多一題順序或為什麼', /先|為什麼/.test(q), q)
+      if (!q) await c.once('s4-talk', '困惑', '加長版的聊一聊沒有多一題', '')
+
+      // 選圖答完，到找一樣的字：4 選 1（已經示範過，不再示範）
+      if (!(await toGlyph(k, c))) return
+      s = await state(page)
+      const tiles = (await points(page, '.zh-glyph-options .tile')).length
+      c.outcome('舊篇的找一樣的字是 4 選 1、沒有示範', tiles === 4 && !s.dim, `${tiles} 個字${s.dim ? '、在示範' : ''}`)
+      if (tiles !== 4) await c.once('s4-glyph4', '困惑', '門開了，找一樣的字不是 4 選 1', `${tiles} 個字`)
+      await c.screenOk('找一樣的字・4 選 1')
+      await shot(page, info, '找字-4選1')
+      k.behavior = '4 選 1：兩指一起按、連點錯的、連點答案'
+      const two = (await points(page, '.zh-glyph-options .tile:not([data-answer])')).slice(0, 2)
+      if (two.length === 2) await k.palm(two as Pt[], 250)
+      await k.wait(1200)
+      const wrong = (await points(page, '.zh-glyph-options .tile:not([data-answer])'))[2]
+      if (wrong) await k.spam(wrong, 3, '錯的字')
+      await k.wait(800)
+      const ans = (await points(page, '.zh-glyph-options .tile[data-answer]'))[0]
+      if (ans) await k.spam(ans, 5, '答案')
+      await k.wait(1500)
+
+      // 複習上完 → 點「再一篇」上新篇：照舊短版（〈三隻熊〉4 行）
+      k.behavior = '複習上完上新篇'
+      const o = await answerUntil(k, (s) => s.title === '三隻熊' && !s.quiz, 120_000)
+      s = await state(page)
+      c.outcome('新篇〈三隻熊〉照舊短版（4 行）', o.ok && s.lines === 4, `〈${s.title}〉${s.lines} 行`)
+      if (!o.ok) return void (await c.once('s4-new', '卡死', '加長版複習上完上不了新篇', ''))
+      if (!(await readAll(k, c))) return
+      const talkLong = !!(await page.$('.zh-talk-long'))
+      c.outcome('新篇的聊一聊沒有多那一題', !talkLong, talkLong ? '有' : '沒有')
+      const done = await answerUntil(k, (s) => s.cheer, 120_000)
+      c.outcome('新篇上完下課', done.ok, [...done.kinds].join('、'))
+
+      // 作答紀錄：加長版的選圖記 long；4 選 1 那題記第 4 級、4 個選項、只一筆；新篇的找字照第 3 級
+      const rows = await page.evaluate(
+        () =>
+          new Promise<{ game: string; itemId: string; level: number; options: number; long: boolean }[]>((res) => {
+            const rq = indexedDB.open('dodo-adventure')
+            rq.onsuccess = () => {
+              const g = rq.result.transaction('attempts').objectStore('attempts').getAll()
+              g.onsuccess = () =>
+                res(
+                  (g.result as { ts: number; game: string; itemId: string; level: number; options?: string[]; metrics?: Record<string, number> }[])
+                    .sort((a, b) => a.ts - b.ts)
+                    .map((a) => ({ game: a.game, itemId: a.itemId, level: a.level, options: a.options?.length ?? 0, long: a.metrics?.long === 1 })),
+                )
+            }
+          }),
+      )
+      const oldQuiz = rows.filter((r) => r.game === 'zh-lesson' && r.itemId.startsWith('9:'))
+      const newQuiz = rows.filter((r) => r.game === 'zh-lesson' && r.itemId.startsWith('12:'))
+      c.outcome('加長版的選圖記 long、新篇的不記', oldQuiz.length > 0 && oldQuiz.every((r) => r.long) && newQuiz.every((r) => !r.long), `舊 ${oldQuiz.map((r) => r.long).join(',')}；新 ${newQuiz.map((r) => r.long).join(',')}`)
+      const g4 = rows.filter((r) => r.game === 'zh-glyph' && r.itemId.startsWith('9:'))
+      c.outcome('4 選 1 只記一筆、第 4 級、4 個選項', g4.length === 1 && g4[0].level === 4 && g4[0].options === 4, JSON.stringify(g4))
+      if (g4.length !== 1) await c.once('s4-glyph-rows', '誤記作答', '4 選 1 兩指、連點記了不只一筆', `${g4.length} 筆`)
+      const gNew = rows.filter((r) => r.game === 'zh-glyph' && r.itemId.startsWith('12:'))
+      c.outcome('新篇的找字照第 3 級（3 選 1）', gNew.every((r) => r.level === 3 && r.options === 3), JSON.stringify(gNew))
+      const v = await voice()
+      c.outcome('整堂沒有念中文、沒有平板內建語音', !v.zh.length && !v.tts, `中文 ${v.zh.length}、內建語音 ${v.tts}`)
+      if (v.zh.length || v.tts) await c.once('s4-voice', '困惑', '4 歲內容念了中文', v.zh.join('、'))
+      await checkDoubleRecords(k, c)
+      await c.flush()
+    } finally {
+      finish(k, c, '4歲內容')
+    }
+  })
+
+  /**
    * T-146（盲測 dbc602c：〈但以理愛吃青菜〉第 2 行「國王請他吃大肉肉，」沒有紅字，亮的卻是青菜——借了後面那一行的圖，孩子連點都說「都一樣」）：
    * 亮的圖要對得上大人正在念的那一行（這一行裡提到的、或緊鄰上一行在講的，data.ts 的 readPics）；對不上的行不放圖、只亮那一行的字。
    * 點沒有圖的那一行的字、空白處，不會卡住，大人照樣念得下去。
