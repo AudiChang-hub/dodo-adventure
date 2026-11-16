@@ -10,41 +10,84 @@ export const DY = [-1, 0, 1, 0]
 const BIT = [1, 2, 4, 8]
 const OPP = [2, 3, 0, 1]
 
-export type MazeLevel = 1 | 2 | 3 | 4 | 5
-export const MAZE_MAX: MazeLevel = 5
-/**
- * 每一級：幾欄幾列、路上最多幾個岔路（走錯也走得進去的路口數）、從起點到終點至少經過幾格。
- * 橫的平板：欄 ≥ 列。最大 5×5（家長：「最多約 5×5」）。
- */
-export const MAZE_LEVELS: Record<MazeLevel, { cols: number; rows: number; choices: number; minLen: number }> = {
-  1: { cols: 3, rows: 3, choices: 1, minLen: 5 },
-  2: { cols: 4, rows: 3, choices: 1, minLen: 6 },
-  3: { cols: 4, rows: 4, choices: 2, minLen: 7 },
-  4: { cols: 5, rows: 4, choices: 2, minLen: 8 },
-  5: { cols: 5, rows: 5, choices: 3, minLen: 9 },
+export type MazeLevel = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10
+export const MAZE_MAX: MazeLevel = 10
+/** 4～5 歲的玩法（只在最高 2 級）：key 先拿鑰匙才打得開終點、stars 沿路收集星星才到得了終點 */
+export type MazeExtra = 'key' | 'stars'
+export interface MazeLevelSpec {
+  cols: number
+  rows: number
+  /** 路上岔路（走錯也走得進去的路口數）最多幾個 */
+  choices: number
+  /** 路上岔路至少幾個（第 6 級以上：越高死路越多） */
+  minChoices?: number
+  /** 從起點到終點至少經過幾格（含頭尾） */
+  minLen: number
+  /** 路上至少轉幾個彎 */
+  minTurns?: number
+  /** 挖洞時多常跳回之前的格子另外開一條路（0 = 一路挖到底，長走廊；越大岔路、死路越多） */
+  branchy?: number
+  /** 走完算「第一次就對」可以多走幾步（走進岔路再回來） */
+  detour: number
+  extra?: MazeExtra
 }
+/** 第一次就對可以多走幾步（第 1～5 級） */
+export const DETOUR = 2
+/**
+ * 每一級：幾欄幾列、岔路幾個、路至少多長、至少幾個彎。橫的平板：欄 ≥ 列。
+ * 1～5 級（T-156，3 歲）：最大 5×5、岔路最多 3 個。
+ * 6～10 級（T-158，家長 2026-11-16：「迷宮太簡單了，大概可以玩到 4 歲或 5 歲的」）：長方形排滿橫的平板，最大 10×7（平板上一格約 75px）；
+ * 岔路、死路、轉彎越來越多，路越來越長；第 9 級先拿鑰匙、第 10 級收集 3 顆星星。
+ */
+export const MAZE_LEVELS: Record<MazeLevel, MazeLevelSpec> = {
+  1: { cols: 3, rows: 3, choices: 1, minLen: 5, detour: DETOUR },
+  2: { cols: 4, rows: 3, choices: 1, minLen: 6, detour: DETOUR },
+  3: { cols: 4, rows: 4, choices: 2, minLen: 7, detour: DETOUR },
+  4: { cols: 5, rows: 4, choices: 2, minLen: 8, detour: DETOUR },
+  5: { cols: 5, rows: 5, choices: 3, minLen: 9, detour: DETOUR },
+  6: { cols: 6, rows: 5, minChoices: 2, choices: 5, minLen: 12, minTurns: 6, branchy: 0.25, detour: 4 },
+  7: { cols: 7, rows: 5, minChoices: 3, choices: 6, minLen: 15, minTurns: 8, branchy: 0.25, detour: 4 },
+  8: { cols: 8, rows: 5, minChoices: 4, choices: 7, minLen: 17, minTurns: 9, branchy: 0.25, detour: 6 },
+  9: { cols: 9, rows: 6, minChoices: 4, choices: 8, minLen: 18, minTurns: 10, branchy: 0.25, detour: 6, extra: 'key' },
+  10: { cols: 10, rows: 7, minChoices: 5, choices: 10, minLen: 20, minTurns: 11, branchy: 0.25, detour: 8, extra: 'stars' },
+}
+/** 收集幾顆星星（第 10 級） */
+export const STAR_COUNT = 3
+/** 鑰匙、星星離主要的路至少幾格（要繞進岔路才拿得到） */
+export const ITEM_OFF = 2
 export const MAZE_GAME = 'logic-maze'
 /** 作答紀錄的技能：maze:3x3、maze:4x3… */
 export const mazeSkill = (level: MazeLevel) => `maze:${MAZE_LEVELS[level].cols}x${MAZE_LEVELS[level].rows}`
-/**
- * 走完一個算「第一次就對」：沒有靠發呆提示、走的步數 ≤ 最短的 ＋ DETOUR（走進岔路一格再回來可以）。撞牆不算錯、不計時。
- * 升降級照邏輯遊戲同一套（sort-plan 的 stepLevel）。
- */
-export const DETOUR = 2
 /** 記住最近幾個迷宮：新的不跟這幾個一樣 */
 export const RECENT_MAZES = 5
 
-/** 主題：背景、裝飾（Fluent Emoji，App 已經有的那一套），畫面在 ./Maze.tsx 的 THEME_LOOK */
-export type ThemeId = 'forest' | 'sea' | 'snow' | 'garden'
-export const THEME_IDS: ThemeId[] = ['forest', 'sea', 'snow', 'garden']
-export const THEME_DECO: Record<ThemeId, string[]> = {
-  forest: ['deciduous-tree', 'evergreen-tree', 'mushroom', 'herb'],
-  sea: ['tropical-fish', 'octopus', 'crab', 'dolphin'],
-  snow: ['snowman', 'snowflake', 'evergreen-tree', 'penguin'],
-  garden: ['tulip', 'sunflower', 'blossom', 'seedling'],
-}
-/** 終點：恐龍要去拿的東西（Fluent Emoji） */
-export type GoalId = 'apple' | 'strawberry' | 'banana' | 'watermelon' | 'cookie' | 'cupcake' | 'eggs' | 'carrot'
+/** 終點：恐龍（或小動物）要去拿的東西（Fluent Emoji，App 已經有的那一套）。T-158（家長：圖片太少）從 8 種加到 25 種 */
+export type GoalId =
+  | 'apple'
+  | 'strawberry'
+  | 'banana'
+  | 'watermelon'
+  | 'cookie'
+  | 'cupcake'
+  | 'eggs'
+  | 'carrot'
+  | 'grapes'
+  | 'cherries'
+  | 'peach'
+  | 'pear'
+  | 'donut'
+  | 'icecream'
+  | 'lollipop'
+  | 'cake'
+  | 'pizza'
+  | 'milk'
+  | 'bread'
+  | 'rocket'
+  | 'planet'
+  | 'teddy'
+  | 'gift'
+  | 'balloon'
+  | 'umbrella'
 export const GOALS: Record<GoalId, { icon: string; find: string; got: string }> = {
   apple: { icon: 'red-apple', find: 'Find the apple!', got: 'Yum! An apple!' },
   strawberry: { icon: 'strawberry', find: 'Find the strawberry!', got: 'Yum! A strawberry!' },
@@ -54,9 +97,70 @@ export const GOALS: Record<GoalId, { icon: string; find: string; got: string }> 
   cupcake: { icon: 'cupcake', find: 'Find the cupcake!', got: 'Yum! A cupcake!' },
   eggs: { icon: 'nest-with-eggs', find: 'Find the eggs!', got: 'The eggs! Hooray!' },
   carrot: { icon: 'carrot', find: 'Find the carrot!', got: 'Yum! A carrot!' },
+  grapes: { icon: 'grapes', find: 'Find the grapes!', got: 'Yum! Grapes!' },
+  cherries: { icon: 'cherries', find: 'Find the cherries!', got: 'Yum! Cherries!' },
+  peach: { icon: 'peach', find: 'Find the peach!', got: 'Yum! A peach!' },
+  pear: { icon: 'pear', find: 'Find the pear!', got: 'Yum! A pear!' },
+  donut: { icon: 'doughnut', find: 'Find the donut!', got: 'Yum! A donut!' },
+  icecream: { icon: 'ice-cream', find: 'Find the ice cream!', got: 'Yum! Ice cream!' },
+  lollipop: { icon: 'lollipop', find: 'Find the lollipop!', got: 'Yum! A lollipop!' },
+  cake: { icon: 'birthday-cake', find: 'Find the cake!', got: 'Yum! A cake!' },
+  pizza: { icon: 'pizza', find: 'Find the pizza!', got: 'Yum! Pizza!' },
+  milk: { icon: 'glass-of-milk', find: 'Find the milk!', got: 'Yum! Milk!' },
+  bread: { icon: 'bread', find: 'Find the bread!', got: 'Yum! Bread!' },
+  rocket: { icon: 'rocket', find: 'Find the rocket!', got: 'The rocket! Hooray!' },
+  planet: { icon: 'ringed-planet', find: 'Find the planet!', got: 'The planet! Hooray!' },
+  teddy: { icon: 'teddy-bear', find: 'Find the teddy bear!', got: 'My teddy bear! Hooray!' },
+  gift: { icon: 'wrapped-gift', find: 'Find the present!', got: 'A present! Hooray!' },
+  balloon: { icon: 'balloon', find: 'Find the balloon!', got: 'A balloon! Hooray!' },
+  umbrella: { icon: 'umbrella', find: 'Find the umbrella!', got: 'The umbrella! Hooray!' },
 }
 export const GOAL_IDS = Object.keys(GOALS) as GoalId[]
+
+/**
+ * 主題（T-158，家長：圖片太少）：4 種加到 12 種。每種：牆縫裡的裝飾（Fluent Emoji，4～6 樣隨機擺）、終點會出現的東西（對得上主題的）。
+ * 底色、牆、路的顏色在 ./Maze.tsx 的 THEME_LOOK。裝飾不用星星、鑰匙（第 9、10 級要拿的東西），也不用這個主題終點的東西。
+ */
+export type ThemeId = 'forest' | 'sea' | 'snow' | 'garden' | 'desert' | 'space' | 'city' | 'farm' | 'dino' | 'candy' | 'rain' | 'night'
+export const THEMES: Record<ThemeId, { deco: string[]; goals: GoalId[] }> = {
+  forest: { deco: ['deciduous-tree', 'evergreen-tree', 'mushroom', 'herb', 'leaf-fluttering-in-wind', 'hedgehog'], goals: ['apple', 'strawberry', 'pear', 'cherries', 'grapes'] },
+  sea: { deco: ['tropical-fish', 'octopus', 'crab', 'dolphin', 'jellyfish', 'spouting-whale'], goals: ['watermelon', 'icecream', 'banana', 'peach'] },
+  snow: { deco: ['snowman', 'snowflake', 'evergreen-tree', 'penguin', 'ice'], goals: ['cookie', 'milk', 'gift', 'cupcake'] },
+  garden: { deco: ['tulip', 'sunflower', 'blossom', 'seedling', 'butterfly', 'honeybee'], goals: ['strawberry', 'carrot', 'peach', 'cherries', 'apple'] },
+  desert: { deco: ['sun-with-face', 'rock', 'lizard', 'snake', 'footprints'], goals: ['watermelon', 'banana', 'icecream', 'milk'] },
+  space: { deco: ['flying-saucer', 'crescent-moon', 'robot', 'sun'], goals: ['rocket', 'planet', 'cookie', 'icecream'] },
+  city: { deco: ['taxi', 'bus', 'vertical-traffic-light', 'bus-stop', 'police-car', 'house'], goals: ['pizza', 'donut', 'balloon', 'bread', 'icecream'] },
+  farm: { deco: ['cow', 'pig', 'chicken', 'tractor', 'ewe', 'horse'], goals: ['eggs', 'carrot', 'milk', 'apple', 'bread'] },
+  dino: { deco: ['sauropod', 't-rex', 'volcano', 'footprints', 'rock', 'herb'], goals: ['eggs', 'banana', 'grapes', 'watermelon'] },
+  candy: { deco: ['soft-ice-cream', 'popcorn', 'party-popper', 'yo-yo', 'balloon'], goals: ['lollipop', 'donut', 'cupcake', 'cake', 'cookie'] },
+  rain: { deco: ['cloud-with-rain', 'droplet', 'snail', 'frog', 'rainbow', 'duck'], goals: ['umbrella', 'cupcake', 'milk', 'cookie'] },
+  night: { deco: ['crescent-moon', 'owl', 'zzz', 'candle', 'mouse-face'], goals: ['teddy', 'cookie', 'milk', 'gift', 'balloon'] },
+}
+export const THEME_IDS = Object.keys(THEMES) as ThemeId[]
+export const THEME_DECO = Object.fromEntries(THEME_IDS.map((t) => [t, THEMES[t].deco])) as Record<ThemeId, string[]>
+
+/**
+ * 走迷宮的角色：三隻恐龍（App 的主角），T-158 加上故事繪本裡 App 自己畫的小動物，隨機出現。
+ * emoji：同一隻動物的 Fluent Emoji，這一隻在走的時候牆縫裡不放（不會看到兩隻一樣的）。
+ */
+export type AnimalId = 'cat' | 'rabbit' | 'turtle' | 'pig' | 'chicken' | 'frog'
+export type WalkerId = Speaker | AnimalId
 export const DINOS: Speaker[] = ['dodo', 'bobo', 'momo']
+export const ANIMALS: Record<AnimalId, { emoji: string[] }> = {
+  cat: { emoji: ['cat', 'cat-face'] },
+  rabbit: { emoji: ['rabbit', 'rabbit-face'] },
+  turtle: { emoji: ['turtle'] },
+  pig: { emoji: ['pig', 'pig-face'] },
+  chicken: { emoji: ['chicken'] },
+  frog: { emoji: ['frog'] },
+}
+export const WALKERS: WalkerId[] = [...DINOS, ...(Object.keys(ANIMALS) as AnimalId[])]
+export const isDino = (w: WalkerId): w is Speaker => (DINOS as string[]).includes(w)
+/** 這個主題、這個角色、這個終點的時候，牆縫裡可以放哪些裝飾 */
+export const decoFor = (theme: ThemeId, walker: WalkerId, goalId: GoalId) => {
+  const no = new Set([GOALS[goalId].icon, ...(isDino(walker) ? [] : ANIMALS[walker].emoji)])
+  return THEMES[theme].deco.filter((d) => !no.has(d))
+}
 
 export interface Maze {
   level: MazeLevel
@@ -68,9 +172,16 @@ export interface Maze {
   goal: number
   /** 最短的路（起點到終點，含頭尾） */
   path: number[]
+  /** 第 9、10 級：鑰匙 key、星星 stars */
+  extra?: MazeExtra
+  /** 要先拿到的東西在哪幾格（鑰匙 1 格、星星 STAR_COUNT 格；沒有：空陣列） */
+  items: number[]
+  /** 拿完全部 items 再到終點最少要走幾步（沒有 items：path.length − 1） */
+  tour: number
   theme: ThemeId
   goalId: GoalId
-  dino: Speaker
+  /** 走迷宮的角色（恐龍或小動物） */
+  dino: WalkerId
   /** 同一個迷宮（大小、牆、起點、終點都一樣）才一樣 */
   sig: string
 }
@@ -100,21 +211,25 @@ export function dirOf(cols: number, rows: number, a: number, b: number): number 
 
 export const degree = (links: number[], c: number) => BIT.filter((b) => links[c] & b).length
 
-/** 深度優先挖洞：從隨機一格出發，每一格都走得到、任兩格之間剛好一條路 */
-export function carve(cols: number, rows: number, rnd: Rnd = Math.random): number[] {
+/**
+ * 挖洞：從隨機一格出發，每一格都走得到、任兩格之間剛好一條路。
+ * branchy = 0：深度優先（一路挖到底，長走廊、岔路少）；branchy > 0（T-158）：有這個機率改從之前挖過的任一格再開一條路，岔路、死路比較多。
+ */
+export function carve(cols: number, rows: number, rnd: Rnd = Math.random, branchy = 0): number[] {
   const links = Array<number>(cols * rows).fill(0)
   const seen = Array<boolean>(cols * rows).fill(false)
   const first = ri(cols * rows, rnd)
   const stack = [first]
   seen[first] = true
   while (stack.length) {
-    const c = stack[stack.length - 1]
+    const at = branchy > 0 && rnd() < branchy ? ri(stack.length, rnd) : stack.length - 1
+    const c = stack[at]
     const opts = [0, 1, 2, 3].filter((d) => {
       const nb = step(cols, rows, c, d)
       return nb >= 0 && !seen[nb]
     })
     if (!opts.length) {
-      stack.pop()
+      stack.splice(at, 1)
       continue
     }
     const d = pick(opts, rnd)
@@ -180,32 +295,148 @@ export function choicesOf(links: number[], path: number[]): number {
 
 export const sigOf = (cols: number, rows: number, links: number[], start: number, goal: number) => `${cols}x${rows}:${links.map((x) => x.toString(16)).join('')}:${start}>${goal}`
 
+/** 路上轉幾個彎 */
+export function turnsOf(cols: number, rows: number, path: number[]): number {
+  let n = 0
+  for (let i = 1; i < path.length - 1; i++) if (dirOf(cols, rows, path[i - 1], path[i]) !== dirOf(cols, rows, path[i], path[i + 1])) n++
+  return n
+}
+
+/** 每一格離 path 幾格、從 path 上哪一格岔出去（完美迷宮是一棵樹：每一格都走得到） */
+export function offPath(m: Pick<Maze, 'cols' | 'rows' | 'links'>, path: number[]): { off: number[]; root: number[] } {
+  const n = m.cols * m.rows
+  const off = Array<number>(n).fill(-1)
+  const root = Array<number>(n).fill(-1)
+  const q = [...path]
+  for (const c of path) {
+    off[c] = 0
+    root[c] = c
+  }
+  while (q.length) {
+    const c = q.shift()!
+    for (let d = 0; d < 4; d++) {
+      if (!(m.links[c] & BIT[d])) continue
+      const nb = step(m.cols, m.rows, c, d)
+      if (nb >= 0 && off[nb] < 0) {
+        off[nb] = off[c] + 1
+        root[nb] = root[c]
+        q.push(nb)
+      }
+    }
+  }
+  return { off, root }
+}
+
+/** 所有排列（items 最多 3 個） */
+function perms<T>(a: T[]): T[][] {
+  if (a.length <= 1) return [a]
+  return a.flatMap((x, i) => perms([...a.slice(0, i), ...a.slice(i + 1)]).map((p) => [x, ...p]))
+}
+
+/** 從 from 出發，拿完 items（順序不拘）再到 goal 最少幾步，和最好的順序 */
+export function bestTour(m: Pick<Maze, 'cols' | 'rows' | 'links'>, from: number, items: number[], goal: number): { len: number; order: number[] } {
+  const dist = new Map<number, number[]>()
+  const d = (a: number, b: number) => {
+    if (!dist.has(a)) dist.set(a, distances(m, a))
+    return dist.get(a)![b]
+  }
+  let best = { len: Infinity, order: [] as number[] }
+  for (const order of perms(items)) {
+    let len = 0
+    let c = from
+    for (const x of [...order, goal]) {
+      len += d(c, x)
+      c = x
+    }
+    if (len < best.len) best = { len, order }
+  }
+  return best
+}
+
+/** 還沒拿的東西（got：已經拿到的格子） */
+export const leftItems = (m: Pick<Maze, 'items'>, got: readonly number[]) => m.items.filter((c) => !got.includes(c))
+/** 東西都拿到了：走到終點就算走完 */
+export const readyFor = (m: Pick<Maze, 'items'>, got: readonly number[]) => leftItems(m, got).length === 0
+
+/** 現在要去哪一格：還有東西沒拿就去最順路的那一個，拿完了去終點 */
+export function targetOf(m: Pick<Maze, 'cols' | 'rows' | 'links' | 'goal' | 'items'>, at: number, got: readonly number[]): number {
+  const left = leftItems(m, got)
+  return left.length ? bestTour(m, at, left, m.goal).order[0] : m.goal
+}
+
+/** 發呆提示、示範「往這裡走」：往現在要去的那一格走的下一格；已經在終點而且東西都拿了：-1 */
+export function nextStep(m: Pick<Maze, 'cols' | 'rows' | 'links' | 'goal' | 'items'>, at: number, got: readonly number[]): number {
+  const p = shortest(m, at, targetOf(m, at, got))
+  return p.length > 1 ? p[1] : -1
+}
+
 /**
- * 出一個迷宮：大小照級數，路夠長、岔路不超過這一級的上限，不跟最近幾個一樣；起點、終點、主題、終點的東西、恐龍都隨機
- * （主題、終點的東西不跟上一次一樣）。找不到完全符合的（極少見）：用岔路最少、路夠長的那一個。
+ * 第 9、10 級要先拿的東西放哪：不在主要的路上（離路 ≥ ITEM_OFF 格，要轉進岔路才拿得到），從路上起點、終點以外的地方岔出去；
+ * 盡量放在死路的盡頭。星星彼此至少隔 3 格。放不下：null（換一個迷宮）。
+ */
+export function placeItems(m: Pick<Maze, 'cols' | 'rows' | 'links'>, path: number[], extra: MazeExtra, rnd: Rnd): number[] | null {
+  const { off, root } = offPath(m, path)
+  const start = path[0]
+  const goal = path[path.length - 1]
+  const cells = Array.from({ length: m.cols * m.rows }, (_, c) => c).filter((c) => off[c] >= ITEM_OFF && root[c] !== start && root[c] !== goal)
+  const ends = cells.filter((c) => degree(m.links, c) === 1)
+  const need = extra === 'key' ? 1 : STAR_COUNT
+  const pool = ends.length >= need ? ends : cells
+  if (extra === 'key') return pool.length ? [pick(pool, rnd)] : null
+  const out: number[] = []
+  const left = [...pool]
+  while (out.length < need && left.length) {
+    const c = left.splice(ri(left.length, rnd), 1)[0]
+    if (out.every((x) => distances(m, x)[c] >= 3)) out.push(c)
+  }
+  return out.length === need ? out : null
+}
+
+/** 這一個符不符合這一級的設定：路夠長、岔路和轉彎在範圍內 */
+export function fitsLevel(level: MazeLevel, m: Pick<Maze, 'cols' | 'rows' | 'links' | 'path'>): boolean {
+  const L = MAZE_LEVELS[level]
+  const ch = choicesOf(m.links, m.path)
+  return m.path.length >= L.minLen && ch <= L.choices && ch >= (L.minChoices ?? 0) && turnsOf(m.cols, m.rows, m.path) >= (L.minTurns ?? 0)
+}
+
+/**
+ * 出一個迷宮：大小照級數，路夠長、岔路和轉彎在這一級的範圍內，不跟最近幾個一樣；起點、終點、主題、終點的東西、恐龍都隨機
+ * （主題、終點的東西不跟上一次一樣）。第 9、10 級另外放鑰匙／星星。找不到完全符合的（極少見）：用最接近的那一個。
  */
 export function makeMaze(level: MazeLevel, recent: { sigs?: readonly string[]; theme?: string; goal?: string } = {}, rnd: Rnd = Math.random): Maze {
-  const { cols, rows, choices, minLen } = MAZE_LEVELS[level]
-  const avoid = new Set((recent.sigs ?? []).slice(-RECENT_MAZES))
-  let best: { links: number[]; start: number; goal: number; path: number[]; score: number } | null = null
-  for (let k = 0; k < 400; k++) {
-    const links = carve(cols, rows, rnd)
+  const L = MAZE_LEVELS[level]
+  const { cols, rows, choices, minLen } = L
+  // 第 9、10 級的 sig 後面多了鑰匙、星星的位置：比的時候只比迷宮本身
+  const avoid = new Set((recent.sigs ?? []).slice(-RECENT_MAZES).map((x) => x.split(':').slice(0, 3).join(':')))
+  /** 差多少才符合（0 = 符合；路長在挑終點時就保證了） */
+  const miss = (links: number[], path: number[]) => {
+    const ch = choicesOf(links, path)
+    return Math.max(0, ch - choices) + Math.max(0, (L.minChoices ?? 0) - ch) + Math.max(0, (L.minTurns ?? 0) - turnsOf(cols, rows, path))
+  }
+  let best: { links: number[]; start: number; goal: number; path: number[]; items: number[]; score: number } | null = null
+  const tries = level > 5 ? 1500 : 400
+  for (let k = 0; k < tries; k++) {
+    const links = carve(cols, rows, rnd, L.branchy ?? 0)
     const start = ri(cols * rows, rnd)
     const dist = distances({ cols, rows, links }, start)
     const far = dist.map((d, c) => [d, c] as const).filter(([d]) => d + 1 >= minLen)
     if (!far.length) continue
     const goal = pick(far, rnd)[1]
     const path = shortest({ cols, rows, links }, start, goal)
-    const ch = choicesOf(links, path)
     const sig = sigOf(cols, rows, links, start, goal)
     if (avoid.has(sig)) continue
-    if (ch <= choices) {
-      best = { links, start, goal, path, score: 0 }
-      break
+    const score = miss(links, path)
+    if (best && score >= best.score) continue
+    let items: number[] = []
+    if (L.extra) {
+      const placed = placeItems({ cols, rows, links }, path, L.extra, rnd)
+      if (!placed) continue
+      items = placed
     }
-    if (!best || ch < best.score) best = { links, start, goal, path, score: ch }
+    best = { links, start, goal, path, items, score }
+    if (score === 0) break
   }
-  // 理論上一定找得到（400 次）；保險：一條直直的蛇形路
+  // 理論上一定找得到；保險：一條直直的蛇形路（沒有岔路，第 9、10 級就不放鑰匙、星星）
   if (!best) {
     const links = Array<number>(cols * rows).fill(0)
     for (let y = 0; y < rows; y++)
@@ -219,11 +450,29 @@ export function makeMaze(level: MazeLevel, recent: { sigs?: readonly string[]; t
       links[(y + 1) * cols + x] |= 1
     }
     const goal = (rows - 1) * cols + (rows % 2 ? cols - 1 : 0)
-    best = { links, start: 0, goal, path: shortest({ cols, rows, links }, 0, goal), score: 0 }
+    best = { links, start: 0, goal, path: shortest({ cols, rows, links }, 0, goal), items: [], score: 0 }
   }
   const theme = pick(THEME_IDS.filter((t) => t !== recent.theme), rnd)
-  const goalId = pick(GOAL_IDS.filter((g) => g !== recent.goal), rnd)
-  return { level, cols, rows, links: best.links, start: best.start, goal: best.goal, path: best.path, theme, goalId, dino: pick(DINOS, rnd), sig: sigOf(cols, rows, best.links, best.start, best.goal) }
+  // 終點的東西：對得上主題的那幾樣裡挑，不跟上一次一樣
+  const goalId = pick(THEMES[theme].goals.filter((g) => g !== recent.goal), rnd)
+  const { links, start, goal, path, items } = best
+  const tour = items.length ? bestTour({ cols, rows, links }, start, items, goal).len : path.length - 1
+  return {
+    level,
+    cols,
+    rows,
+    links,
+    start,
+    goal,
+    path,
+    ...(items.length && L.extra ? { extra: L.extra } : {}),
+    items,
+    tour,
+    theme,
+    goalId,
+    dino: pick(WALKERS, rnd),
+    sig: sigOf(cols, rows, links, start, goal) + (items.length ? `:${items.join('.')}` : ''),
+  }
 }
 
 /**
@@ -286,12 +535,33 @@ export function normalizeMaze(raw: unknown): MazeState {
   return { level, recent, taught, sigs, ...(typeof o.theme === 'string' ? { theme: o.theme } : {}), ...(typeof o.goal === 'string' ? { goal: o.goal } : {}) }
 }
 
-/** 走完一個：記住這個迷宮、照結果升降級 */
-export function afterMaze(s: MazeState, m: Pick<Maze, 'sig' | 'theme' | 'goalId'>, r: { date: string; ok: boolean; counted: boolean }): MazeState {
+/**
+ * 走完一個：記住這個迷宮、照結果升降級。
+ * T-158（家長 2026-11-16：孩子覺得太簡單）：自己走、順利走完（smooth：第一次就對、而且沒有走很久）直接升一級；
+ * 其他照邏輯遊戲同一套（最近 8 個 7 個對、分 3 天升一級；最近 6 個 ≤ 3 個對退一級）。已經有的進度照用，不重設。
+ */
+export function afterMaze(s: MazeState, m: Pick<Maze, 'sig' | 'theme' | 'goalId'>, r: { date: string; ok: boolean; counted: boolean; smooth?: boolean }): MazeState {
   const sigs = [...s.sigs.filter((x) => x !== m.sig), m.sig].slice(-RECENT_MAZES)
-  const lv = stepLevel(s, { date: r.date, first: r.ok, counted: r.counted }, MAZE_MAX)
+  const lv = r.counted && r.ok && r.smooth && s.level < MAZE_MAX ? { ...s, level: s.level + 1, recent: [] } : stepLevel(s, { date: r.date, first: r.ok, counted: r.counted }, MAZE_MAX)
   return { ...s, ...lv, sigs, theme: m.theme, goal: m.goalId }
 }
 
-/** 這一個算不算「第一次就對」 */
-export const mazeOk = (r: { steps: number; shortest: number; led: boolean }) => !r.led && r.steps <= r.shortest + DETOUR
+/** 孩子在「再一個」那裡自己選「難一點」：往上跳一級（最高 MAZE_MAX），這一級的紀錄重新算 */
+export function harderMaze(s: MazeState): MazeState {
+  return s.level >= MAZE_MAX ? s : { ...s, level: s.level + 1, recent: [] }
+}
+
+/** 這一個算不算「第一次就對」：沒靠提示、走的步數 ≤ 最短的 ＋ detour（第 1～5 級是 DETOUR） */
+export const mazeOk = (r: { steps: number; shortest: number; led: boolean; detour?: number }) => !r.led && r.steps <= r.shortest + (r.detour ?? DETOUR)
+
+/** 順利走完不算「走很久」：15 秒 ＋ 最短的每一步 2.5 秒（3×3 約 25 秒、10×7 拿星星約 1.5 分鐘）。畫面上不計時，只拿來決定要不要直接升級 */
+export const SMOOTH_BASE_MS = 15_000
+export const SMOOTH_STEP_MS = 2_500
+export const mazeSmooth = (r: { ok: boolean; ms: number; shortest: number }) => r.ok && r.ms <= SMOOTH_BASE_MS + SMOOTH_STEP_MS * r.shortest
+
+/**
+ * 示範（手帶著恐龍走一步）只在新的玩法第一次出現時做：一般的迷宮教過一次就好（T-158 以前每一級都示範一次，示範的那一個不算升級），
+ * 第 9 級的鑰匙、第 10 級的星星第一次各示範一次。
+ */
+export const demoKind = (level: MazeLevel) => MAZE_LEVELS[level].extra ?? 'plain'
+export const needsDemo = (taught: readonly number[], level: MazeLevel) => !taught.some((l) => l >= 1 && l <= MAZE_MAX && demoKind(l as MazeLevel) === demoKind(level))
