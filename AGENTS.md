@@ -35,7 +35,7 @@
 - **PM 工作階段**：派工、合併、部署。開發工作階段不合併到 main，也不部署。
 - **開發工作階段**：
   - 在自己的分支或 worktree 改，只改分到的檔案，commit 但不 push。
-  - 只跑自己改到的部分：`npm run verify`，加上 `npm run test:toddler -- --changed`。
+  - 只跑 `npm run verify`。三歲測試家長 2026-11-16 決定不跑（省時間、加快上線），家長要求時才跑。
   - 不用 `preview_start`、`AskUserQuestion`。有疑問寫在回報裡。
 - **AI 小男生盲測**：家長 2026-11-14 決定停用，為了省 Token、加快上線。工具還留在 `tests/ai-toddler/`，家長沒有明確要求就不跑，也不提議恢復。
 
@@ -50,10 +50,11 @@
 | 打包 | `npm run build` |
 | 部署到 GitHub Pages | `node scripts/deploy.mjs` |
 
-**PM 的上線流程**：同一批合併完，依序跑 `npm run audio` → `npm run verify` → `npm run test:toddler -- --changed main`（每批至少跑一次完整版）→ `npm run build` → `node scripts/deploy.mjs`。上線後不做 AI 小男生盲測。
+**PM 的上線流程**：同一批合併完，依序跑 `npm run audio` → `npm run verify` → `npm run build` → `node scripts/deploy.mjs`。不跑三歲測試（家長 2026-11-16 決定），上線後也不做 AI 小男生盲測。
 
 ## 測試規則
 
+- 三歲測試（`tests/toddler/`）2026-11-16 起只在家長要求時跑，下面是跑的時候的規則。
 - 三歲測試要涵蓋三歲孩子的操作：亂點、連點、多指、搶在示範時操作、隨時返回、發呆、拖到一半放手。每個畫面都要 1 步就能回到上一層。
 - 只出現一次的問題，先用同一個 seed 重跑（`--seed N`，預設會自動重跑 2 次），確認是穩定重現還是偶發。
 - 執行測試：
