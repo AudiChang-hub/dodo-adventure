@@ -30,6 +30,9 @@ import '../games/draw/lines'
 // 遊戲角（T-152）：首頁鎖住、打開的兩句（lines-home-corner）；邏輯遊戲的台詞
 import './lines-home-corner'
 import '../games/logic/lines'
+// 遊戲角的拼圖、迷宮（T-156）
+import '../games/puzzle/lines'
+import '../games/maze/lines'
 
 export { def, defBridge, isBridge, line, hasLine, allLines, segments, plainText, type Speaker, type Line, type Segment } from './registry'
 

@@ -70,6 +70,9 @@ export const SCREEN_TESTS = [
   { token: 'parent', spec: 'screens', files: ['src/lessons/chinese/ParentPicker.tsx'], games: [] },
   // 遊戲角的邏輯遊戲（T-152，logic.spec）：games/logic 整個資料夾；入口 index.tsx、台詞 lines.ts 要列出來（App、content/lines.ts import 它們，不列會被當成共用檔）
   { token: 'logic', spec: 'logic', files: ['src/games/logic/index.tsx', 'src/games/logic/lines.ts', 'src/games/logic/'], games: [] },
+  // 遊戲角的拼圖、迷宮（T-156，puzzle-maze.spec）：從選玩法（logic/index.tsx）進去；台詞 lines.ts 被 content/lines.ts import，要列出來
+  { token: 'puzzle', spec: 'puzzle-maze', files: ['src/games/puzzle/lines.ts', 'src/games/puzzle/', 'src/games/logic/index.tsx'], games: [] },
+  { token: 'maze', spec: 'puzzle-maze', files: ['src/games/maze/lines.ts', 'src/games/maze/', 'src/games/logic/index.tsx'], games: [] },
 ]
 
 /** 測試檔本身改了：跑那個檔的全部 */
@@ -86,6 +89,7 @@ const SPEC_TOKENS = {
   // 遊戲角（T-152）
   'home-corner.spec.ts': ['home-corner'],
   'logic.spec.ts': ['logic'],
+  'puzzle-maze.spec.ts': ['puzzle', 'maze'],
 }
 
 // ── 讀程式 ────────────────────────────────────────────────

@@ -3,6 +3,9 @@ import type { StationId } from './db'
 import { shownFor, type Shown } from './shown'
 import type { Subject } from '../lessons/types'
 
+/** 遊戲角的邏輯遊戲：豆豆收拾、串珠珠（T-152）、拼圖、迷宮（T-156） */
+export type LogicGame = 'sort' | 'pattern' | 'puzzle' | 'maze'
+
 export type Route =
   | { name: 'home' }
   /** 畫畫裡的遊戲（自由畫畫 d-free、著色本 d-color）；station 是作答紀錄用的站點；pic 是著色本選的那一張（T-138） */
@@ -19,7 +22,7 @@ export type Route =
   /** 遊戲角的「邏輯遊戲」進去：選豆豆收拾還是串珠珠（T-152，games/logic/index.tsx） */
   | { name: 'logic' }
   /** 邏輯遊戲的一種玩法：sort 豆豆收拾（分類）、pattern 串珠珠（規律）（T-152） */
-  | { name: 'logic-play'; game: 'sort' | 'pattern' }
+  | { name: 'logic-play'; game: LogicGame }
   | { name: 'bedtime' }
   | { name: 'parent' }
 
