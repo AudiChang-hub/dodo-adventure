@@ -8,8 +8,6 @@ import { useIdle } from '../idle'
 import { wait } from '../lines'
 import { PACE } from '../pace'
 import { DoneChoices } from '../draw/DoneChoices'
-import { StoryPage } from '../../art/storybook/Page'
-import type { PageArt } from '../../art/storybook/layout'
 import { say, sfx } from '../../lib/audio'
 import { logAttempt, logTeach } from '../../lib/record'
 import { today } from '../../lib/db'
@@ -22,6 +20,8 @@ import { picLineKey } from './lines'
 import { OK_WRONGS, PUZZLE_GAME, afterPuzzle, puzzleRound, puzzleSkill, type PuzzleLevel, type PuzzleRound, type PuzzleState } from './plan'
 import { loadPuzzle, savePuzzle } from './progress'
 import { geometry } from './geometry'
+import { PicArt } from './PicArt'
+import type { PuzzlePic } from './pics'
 import '../draw/tools.css'
 import './puzzle.css'
 
@@ -70,11 +70,11 @@ export function Puzzle() {
 }
 
 /** 圖的一片：整張圖放大 cols×rows 倍、移到這一片的位置，外面裁掉 */
-const Slice = memo(function Slice({ art, col, row, cols, rows }: { art: PageArt; col: number; row: number; cols: number; rows: number }) {
+const Slice = memo(function Slice({ pic, col, row, cols, rows }: { pic: PuzzlePic; col: number; row: number; cols: number; rows: number }) {
   return (
     <div className="pz-slice">
       <div className="pz-slice-in" style={{ width: `${cols * 100}%`, height: `${rows * 100}%`, left: `${-col * 100}%`, top: `${-row * 100}%` }}>
-        <StoryPage art={art} />
+        <PicArt pic={pic} />
       </div>
     </div>
   )
@@ -499,7 +499,7 @@ function PuzzleView({ round, prog, onDone, onAgain, resting }: { round: PuzzleRo
             </div>
             {/* 參考的小圖（像拼圖盒上的圖）：只看、不能點 */}
             <div className="pz-ref" data-ref="" style={{ left: g.ref.x, top: g.ref.y, width: g.ref.w, height: g.ref.h }} aria-hidden="true">
-              <StoryPage art={pic.art} />
+              <PicArt pic={pic} />
             </div>
             {Array.from({ length: n }, (_, i) => {
               const isDrag = drag?.id === i
@@ -523,7 +523,7 @@ function PuzzleView({ round, prog, onDone, onAgain, resting }: { round: PuzzleRo
                   onPointerUp={upPiece}
                   onPointerCancel={cancelPiece}
                 >
-                  <Slice art={pic.art} col={i % cols} row={Math.floor(i / cols)} cols={cols} rows={rows} />
+                  <Slice pic={pic} col={i % cols} row={Math.floor(i / cols)} cols={cols} rows={rows} />
                 </motion.div>
               )
             })}

@@ -4,12 +4,16 @@
 // 擺法：主角大（size L）、分散在左、右（再加中間或天上一樣），切成 2×2 或 3×2 時每一片都有看得出來的東西，不會整片只有天空或草地。
 // 天上（太陽、月亮、彩虹、雨雲、風箏、蝴蝶）放在中間，補 3×2 中間上面那一片；室內的場景牆上有窗戶、畫框。
 import type { Cast, PageArt, Slot } from '../../art/storybook/layout'
+import type { FreeArt } from './free'
 
 export interface PuzzlePic {
   id: string
   /** 中文名字（家長區、報告看的） */
   zh: string
-  art: PageArt
+  /** 手排的：故事插畫的擺法（StoryPage 畫） */
+  art?: PageArt
+  /** 組合圖：拼圖自己的構圖（./FreeArt.tsx 畫，T-159 第二版） */
+  free?: FreeArt
   /** 拼完念的那一句（./lines.ts 用 picLineKey 登記，≤ 6 個字） */
   en: string
 }

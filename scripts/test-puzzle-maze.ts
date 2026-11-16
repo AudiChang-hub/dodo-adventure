@@ -7,6 +7,9 @@ import assert from 'node:assert/strict'
 import { problemsOf } from '../src/art/storybook/layout'
 import { GRID, OK_WRONGS, PUZZLE_MAX, PUZZLE_PICS, RECENT_PICS, afterPuzzle, normalizePuzzle, picOf, pickPic, puzzleRound, puzzleSkill, themeOf, trayOrder, type PuzzleLevel } from '../src/games/puzzle/plan'
 import { emptyCells } from '../src/games/puzzle/coverage'
+import { freeProblems } from '../src/games/puzzle/coverage-free'
+import { HAND_PICS } from '../src/games/puzzle/pics-hand'
+import { FREE_PICS } from '../src/games/puzzle/pics-free'
 import { geometry } from '../src/games/puzzle/geometry'
 import {
   DETOUR,
@@ -35,6 +38,7 @@ import { hasLine, line } from '../src/content/registry'
 import { segments } from '../src/content/lines'
 import { clipName } from '../src/lib/clip'
 import { EMOJI } from '../src/art/emoji.generated'
+import { ITEMS } from '../src/art/storybook/meta'
 import { existsSync } from 'node:fs'
 import { picLineKey } from '../src/games/puzzle/lines'
 import { findKey, gotKey } from '../src/games/maze/lines'
@@ -56,15 +60,28 @@ function main() {
     assert.ok(PUZZLE_PICS.length >= 200, `圖庫至少 200 張，現在 ${PUZZLE_PICS.length}`)
     assert.equal(new Set(PUZZLE_PICS.map((p) => p.id)).size, PUZZLE_PICS.length, '圖的 id 不重複')
     for (const p of PUZZLE_PICS) {
-      const r = problemsOf(p.art)
-      assert.deepEqual(r.blocking, [], `${p.id} 的擺法：${r.blocking.join('；')}`)
-      // 角色庫沒有的東西用專案已經在用的 Fluent Emoji（emoji.generated.ts 裡要有）
-      for (const c of r.newChars) assert.ok(EMOJI[c], `${p.id} 的 ${c} 不在角色庫、也不在 emoji.generated.ts`)
       assert.ok(p.en.split(/\s+/).length <= 6, `${p.id} 的句子 ≤ 6 個字：${p.en}`)
-      // T-159：切成 3×3（還有 2×2、3×2）每一片都有東西，不會整片只有天空或草地
-      for (const [c, r] of [[3, 3], [3, 2], [2, 2]]) assert.deepEqual(emptyCells(p.art, c, r), [], `${p.id} 切成 ${c}×${r} 有空的片`)
+      assert.ok(!!p.art !== !!p.free, `${p.id} 只有一種畫法（手排的 art 或組合圖的 free）`)
+      if (p.art) {
+        const r = problemsOf(p.art)
+        assert.deepEqual(r.blocking, [], `${p.id} 的擺法：${r.blocking.join('；')}`)
+        // 角色庫沒有的東西用專案已經在用的 Fluent Emoji（emoji.generated.ts 裡要有）
+        for (const c of r.newChars) assert.ok(EMOJI[c], `${p.id} 的 ${c} 不在角色庫、也不在 emoji.generated.ts`)
+        // T-159：切成 3×3（還有 2×2、3×2）每一片都有東西，不會整片只有天空或草地
+        for (const [c, r] of [[3, 3], [3, 2], [2, 2]]) assert.deepEqual(emptyCells(p.art, c, r), [], `${p.id} 切成 ${c}×${r} 有空的片`)
+      } else {
+        const f = p.free!
+        for (const it of f.items) assert.ok(ITEMS[it.who] || EMOJI[it.who], `${p.id} 的 ${it.who} 不在角色庫、也不在 emoji.generated.ts`)
+        // 組合圖：切成 3×3、3×2、2×2 每一片都有東西，只有背景的兩片不能一樣（像素層級的檢查在 scripts/gen-puzzle-pics.mjs 產生時做）
+        for (const [c, r] of [[3, 3], [3, 2], [2, 2]]) assert.deepEqual(freeProblems(f, c, r), [], `${p.id} 切成 ${c}×${r}`)
+      }
     }
-    console.log(`ok 1 圖庫 ${PUZZLE_PICS.length} 張，擺法都沒問題，切成 3×3 每一片都有東西`)
+    // T-159 第二版（PM 退件：一成不變）：組合圖至少 8 種版型，沒有一種超過組合圖的 1/5
+    const kinds = new Map<string, number>()
+    for (const p of FREE_PICS) kinds.set(p.free!.kind, (kinds.get(p.free!.kind) ?? 0) + 1)
+    assert.ok(kinds.size >= 8, `組合圖的版型 ${kinds.size} 種`)
+    for (const [k, n] of kinds) assert.ok(n <= FREE_PICS.length / 5, `版型 ${k} 有 ${n} 張，太多`)
+    console.log(`ok 1 圖庫 ${PUZZLE_PICS.length} 張（手排 ${HAND_PICS.length}、組合圖 ${FREE_PICS.length} 張 ${kinds.size} 種版型），擺法都沒問題，切成 3×3 每一片都有東西`)
   }
   {
     const rnd = seeded(7)
