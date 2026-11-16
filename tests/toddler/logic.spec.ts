@@ -82,9 +82,9 @@ const milestones = (page: Page) =>
 
 /**
  * 開 App、直接到「選玩法」。progress：kv logic.progress（null＝第一次玩，會示範）；
- * taught：兩種玩法第 1 級都示範過了（直接自己做）。
+ * taught：兩種玩法第 1 級都示範過了（直接自己做）；progress：直接給整個 kv（較高級、最近玩過的情境）。
  */
-async function setup(page: Page, info: Info, name: string, opts: { taught?: boolean; settings?: Record<string, unknown> } = {}) {
+async function setup(page: Page, info: Info, name: string, opts: { taught?: boolean; progress?: unknown; settings?: Record<string, unknown> } = {}) {
   const seed = hashSeed(BASE_SEED, 'logic', name, info.project.name)
   const k = new Toddler(page, info, seed, info.project.name)
   const c = new Checker(k, page)
@@ -94,6 +94,7 @@ async function setup(page: Page, info: Info, name: string, opts: { taught?: bool
     const one = { level: 1, recent: [], taught: [1] }
     await kvSet(page, 'logic.progress', { sort: one, pattern: one })
   }
+  if (opts.progress) await kvSet(page, 'logic.progress', opts.progress)
   await page.evaluate(() => sessionStorage.setItem('dodo.resume', 'logic'))
   await page.reload()
   await page.waitForSelector('[data-logic-pick]', { timeout: 20_000 })
@@ -127,6 +128,8 @@ const game = (page: Page) => attr(page, '[data-logic-game]', 'data-logic-game')
 const itemNo = async (page: Page) => Number((await attr(page, '[data-logic-game]', 'data-item')) ?? -1)
 const answer = (page: Page) => attr(page, '[data-logic-game]', 'data-answer')
 const inDemo = async (page: Page) => (await attr(page, '[data-logic-game]', 'data-demo')) === '1'
+/** 這一局的情境（豆豆收拾）／串的東西（串珠珠） */
+const sceneOf = (page: Page, g: string) => attr(page, '[data-logic-game]', g === 'sort' ? 'data-scene' : 'data-theme')
 const resting = (page: Page) => page.evaluate(() => !!document.querySelector('[data-logic-game] [data-resting]'))
 const necklace = (page: Page) => page.evaluate(() => !!document.querySelector('[data-necklace]'))
 /** 擋板開著（剛出來 0.3 秒、示範中）：點了只有圈圈 */
@@ -279,7 +282,8 @@ test.describe('邏輯遊戲', () => {
         await shot(page, info, `03-${name}-一起做`)
         const done = await playOut(k, c, g)
         c.outcome('一局玩到底：停在再一局／回首頁', done, '')
-        if (g === 'pattern') c.outcome('串完：豆豆戴上項鍊', await necklace(page), '')
+        if (g === 'pattern') c.outcome('串完：豆豆戴上項鍊（或旁邊排著串好的三排）', await necklace(page), '')
+        const s1 = await sceneOf(page, g)
         await k.wait(1200)
         await shot(page, info, `04-${name}-一局玩完`)
         const rows = await logicAttempts(page)
@@ -301,6 +305,8 @@ test.describe('邏輯遊戲', () => {
         await k.wait(1500)
         const again = !(await resting(page)) && (await itemNo(page)) === 0
         c.outcome('點再一局：新的一局', again, '')
+        const s2 = await sceneOf(page, g)
+        c.outcome('再一局換了情境（不跟上一局一樣）', !!s1 && !!s2 && s1 !== s2, `${s1} → ${s2}`)
         await k.wait(1500)
         c.outcome('再一局不再示範', !(await inDemo(page)), '')
         // 5. 回首頁的大圖示：玩一局再點房子
@@ -398,6 +404,61 @@ test.describe('邏輯遊戲', () => {
         await c.flush()
       } finally {
         finish(k, c, `${name}點錯`)
+      }
+    })
+  }
+
+  // T-157：較高級（豆豆收拾第 3 級：種類、容器跟著種類換；串珠珠第 2 級：東西，可能是排隊的小動物），連玩三局情境都不一樣、不跟記著的最近兩局一樣
+  for (const g of ['sort', 'pattern'] as const) {
+    const name = g === 'sort' ? '豆豆收拾' : '串珠珠'
+    test(`${name}：較高級連玩三局，情境每局換、不跟最近兩局一樣，中途連點、返回`, async ({ page }, info) => {
+      test.skip(!want())
+      test.setTimeout(7 * 60_000)
+      const recent = g === 'sort' ? ['toys', 'farm'] : ['necklace', 'train']
+      const lv = (level: number) => ({ level, recent: [], taught: Array.from({ length: level }, (_, i) => i + 1) })
+      const { k, c } = await setup(page, info, `${name}換情境`, { progress: { sort: lv(3), pattern: lv(2), scenes: { sort: recent, pattern: recent } } })
+      try {
+        await k.tap((await centerOf(page, `[data-pick="${g}"]`))!, name)
+        await waitLive(page, (x) => x === `logic-${g}`, 5000)
+        const seen: string[] = [...recent]
+        for (let round = 0; round < 3; round++) {
+          k.behavior = `第 ${round + 1} 局`
+          await waitTurn(k)
+          const sc = (await sceneOf(page, g)) ?? ''
+          c.outcome(`第 ${round + 1} 局（${sc}）不跟最近兩局一樣`, !!sc && !seen.slice(-2).includes(sc), `最近 ${seen.slice(-2).join('、')} → ${sc}`)
+          seen.push(sc)
+          c.outcome(`第 ${round + 1} 局不示範（這一級示範過了）`, !(await inDemo(page)), '')
+          if (round === 0) await shot(page, info, `06-${name}-較高級-${sc}`)
+          // 第 1 局：連點選項、兩根手指一起點（不壞、不多記）
+          if (round === 0) {
+            k.behavior = '連點、兩根手指'
+            const ids = await optIds(page, g)
+            const a = (await centerOf(page, optSel(g, ids[0])))!
+            const b = (await centerOf(page, optSel(g, ids[ids.length - 1])))!
+            await k.twoFinger([a], b, 80)
+            await k.wait(1500)
+            await waitTurn(k)
+          }
+          const done = await playOut(k, c, g)
+          c.outcome(`第 ${round + 1} 局玩到底`, done, '')
+          if (round === 0) {
+            await k.wait(1200)
+            await shot(page, info, `07-${name}-較高級-玩完-${sc}`)
+          }
+          if (round < 2) {
+            await k.tap((await centerOf(page, '[data-next="again"]'))!, '再一局')
+            await k.wait(1500)
+          }
+        }
+        const rows = await logicAttempts(page)
+        const bad = rows.filter((a) => (g === 'sort' ? !/^sort:(kind|color)$/.test(a.skill) : a.skill !== 'pattern:ab-obj'))
+        c.outcome('作答紀錄的技能對得上這一級（豆豆收拾第 3 級：種類，或複習顏色；串珠珠第 2 級：東西）', bad.length === 0, bad.map((a) => a.skill).join(','))
+        // 中途返回：1 步回選玩法
+        await holdHome(k, c, `${name}較高級返回`)
+        c.outcome('返回：回選玩法', (await snap(page)).live === 'logic', String((await snap(page)).live))
+        await c.flush()
+      } finally {
+        finish(k, c, `${name}換情境`)
       }
     })
   }

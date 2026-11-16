@@ -14,12 +14,12 @@ import { today } from '../../lib/db'
 import { go } from '../../lib/nav'
 import { bedtimeIfDue } from '../../lib/session'
 import { useTaps } from '../../ui/tap'
-import { BasketArt, SortPickArt, ThingArt } from './art'
-import { LOGIC_COPLAY } from './coplay'
-import { goesKey, sortPraiseKey, thatKey, thisKey } from './lines'
+import { BinArt, SortPickArt, ThingArt } from './art'
+import { sortCoplay } from './coplay'
+import { goesKey, sortPraiseKey, sortSceneKey, thatKey, thisKey } from './lines'
 import { offsetTo, pointIn, useLive } from './kit'
-import { loadLogic, saveLogic, type LogicProgress } from './progress'
-import { SORT_GAME, SORT_MAX, sortRound, sortSkill, sortThree, stepLevel, type SortLevel, type SortRound, type Thing } from './sort-plan'
+import { loadLogic, noteScene, saveLogic, type LogicProgress } from './progress'
+import { SORT_GAME, SORT_MAX, sortRound, sortThree, stepLevel, type SortLevel, type SortRound, type Thing } from './sort-plan'
 import { PATTERN_MAX } from './pattern-plan'
 import '../draw/tools.css'
 import './logic.css'
@@ -37,6 +37,7 @@ const FLY_MS = 520
  * 第一次到這一級：第 1 個手示範（示範中點了只有「看這裡」的圈圈，不算作答）、第 2 個手停在對的籃子上一起做、之後自己做。
  * 放錯：東西回中間，說出差在哪（That is the blue basket. This is red.）；第 2 次錯對的籃子亮起來；第 3 次手帶著放進去（記一起做）。
  * 一局 4 個，收完蓋上蓋子、說 All tidy!，停在「再一局／回首頁」，不自己接下一局（HOW-9）。
+ * T-157：每一局換一個收拾的情境（容器、背景、開頭那一句跟著換），不跟最近兩局一樣；第 3 級以上偶爾複習學過的特徵（不算升降級）。
  */
 export function Sort() {
   const [prog, setProg] = useState<LogicProgress | null>(null)
@@ -50,21 +51,30 @@ export function Sort() {
   }, [])
   const [round, setRound] = useState<SortRound | null>(null)
   const progRef = useRef<LogicProgress | null>(null)
+  /** 出一局：避開最近用過的情境，記下這一局的 */
+  const deal = (p: LogicProgress) => {
+    const level = p.sort.level as SortLevel
+    const r = sortRound(level, Math.random, sortThree(p.sort), { recent: p.scenes.sort, review: p.sort.taught.includes(level) })
+    noteScene(p, 'sort', r.scene)
+    void saveLogic(p)
+    return r
+  }
   useEffect(() => {
     if (!prog || progRef.current) return
     progRef.current = prog
-    setRound(sortRound(prog.sort.level as SortLevel, Math.random, sortThree(prog.sort)))
+    setRound(deal(prog))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [prog])
   const [resting, setResting] = useState(false)
   const again = () => {
     const p = progRef.current
     if (!p || bedtimeIfDue()) return
     setResting(false)
-    setRound(sortRound(p.sort.level as SortLevel, Math.random, sortThree(p.sort)))
+    setRound(deal(p))
     setN((k) => k + 1)
   }
   return (
-    <Shell station="logic" mood="idle" onExit={() => go({ name: 'logic' }, { back: true })} hideHost hintText={resting ? LOGIC_COPLAY.sort.now : LOGIC_COPLAY.sort.play}>
+    <Shell station="logic" mood="idle" onExit={() => go({ name: 'logic' }, { back: true })} hideHost hintText={round ? sortCoplay(round.scene, round.dim)[resting ? 'now' : 'play'] : undefined}>
       {round && progRef.current && <SortRoundView key={n} round={round} prog={progRef} onDone={() => setResting(true)} onAgain={again} resting={resting} />}
     </Shell>
   )
@@ -73,7 +83,7 @@ export function Sort() {
 type HandState = { basket: string; tap: number; beckon: boolean } | null
 
 function SortRoundView({ round, prog, onDone, onAgain, resting }: { round: SortRound; prog: { current: LogicProgress | null }; onDone: () => void; onAgain: () => void; resting: boolean }) {
-  const { level, dim, baskets, items } = round
+  const { level, dim, skill, review, scene, baskets, items } = round
   const tap = useTaps()
   const live = useLive()
   const flow = useFlow()
@@ -135,7 +145,7 @@ function SortRoundView({ round, prog, onDone, onAgain, resting }: { round: SortR
       station: 'logic',
       game: SORT_GAME,
       itemId: item.id,
-      skill: sortSkill(level),
+      skill,
       phase,
       level,
       options: baskets.map((b) => b.id),
@@ -146,11 +156,12 @@ function SortRoundView({ round, prog, onDone, onAgain, resting }: { round: SortR
       responseMs: Math.round(performance.now() - s.t0),
       hintUsed: s.wrongs >= 2 || s.led || !!how.handPlaced,
       heard: true,
-      metrics: { ...(s.led ? { led: 1 } : {}), ...(how.handPlaced ? { shown: 1 } : {}), baskets: baskets.length },
+      metrics: { ...(s.led ? { led: 1 } : {}), ...(how.handPlaced ? { shown: 1 } : {}), ...(review ? { review: 1 } : {}), baskets: baskets.length },
     })
     const p = prog.current
     if (p) {
-      p.sort = stepLevel(p.sort, { date: today(), first: s.wrongs === 0 && !how.handPlaced, counted: phase === 'quiz' }, SORT_MAX)
+      // 複習學過的特徵那一局不算進這一級的升降級
+      p.sort = stepLevel(p.sort, { date: today(), first: s.wrongs === 0 && !how.handPlaced, counted: phase === 'quiz' && !review }, SORT_MAX)
       void saveLogic(p)
     }
   }
@@ -179,7 +190,8 @@ function SortRoundView({ round, prog, onDone, onAgain, resting }: { round: SortR
     setDemo(true)
     setHold(true)
     const t0 = performance.now()
-    await say('teach.watch.dodo')
+    // 一局的第一個：先說這一局收拾什麼（Let's tidy the toys!）
+    await say(...(i === 0 ? [sortSceneKey(scene)] : []), 'teach.watch.dodo')
     if (!ok()) return
     const ans = items[i].answer
     showHand(ans, false)
@@ -196,7 +208,7 @@ function SortRoundView({ round, prog, onDone, onAgain, resting }: { round: SortR
     setHand(null)
     await say('teach.turn.dodo')
     if (!ok()) return
-    void logTeach({ station: 'logic', game: SORT_GAME, itemId: items[i].id, skill: sortSkill(level), level, ms: Math.round(performance.now() - t0) })
+    void logTeach({ station: 'logic', game: SORT_GAME, itemId: items[i].id, skill, level, ms: Math.round(performance.now() - t0) })
     const p = prog.current
     if (p && !p.sort.taught.includes(level)) {
       p.sort = { ...p.sort, taught: [...p.sort.taught, level] }
@@ -230,7 +242,7 @@ function SortRoundView({ round, prog, onDone, onAgain, resting }: { round: SortR
     if (phaseOf(i) === 'teach') return void runDemo(i)
     const ok = flow.begin(live)
     s.asking = true
-    await say('lg.sort.ask')
+    await say(...(i === 0 ? [sortSceneKey(scene)] : []), 'lg.sort.ask')
     s.asking = false
     if (!ok()) return
     const ans = items[i].answer
@@ -412,6 +424,9 @@ function SortRoundView({ round, prog, onDone, onAgain, resting }: { round: SortR
       className={`lg-sort${resting ? ' is-resting' : ''}`}
       ref={layer}
       data-logic-game="sort"
+      data-scene={scene}
+      data-dim={dim}
+      data-review={review ? '1' : undefined}
       data-level={level}
       data-item={idx}
       data-demo={demo ? '1' : undefined}
@@ -422,6 +437,7 @@ function SortRoundView({ round, prog, onDone, onAgain, resting }: { round: SortR
         if (resting) setPoke((k) => k + 1)
       }}
     >
+      <div className="lg-scene-bg" aria-hidden="true" />
       <div className="lg-sort-play">
         <div className="lg-sort-table">
           {!closed && (
@@ -458,7 +474,7 @@ function SortRoundView({ round, prog, onDone, onAgain, resting }: { round: SortR
               {...tap(`basket-${b.id}`, () => void choose(b.id))}
             >
               <span key={bump[b.id] ?? 0} className={`lg-basket-in${bump[b.id] ? ' is-bump' : ''}`}>
-                <BasketArt sample={b.sample} inside={placed[b.id] ?? []} closed={closed} />
+                <BinArt bin={b.bin} sample={b.sample} inside={placed[b.id] ?? []} closed={closed} />
               </span>
             </button>
           ))}

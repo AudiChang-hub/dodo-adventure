@@ -193,6 +193,152 @@
   overflow: visible;
 }
 
+/* ── 收拾的情境（T-157）：背景是靜態的地板、牆面，只用不搶顏色的米、木、灰、淡綠，分顏色時不變成線索 ── */
+.lg-scene-bg {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  border-radius: 28px;
+  overflow: hidden;
+}
+.lg-scene-bg::before {
+  /* 地板：容器站在上面 */
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 38%;
+  background: var(--lg-floor, transparent);
+}
+.lg-sort-play {
+  z-index: 1;
+}
+.lg-sort[data-scene='toys'] {
+  --lg-floor: repeating-linear-gradient(90deg, #ead9c0 0 46px, #e4d1b4 46px 50px);
+}
+.lg-sort[data-scene='fruit'] {
+  --lg-floor: repeating-linear-gradient(0deg, #e8d3ae 0 22px, #dfc69c 22px 25px);
+}
+.lg-sort[data-scene='farm'] .lg-scene-bg {
+  background: linear-gradient(#f3ecdc, #f3ecdc 62%, transparent 62%);
+}
+.lg-sort[data-scene='farm'] {
+  --lg-floor: linear-gradient(#d9e5c3, #cfdfb6);
+}
+.lg-sort[data-scene='clothes'] {
+  --lg-floor: repeating-linear-gradient(90deg, #e6d3b8 0 70px, #dcc7a8 70px 73px);
+}
+.lg-sort[data-scene='kitchen'] {
+  --lg-floor: repeating-linear-gradient(0deg, transparent 0 46px, #d8d2c6 46px 49px), repeating-linear-gradient(90deg, #ece7dd 0 46px, #d8d2c6 46px 49px);
+}
+.lg-sort[data-scene='garage'] {
+  --lg-floor: linear-gradient(#dcd9d3, #d3d0c9);
+}
+
+/* ── 串的東西（T-157）：繩子換成火車軌道、掛旗子的繩子、托盤、花圃的土、草地 ── */
+.lg-strand.t-train::before {
+  /* 軌道：在車輪下面 */
+  top: auto;
+  bottom: -6%;
+  height: 8px;
+  margin-top: 0;
+  background: #8c877e;
+}
+.lg-strand.t-train::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -11%;
+  height: 10px;
+  background: repeating-linear-gradient(90deg, #c99e66 0 12px, transparent 12px 34px);
+}
+.lg-strand.t-flags::before {
+  /* 掛旗子的繩子：在旗子的上緣 */
+  top: 6%;
+}
+.lg-strand.t-cookies::before {
+  /* 托盤 */
+  top: -14%;
+  bottom: -14%;
+  height: auto;
+  margin-top: 0;
+  border-radius: 28px;
+  background: #ead9bd;
+  opacity: 1;
+  box-shadow: inset 0 0 0 5px #d7c3a4;
+}
+.lg-strand.t-garden::before {
+  /* 花圃的土：花莖插在裡面 */
+  top: auto;
+  bottom: -10%;
+  height: 22%;
+  margin-top: 0;
+  border-radius: 999px;
+  background: #c9a27a;
+  opacity: 1;
+}
+.lg-strand.t-animals::before {
+  /* 草地：小動物站在上面 */
+  top: auto;
+  bottom: -2%;
+  height: 12%;
+  margin-top: 0;
+  border-radius: 999px;
+  background: #cfdfb6;
+  opacity: 1;
+}
+.lg-strand.t-cookies > *,
+.lg-strand.t-garden > *,
+.lg-strand.t-animals > *,
+.lg-strand.t-train > * {
+  z-index: 1;
+}
+/* 空的那一格：火車是圓角方框，其他照舊是圓圈 */
+.lg-strand.t-train .lg-slot.is-blank {
+  border-radius: 18%;
+}
+.lg-strand-head {
+  position: relative;
+  width: min(14cqw, 26cqh);
+  aspect-ratio: 120 / 100;
+  align-self: center;
+}
+
+/* 一局串完（項鍊以外）：豆豆在左邊，右邊排著這一局串的三排 */
+.lg-parade {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: clamp(12px, 3cqw, 48px);
+}
+.lg-parade-dino {
+  width: min(24cqw, 46cqh);
+  aspect-ratio: 230 / 210;
+  flex: none;
+}
+.lg-parade-rows {
+  display: flex;
+  flex-direction: column;
+  gap: clamp(14px, 4cqh, 36px);
+}
+.lg-strand.is-mini {
+  align-self: flex-start;
+  justify-self: auto;
+  gap: clamp(4px, 0.8cqw, 10px);
+  padding: 0 clamp(10px, 1.6cqw, 22px);
+}
+.lg-strand.is-mini .lg-slot {
+  width: min(6cqw, 12cqh);
+}
+.lg-strand.is-mini .lg-strand-head {
+  width: min(7cqw, 13cqh);
+}
+
 .lg-again-art {
   display: block;
   width: 80%;

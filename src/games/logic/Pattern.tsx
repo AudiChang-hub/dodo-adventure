@@ -15,12 +15,12 @@ import { today } from '../../lib/db'
 import { go } from '../../lib/nav'
 import { bedtimeIfDue } from '../../lib/session'
 import { useTaps } from '../../ui/tap'
-import { BeadArt, PatternPickArt } from './art'
-import { LOGIC_COPLAY } from './coplay'
-import { wordKey } from './lines'
+import { BeadArt, EngineArt, PatternArt, PatternPickArt } from './art'
+import { patternCoplay } from './coplay'
+import { patDoneKey, patThemeKey, wordKey } from './lines'
 import { offsetTo, pointIn, useLive } from './kit'
-import { loadLogic, saveLogic, type LogicProgress } from './progress'
-import { PATTERN_GAME, PATTERN_MAX, patternRound, type Bead, type PatLevel, type PatQ } from './pattern-plan'
+import { loadLogic, noteScene, saveLogic, type LogicProgress } from './progress'
+import { PATTERN_GAME, PATTERN_MAX, patternRound, type Bead, type PatLevel, type PatQ, type PatThemeId } from './pattern-plan'
 import { SORT_MAX, stepLevel } from './sort-plan'
 import '../draw/tools.css'
 import './logic.css'
@@ -36,6 +36,7 @@ const FLY_MS = 480
  * 點一顆，它飛上繩子；對了，豆豆沿著珠子點一遍念出規律（Red, blue, red, blue, red!）。
  * 放錯：珠子回原位，豆豆念前面幾顆、停在空位，讓他自己聽出下一個；第 2 次錯對的那顆亮起來；第 3 次手帶著放。
  * 一局 3 題，串完一條項鍊掛到豆豆脖子上（只是這一局的畫面，不收藏、不計數，FB-6），停在「再一局／回首頁」。
+ * T-157：每一局換串的東西（項鍊、火車、彩旗、餅乾、花園、排隊的小動物），不跟最近兩局一樣；項鍊以外串完是豆豆旁邊排著這一局串的三排。
  */
 export function Pattern() {
   const [prog, setProg] = useState<LogicProgress | null>(null)
@@ -50,20 +51,28 @@ export function Pattern() {
       on = false
     }
   }, [])
+  /** 出一局：避開最近用過的串法，記下這一局的 */
+  const deal = (p: LogicProgress) => {
+    const r = patternRound(p.pattern.level as PatLevel, Math.random, p.scenes.pattern)
+    noteScene(p, 'pattern', r[0].theme)
+    void saveLogic(p)
+    return r
+  }
   useEffect(() => {
     if (!prog || progRef.current) return
     progRef.current = prog
-    setQs(patternRound(prog.pattern.level as PatLevel))
+    setQs(deal(prog))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [prog])
   const again = () => {
     const p = progRef.current
     if (!p || bedtimeIfDue()) return
     setResting(false)
-    setQs(patternRound(p.pattern.level as PatLevel))
+    setQs(deal(p))
     setN((k) => k + 1)
   }
   return (
-    <Shell station="logic" mood="idle" onExit={() => go({ name: 'logic' }, { back: true })} hideHost hintText={resting ? LOGIC_COPLAY.pattern.now : LOGIC_COPLAY.pattern.play}>
+    <Shell station="logic" mood="idle" onExit={() => go({ name: 'logic' }, { back: true })} hideHost hintText={qs ? patternCoplay(qs[0].theme)[resting ? 'now' : 'play'] : undefined}>
       {qs && progRef.current && <PatternRoundView key={n} qs={qs} prog={progRef} onDone={() => setResting(true)} onAgain={again} resting={resting} />}
     </Shell>
   )
@@ -99,6 +108,7 @@ function PatternRoundView({ qs, prog, onDone, onAgain, resting }: { qs: PatQ[]; 
   const done = useRef<Bead[][]>([])
 
   const level = qs[0].level
+  const theme = qs[0].theme
   const [firstTime] = useState(() => !(prog.current?.pattern.taught.includes(level) ?? true))
   const phaseOf = (i: number): 'teach' | 'guided' | 'quiz' => (firstTime && i === 0 ? 'teach' : firstTime && i === 1 ? 'guided' : 'quiz')
   const showHand = (opt: string, tapIt: boolean) => setHand((h) => ({ opt, tap: tapIt ? (h?.tap ?? 0) + 1 : h?.tap ?? 0, beckon: !tapIt && !!h?.beckon }))
@@ -156,7 +166,7 @@ function PatternRoundView({ qs, prog, onDone, onAgain, resting }: { qs: PatQ[]; 
     const ok = flow.begin(live)
     setNecklace(done.current)
     sfx.done()
-    await say('lg.pat.done')
+    await say(patDoneKey(theme))
     if (!ok()) return
     if (bedtimeIfDue()) return
     onDone()
@@ -176,7 +186,8 @@ function PatternRoundView({ qs, prog, onDone, onAgain, resting }: { qs: PatQ[]; 
     setDemo(true)
     setHold(true)
     const t0 = performance.now()
-    await say('teach.watch.dodo')
+    // 一局的第一題：先說這一局串什麼（Let's build a train!）
+    await say(...(i === 0 ? [patThemeKey(theme)] : []), 'teach.watch.dodo')
     if (!ok()) return
     showHand(q.answer, false)
     await wait(800)
@@ -225,7 +236,7 @@ function PatternRoundView({ qs, prog, onDone, onAgain, resting }: { qs: PatQ[]; 
     const ask = q.blank === q.seq.length - 1 ? 'lg.pat.ask' : 'lg.pat.mid'
     const ok = flow.begin(live)
     s.asking = true
-    await say(ask)
+    await say(...(i === 0 ? [patThemeKey(theme)] : []), ask)
     s.asking = false
     if (!ok()) return
     if (s.guided) setHand({ opt: q.answer, tap: 0, beckon: true })
@@ -328,6 +339,7 @@ function PatternRoundView({ qs, prog, onDone, onAgain, resting }: { qs: PatQ[]; 
       className={`lg-pattern${resting ? ' is-resting' : ''}`}
       ref={layer}
       data-logic-game="pattern"
+      data-theme={theme}
       data-level={level}
       data-item={qi}
       data-demo={demo ? '1' : undefined}
@@ -340,10 +352,19 @@ function PatternRoundView({ qs, prog, onDone, onAgain, resting }: { qs: PatQ[]; 
     >
       <div className="lg-pattern-play">
         {necklace ? (
-          <Necklace strands={necklace} />
+          theme === 'necklace' ? (
+            <Necklace strands={necklace} />
+          ) : (
+            <Parade theme={theme} strands={necklace} />
+          )
         ) : (
           <>
-            <div className="lg-strand" key={qi} data-strand="">
+            <div className={`lg-strand t-${theme}`} key={qi} data-strand="">
+              {theme === 'train' && (
+                <div className="lg-strand-head" aria-hidden="true">
+                  <EngineArt />
+                </div>
+              )}
               {q.seq.map((b, k) => (
                 <div
                   key={k}
@@ -351,7 +372,7 @@ function PatternRoundView({ qs, prog, onDone, onAgain, resting }: { qs: PatQ[]; 
                   className={`lg-slot${k === q.blank ? (filled ? ' is-filled' : ' is-blank') : ''}${lit === k ? ' is-lit' : ''}`}
                   data-slot={k === q.blank ? 'blank' : b.id}
                 >
-                  {(k !== q.blank || filled) && <BeadArt thing={b.thing} />}
+                  {(k !== q.blank || filled) && <PatternArt theme={theme} thing={b.thing} />}
                 </div>
               ))}
             </div>
@@ -365,7 +386,7 @@ function PatternRoundView({ qs, prog, onDone, onAgain, resting }: { qs: PatQ[]; 
                     ref={(el: HTMLButtonElement | null) => {
                       optEls.current.set(o.id, el)
                     }}
-                    className={`lg-option${glow === o.id ? ' is-glow' : ''}`}
+                    className={`lg-option t-${theme}${glow === o.id ? ' is-glow' : ''}`}
                     data-option={o.id}
                     aria-label={`珠子：${o.id}`}
                     initial={{ y: 30, opacity: 0 }}
@@ -379,7 +400,7 @@ function PatternRoundView({ qs, prog, onDone, onAgain, resting }: { qs: PatQ[]; 
                     transition={flying ? { duration: filled ? 0 : FLY_MS / 1000, ease: [0.4, 0, 0.6, 1] } : nudge?.opt === o.id ? { duration: 0.45 } : { type: 'spring', stiffness: 260, damping: 22 }}
                     {...tap(`opt-${o.id}`, () => void choose(o.id))}
                   >
-                    <BeadArt thing={o.thing} />
+                    <PatternArt theme={theme} thing={o.thing} />
                   </motion.button>
                 )
               })}
@@ -426,6 +447,33 @@ function Necklace({ strands }: { strands: Bead[][] }) {
             </motion.svg>
           ))}
         </svg>
+      </div>
+    </div>
+  )
+}
+
+/** 項鍊以外：一局串完，豆豆（開心）旁邊排著這一局串的三排（只是這一局的畫面，不收藏、不計數） */
+function Parade({ theme, strands }: { theme: PatThemeId; strands: Bead[][] }) {
+  return (
+    <div className={`lg-parade t-${theme}`} data-necklace="">
+      <div className="lg-parade-dino">
+        <Dino who="dodo" mood="happy" size="100%" />
+      </div>
+      <div className="lg-parade-rows">
+        {strands.map((row, r) => (
+          <motion.div key={r} className={`lg-strand is-mini t-${theme}`} initial={{ opacity: 0, x: 24 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.15 + r * 0.2 }}>
+            {theme === 'train' && (
+              <div className="lg-strand-head">
+                <EngineArt />
+              </div>
+            )}
+            {row.map((b, k) => (
+              <div key={k} className="lg-slot">
+                <PatternArt theme={theme} thing={b.thing} />
+              </div>
+            ))}
+          </motion.div>
+        ))}
       </div>
     </div>
   )
