@@ -9,6 +9,7 @@ import {
   DEMO_UNTIL,
   MATURE_AT,
   PAIR_ROUNDS,
+  TRACE_ROUNDS,
   canMatch,
   endPlay,
   learnedLetters,
@@ -17,6 +18,7 @@ import {
   makeOnsets,
   makePairs,
   pickNewWord,
+  playPart,
   savePlay,
   isFresh,
   startPlay,
@@ -29,6 +31,8 @@ import {
 } from './abc'
 import { PAUSE_KEY, STAGE4_KEY, advance, afterNewWord, afterOnset, canTeachNew, knownWords, moreSet, onsetMode, onsetToday, type Stage4Kv } from './stage4'
 import type { TodayPlan } from './plan'
+import { lessonLetter } from './data'
+import { PLAY_ROUNDS, Trace } from './Trace'
 import { Wall } from './Wall'
 import { Pair } from './Pair'
 import { Flip } from './Flip'
@@ -36,8 +40,8 @@ import { NewWord } from './NewWord'
 
 /** 字母遊戲時間現在在哪一段（課的上面小石頭、陪玩小字、data-abc 用） */
 export interface PlayView {
-  part: 'wall' | 'friend' | AbcGame | 'end'
-  /** 配對遊戲：做完幾回合（翻翻卡：配好幾對）／一共幾回合 */
+  part: 'trace' | 'wall' | 'friend' | AbcGame | 'end'
+  /** 描字：描完幾輪／一共幾輪（T-155）；配對遊戲：做完幾回合（翻翻卡：配好幾對）／一共幾回合 */
   done: number
   total: number
   /** 放進籃子這一回合要找的字、聽開頭的答案、新朋友（陪玩小字用） */
@@ -87,6 +91,8 @@ interface Sets {
 
 /**
  * 字母遊戲時間（T-147 英文門案 A）：今天的課上完以後，同一天再進英文門玩的那一段（取代以前的「從頭再複習一次今天的字母」）。
+ * 描字（T-155，家長 2026-11-16「描英文字是很重要的練習」：每次進來都先描今天的大寫、小寫各一次，Trace.tsx 的 PLAY_ROUNDS，不示範、發呆才提示；
+ * 不計分、不寫 lesson.english，作答紀錄記成 abc-trace）→ 大箭頭 →
  * 字母牆（自由點、不計分）→ 大箭頭 → 今天的配對遊戲（放進籃子：聽字找圖 4 回合，或翻翻卡：兩張一樣的圖 2 盤）→ onDone（下課的晚安道別、不定時的貼紙，跟上課一樣）。
  * 只用學過的字母和英文課教過的字（abc.ts）。學過的字母少於 2 個：只有字母牆。
  * 中途離開，同一天回來從離開的那一段接著玩（kv lesson.english.play）；玩完再進來是新的一次，換另一種配對遊戲。
@@ -97,7 +103,7 @@ interface Sets {
  */
 export function Play({ plan, onView, onDone }: { plan: TodayPlan; onView: (v: PlayView) => void; onDone: () => void }) {
   const [st, setSt] = useState<PlayState | null>(null)
-  const [part, setPart] = useState<'wall' | 'friend' | 'game' | null>(null)
+  const [part, setPart] = useState<'trace' | 'wall' | 'friend' | 'game' | null>(null)
   const set = useRef<Sets>({ wall: [], pairs: [], flips: [], onsets: [], onsetDemo: false, fresh: null, more: new Set(), friend: null })
   const s4 = useRef<Stage4Kv>({})
   const live = useRef(true)
@@ -137,11 +143,10 @@ export function Play({ plan, onView, onDone }: { plan: TodayPlan; onView: (v: Pl
       let s0 = startPlay(old, !resuming && onsets.length ? 'onset' : variety, match, d)
       // 接著玩聽開頭、但這次出不了題（家長暫停了、字不夠）：換成放進籃子
       if (s0.cur?.game === 'onset' && !onsets.length) s0 = { ...s0, cur: { ...s0.cur, game: 'pair', round: 0 } }
-      // 今天新學的那一塊第一次放上牆（E5）：這一次播放上去的動畫，記下來以後不再播
+      // 今天新學的那一塊第一次放上牆（E5）：看到牆的那一次播放上去的動畫，記下來以後不再播
       const fresh = isFresh(s0, todayL) && learned.includes(todayL) ? todayL : null
-      const s = fresh ? { ...s0, placed: todayL } : s0
-      const g = s.cur?.game ?? null
-      const mature = !!g && (s.solo?.[g] ?? 0) >= MATURE_AT
+      const g = s0.cur?.game ?? null
+      const mature = !!g && (s0.solo?.[g] ?? 0) >= MATURE_AT
       set.current = {
         wall: wallLetters(learned, todayL, dueOf),
         pairs: g === 'pair' ? makePairs(learned, todayL, mature, dueOf, Math.random, more) : [],
@@ -153,13 +158,11 @@ export function Play({ plan, onView, onDone }: { plan: TodayPlan; onView: (v: Pl
         more,
         friend,
       }
-      save(s)
-      const wallDone = !!s.cur?.wall
-      // 配對遊戲出不了題（理論上不會）：當作沒有配對遊戲
-      const ok = roundsOf(g) > 0
-      if (wallDone && friend) setPart('friend')
-      else if (wallDone && ok) setPart('game')
-      else setPart('wall')
+      // 先描字（T-155）；描完了：字母牆 → 新朋友 → 配對遊戲（配對遊戲出不了題，理論上不會：當作沒有配對遊戲）
+      const p = playPart(s0.cur, !!friend, roundsOf(g) > 0)
+      // 放上牆的動畫真的看到了才記（描字的時候離開，回來照樣播）
+      save(p === 'wall' && fresh ? { ...s0, placed: fresh } : s0)
+      setPart(p)
     })()
     return () => {
       live.current = false
@@ -181,7 +184,8 @@ export function Play({ plan, onView, onDone }: { plan: TodayPlan; onView: (v: Pl
   useEffect(() => {
     if (!part || !st) return
     const g = hasGame ? game : null
-    if (part === 'wall') onView({ part: 'wall', done: 0, total: 0, game: g })
+    if (part === 'trace') onView({ part: 'trace', done: Math.min(st.cur?.trace ?? 0, TRACE_ROUNDS), total: TRACE_ROUNDS, game: g })
+    else if (part === 'wall') onView({ part: 'wall', done: 0, total: 0, game: g })
     else if (part === 'friend') onView({ part: 'friend', done: 0, total: 0, w: set.current.friend?.w.w, game: g })
     else if (game === 'onset') onView({ part: 'onset', done: round, total: onsets.length, w: onsets[Math.min(round, onsets.length - 1)]?.w, game: 'onset' })
     else if (game === 'pair') onView({ part: 'pair', done: round, total: pairs.length, w: pairs[Math.min(round, pairs.length - 1)]?.w, game: 'pair' })
@@ -200,6 +204,25 @@ export function Play({ plan, onView, onDone }: { plan: TodayPlan; onView: (v: Pl
     save(endPlay(s))
     onView({ part: 'end', done: 0, total: 0, game: hasGame ? game : null })
     onDone()
+  }
+
+  /** 描字一輪開始、一輪描完（Trace 的 onRound）：記下描完幾輪（中途離開，同一天回來從沒描的那一輪接著描） */
+  const traceRound = (i: number) => {
+    const s = state.current
+    if (!s?.cur || i <= (s.cur.trace ?? 0)) return
+    save({ ...s, cur: { ...s.cur, trace: Math.min(i, TRACE_ROUNDS) } })
+  }
+
+  /** 描完兩輪：記下來，停在描好的字上、出大箭頭，點了才到字母牆（舊的進度字母牆看過了：新朋友或配對遊戲） */
+  const traceDone = async () => {
+    traceRound(TRACE_ROUNDS)
+    if (!(await nextStep()) || !live.current) return
+    const s = state.current
+    if (!s) return
+    const p = playPart(s.cur, !!set.current.friend, hasGame)
+    const fresh = set.current.fresh
+    if (p === 'wall' && fresh && s.placed !== fresh) save({ ...s, placed: fresh })
+    setPart(p)
   }
 
   /** 字母牆點夠了：出大箭頭，點了才到新朋友或配對遊戲（都沒有就玩完了） */
@@ -242,11 +265,21 @@ export function Play({ plan, onView, onDone }: { plan: TodayPlan; onView: (v: Pl
       <motion.div
         key={part}
         className="en-abc"
-        data-abc={part === 'wall' ? 'wall' : part === 'friend' ? 'friend' : game ?? 'wall'}
+        data-abc={part === 'trace' || part === 'wall' || part === 'friend' ? part : game ?? 'wall'}
         initial={{ opacity: 0 }}
         animate={{ opacity: 1, transition: { duration: 0.4 } }}
         exit={{ opacity: 0, transition: { duration: 0.25 } }}
       >
+        {part === 'trace' && (
+          <Trace
+            letter={lessonLetter(plan.idx, plan.seq)}
+            rounds={PLAY_ROUNDS}
+            from={Math.min(st.cur?.trace ?? 0, TRACE_ROUNDS - 1)}
+            game="abc-trace"
+            onRound={traceRound}
+            onDone={() => void traceDone()}
+          />
+        )}
         {part === 'wall' && <Wall letters={set.current.wall} fresh={set.current.fresh} more={set.current.more} onReady={() => void wallReady()} />}
         {part === 'friend' && set.current.friend && <NewWord pick={set.current.friend} onReady={() => void friendReady()} />}
         {part === 'game' && game === 'pair' && <Pair rounds={pairs} from={Math.min(round, PAIR_ROUNDS - 1, pairs.length - 1)} demo={demo && round === 0} onRound={roundDone} onDone={finish} />}

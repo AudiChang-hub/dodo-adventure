@@ -30,6 +30,9 @@ import {
   makeOnsets,
   pickNewWord,
   ONSET_ROUNDS,
+  TRACE_ROUNDS,
+  cleanPlay,
+  playPart,
 } from '../src/lessons/english/abc'
 import { byeTip, hasWordTip, wordTip } from '../src/lessons/english/coplay'
 import * as S4 from '../src/lessons/english/stage4'
@@ -141,11 +144,11 @@ ok('新帳號第一天（只學過 1 個字母）：只有字母牆，沒有配�
 {
   const d = '2026-11-14'
   const s0 = startPlay(null, 'flip', true, d)
-  assert.deepEqual(s0.cur, { game: 'flip', wall: false, round: 0 })
+  assert.deepEqual(s0.cur, { game: 'flip', wall: false, round: 0, trace: 0 })
   assert.equal(s0.sessions, 0)
   // 玩到一半離開（字母牆看完、翻翻卡第一盤配完）：同一天回來接著玩，不重來、不換遊戲
-  const mid = { ...s0, cur: { game: 'flip' as const, wall: true, round: 1 } }
-  assert.deepEqual(startPlay(mid, 'pair', true, d).cur, { game: 'flip', wall: true, round: 1 })
+  const mid = { ...s0, cur: { game: 'flip' as const, wall: true, round: 1, trace: 2 } }
+  assert.deepEqual(startPlay(mid, 'pair', true, d).cur, { game: 'flip', wall: true, round: 1, trace: 2 })
   // 玩完：sessions 加一、再進來換成放進籃子（variety 今天還是 flip 也一樣）
   const end = endPlay(mid)
   assert.equal(end.sessions, 1)
@@ -155,14 +158,44 @@ ok('新帳號第一天（只學過 1 個字母）：只有字母牆，沒有配�
   assert.equal(startPlay(endPlay(startPlay(end, 'flip', true, d)), 'flip', true, d).cur?.game, 'flip')
   // 隔天：照 variety，從頭（字母牆）開始；自己做對的次數留著
   const next = startPlay({ ...end, solo: { pair: 3 } }, 'pair', true, '2026-11-15')
-  assert.deepEqual(next.cur, { game: 'pair', wall: false, round: 0 })
+  assert.deepEqual(next.cur, { game: 'pair', wall: false, round: 0, trace: 0 })
   assert.equal(next.sessions, 0)
   assert.deepEqual(next.solo, { pair: 3 })
   // 昨天玩到一半：今天不接著玩
-  assert.deepEqual(startPlay(mid, 'pair', true, '2026-11-15').cur, { game: 'pair', wall: false, round: 0 })
+  assert.deepEqual(startPlay(mid, 'pair', true, '2026-11-15').cur, { game: 'pair', wall: false, round: 0, trace: 0 })
   assert.ok(DEMO_UNTIL >= 1)
 }
 ok('同一天中途離開接著玩；玩完再進來換另一種配對遊戲；隔天照輪替從字母牆開始')
+
+// ── T-155：每次進來先描今天的字母（大寫、小寫各一輪），中途離開描過的那一輪不重描 ──
+{
+  const d = '2026-11-16'
+  assert.equal(TRACE_ROUNDS, 2)
+  const s0 = startPlay(null, 'pair', true, d)
+  assert.equal(s0.cur?.trace, 0)
+  assert.equal(playPart(s0.cur, false, true), 'trace', '新的一次：先描字')
+  assert.equal(playPart(s0.cur, true, true), 'trace', '有新朋友也先描字')
+  // 描完大寫離開：同一天回來從小寫接著描
+  const big = { ...s0, cur: { ...s0.cur!, trace: 1 } }
+  assert.equal(startPlay(big, 'flip', true, d).cur?.trace, 1)
+  assert.equal(playPart(big.cur, false, true), 'trace')
+  // 描完兩輪：字母牆 → 新朋友 → 配對遊戲（跟以前一樣）
+  const traced = { ...s0, cur: { ...s0.cur!, trace: 2 } }
+  assert.equal(playPart(traced.cur, true, true), 'wall')
+  assert.equal(playPart({ ...traced.cur!, wall: true }, true, true), 'friend')
+  assert.equal(playPart({ ...traced.cur!, wall: true }, false, true), 'game')
+  assert.equal(playPart({ ...traced.cur!, wall: true }, false, false), 'wall', '沒有配對遊戲：字母牆（點夠了就下課）')
+  // 玩完再進來（同一天）：又要描（每次都描）；隔天也是
+  assert.equal(startPlay(endPlay(traced), 'pair', true, d).cur?.trace, 0)
+  assert.equal(startPlay(traced, 'pair', true, '2026-11-17').cur?.trace, 0)
+  // 只有字母牆（第一天）也先描字
+  assert.equal(playPart(startPlay(null, 'pair', false, d).cur, false, false), 'trace')
+  // 舊的進度（T-155 以前，沒有 trace）：當作還沒描；亂寫的夾在 0～2
+  assert.equal(cleanPlay({ date: d, sessions: 0, cur: { game: 'pair', wall: true, round: 1 } })?.cur?.trace, 0)
+  assert.equal(cleanPlay({ date: d, sessions: 0, cur: { game: 'pair', wall: true, round: 1, trace: 9 } })?.cur?.trace, 2)
+  assert.equal(cleanPlay({ date: d, sessions: 0, cur: { game: 'pair', wall: true, round: 1, trace: 'x' } })?.cur?.trace, 0)
+}
+ok('T-155 字母遊戲時間先描字：每次進來都描、描過的那一輪不重描、描完才到字母牆')
 
 // ── T-149 E5：今天新學的那一塊放上牆的動畫只播一次（換天、玩完、接著玩都記得） ──
 {
