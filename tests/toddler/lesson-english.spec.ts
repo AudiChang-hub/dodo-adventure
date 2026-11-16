@@ -624,7 +624,7 @@ test.describe('英文字母課', () => {
       await page.waitForTimeout(800)
       await k.tap(await page.locator('[data-write-pick="color"]').boundingBox().then((b) => ({ x: b!.x + b!.width / 2, y: b!.y + b!.height / 2 })), '塗字母卡')
       if (!(await page.waitForSelector('.en-color', { timeout: 4000 }).then(() => true, () => false))) return void (await c.once('no-color', '卡死', '點塗字母卡沒有進到塗字母', ''))
-      // 在字母裡面塗一小筆（第一筆的前 30%，不到完成的六成）
+      // 在字母裡面塗一小筆（第一筆的前 30%）
       const pts = await page.evaluate(() => {
         const p = document.querySelector<SVGPathElement>('.wc-board mask path')!
         const m = p.getScreenCTM()!
@@ -641,7 +641,7 @@ test.describe('英文字母課', () => {
       if (!btn) return void (await c.once('no-check', '卡死', '塗了一筆，勾勾沒有出來', ''))
       await page.waitForTimeout(500)
       const done0 = await page.locator('.en-color[data-color-done]').count()
-      c.outcome('塗一筆還沒到六成：不會自己完成', done0 === 0)
+      c.outcome('塗一筆：不會自己完成', done0 === 0)
       // 塗過以後發呆：手指向勾勾（不說話）
       k.behavior = '塗了一筆就發呆'
       const pointed = await page.waitForSelector('.en-color .demo-hand', { timeout: 16_000 }).then(() => true, () => false)
@@ -663,6 +663,169 @@ test.describe('英文字母課', () => {
     } finally {
       await c.flush().catch(() => {})
       finish(k, c, '塗字母點勾勾')
+    }
+  })
+
+  /** 進到塗字母（從寫寫看點塗字母卡）；示範中就搶著塗 */
+  async function toColor(k: Toddler, c: Checker) {
+    const page = k.page
+    if (!(await toWrite(k, c))) return false
+    await page.waitForTimeout(800)
+    await k.tap(await page.locator('[data-write-pick="color"]').boundingBox().then((b) => ({ x: b!.x + b!.width / 2, y: b!.y + b!.height / 2 })), '塗字母卡')
+    const ok = await page.waitForSelector('.en-color', { timeout: 4000 }).then(() => true, () => false)
+    if (!ok) await c.once('no-color', '卡死', '點塗字母卡沒有進到塗字母', '')
+    return ok
+  }
+  /** 字母每一筆的螢幕座標：off＝往筆的法線方向偏多少（描字板單位），t0～t1＝取這一筆的哪一段 */
+  const strokePts = (page: Page, off = 0, t0 = 0, t1 = 1) =>
+    page.evaluate(
+      ({ off, t0, t1 }) =>
+        [...document.querySelectorAll<SVGPathElement>('.wc-board mask path')].map((p) => {
+          const m = p.getScreenCTM()!
+          const len = p.getTotalLength()
+          const n = Math.max(10, Math.round((len * (t1 - t0)) / 3))
+          return Array.from({ length: n + 1 }, (_, i) => {
+            const l = len * (t0 + ((t1 - t0) * i) / n)
+            const q = p.getPointAtLength(l)
+            const a = p.getPointAtLength(Math.max(0, l - 1))
+            const b = p.getPointAtLength(Math.min(len, l + 1))
+            const d = Math.hypot(b.x - a.x, b.y - a.y) || 1
+            const s = new DOMPoint(q.x + (-(b.y - a.y) / d) * off, q.y + ((b.x - a.x) / d) * off).matrixTransform(m)
+            return { x: s.x, y: s.y }
+          })
+        }),
+      { off, t0, t1 },
+    )
+  /** 塗字母的作答紀錄（原始欄位：skill、metrics.cover 也要看） */
+  const colorRecs = (page: Page) =>
+    page.evaluate(
+      () =>
+        new Promise<{ itemId: string; skill: string; phase: string; cover: number }[]>((res) => {
+          const rq = indexedDB.open('dodo-adventure')
+          rq.onsuccess = () => {
+            const db = rq.result
+            const g = db.transaction('attempts').objectStore('attempts').getAll()
+            g.onsuccess = () => {
+              db.close()
+              res((g.result as any[]).filter((a) => a.game === 'en-color').map((a) => ({ itemId: a.itemId, skill: a.skill, phase: a.phase, cover: Number(a.metrics?.cover ?? 0) })))
+            }
+            g.onerror = () => res([])
+          }
+        }),
+    )
+  const colorDone = (page: Page) => page.locator('.en-color[data-color-done]').count().then((n) => n > 0)
+  /** 塗字母上有沒有手（示範的手、指向勾勾的手） */
+  const handOn = (page: Page) => page.evaluate(() => !!document.querySelector('.en-color .demo-hand, .en-color [data-demo-hand]'))
+
+  // T-151（家長 2026-11-16：塗得意猶未盡就被結算掉）：以前塗到大約六成（FILL_DONE）就自動完成。
+  // 現在塗多少都不會自己結束，可以一直塗、一直蓋印章，只有他自己點勾勾才完成；正在塗（手指按著）的時候手不會出來擋
+  test('塗字母：塗滿、塗很久、一直蓋印章都不會自己結束；按著不動手不會出來；連點勾勾只完成一次（T-151）', async ({ page }, info) => {
+    test.skip(!want('lesson-english-write'))
+    test.setTimeout(4 * 60_000)
+    const { k, c } = await setup(page, info, '塗很久不收走', false, false)
+    try {
+      if (!(await toColor(k, c))) return
+      // 示範中就搶著塗：沿著每一筆的中間、兩邊來回塗（塗過六成很多）
+      k.behavior = '把整個字母塗滿'
+      let early = false
+      for (const off of [0, 6, -6, 9, -9]) {
+        for (const pts of await strokePts(page, off)) {
+          await k.drag(pts, { stepMs: 14, label: `塗（偏 ${off}）` })
+          if (await colorDone(page)) early = true
+        }
+        if (early) break
+      }
+      c.outcome('塗滿了：不會自己完成', !early)
+      if (early) return void (await c.once('auto-done', '困惑', '塗字母塗過六成就自己結束了，他還想塗（T-151）', ''))
+      // 換顏色再塗、一直蓋印章
+      k.behavior = '換藍色再塗、一直蓋印章'
+      const blue = await page.locator('[data-crayon="blue"]').boundingBox()
+      if (blue) await k.tap({ x: blue.x + blue.width / 2, y: blue.y + blue.height / 2 }, '藍色蠟筆')
+      for (const pts of await strokePts(page, 3)) await k.drag(pts, { stepMs: 14, label: '藍色塗' })
+      const st = await page.locator('[data-stamp]').first().boundingBox()
+      if (st) await k.tap({ x: st.x + st.width / 2, y: st.y + st.height / 2 }, '印章')
+      const mid = (await strokePts(page, 0, 0.1, 0.9)).flat()
+      for (let i = 0; i < 12; i++) await k.tap(mid[Math.floor((i * mid.length) / 12)], '蓋印章')
+      await k.spam(mid[Math.floor(mid.length / 2)], 5, '同一個地方連蓋印章')
+      await k.wait(1500)
+      const stillOn = !(await colorDone(page)) && (await page.locator('[data-color-check]').count()) > 0
+      c.outcome('塗很久、蓋很多印章：還在塗、勾勾還在', stillOn)
+      if (!stillOn) return void (await c.once('auto-done2', '困惑', '塗字母塗很久、蓋很多印章就自己結束了（T-151）', ''))
+
+      // 手指按在字母上不動（12 秒，超過 10 秒的發呆）：正在塗，手不會出來擋
+      k.behavior = '手指按在字母上不動'
+      let handWhileDown = false
+      const at = mid[Math.floor(mid.length / 3)]
+      const pen = await page.locator('[data-crayon="red"]').boundingBox()
+      if (pen) await k.tap({ x: pen.x + pen.width / 2, y: pen.y + pen.height / 2 }, '紅色蠟筆')
+      await Promise.all([
+        k.hold(at, 12_000, '按著字母不動'),
+        (async () => {
+          const end = Date.now() + 11_500
+          while (Date.now() < end) {
+            if (await handOn(page)) handWhileDown = true
+            await page.waitForTimeout(300)
+          }
+        })(),
+      ])
+      c.outcome('手指按著不動：手不會出來擋', !handWhileDown)
+      if (handWhileDown) await c.once('hand-while-down', '困惑', '他手指還按在字母上，手就出來指勾勾（擋到他塗）', '')
+      c.outcome('按著不動很久：不會自己完成', !(await colorDone(page)))
+
+      // 放手以後發呆：手指向勾勾（保留 T-135）
+      k.behavior = '塗完發呆'
+      const pointed = await page.waitForSelector('.en-color .demo-hand', { timeout: 16_000 }).then(() => true, () => false)
+      c.outcome('塗過以後發呆：手指向勾勾', pointed)
+      if (!pointed) await c.once('no-point-check', '困惑', '塗過以後發呆，沒有手指向勾勾', '')
+      c.outcome('發呆也不會自己完成', !(await colorDone(page)))
+
+      // 連點勾勾：完成一次、記一筆
+      k.behavior = '連點勾勾'
+      const b = await page.locator('[data-color-check]').boundingBox()
+      if (!b) return void (await c.once('no-check', '卡死', '塗了很久，勾勾不見了', ''))
+      await k.spam({ x: b.x + b.width / 2, y: b.y + b.height / 2 }, 5, '勾勾')
+      const done = await page.waitForSelector('.en-color[data-color-done]', { state: 'attached', timeout: 3000 }).then(() => true, () => false)
+      c.outcome('點勾勾：完成、慶祝', done)
+      if (!done) return void (await c.once('tap-check', '卡死', '塗字母連點勾勾沒有完成', ''))
+      const next = await page.waitForSelector('.next-step', { timeout: 10_000 }).then(() => true, () => false)
+      c.outcome('完成後出「下一步」', next)
+      if (!next) await c.once('no-next', '卡死', '塗字母完成後沒有出「下一步」', '')
+      const rec = await colorRecs(page)
+      const cover = rec[0]?.cover ?? 0
+      const recOk = rec.length === 1 && rec[0].phase === 'guided' && rec[0].itemId === 'write:S' && rec[0].skill === 'write:S'
+      c.outcome('連點勾勾只記一筆 en-color（phase guided）', recOk, JSON.stringify(rec.map((a) => ({ phase: a.phase, itemId: a.itemId }))))
+      if (!recOk) await c.once('color-rec', '誤記作答', '塗字母的作答紀錄不對（連點勾勾要只記一筆 en-color、phase guided）', JSON.stringify(rec))
+      // 確認這一項真的塗過六成（以前會自動完成的量）
+      c.outcome('紀錄的塗色比例超過以前自動完成的六成', cover >= 0.6, `cover=${cover}`)
+      expect.soft(cover, '塗色比例要超過 0.6，才證明以前會自動完成').toBeGreaterThanOrEqual(0.6)
+    } finally {
+      await c.flush().catch(() => {})
+      finish(k, c, '塗很久不收走')
+    }
+  })
+
+  test('塗字母：塗到一半按返回 → 1 步回首頁，不記作答（T-151）', async ({ page }, info) => {
+    test.skip(!want('lesson-english-write'))
+    test.setTimeout(3 * 60_000)
+    const { k, c } = await setup(page, info, '塗到一半返回', false, false)
+    try {
+      if (!(await toColor(k, c))) return
+      k.behavior = '塗到一半'
+      for (const pts of await strokePts(page, 0, 0, 0.6)) await k.drag(pts, { stepMs: 14, label: '塗' })
+      await page.waitForSelector('[data-color-check]', { timeout: 4000 }).catch(() => null)
+      k.behavior = '塗到一半按返回'
+      const h = await homeButton(page)
+      if (!h) return void (await c.once('no-back', '無法返回', '塗字母找不到返回鍵', ''))
+      await pressBack(k, h, '塗到一半按返回')
+      const back = await waitLive(page, (l) => l === 'home', 4000)
+      c.outcome('塗到一半按返回 → 首頁', back === 'home', `到 ${back}`)
+      if (back !== 'home') await c.once('back-color', '無法返回', '塗字母塗到一半按返回沒有回首頁', `停在 ${back}`)
+      const rec = await colorRecs(page)
+      c.outcome('沒按勾勾就離開：不記塗字母', rec.length === 0, `${rec.length} 筆`)
+      if (rec.length) await c.once('color-rec-back', '誤記作答', '塗字母沒按勾勾就返回，卻記了作答', JSON.stringify(rec))
+    } finally {
+      await c.flush().catch(() => {})
+      finish(k, c, '塗到一半返回')
     }
   })
 

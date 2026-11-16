@@ -25,8 +25,6 @@ const SHAPE_W = 27
 const CRAYON_W = 11
 /** 印章多大 */
 const STAMP_SIZE = 22
-/** 塗到這個比例就算完成（家長：大約 60%） */
-const FILL_DONE = 0.6
 /** 選擇畫面：沒選的話，幾秒後手指向「描字」 */
 const POINT_MS = 8000
 /** 塗了多少的格子大小（描字板單位） */
@@ -127,13 +125,15 @@ function ShapeMask({ id, strokes }: { id: string; strokes: string[] }) {
  * 寫寫看（英文課第 4 段，T-127 B 案「他想畫畫」）：先出兩張大卡片，二選一。
  * - 描字：跟以前一樣（Trace + WRITE_ROUNDS，大寫一輪、不示範），作答紀錄照舊。
  * - 塗字母：在今天字母（大寫）的泡泡字裡用蠟筆塗色，或用今天世界的印章蓋（lib/today-world.ts 的 stamps）。
- *   筆跡、印章都只畫在字母形狀裡（SVG 遮罩）。塗到大約六成（FILL_DONE），或點一下勾勾（塗過一下才出來），就算完成、出「下一步」。
+ *   筆跡、印章都只畫在字母形狀裡（SVG 遮罩）。只有他自己點勾勾（塗過一下才出來）才完成、出「下一步」。
+ *   T-151（家長 2026-11-16：塗得意猶未盡就被結算掉）：以前塗到大約六成就自動完成，現在拿掉了；
+ *   塗多少都不會自己結束，可以一直塗、一直蓋印章，也沒有「塗夠了」的提示（不亮、不念）。
  *   T-135（盲測 becf39a：勾勾以前要按住 1.2 秒，他只會點，12 輪點了 19 次沒有一次完成）：點一下就完成；
- *   塗過以後 10 秒沒動，手指向勾勾（還沒動手的話照舊再示範塗色）。
+ *   塗過以後 10 秒沒動，手指向勾勾（還沒動手的話照舊再示範塗色）；手指還按在字母上（正在塗）的時候手不出來擋。
  * 兩張卡片上手各示範一次（描、塗＋蓋印章），關掉聲音也看得懂；沒選的話 8 秒後手指向「描字」。
  * 塗字母開始時手再示範一次（可以搶：一碰畫板示範就收掉）；10 秒沒動手再安靜示範一次。
  * 作答紀錄：塗字母記 game 'en-color'、skill 沿用 write:<大寫>，phase 'guided'（不更新熟練度，家長區的「寫過的字母」也不算），
- * 所以不影響描字的熟練判斷。
+ * 所以不影響描字的熟練判斷。metrics.cover 記塗了多少（只是紀錄，不拿來判斷完成）。
  */
 export function WriteChoice({ letter, retry, onDone }: { letter: LessonLetter; retry?: RetryBudget; onDone: () => void }) {
   const [mode, setMode] = useState<Mode>('pick')
@@ -295,7 +295,7 @@ function ColorLetter({ letter, onDone }: { letter: LessonLetter; onDone: () => v
   const touched = useRef(false)
   const spoke = useRef(false)
   const demoStamp = stamps[0]
-  /** 蓋了幾個印章（finish 在蓋章的同一下就可能被叫，不能讀 state） */
+  /** 蓋了幾個印章（finish 時讀，不能讀 state） */
   const stampN = useRef(0)
 
   const toLocal = (e: { clientX: number; clientY: number }): P2 | null => {
@@ -305,7 +305,7 @@ function ColorLetter({ letter, onDone }: { letter: LessonLetter; onDone: () => v
     return { x: p.x, y: p.y }
   }
 
-  /** 把 p 附近 r 以內、在字母裡的格子記成塗過；塗到 FILL_DONE 就完成 */
+  /** 把 p 附近 r 以內、在字母裡的格子記成塗過（只記塗了多少，寫進作答紀錄的 cover；不會因此完成） */
   const paint = (p: P2, r: number) => {
     const { cols, rows, inside } = shape
     const i0 = Math.max(0, Math.floor((p.x - r) / CELL))
@@ -324,9 +324,6 @@ function ColorLetter({ letter, onDone }: { letter: LessonLetter; onDone: () => v
   const paintLine = (a: P2, b: P2) => {
     const n = Math.max(1, Math.ceil(Math.hypot(b.x - a.x, b.y - a.y) / 2))
     for (let s = 1; s <= n; s++) paint({ x: a.x + ((b.x - a.x) * s) / n, y: a.y + ((b.y - a.y) * s) / n }, PAINT_R)
-  }
-  const checkFull = () => {
-    if (shape.total && count.current / shape.total >= FILL_DONE) void finish('fill')
   }
 
   /** 手示範：沿著第一筆左右晃著塗、在最後一筆中間蓋一個印章，然後收掉。quiet：不說話（閒置時再示範） */
@@ -355,8 +352,9 @@ function ColorLetter({ letter, onDone }: { letter: LessonLetter; onDone: () => v
     if (ok()) openTurn()
   }
 
-  /** 塗過以後發呆：手指向勾勾（不說話）；量畫面上的位置 */
+  /** 塗過以後發呆：手指向勾勾（不說話）；量畫面上的位置。手指還按在字母上（正在塗）就不出來擋 */
   const pointCheck = () => {
+    if (drawing.current) return
     const o = root.current?.getBoundingClientRect()
     const r = checkBtn.current?.getBoundingClientRect()
     if (!o || !r || busy.current) return
@@ -395,7 +393,8 @@ function ColorLetter({ letter, onDone }: { letter: LessonLetter; onDone: () => v
     openTurn()
   }
 
-  const finish = async (how: 'fill' | 'tap') => {
+  /** 完成：只有點勾勾會叫（T-151 起塗多少都不會自己完成） */
+  const finish = async () => {
     if (busy.current) return
     busy.current = true
     drawing.current = null
@@ -421,7 +420,7 @@ function ColorLetter({ letter, onDone }: { letter: LessonLetter; onDone: () => v
       attempts: 1,
       responseMs: Math.round(performance.now() - t0.current),
       hintUsed: false,
-      metrics: { cover: Math.round(cover * 100) / 100, stamps: stampN.current, ...(how === 'tap' ? { tapped: 1 } : {}) },
+      metrics: { cover: Math.round(cover * 100) / 100, stamps: stampN.current, tapped: 1 },
     })
     await say('en.color.done', `ph.${letter.l}.big`)
     if (live.current) onDone()
@@ -448,7 +447,7 @@ function ColorLetter({ letter, onDone }: { letter: LessonLetter; onDone: () => v
       setStampMarks((s) => [...s, { x: p.x, y: p.y, name: tool.name, rot: Math.round(Math.random() * 30 - 15) }])
       stampN.current++
       paint(p, STAMP_R)
-      return checkFull()
+      return
     }
     e.currentTarget.setPointerCapture?.(e.pointerId)
     const mark = { color: tool.color, pts: [p] }
@@ -466,7 +465,6 @@ function ColorLetter({ letter, onDone }: { letter: LessonLetter; onDone: () => v
     d.mark.pts.push(p)
     setLiveMark({ color: d.mark.color, pts: d.mark.pts.slice() })
     idle.poke()
-    checkFull()
   }
   const onUp = (e: ReactPointerEvent<SVGSVGElement>) => {
     const d = drawing.current
@@ -474,16 +472,17 @@ function ColorLetter({ letter, onDone }: { letter: LessonLetter; onDone: () => v
     drawing.current = null
     setMarks((m) => [...m, d.mark])
     setLiveMark(null)
-    checkFull()
+    // 放手才開始算發呆（按著不動的時候不指勾勾）
+    idle.poke()
   }
 
   /**
-   * 勾勾：點一下就完成（T-135；以前要按住 1.2 秒，他只會點）。塗過一下才出來，所以不會一進來亂點就跳過；
-   * 塗字母是一起玩（phase guided），不影響描字的熟練，塗多少都可以
+   * 勾勾：唯一的結束方式，點一下就完成（T-135；以前要按住 1.2 秒，他只會點）。塗過一下才出來，所以不會一進來亂點就跳過；
+   * 連點只算一次（finish 的 busy 擋）。塗字母是一起玩（phase guided），不影響描字的熟練，塗多少都可以
    */
   const tapCheck = (e: ReactPointerEvent) => {
     e.preventDefault()
-    void finish('tap')
+    void finish()
   }
 
   const wig = shape.wiggle
@@ -539,7 +538,7 @@ function ColorLetter({ letter, onDone }: { letter: LessonLetter; onDone: () => v
           )}
         </div>
       </div>
-      {/* 工具：四支蠟筆、今天世界的印章；勾勾（塗過一下才出來，點一下就完成） */}
+      {/* 工具：四支蠟筆、今天世界的印章；勾勾（塗過一下才出來，點一下才完成；塗多少都不會自己結束） */}
       <div className="wc-toolbar" aria-hidden="true">
         {CRAYONS.map((c) => {
           const on = tool.kind === 'crayon' && tool.color === c.hex
