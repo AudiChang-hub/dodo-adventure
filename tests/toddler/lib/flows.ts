@@ -38,7 +38,7 @@ export class Checker {
     this.outcomes.push({ behavior, ok, note })
   }
 
-  /** 幼兒設計準則（docs/幼兒設計準則.md）的一條檢查；不算進問題清單，報告另外列表 */
+  /** 幼兒設計準則（guides/幼兒設計準則.md）的一條檢查；不算進問題清單，報告另外列表 */
   readonly rules: { id: string; ok: boolean; note: string; where: string }[] = []
   rule(id: string, ok: boolean, note = '') {
     this.rules.push({ id, ok, note, where: this.k.where })

@@ -178,15 +178,15 @@ if (gameRuns.length) {
   L.push('')
 }
 
-// 幼兒設計準則（docs/幼兒設計準則.md 的「怎麼測」）
+// 幼兒設計準則（guides/幼兒設計準則.md 的「怎麼測」）
 const ruleRows = runs.flatMap((r) => (r.rules ?? []).map((x) => ({ ...x, vp: r.viewport })))
 if (ruleRows.length) {
-  const guide = [path.join(root, 'docs/幼兒設計準則.md'), path.resolve(root, '../../../docs/幼兒設計準則.md')].find((p) => fs.existsSync(p))
+  const guide = [path.join(root, 'guides/幼兒設計準則.md'), path.resolve(root, '../../../guides/幼兒設計準則.md')].find((p) => fs.existsSync(p))
   const titles = new Map()
   if (guide) for (const m of fs.readFileSync(guide, 'utf8').matchAll(/^### ([A-Z]+-\d+) (.+)$/gm)) titles.set(m[1], m[2].trim())
   const ids = [...new Set(ruleRows.map((x) => x.id))].sort((a, b) => a.localeCompare(b, 'en', { numeric: true }))
   L.push('## 幼兒設計準則檢查', '')
-  L.push('依 `docs/幼兒設計準則.md` 每條規則的「怎麼測」自動檢查。準則是新訂的目標，不符合的項目**不算在上面的問題數裡**，列在這裡給設計和驗收對照。沒列出的規則見最後的「還沒辦法自動化」。', '')
+  L.push('依 `guides/幼兒設計準則.md` 每條規則的「怎麼測」自動檢查。準則是新訂的目標，不符合的項目**不算在上面的問題數裡**，列在這裡給設計和驗收對照。沒列出的規則見最後的「還沒辦法自動化」。', '')
   L.push('| 規則 | 內容 | 符合 | 不符合 | 不符合的例子 |', '|---|---|:-:|:-:|---|')
   for (const id of ids) {
     const xs = ruleRows.filter((x) => x.id === id)

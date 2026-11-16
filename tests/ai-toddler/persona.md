@@ -102,10 +102,10 @@
 | 英文只認得 A、B | 家長給的實際程度；母語是國語（台灣） |
 | 點不準（平均偏 4～5 mm）、3 歲手勢成功率約 73% | Vatavu, Cramariuc & Schipor (2015), *Touch interaction for children aged 3 to 6 years*, IJHCS 74:54–76（成功率 73%／89% 轉引自 Hiniker et al. 2015 §2.2）；NN/g Liu (2018) *Design for Kids Based on Their Stage of Physical Development*：觸控目標至少 2 cm |
 | 拖曳拖到一半放手、不會兩指手勢 | Sesame Workshop (2012) *Best Practices: Designing Touch Tablet Experiences for Preschoolers* p.6～7：孩子很難一直把手指留在螢幕上；Hiniker et al. (2015) IDC：2～3 歲拖曳、旋轉、張開手指有困難（Aziz 2013 轉引）；Crescenzi-Lanna & Grané (2016)：很小的孩子常常是一直點、而不是拖 |
-| 專心 2～5 分鐘、要大人支持 | ELOF 36～48 個月 P-ATL 6：在大人支持下短時間專心（能專心 15 分鐘以上是 60 個月的目標）；本專案 docs/幼兒設計準則.md LOAD-3（一回合 ≤ 3 分鐘）、時間與專注表（一個活動 2～5 分鐘，設計值）。「每歲 2～3 分鐘」找不到原始研究，不採用 |
+| 專心 2～5 分鐘、要大人支持 | ELOF 36～48 個月 P-ATL 6：在大人支持下短時間專心（能專心 15 分鐘以上是 60 個月的目標）；本專案 guides/幼兒設計準則.md LOAD-3（一回合 ≤ 3 分鐘）、時間與專注表（一個活動 2～5 分鐘，設計值）。「每歲 2～3 分鐘」找不到原始研究，不採用 |
 | 會被會動、鮮豔的東西吸走 | AAP (2016) *Media and Young Minds*, Pediatrics 138(5):e20162591：互動效果、會動的東西會分散注意力、降低理解；NN/g Liu (2018) *Designing for Kids: Cognitive Considerations* |
 | 聽不懂就看畫面猜、會亂點試試看 | NN/g Sherwin & Nielsen (2019) *Children's UX: Usability Issues*：孩子不看說明，直接試；Hiniker et al. (2015)：學前孩子對視覺提示（手指示範）的反應比口語提示好 |
-| 示範時搶著點 | 本專案三歲模擬測試的觀察（docs/幼兒設計準則.md TOUCH、示範時不收作答的規則 T-51）；ELOF P-ATL 36～48 個月：自我控制（等待輪流）在大人提醒下才做得到 |
+| 示範時搶著點 | 本專案三歲模擬測試的觀察（guides/幼兒設計準則.md TOUCH、示範時不收作答的規則 T-51）；ELOF P-ATL 36～48 個月：自我控制（等待輪流）在大人提醒下才做得到 |
 | 挫折比無聊更快讓他離開 | ELOF 36～48 個月 Social & Emotional Development（P-SE 5～7）：在大人支持下處理挫折；*Development Matters*「3 and 4-year-olds」：開始能在大人支持下調節情緒 |
 | 喜歡恐龍、車子、動物 | 家長給的實際興趣（專案的主角就是三隻恐龍） |
 
