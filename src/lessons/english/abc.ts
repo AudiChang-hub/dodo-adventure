@@ -24,6 +24,8 @@ const isGame = (g: unknown): g is AbcGame => g === 'pair' || g === 'flip' || g =
 export const WALL_MAX = 6
 /** 放進籃子幾回合（LOAD-3） */
 export const PAIR_ROUNDS = 4
+/** 字母遊戲時間一開始描今天的字母幾輪（T-155：大寫、小寫各一次；Trace.tsx 的 PLAY_ROUNDS） */
+export const TRACE_ROUNDS = 2
 /** 翻翻卡幾盤（一盤 2 對，兩盤共 4 對；熟了第一盤 3 對） */
 export const FLIP_BOARDS = 2
 /** 新遊戲自己做對幾次以前，第一回合都先示範（照 math/plays.ts 的 PLAY_SOLO） */
@@ -267,8 +269,11 @@ export interface PlayState {
   sessions: number
   /** 今天最後玩完的那一種 */
   last?: AbcGame
-  /** 玩到一半（同一天回來從這裡接著玩）：字母牆看完了沒、配對遊戲做完幾回合（翻翻卡是幾盤） */
-  cur?: { game: AbcGame | null; wall: boolean; round: number }
+  /**
+   * 玩到一半（同一天回來從這裡接著玩）：描字描完幾輪（T-155，0～TRACE_ROUNDS；舊的進度沒有就是 0）、字母牆看完了沒、
+   * 配對遊戲做完幾回合（翻翻卡是幾盤）
+   */
+  cur?: { game: AbcGame | null; wall: boolean; round: number; trace: number }
   /** 新遊戲自己做對幾次（跨天累計）：DEMO_UNTIL 以前示範、MATURE_AT 以後算熟了 */
   solo?: Partial<Record<AbcGame, number>>
   /** 最後一個「放上字母牆」的字母（T-149 E5：今天新學的那塊第一次出現才播放上去的動畫） */
@@ -284,11 +289,16 @@ const clean = (v: unknown): PlayState | null => {
     date: s.date,
     sessions: typeof s.sessions === 'number' ? s.sessions : 0,
     ...(isGame(s.last) ? { last: s.last } : {}),
-    ...(cur ? { cur: { game: isGame(cur.game) ? cur.game : null, wall: !!cur.wall, round: Math.max(0, Number(cur.round) || 0) } } : {}),
+    ...(cur
+      ? { cur: { game: isGame(cur.game) ? cur.game : null, wall: !!cur.wall, round: Math.max(0, Number(cur.round) || 0), trace: Math.min(TRACE_ROUNDS, Math.max(0, Number(cur.trace) || 0)) } }
+      : {}),
     solo: s.solo && typeof s.solo === 'object' ? s.solo : {},
     ...(typeof s.placed === 'string' ? { placed: s.placed } : {}),
   }
 }
+
+/** 讀進來的進度整理好（壞掉的當作沒有；舊的進度沒有 trace 當作還沒描） */
+export const cleanPlay = clean
 
 export async function loadPlay(): Promise<PlayState | null> {
   try {
@@ -313,7 +323,18 @@ export function startPlay(old: PlayState | null, variety: AbcGame, match: boolea
   const sessions = old && old.date === d ? old.sessions : 0
   const last = old && old.date === d ? old.last : undefined
   const game: AbcGame | null = !match ? null : sessions > 0 && last ? (last === 'pair' ? 'flip' : 'pair') : variety
-  return { date: d, sessions, ...(last ? { last } : {}), cur: { game, wall: false, round: 0 }, solo, ...placed }
+  return { date: d, sessions, ...(last ? { last } : {}), cur: { game, wall: false, round: 0, trace: 0 }, solo, ...placed }
+}
+
+/**
+ * 這次進來從哪一段開始（純函式，T-155）：描字還沒描完 → 描字（從沒描的那一輪接著描）；字母牆還沒看完 → 字母牆；
+ * 看完了 → 新朋友（有的話）→ 配對遊戲。描字放在最前面：每次進來都先描今天的字母，描完才玩。
+ */
+export function playPart(cur: PlayState['cur'], friend: boolean, game: boolean): 'trace' | 'wall' | 'friend' | 'game' {
+  if (!cur || cur.trace < TRACE_ROUNDS) return 'trace'
+  if (cur.wall && friend) return 'friend'
+  if (cur.wall && game) return 'game'
+  return 'wall'
 }
 
 /** 今天的字母還沒放上過字母牆（T-149 E5：放上去的動畫只播一次） */

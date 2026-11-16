@@ -1316,8 +1316,8 @@ test.describe('英文字母課', () => {
         { name: '昨天上完、答得好 → 下一個字母', p: { idx: 0, date: yesterday, done: true, good: true }, want: 'B', again: false },
         { name: '昨天錯很多 → 重上同一個字母', p: { idx: 1, date: yesterday, done: true, good: false }, want: 'B', again: false },
         { name: '昨天沒上完 → 重上同一個字母', p: { idx: 2, date: yesterday, done: false, good: false }, want: 'C', again: false },
-        // T-147：今天上完了又進來是字母遊戲時間（字母牆第一塊是今天的字母），不再從頭複習
-        { name: '今天上完了又進來 → 字母遊戲時間（牆上第一塊是今天的字母）', p: { idx: 3, date: today, done: true, good: true }, want: 'D', again: true },
+        // T-147：今天上完了又進來是字母遊戲時間，不再從頭複習；T-155 起一進來先描今天的字母（描字右邊的大小寫格子）
+        { name: '今天上完了又進來 → 字母遊戲時間（先描今天的字母）', p: { idx: 3, date: today, done: true, good: true }, want: 'D', again: true },
         { name: 'Z 上完 → 從 A 再來', p: { idx: 25, date: yesterday, done: true, good: true }, want: 'A', again: false },
       ]
       for (const cs of cases) {
@@ -1336,8 +1336,8 @@ test.describe('英文字母課', () => {
           cs.p,
         )
         if (!(await enter(k, c))) break
-        await page.waitForSelector(cs.again ? '.en-wall .en-block' : '.en-meet .en-letter.is-big', { timeout: 10_000 }).catch(() => null)
-        const L = cs.again ? await page.evaluate(() => document.querySelector('.en-wall .en-block')?.getAttribute('aria-label') ?? null) : await letterOf(page)
+        await page.waitForSelector(cs.again ? '.en-abc .en-trace-rounds span' : '.en-meet .en-letter.is-big', { timeout: 10_000 }).catch(() => null)
+        const L = cs.again ? await page.evaluate(() => document.querySelector('.en-abc .en-trace-rounds span')?.textContent?.trim() ?? null) : await letterOf(page)
         c.outcome(cs.name, L === cs.want, `今天的字母 ${L}（應為 ${cs.want}）`)
         if (L !== cs.want) await c.once(`plan:${cs.name}`, '誤記作答', `進度規則不對：${cs.name}`, `今天的字母 ${L}，應為 ${cs.want}`)
         const h = await homeButton(page)
@@ -1384,8 +1384,9 @@ test.describe('英文字母課', () => {
       if (back !== 'home') await c.once('end-back', '無法返回', '回到晚安道別時按返回沒有回首頁', `停在 ${back}`)
       k.behavior = '再進來'
       if (!(await enter(k, c))) return
-      const wall2 = await page.waitForSelector('.en-wall', { timeout: 8000 }).catch(() => null)
-      c.outcome('再進來：字母遊戲時間（字母牆）', !!wall2, `停在 ${await stageOf(page)}`)
+      // T-155 起字母遊戲時間先描字，描完才是字母牆
+      const wall2 = await page.waitForSelector('.en-abc .en-trace, .en-wall', { timeout: 8000 }).catch(() => null)
+      c.outcome('再進來：字母遊戲時間（先描字）', !!wall2, `停在 ${await stageOf(page)}`)
       if (!wall2) await c.once('end-review', '誤記作答', '回過晚安道別以後再進來，沒有到字母遊戲時間', `停在 ${await stageOf(page)}`)
     } finally {
       await c.flush().catch(() => {})
@@ -1935,10 +1936,14 @@ const kvOf = (page: Page, key: string) =>
     key,
   )
 
-/** 今天的課上完了：學過 seq 的前 idx+1 個字母；game 固定今天的配對遊戲（lib/variety 的 dodo:variety:english.abc） */
-async function seedPlay(page: Page, idx: number, game: 'pair' | 'flip' | null) {
+/**
+ * 今天的課上完了：學過 seq 的前 idx+1 個字母；game 固定今天的配對遊戲（lib/variety 的 dodo:variety:english.abc）。
+ * traced：這一次的描字（T-155，字母遊戲時間一開始描大寫、小寫）已經描完了，進來直接是字母牆（測字母牆、配對遊戲用）；
+ * false：全新的一次，進來先描字（4 歲內容要靠「全新的一次」才會選聽開頭，所以 seedStage4 用 false、再由 wallTaps 描完）
+ */
+async function seedPlay(page: Page, idx: number, game: 'pair' | 'flip' | null, traced = true) {
   await page.evaluate(
-    ({ idx, game }) =>
+    ({ idx, game, traced }) =>
       new Promise<void>((res) => {
         if (game) localStorage.setItem('dodo:variety:english.abc', game)
         const d = new Date()
@@ -1948,16 +1953,54 @@ async function seedPlay(page: Page, idx: number, game: 'pair' | 'flip' | null) {
           const tx = rq.result.transaction('kv', 'readwrite')
           const st = tx.objectStore('kv')
           st.put({ key: 'lesson.english', value: { idx, seq: 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', date: today, done: true, good: true } })
-          st.delete('lesson.english.play')
+          if (traced) st.put({ key: 'lesson.english.play', value: { date: today, sessions: 0, cur: { game: null, wall: false, round: 0, trace: 2 }, solo: {} } })
+          else st.delete('lesson.english.play')
           tx.oncomplete = () => {
             rq.result.close()
             res()
           }
         }
       }),
-    { idx, game },
+    { idx, game, traced },
   )
 }
+
+/** 字母遊戲時間的描字（T-155）：還在描字就照著虛線描完（大寫、小寫，大箭頭由 autoNext 點），到了別的段落就回傳 true */
+async function passPlayTrace(k: Toddler, ms = 90_000) {
+  const page = k.page
+  const end = Date.now() + ms
+  while (Date.now() < end) {
+    const at = await page.evaluate(() => (document.querySelector('.en-trace') ? 'trace' : document.querySelector('.en-wall, .en-new-card, .en-pair, .en-flip') ? 'next' : null))
+    if (at === 'next') return true
+    if (at === 'trace') await traceRound(k)
+    else await page.waitForTimeout(250)
+  }
+  return false
+}
+/** 描字現在這一筆（虛線）的螢幕座標；還不能畫、找不到就是 null */
+const strokePts = (page: Page) =>
+  page.evaluate(() => {
+    const t = document.querySelector('.en-trace')
+    if (!t || t.getAttribute('data-accepting') === 'false') return null
+    const boards = [...document.querySelectorAll('.en-trace-board')]
+    const p = boards[boards.length - 1]?.querySelector<SVGPathElement>('path[stroke-dasharray="3 3"]')
+    if (!p) return null
+    const m = p.getScreenCTM()!
+    const len = p.getTotalLength()
+    const n = Math.max(8, Math.round(len / 4))
+    return Array.from({ length: n + 1 }, (_, i) => {
+      const q = p.getPointAtLength((len * i) / n)
+      const s = new DOMPoint(q.x, q.y).matrixTransform(m)
+      return { x: s.x, y: s.y }
+    })
+  })
+/** 描字右邊的大小寫格子：描好的、現在這一輪 */
+const traceTags = (page: Page) =>
+  page.evaluate(() => ({
+    done: [...document.querySelectorAll('.en-trace-rounds .is-done')].map((e) => e.textContent?.trim() ?? ''),
+    // 稱讚的時候下一格先跳一下（is-now turn-hop），那時還沒換到下一輪：不算
+    now: document.querySelector('.en-trace-rounds .is-now:not(.turn-hop)')?.textContent?.trim() ?? '',
+  }))
 
 const center = (r: DOMRect) => ({ x: r.left + r.width / 2, y: r.top + r.height / 2 })
 const wallNow = (page: Page) =>
@@ -2281,8 +2324,12 @@ test.describe('英文課：字母遊戲時間（T-147）', () => {
       }
       const ended = await page.waitForSelector('.cheer-scrim', { timeout: 40_000 }).catch(() => null)
       c.outcome('玩完到下課', !!ended)
-      // 第二次進來：字母牆 → 換成翻翻卡
+      // 第二次進來：又先描字（T-155，每次進來都描）→ 字母牆 → 換成翻翻卡
       if (!(await enter(k, c))) return
+      const tr = await page.waitForSelector('.en-trace', { timeout: 10_000 }).catch(() => null)
+      c.outcome('今天第二次玩：又先描字（T-155）', !!tr)
+      if (!tr) await c.once('abc-trace-again', '困惑', '同一天玩完再進來，沒有先描字', `停在 ${await page.evaluate(() => document.querySelector('.en-lesson')?.getAttribute('data-abc'))}`)
+      if (!(await passPlayTrace(k))) await c.once('abc-trace-pass', '卡死', '字母遊戲時間的描字描不完、到不了字母牆', '')
       await page.waitForSelector('.en-wall .en-block', { timeout: 10_000 }).catch(() => null)
       await page.waitForTimeout(700)
       for (let i = 0; i < 7; i++) {
@@ -2329,6 +2376,130 @@ test.describe('英文課：字母遊戲時間（T-147）', () => {
       finish(k, c, '字母遊戲-第一天')
     }
   })
+
+  test('描字（T-155）：每次進來先描大寫、小寫；說明時多指壓著畫、拖到一半放手、發呆有筆、筆在動時搶著描、返回 1 步回首頁、回來從沒描的那一輪接著描', async ({ page }, info) => {
+    test.skip(!want('lesson-english'))
+    test.setTimeout(5 * 60_000)
+    const { k, c } = await setup(page, info, '字母遊戲-描字')
+    try {
+      await seedPlay(page, 4, 'pair', false)
+      const t0 = await page.evaluate(() => Date.now())
+      k.behavior = '今天上完再進英文門（連點門）'
+      if (!(await enter(k, c, true))) return
+      const tr = await page.waitForSelector('.en-abc[data-abc="trace"] .en-trace', { timeout: 10_000 }).catch(() => null)
+      c.outcome('今天上完再進來：先描字（不是字母牆）', !!tr, tr ? '' : `停在 ${await abcAt(page)}`)
+      if (!tr) return void (await c.once('abc-trace', '卡死', '今天上完再進英文門，沒有先描字', `停在 ${await abcAt(page)}`))
+      const tags = await traceTags(page)
+      const rounds = await page.evaluate(() => [...document.querySelectorAll('.en-trace-rounds span')].map((e) => e.textContent?.trim()).join(''))
+      c.outcome('描今天的 E：大寫、小寫各一輪，先描大寫', rounds === 'Ee' && tags.now === 'E', `${rounds}，現在 ${tags.now}`)
+      if (rounds !== 'Ee' || tags.now !== 'E') await c.once('abc-trace-rounds', '誤記作答', '字母遊戲時間描的不是今天的大寫、小寫各一輪', `${rounds}，現在 ${tags.now}`)
+      const stones = await page.evaluate(() => [...document.querySelectorAll('.en-steps > span')].map((e) => e.className))
+      c.outcome('下面的小石頭：描字、字母牆、配對遊戲三顆，描字那一顆亮著', stones.length === 3 && stones[0] === 'is-now', stones.join('|'))
+      if (stones.length !== 3 || stones[0] !== 'is-now') await c.once('abc-trace-stones', '小問題', '字母遊戲時間的小石頭沒有算進描字那一段', stones.join('|'))
+      const hint = await page.evaluate(() => document.querySelector('.en-coplay')?.textContent ?? '')
+      c.outcome('陪玩小字說描字', hint.includes('描字'), hint)
+      if (!hint.includes('描字')) await c.once('abc-trace-hint', '小問題', '描字的時候陪玩小字沒有說描字', hint)
+      // 上課看過示範了：這裡筆不先示範（只說 Big E! Start at the green dot!）
+      let demo = false
+      for (let i = 0; i < 8; i++) {
+        if (await page.evaluate(() => !!document.querySelector('.en-trace[data-demo]'))) demo = true
+        await page.waitForTimeout(250)
+      }
+      c.outcome('一進來不示範（上課看過了）', !demo)
+      await shot(page, 'abc-t1-描字', info)
+
+      // 說明的時候手掌壓著（三根手指）在跑道上滑：不算沒描好，筆不會帶著描完
+      k.behavior = '說明時多指壓著畫'
+      let pts = await strokePts(page)
+      if (pts) {
+        await k.palm([pts[0], { x: pts[0].x + 70, y: pts[0].y + 50 }, { x: pts[0].x - 60, y: pts[0].y + 90 }], 400)
+        await page.waitForTimeout(1500)
+        const helped = await page.evaluate(() => !!document.querySelector('.en-trace[data-demo]') || document.querySelectorAll('.en-trace-rounds .is-done').length > 0)
+        c.outcome('多指壓著畫：不算沒描好、筆不帶著描完', !helped)
+        if (helped) await c.once('abc-trace-palm', '誤記作答', '字母遊戲時間描字時手掌壓著，被當成沒描好、筆帶著描完', '')
+      }
+      // 拖到一半放手（描到第一顆小星星以後）：算這一筆描完（補滿），接著描下一筆
+      k.behavior = '拖到一半放手'
+      pts = await strokePts(page)
+      if (pts) {
+        await k.drag(pts.slice(0, Math.round(pts.length * 0.55)), { stepMs: 16, label: '描到一半放手' })
+        await page.waitForTimeout(1200)
+      }
+      k.behavior = '描完大寫'
+      const big = await traceRound(k)
+      c.outcome('描完大 E', big && (await traceTags(page)).done.includes('E'))
+      if (!big) return void (await c.once('abc-trace-big', '卡死', '字母遊戲時間的大寫描不完', ''))
+      await shot(page, 'abc-t2-描完大寫', info)
+      // 大箭頭（autoNext）→ 小寫；在小寫按返回：1 步回首頁
+      const small = await (async () => {
+        const end = Date.now() + 20_000
+        while (Date.now() < end) {
+          if ((await traceTags(page)).now === 'e') return true
+          await page.waitForTimeout(250)
+        }
+        return false
+      })()
+      c.outcome('大箭頭 → 描小 e', small)
+      if (!small) return void (await c.once('abc-trace-small', '卡死', '字母遊戲時間描完大寫沒有到小寫', ''))
+      const pl1 = (await kvOf(page, 'lesson.english.play')) as { cur?: { trace?: number } } | null
+      c.outcome('描完大寫：記下描完 1 輪', pl1?.cur?.trace === 1, JSON.stringify(pl1?.cur))
+      if (pl1?.cur?.trace !== 1) await c.once('abc-trace-kv', '誤記作答', '字母遊戲時間描完大寫沒有記下來', JSON.stringify(pl1?.cur))
+      k.behavior = '描小寫時按返回'
+      const h = await homeButton(page)
+      if (h) await pressBack(k, h, '描字時按返回')
+      const home = await waitLive(page, (l) => l === 'home', 4000)
+      c.outcome('描字時按返回 → 首頁（1 步）', home === 'home', `到 ${home}`)
+      if (home !== 'home') return void (await c.once('back-描字', '無法返回', '字母遊戲時間：描字時按返回沒有回首頁', `停在 ${home}`))
+
+      // 再進來：大寫描過了，直接描小寫
+      k.behavior = '再進英文門'
+      if (!(await enter(k, c))) return
+      await page.waitForSelector('.en-trace', { timeout: 10_000 }).catch(() => null)
+      const again = await traceTags(page)
+      c.outcome('同一天回來：大寫描過了，從小 e 接著描', again.now === 'e', `描好 ${again.done.join('')}，現在 ${again.now}`)
+      if (again.now !== 'e') await c.once('abc-trace-resume', '誤記作答', '字母遊戲時間描完大寫離開，回來又從大寫重描', `現在 ${again.now}`)
+      // 發呆：10 秒筆從描到的地方往後描一次（不出墨）；筆在動的時候搶著描
+      k.behavior = '發呆'
+      const pen = await page.waitForSelector('.en-trace [data-demo-hand]', { timeout: 20_000 }).catch(() => null)
+      c.outcome('發呆 10 秒：筆描一次給他看', !!pen)
+      if (!pen) await c.once('abc-trace-idle', '困惑', '字母遊戲時間描字發呆，沒有筆提示', '')
+      k.behavior = '筆在動時搶著描'
+      const done2 = await traceRound(k)
+      c.outcome('描完小 e', done2)
+      if (!done2) return void (await c.once('abc-trace-little', '卡死', '字母遊戲時間的小寫描不完', ''))
+      const wall = await page.waitForSelector('.en-wall .en-block', { timeout: 20_000 }).catch(() => null)
+      c.outcome('描完兩輪 → 大箭頭 → 字母牆', !!wall, wall ? '' : `停在 ${await abcAt(page)}`)
+      if (!wall) return void (await c.once('abc-trace-wall', '卡死', '字母遊戲時間描完字沒有到字母牆', `停在 ${await abcAt(page)}`))
+      await page.waitForTimeout(600)
+      const fresh = await page.evaluate(() => [...document.querySelectorAll('.en-wall .en-block[data-new]')].map((e) => e.getAttribute('aria-label')).join(''))
+      c.outcome('描字時離開過：字母牆第一次出現照樣有 E 放上去的動畫（E5）', fresh === 'E', fresh || '沒有')
+      if (fresh !== 'E') await c.once('abc-trace-fresh', '小問題', '描字時離開再回來，字母牆的新積木沒有放上去的動畫', fresh)
+      await shot(page, 'abc-t3-字母牆', info)
+
+      // 作答紀錄：描字記成 abc-trace（大 E、小 e 各一筆），不記英文課的；英文課的進度沒動
+      const rs = (await rawAttempts(page)).filter((a) => a.ts >= t0 && a.phase !== 'teach')
+      const tr2 = rs.filter((a) => a.game === 'abc-trace')
+      const okRec = tr2.length === 2 && tr2.some((a) => a.skill === 'write:E') && tr2.some((a) => a.skill === 'write:e')
+      c.outcome('作答紀錄：描字記成 abc-trace，大 E、小 e 各一筆', okRec, tr2.map((a) => a.skill).join('、'))
+      if (!okRec) await c.once('abc-trace-rec', '誤記作答', '字母遊戲時間描字的作答紀錄不對', tr2.map((a) => `${a.game}/${a.skill}`).join('、'))
+      const other = rs.filter((a) => a.game !== 'abc-trace')
+      c.outcome('沒有記到英文課的作答', !other.length, other.map((a) => `${a.game}/${a.skill}`).join('、'))
+      if (other.length) await c.once('abc-trace-other', '誤記作答', '字母遊戲時間描字記了別的作答', other.map((a) => `${a.game}/${a.skill}`).join('、'))
+      const en = (await kvOf(page, 'lesson.english')) as { idx: number; done: boolean; stage?: string } | null
+      c.outcome('英文課的進度沒動（今天上完了、不寫 stage）', !!en && en.idx === 4 && en.done && !en.stage, JSON.stringify(en))
+      if (!en || en.idx !== 4 || !en.done || en.stage) await c.once('abc-trace-en', '誤記作答', '字母遊戲時間描字改到英文課的進度', JSON.stringify(en))
+      const pl2 = (await kvOf(page, 'lesson.english.play')) as { cur?: { trace?: number } } | null
+      c.outcome('描完兩輪：記下描完 2 輪', pl2?.cur?.trace === 2, JSON.stringify(pl2?.cur))
+      k.behavior = '字母牆按返回'
+      const h2 = await homeButton(page)
+      if (h2) await pressBack(k, h2, '字母牆按返回')
+      const home2 = await waitLive(page, (l) => l === 'home', 4000)
+      c.outcome('字母牆按返回 → 首頁（1 步）', home2 === 'home', `到 ${home2}`)
+    } finally {
+      await c.flush().catch(() => {})
+      finish(k, c, '字母遊戲-描字')
+    }
+  })
 })
 
 // ── T-150 E 英文 4 歲內容：門開了（測試直接放開門的 kv 和像真的玩過的作答紀錄）──────────────────
@@ -2346,7 +2517,7 @@ async function shot4(page: Page, name: string, info: { project: { name: string }
  * 作答紀錄：A～F 的 12 個字，12 天前到昨天每天 4 回合 3 選 1、聽完、第一次就對（都「答得出」）。
  */
 async function seedStage4(page: Page, o: { more?: { ago: number; newToday?: boolean }; onset?: { ago: number; plays: number; lastAgo?: number }; paused?: boolean }) {
-  await seedPlay(page, 5, 'pair')
+  await seedPlay(page, 5, 'pair', false)
   await page.evaluate(
     (o) =>
       new Promise<void>((res) => {
@@ -2413,8 +2584,9 @@ async function untilOnset(page: Page, r: number, naming = false, ms = 30_000) {
   }
   return null
 }
-/** 字母牆點夠 6 下（大箭頭由 autoNext 點） */
+/** 先描完字母遊戲時間的描字（T-155，全新的一次才有），再把字母牆點夠 6 下（大箭頭由 autoNext 點） */
 async function wallTaps(k: Toddler, page: Page) {
+  await passPlayTrace(k)
   await page.waitForSelector('.en-wall .en-block', { timeout: 10_000 }).catch(() => null)
   await page.waitForTimeout(700)
   for (let i = 0; i < 7; i++) {
@@ -2588,7 +2760,8 @@ test.describe('英文課：4 歲內容（T-150 E，門開了）', () => {
       c.outcome('作答紀錄：4 回合各一筆、都記 onset:<音>', on.length === 4 && okSkills, on.map((a) => `${a.skill}/${a.phase}${a.ok ? '' : '✗'}`).join('、'))
       if (on.length !== 4 || !okSkills) await c.once('t150-onset-rec', '誤記作答', '聽開頭的作答紀錄不對（要 4 筆 onset:）', on.map((a) => `${a.skill}/${a.phase}`).join('、'))
       c.outcome('一起做的第 1 回合記 guided（不算熟練）', on[0]?.phase === 'guided', on[0]?.phase ?? '')
-      const other = rs.filter((a) => a.game !== 'abc-onset')
+      // 一開始的描字（T-155）記 abc-trace，不算別的配對遊戲
+      const other = rs.filter((a) => a.game !== 'abc-onset' && a.game !== 'abc-trace')
       c.outcome('沒有記到 letter:／phonics:／enword:（聽開頭取代這一次的配對遊戲）', !other.length, other.map((a) => `${a.game}/${a.skill}`).join('、'))
       if (other.length) await c.once('t150-onset-other', '誤記作答', '聽開頭那一次記了別的作答', other.map((a) => `${a.game}/${a.skill}`).join('、'))
       const kv = (await kvOf(page, 'lesson.english.stage4')) as { 'en-onset'?: { plays?: number; lastPlay?: string } } | null

@@ -61,6 +61,8 @@ function hintOf(stage: Stage, x: LessonLetter, q?: Question, look: QuizLook = 'c
     case 'party':
       return `泡泡派對：讓他點破泡泡，每點一顆豆豆念一次 ${x.L}；不計分`
     case 'abc':
+      // T-155：每次進來先描今天的字母（上課看過示範了，這裡不示範；發呆 10 秒筆才描一次給他看）
+      if (pv?.part === 'trace') return `描字：請他從綠點開始，描一次大的 ${x.L}、一次小的 ${x.l}；描歪沒關係，不計分`
       if (pv?.part === 'pair') return `聽字找圖：請他把${said(pv.w)}拖進籃子（點一下也可以）`
       if (pv?.part === 'onset') return '聽開頭：豆豆先念每張圖，再念一個開頭的音，請他把那個音開頭的圖放進嘴巴籃子'
       if (pv?.part === 'friend') return `新朋友：跟他一起說${said(pv.w)}`
@@ -93,7 +95,7 @@ function hintOf(stage: Stage, x: LessonLetter, q?: Question, look: QuizLook = 'c
  * 認字母 → 描字（大寫、小寫各一次）→ 單字範例（2 個代表字，中文三明治）→ 寫寫看（自己再描一次大寫，T-112）→ 遊戲回合（泡泡或餵豆豆每天輪，第一天 2 回合、之後 3 回合）
  * → 泡泡派對（約 10 秒，點破今天字母的泡泡）→ 上完（下課畫面、不定時的貼紙由 LessonScreen 處理）。
  * 一天一個新字母（名字的字母先、再 A→Z）；字母題錯很多就隔天重上（./plan.ts）。
- * 今天上完再進來：字母遊戲時間（./Play.tsx：字母牆＋放進籃子（聽字找圖）或翻翻卡，只用學過的字母和教過的字），不再從頭複習今天的字母。
+ * 今天上完再進來：字母遊戲時間（./Play.tsx：先描今天的大寫、小寫（T-155）→ 字母牆＋放進籃子（聽字找圖）或翻翻卡，只用學過的字母和教過的字），不再從頭複習今天的字母。
  * 右上角一行給大人的陪玩小字（hintOf）。
  * 段落之間在原地淡入淡出，不縮放、不跳整頁卡片；下面五顆小石頭是進度。左上角返回鍵回首頁（中途離開隔天重上同一個字母）。
  * 每一段、每一輪描字、每一題做完都停在做完的樣子，右下角出「下一步」的大箭頭，孩子點了才往下（T-118，ui/NextStep）；
@@ -250,7 +252,7 @@ export function EnglishLesson({ onDone }: LessonProps) {
       data-phase={stage}
       data-look={look}
       data-world={world?.id}
-      data-abc={stage === 'abc' ? (pv?.part ?? 'wall') : undefined}
+      data-abc={stage === 'abc' ? (pv?.part ?? 'trace') : undefined}
     >
       {world && (
         // 今天的世界（T-127）：故事插畫的場景，淡淡的鋪在後面（紙感螢幕，不搶字母）
@@ -264,11 +266,14 @@ export function EnglishLesson({ onDone }: LessonProps) {
         </BackButton>
       </div>
       {/* 進度：五顆小石頭（認字母、描字、單字、寫寫看、遊戲回合），走過的變成今天的字母；遊戲回合那一顆拉長，一回合一顆小點（T-104）。
-          字母遊戲時間：兩顆（字母牆、配對遊戲），配對遊戲那一顆一回合一顆小點 */}
+          字母遊戲時間：三顆（描字、字母牆、配對遊戲；T-155 加描字），配對遊戲那一顆一回合一顆小點 */}
       <div className="en-steps" aria-hidden="true">
         {stage === 'abc' ? (
           <>
-            <span className={pv && pv.part !== 'wall' ? 'is-done' : 'is-now'}>{pv && pv.part !== 'wall' && letter ? letter.l : ''}</span>
+            <span className={!pv || pv.part === 'trace' ? 'is-now' : 'is-done'}>{pv && pv.part !== 'trace' && letter ? letter.l : ''}</span>
+            <span className={!pv || pv.part === 'trace' ? '' : pv.part === 'wall' ? 'is-now' : 'is-done'}>
+              {pv && pv.part !== 'trace' && pv.part !== 'wall' && letter ? letter.l : ''}
+            </span>
             {pv?.game &&
               (pv.part === "pair" || pv.part === "flip" || pv.part === "onset" ? (
                 <span className="is-now is-quiz" data-done={pv.done} data-total={pv.total}>

@@ -55,6 +55,15 @@ const ROUNDS: TraceRound[] = [
  */
 export const WRITE_ROUNDS: TraceRound[] = [{ big: true, demo: false, look: 'lilac' }]
 
+/**
+ * 字母遊戲時間的描字（T-155，家長 2026-11-16：上完再進來也要描字）：今天的大寫、小寫各一次，顏色跟上課的描字一樣。
+ * 今天上課已經看過示範，這裡不示範，只說 Big S! Start at the green dot!；發呆 10 秒筆照樣從描到的地方往後描一次（showAgain）。
+ */
+export const PLAY_ROUNDS: TraceRound[] = [
+  { big: true, demo: false, look: 'green' },
+  { big: false, demo: false, look: 'blue' },
+]
+
 /** 描完的稱讚念完之後再停多久就換下一輪（T-110：以前 450 ms，他覺得要等很久） */
 const PRAISE_TAIL_MS = 200
 
@@ -168,9 +177,12 @@ export function Trace({
   from = 0,
   onRound,
   retry,
+  game = 'lesson-en',
   onDone,
 }: {
   letter: LessonLetter
+  /** 作答紀錄記在哪個遊戲（字母遊戲時間的描字是 abc-trace，跟上課的分開） */
+  game?: string
   /** 這一段描哪幾輪（描字段：大寫、小寫；寫寫看：大寫一輪、不示範） */
   rounds?: TraceRound[]
   from?: number
@@ -306,7 +318,7 @@ export function Trace({
     setDemo(false)
     begin(ss, 0)
     phase.current = 'intro'
-    void logTeach({ station: 'english', game: 'lesson-en', itemId: `write:${glyphOf(big)}`, skill: `write:${glyphOf(big)}`, level: 1, ms: Math.round(performance.now() - s) })
+    void logTeach({ station: 'english', game, itemId: `write:${glyphOf(big)}`, skill: `write:${glyphOf(big)}`, level: 1, ms: Math.round(performance.now() - s) })
     // 示範完只說「Your turn!」（T-108：以前還先說 Start at the green dot! Go this way!，輪到他之前話太多；綠點一直在閃，10 秒沒動筆會再示範）
     await say('teach.turn.dodo')
   }
@@ -543,7 +555,7 @@ export function Trace({
     if (ok) good.current++
     void logAttempt({
       station: 'english',
-      game: 'lesson-en',
+      game,
       itemId: `write:${g}`,
       skill: `write:${g}`,
       phase: 'quiz',
