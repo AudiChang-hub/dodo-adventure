@@ -16,10 +16,38 @@ import { today } from '../../lib/db'
 import { go } from '../../lib/nav'
 import { bedtimeIfDue } from '../../lib/session'
 import { useLive } from '../logic/kit'
-import { MazePickArt } from './art'
+import { useTaps } from '../../ui/tap'
+import { MazeHarderArt, MazePickArt, Padlock } from './art'
 import { MAZE_COPLAY } from './coplay'
 import { findKey, gotKey } from './lines'
-import { DX, DY, GOALS, MAZE_GAME, THEME_DECO, afterMaze, choicesOf, dirOf, linked, makeMaze, mazeOk, mazeSkill, nextToward, step, walkTo, type Maze as MazeData, type MazeLevel, type MazeState, type ThemeId } from './plan'
+import {
+  DX,
+  DY,
+  GOALS,
+  MAZE_GAME,
+  MAZE_LEVELS,
+  MAZE_MAX,
+  THEME_DECO,
+  afterMaze,
+  choicesOf,
+  dirOf,
+  harderMaze,
+  linked,
+  makeMaze,
+  mazeOk,
+  mazeSkill,
+  mazeSmooth,
+  needsDemo,
+  nextStep,
+  readyFor,
+  step,
+  turnsOf,
+  walkTo,
+  type Maze as MazeData,
+  type MazeLevel,
+  type MazeState,
+  type ThemeId,
+} from './plan'
 import { loadMaze, saveMaze } from './progress'
 import '../draw/tools.css'
 import './maze.css'
@@ -30,6 +58,11 @@ const ARM_MS = 300
 const STEP_MS = 150
 /** 一格最大多少 px（3×3 在平板上約 180） */
 const CELL_MAX = 200
+/** 橫的時候右邊留給「再一個／難一點／回首頁」那一欄（draw/tools.css 的 .draw-home-col：右 14 ＋ 寬 218） */
+const SIDE_COL = 240
+/** 第 9、10 級要先拿的東西：鑰匙、星星（Fluent Emoji） */
+const ITEM_ICON = { key: 'key', stars: 'star' } as const
+const FIRST_LINE = { key: 'mz.key.first', stars: 'mz.stars.first' } as const
 
 /** 主題的顏色：背景（牆）、走道（淺色，跟背景明暗拉開，紙感螢幕上也看得清楚） */
 const THEME_LOOK: Record<ThemeId, { bg: string; edge: string; path: string; pathEdge: string }> = {
@@ -69,9 +102,17 @@ export function Maze() {
     setMaze(make(p))
     setN((k) => k + 1)
   }
+  /** 「難一點」（T-158）：自己往上跳一級，接著出下一個 */
+  const harder = () => {
+    const p = prog.current
+    if (!p) return
+    prog.current = harderMaze(p)
+    void saveMaze(prog.current)
+    again()
+  }
   return (
     <Shell station="logic" mood="idle" onExit={() => go({ name: 'logic' }, { back: true })} hideHost hintText={resting ? MAZE_COPLAY.now : MAZE_COPLAY.play}>
-      {maze && prog.current && <MazeView key={n} maze={maze} prog={prog} onDone={() => setResting(true)} onAgain={again} resting={resting} />}
+      {maze && prog.current && <MazeView key={n} maze={maze} prog={prog} onDone={() => setResting(true)} onAgain={again} onHarder={harder} resting={resting} />}
     </Shell>
   )
 }
@@ -88,11 +129,13 @@ function seeded(text: string) {
   }
 }
 
-/** 迷宮的圖：背景（牆）、走道、牆縫裡的裝飾、起點的圈。單位是格子（1 格 = 1），外面留 PAD */
-const PAD = 0.22
+/** 迷宮的圖：背景（牆）、走道、牆縫裡的裝飾、起點的圈。單位是格子（1 格 = 1），外面留 padOf 格 */
 const PATH_W = 0.6
+/** 外框留多寬（格）：6 列以上（T-158 的大迷宮）留窄一點，格子才不會小於約 70px */
+const padOf = (rows: number) => (rows >= 6 ? 0.12 : 0.22)
 const Board = memo(function Board({ maze }: { maze: MazeData }) {
   const { cols, rows, links, theme, start } = maze
+  const PAD = padOf(rows)
   const look = THEME_LOOK[theme]
   const segs: string[] = []
   for (let c = 0; c < cols * rows; c++) {
@@ -138,8 +181,9 @@ const Board = memo(function Board({ maze }: { maze: MazeData }) {
 
 type HandState = { x: number; y: number; tap: number } | null
 
-function MazeView({ maze, prog, onDone, onAgain, resting }: { maze: MazeData; prog: { current: MazeState | null }; onDone: () => void; onAgain: () => void; resting: boolean }) {
-  const { level, cols, rows, start, goal, goalId, dino } = maze
+function MazeView({ maze, prog, onDone, onAgain, onHarder, resting }: { maze: MazeData; prog: { current: MazeState | null }; onDone: () => void; onAgain: () => void; onHarder: () => void; resting: boolean }) {
+  const { level, cols, rows, start, goal, goalId, dino, extra, items } = maze
+  const PAD = padOf(rows)
   const live = useLive()
   const flow = useFlow()
   const idle = useIdle()
@@ -155,12 +199,14 @@ function MazeView({ maze, prog, onDone, onAgain, resting }: { maze: MazeData; pr
     ro.observe(el)
     return () => ro.disconnect()
   }, [])
-  // 版面：格子盡量大（最大 CELL_MAX），整個迷宮置中；右邊留給「再一個／回首頁」那一欄
-  const avail = size.w >= 900 ? Math.min(size.w - 2 * 250, size.w * 0.7) : size.w * 0.92
+  // 版面：格子盡量大（最大 CELL_MAX），整個迷宮置中；右邊留給「再一個／回首頁」那一欄。
+  // 大迷宮（T-158，最大 10×7）置中會壓到那一欄：改成在那一欄左邊的空間置中（平板上一格約 75px）
+  const wide = size.w >= 900
+  const avail = wide ? size.w - SIDE_COL - 16 : size.w * 0.92
   const cs = Math.max(30, Math.min(CELL_MAX, avail / (cols + PAD * 2), (size.h - 20) / (rows + PAD * 2)))
   const bw = cs * (cols + PAD * 2)
   const bh = cs * (rows + PAD * 2)
-  const bx = (size.w - bw) / 2
+  const bx = wide && (size.w + bw) / 2 > size.w - SIDE_COL ? Math.max(8, (size.w - SIDE_COL - bw) / 2) : (size.w - bw) / 2
   const by = (size.h - bh) / 2
   const geo = useRef({ cs, bx, by, w: size.w, h: size.h })
   geo.current = { cs, bx, by, w: size.w, h: size.h }
@@ -181,6 +227,10 @@ function MazeView({ maze, prog, onDone, onAgain, resting }: { maze: MazeData; pr
   const [done, setDone] = useState(false)
   const [poke, setPoke] = useState(0)
   const [turn, setTurn] = useState(false)
+  /** 已經拿到的鑰匙、星星（格子） */
+  const [got, setGot] = useState<number[]>([])
+  /** 東西沒拿完就走到終點：終點搖一下 */
+  const [nudge, setNudge] = useState(0)
 
   const st = useRef({
     at: start,
@@ -201,8 +251,9 @@ function MazeView({ maze, prog, onDone, onAgain, resting }: { maze: MazeData; pr
     /** 這一下按著的手指 */
     pid: -1,
     lastBump: -1,
+    got: [] as number[],
   })
-  const [firstTime] = useState(() => !(prog.current?.taught.includes(level) ?? true))
+  const [firstTime] = useState(() => (prog.current ? needsDemo(prog.current.taught, level) : false))
 
   const pct = (p: { x: number; y: number }) => {
     const g = geo.current
@@ -215,8 +266,8 @@ function MazeView({ maze, prog, onDone, onAgain, resting }: { maze: MazeData; pr
     idle.start({
       repeat: () => void say('mz.ask'),
       hint: () => {
-        // 發呆：手指著下一格、那一格亮起來（不說話）；之後走完記成一起做
-        const nx = nextToward(maze, st.current.at)
+        // 發呆：手指著下一格、那一格亮起來（不說話）；之後走完記成一起做。第 9、10 級：往還沒拿的鑰匙、星星走
+        const nx = nextStep(maze, st.current.at, st.current.got)
         if (nx < 0) return
         st.current.led = true
         setGlow(nx)
@@ -227,9 +278,12 @@ function MazeView({ maze, prog, onDone, onAgain, resting }: { maze: MazeData; pr
 
   const record = () => {
     const s = st.current
-    const short = maze.path.length - 1
+    // 最短：拿完鑰匙、星星再到終點（沒有的話就是起點到終點）
+    const short = maze.tour
     const phase = s.demoed || s.led || s.shown ? 'guided' : 'quiz'
-    const ok = mazeOk({ steps: s.steps, shortest: short, led: s.led || s.shown })
+    const ok = mazeOk({ steps: s.steps, shortest: short, led: s.led || s.shown, detour: MAZE_LEVELS[level].detour })
+    const ms = Math.round(performance.now() - s.t0)
+    const smooth = mazeSmooth({ ok, ms, shortest: short })
     void logAttempt({
       station: 'logic',
       game: MAZE_GAME,
@@ -242,14 +296,24 @@ function MazeView({ maze, prog, onDone, onAgain, resting }: { maze: MazeData; pr
       taps: s.taps,
       firstTryCorrect: ok,
       attempts: s.steps,
-      responseMs: Math.round(performance.now() - s.t0),
+      responseMs: ms,
       hintUsed: s.led || s.shown,
       heard: true,
-      metrics: { steps: s.steps, shortest: short, bumps: s.bumps, choices: choicesOf(maze.links, maze.path), ...(s.led ? { led: 1 } : {}), ...(s.shown ? { shown: 1 } : {}) },
+      metrics: {
+        steps: s.steps,
+        shortest: short,
+        bumps: s.bumps,
+        choices: choicesOf(maze.links, maze.path),
+        turns: turnsOf(cols, rows, maze.path),
+        ...(items.length ? { items: items.length } : {}),
+        ...(smooth ? { smooth: 1 } : {}),
+        ...(s.led ? { led: 1 } : {}),
+        ...(s.shown ? { shown: 1 } : {}),
+      },
     })
     const p = prog.current
     if (p) {
-      prog.current = afterMaze(p, maze, { date: today(), ok, counted: phase === 'quiz' })
+      prog.current = afterMaze(p, maze, { date: today(), ok, counted: phase === 'quiz', smooth })
       void saveMaze(prog.current)
     }
   }
@@ -290,6 +354,15 @@ function MazeView({ maze, prog, onDone, onAgain, resting }: { maze: MazeData; pr
     setVisited((v) => (v.includes(c) ? v : [...v, c]))
     setGlow(null)
     setHand(null)
+    if (items.includes(c) && !s.got.includes(c)) {
+      // 拿到鑰匙、星星（T-158）：叮一聲；鑰匙、最後一顆星星再說一句
+      s.got = [...s.got, c]
+      setGot(s.got)
+      sfx.pop()
+      if (extra === 'key') void say('mz.key.got')
+      else if (readyFor(maze, s.got)) void say('mz.stars.got')
+      return
+    }
     sfx.tap()
   }
 
@@ -304,8 +377,17 @@ function MazeView({ maze, prog, onDone, onAgain, resting }: { maze: MazeData; pr
       if (!live.current || s.ended) break
       stepTo(cells[i])
       if (cells[i] === goal) {
+        if (readyFor(maze, s.got)) {
+          s.moving = false
+          return void finish()
+        }
+        // 鑰匙、星星還沒拿完就到終點：停在這裡，終點搖一下、說「先去拿」（不算錯）
         s.moving = false
-        return void finish()
+        setNudge((k) => k + 1)
+        setHop((k) => k + 1)
+        if (extra) void say(FIRST_LINE[extra])
+        startIdle()
+        return
       }
       if (i < cells.length - 1) await wait(STEP_MS)
     }
@@ -358,12 +440,22 @@ function MazeView({ maze, prog, onDone, onAgain, resting }: { maze: MazeData; pr
     const t0 = performance.now()
     await say(findKey(goalId))
     if (!ok()) return
+    if (extra) {
+      // 第一次有鑰匙、星星：手先指著它（亮起來），說「先去拿」
+      setGlow(items[0])
+      showHand(items[0], true)
+      await say(FIRST_LINE[extra])
+      if (!ok()) return
+      await wait(600)
+      if (!ok()) return
+      setGlow(null)
+    }
     await say('teach.watch.dodo')
     if (!ok()) return
     showHand(s.at, false)
     await wait(700)
     if (!ok()) return
-    const nx = nextToward(maze, s.at)
+    const nx = nextStep(maze, s.at, s.got)
     showHand(s.at, true)
     await wait(300)
     if (!ok()) return
@@ -405,6 +497,10 @@ function MazeView({ maze, prog, onDone, onAgain, resting }: { maze: MazeData; pr
         const ok = flow.begin(live)
         await say(findKey(goalId))
         if (!ok() || s.ended) return
+        if (extra && !readyFor(maze, s.got)) {
+          await say(FIRST_LINE[extra])
+          if (!ok() || s.ended) return
+        }
         startIdle()
       })()
     }, 0)
@@ -463,13 +559,40 @@ function MazeView({ maze, prog, onDone, onAgain, resting }: { maze: MazeData; pr
     s.lastBump = -1
   }
 
+  // 走完停著（T-158）：還不是最高級的話，先出「難一點」、豆豆說 A bigger maze?，再出「再一個／回首頁」（DoneChoices 一個一個說）
+  const tap = useTaps()
+  const [harderOn, setHarderOn] = useState(false)
+  const [harderSaid, setHarderSaid] = useState(false)
+  const [choicesOn, setChoicesOn] = useState(false)
+  useEffect(() => {
+    if (!resting) return
+    let on = true
+    const lv = prog.current?.level ?? MAZE_MAX
+    if (lv >= MAZE_MAX) {
+      setChoicesOn(true)
+      return
+    }
+    setHarderOn(true)
+    setHarderSaid(true)
+    void say('mz.harder').then(() => {
+      if (!on) return
+      setHarderSaid(false)
+      setChoicesOn(true)
+    })
+    return () => {
+      on = false
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [resting])
+
   const dc = centerOf(at)
   const gc = centerOf(goal)
-  const nx = done ? -1 : nextToward(maze, at)
+  const nx = done ? -1 : nextStep(maze, at, got)
+  const ready = readyFor(maze, got)
   const dsize = cs * 0.86
   return (
     <div
-      className={`mz${done ? ' is-done' : ''}${resting ? ' is-resting' : ''}`}
+      className={`mz${done ? ' is-done' : ''}${resting ? ' is-resting' : ''}${harderOn ? ' has-harder' : ''}`}
       data-logic-game="maze"
       data-level={level}
       data-cols={cols}
@@ -480,6 +603,9 @@ function MazeView({ maze, prog, onDone, onAgain, resting }: { maze: MazeData; pr
       data-links={maze.links.join(',')}
       data-sig={maze.sig}
       data-theme={maze.theme}
+      data-extra={extra}
+      data-items={items.join(',') || undefined}
+      data-got={got.join(',') || undefined}
       data-demo={demo ? '1' : undefined}
       data-turn={turn ? '1' : undefined}
       data-done={done ? '1' : undefined}
@@ -502,15 +628,51 @@ function MazeView({ maze, prog, onDone, onAgain, resting }: { maze: MazeData; pr
             {Array.from({ length: cols * rows }, (_, c) => (
               <span key={c} className="mz-cell" data-cell={c} style={{ left: centerOf(c).x - cs / 2, top: centerOf(c).y - cs / 2, width: cs, height: cs }} />
             ))}
+            {/* 第 9、10 級：鑰匙、星星（拿到就變大、淡掉） */}
+            <AnimatePresence>
+              {extra &&
+                items
+                  .filter((c) => !got.includes(c))
+                  .map((c) => (
+                    <motion.div
+                      key={c}
+                      className="mz-item"
+                      data-item={extra}
+                      data-cell={c}
+                      style={{ left: centerOf(c).x - cs * 0.28, top: centerOf(c).y - cs * 0.28, width: cs * 0.56, height: cs * 0.56 }}
+                      initial={{ scale: 1, opacity: 1 }}
+                      animate={{ scale: 1, opacity: 1 }}
+                      exit={{ scale: 1.5, opacity: 0, transition: { duration: 0.45 } }}
+                    >
+                      <Emoji name={ITEM_ICON[extra]} />
+                    </motion.div>
+                  ))}
+            </AnimatePresence>
             <motion.div
+              key={nudge ? `n${nudge}` : 'goal'}
               className="mz-goal"
               data-goal-thing={goalId}
               style={{ left: gc.x - cs * 0.32, top: gc.y - cs * 0.32, width: cs * 0.64, height: cs * 0.64 }}
-              animate={done ? { scale: [1, 1.05, 1], opacity: [1, 1, 0] } : { scale: 1, opacity: 1 }}
-              transition={{ duration: 0.8, ease: 'easeInOut' }}
+              animate={done ? { scale: [1, 1.05, 1], opacity: [1, 1, 0] } : nudge ? { rotate: [0, -8, 8, -5, 0] } : { scale: 1, opacity: 1 }}
+              transition={{ duration: done ? 0.8 : 0.5, ease: 'easeInOut' }}
             >
-              <Emoji name={GOALS[goalId].icon} />
+              <span className={`mz-goal-thing${ready ? '' : ' is-locked'}`}>
+                <Emoji name={GOALS[goalId].icon} />
+              </span>
             </motion.div>
+            {/* 第 9 級：終點上一把鎖，拿到鑰匙就打開（淡掉） */}
+            <AnimatePresence>
+              {extra === 'key' && !ready && (
+                <motion.div
+                  key="lock"
+                  className="mz-lock"
+                  style={{ left: gc.x + cs * 0.0, top: gc.y - cs * 0.06, width: cs * 0.42, height: cs * 0.46 }}
+                  exit={{ y: -cs * 0.2, opacity: 0, transition: { duration: 0.5 } }}
+                >
+                  <Padlock />
+                </motion.div>
+              )}
+            </AnimatePresence>
             <motion.div
               className="mz-dino"
               data-dino={dino}
@@ -533,8 +695,37 @@ function MazeView({ maze, prog, onDone, onAgain, resting }: { maze: MazeData; pr
         <AnimatePresence>{hand && <Hand key="hand" x={hand.x} y={hand.y} tap={hand.tap} size={`${Math.round(Math.min(110, Math.max(70, cs * 0.6)))}px`} cuff="#F1D27C" />}</AnimatePresence>
         <WaitShield on={hold && !resting && !done} />
         {notYet.view}
+        {/* 第 9、10 級：右邊空的那一欄放「要拿的東西」的格子（鑰匙 1 格、星星 3 格），拿到一個亮一個；走完收起來（那一欄換成再一個／回首頁） */}
+        {extra && !done && (
+          <div className="mz-tray" data-tray={extra} aria-hidden="true">
+            {items.map((c, i) => (
+              <motion.span key={c} className={i < got.length ? 'is-got' : undefined} animate={i < got.length ? { scale: [1, 1.25, 1] } : { scale: 1 }} transition={{ duration: 0.45 }}>
+                <Emoji name={ITEM_ICON[extra]} />
+              </motion.span>
+            ))}
+          </div>
+        )}
       </div>
-      {resting && <DoneChoices again={onAgain} againArt={<MazePickArt />} againLabel="再一個" line="mz.again" home={() => go({ name: 'home' }, { back: true })} poke={poke} />}
+      {resting && harderOn && (
+        <motion.button
+          className={`mz-harder${harderSaid ? ' is-said' : ''}`}
+          data-next="harder"
+          aria-label="難一點"
+          initial={{ scale: 0.6, opacity: 0 }}
+          animate={{ scale: 1, opacity: 1 }}
+          transition={{ type: 'spring', stiffness: 260, damping: 20 }}
+          whileTap={{ scale: 0.92 }}
+          {...tap('harder', () => {
+            sfx.tap()
+            onHarder()
+          })}
+        >
+          <span className="mz-harder-art">
+            <MazeHarderArt />
+          </span>
+        </motion.button>
+      )}
+      {resting && choicesOn && <DoneChoices again={onAgain} againArt={<MazePickArt />} againLabel="再一個" line="mz.again" home={() => go({ name: 'home' }, { back: true })} poke={poke} />}
     </div>
   )
 }

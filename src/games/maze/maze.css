@@ -50,3 +50,126 @@
   z-index: 2;
   filter: drop-shadow(0 8px 6px rgba(46, 42, 37, 0.2));
 }
+/* T-158 第 9、10 級：鑰匙、星星、終點的鎖 */
+.mz-item,
+.mz-lock {
+  position: absolute;
+  pointer-events: none;
+  z-index: 1;
+  filter: drop-shadow(0 4px 3px rgba(46, 42, 37, 0.22));
+}
+/* 東西還沒拿完：終點淡一點（拿完就亮起來） */
+.mz-goal-thing {
+  display: block;
+  width: 100%;
+  height: 100%;
+  transition:
+    opacity 0.4s,
+    filter 0.4s;
+}
+.mz-goal-thing.is-locked {
+  opacity: 0.55;
+  filter: saturate(0.35);
+}
+/* 右邊空的那一欄（跟「再一個／回首頁」同一欄）：要拿的東西的格子，還沒拿是灰的、拿到變金色 */
+.mz-tray {
+  position: absolute;
+  z-index: 2;
+  right: calc(14px + 109px);
+  top: 50%;
+  translate: 50% -50%;
+  display: grid;
+  gap: 18px;
+  padding: 18px;
+  border-radius: 48px;
+  background: var(--card, #fbf8f2);
+  box-shadow:
+    0 6px 0 var(--paper-edge, #e6dccb),
+    0 18px 28px -20px rgba(46, 42, 37, 0.35);
+  pointer-events: none;
+}
+.mz-tray > span {
+  display: block;
+  width: 72px;
+  height: 72px;
+  opacity: 0.3;
+  filter: grayscale(1);
+  transition:
+    opacity 0.3s,
+    filter 0.3s;
+}
+.mz-tray > span.is-got {
+  opacity: 1;
+  filter: drop-shadow(0 0 10px rgba(241, 210, 124, 0.9));
+}
+/* 手機直式（只要求不跑版）：放到右上角、小一點、橫排 */
+@media (max-width: 899px) {
+  .mz-tray {
+    top: 8px;
+    right: 8px;
+    translate: none;
+    grid-auto-flow: column;
+    gap: 6px;
+    padding: 6px 10px;
+  }
+  .mz-tray > span {
+    width: 32px;
+    height: 32px;
+  }
+}
+
+/* T-158「難一點」：在「再一個／回首頁」那一欄的上面（那一欄整個往下挪），比「再一個」小一點，樣子跟它一樣 */
+.mz.has-harder .draw-next-col {
+  padding-top: 170px;
+}
+.mz-harder {
+  position: absolute;
+  z-index: 3;
+  right: calc(14px + 109px);
+  translate: 50% 0;
+  top: clamp(24px, 6vh, 56px);
+  width: clamp(112px, 16vmin, 140px);
+  aspect-ratio: 1;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: var(--card, #fbf8f2);
+  box-shadow:
+    0 7px 0 var(--paper-edge, #e6dccb),
+    0 22px 34px -20px rgba(46, 42, 37, 0.35);
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+.mz-harder-art {
+  width: 74%;
+  aspect-ratio: 6 / 5;
+  pointer-events: none;
+}
+.mz-harder:active {
+  box-shadow: 0 2px 0 var(--paper-edge, #e6dccb);
+}
+.mz-harder.is-said {
+  box-shadow:
+    0 7px 0 var(--paper-edge, #e6dccb),
+    0 0 0 12px rgba(241, 210, 124, 0.85),
+    0 22px 34px -20px rgba(46, 42, 37, 0.35);
+  animation: mz-harder-hop 0.7s var(--ease-out, ease-out) both;
+}
+@keyframes mz-harder-hop {
+  0% {
+    translate: 50% 0;
+  }
+  40% {
+    translate: 50% -14px;
+  }
+  100% {
+    translate: 50% 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .mz-harder.is-said {
+    animation: none;
+  }
+}

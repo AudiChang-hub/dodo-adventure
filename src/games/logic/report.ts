@@ -21,6 +21,12 @@ export const LOGIC_SKILLS: { skill: string; zh: string }[] = [
   { skill: 'maze:4x4', zh: '走迷宮（4×4）' },
   { skill: 'maze:5x4', zh: '走迷宮（5×4）' },
   { skill: 'maze:5x5', zh: '走迷宮（5×5）' },
+  // T-158 迷宮加難度（家長 2026-11-16）：6～10 級，第 9 級先拿鑰匙、第 10 級收集星星
+  { skill: 'maze:6x5', zh: '走迷宮（6×5）' },
+  { skill: 'maze:7x5', zh: '走迷宮（7×5）' },
+  { skill: 'maze:8x5', zh: '走迷宮（8×5）' },
+  { skill: 'maze:9x6', zh: '走迷宮（9×6，先拿鑰匙）' },
+  { skill: 'maze:10x7', zh: '走迷宮（10×7，收集星星）' },
 ]
 
 /** 邏輯遊戲的技能名稱；不是邏輯遊戲的回傳 null（交給家長區原本的 skillLabel） */
