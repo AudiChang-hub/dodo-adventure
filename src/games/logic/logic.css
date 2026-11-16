@@ -1,0 +1,210 @@
+/* 邏輯遊戲（T-152）：豆豆收拾、串珠珠、選玩法。尺寸用 stage-main 的容器單位（cqw、cqh），平板橫向 1200×786 為準 */
+
+/* ── 選玩法：沿用畫畫的 .draw-pick 版面（games/draw/coloring.css） ── */
+.lg-pick-card > svg {
+  width: 92%;
+  height: 92%;
+}
+
+/* ── 豆豆收拾 ── */
+.lg-sort,
+.lg-pattern {
+  position: absolute;
+  inset: 0;
+}
+.lg-sort-play,
+.lg-pattern-play {
+  position: absolute;
+  inset: 0;
+  /* 準則 TOUCH-5：最下緣 2 cm 是手腕靠的地方，籃子、珠子都在它上面 */
+  bottom: 70px;
+  transition: right 0.35s var(--ease-out, ease-out);
+}
+/* 一局玩完：右邊一欄給「再一局／回首頁」，作答區往左讓開 */
+.is-resting > .lg-sort-play,
+.is-resting > .lg-pattern-play {
+  right: calc(2 * 92px + 48px);
+}
+.lg-sort-play {
+  display: grid;
+  grid-template-rows: 40% 60%;
+}
+.lg-sort-table {
+  display: grid;
+  place-items: center;
+  min-height: 0;
+}
+.lg-item {
+  width: min(30cqh, 19cqw);
+  aspect-ratio: 1;
+  touch-action: none;
+  -webkit-tap-highlight-color: transparent;
+  filter: drop-shadow(0 10px 8px rgba(46, 42, 37, 0.18));
+  z-index: 3;
+  position: relative;
+}
+.lg-item.is-lifted {
+  filter: drop-shadow(0 22px 14px rgba(46, 42, 37, 0.22));
+}
+.lg-baskets {
+  display: flex;
+  justify-content: center;
+  align-items: end;
+  gap: clamp(28px, 6cqw, 96px);
+  min-height: 0;
+}
+.lg-baskets.n3 {
+  gap: clamp(20px, 4cqw, 60px);
+}
+.lg-basket {
+  position: relative;
+  width: min(27cqw, 46cqh);
+  aspect-ratio: 240 / 210;
+  border: 0;
+  padding: 0;
+  background: none;
+  border-radius: 28px;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+.lg-baskets.n3 .lg-basket {
+  width: min(23cqw, 42cqh);
+}
+.lg-basket-in {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+/* 收到一個：籃子輕輕收一下（一次就停，MOTION-1） */
+.lg-basket-in.is-bump {
+  animation: lg-bump 0.4s var(--ease-out, ease-out) both;
+}
+@keyframes lg-bump {
+  0% {
+    scale: 1;
+  }
+  40% {
+    scale: 1.04 0.96;
+  }
+  100% {
+    scale: 1;
+  }
+}
+/* 第 2 次放錯：對的籃子外圈亮起來（暖黃光，跟首頁的門一樣；靜止，不閃） */
+.lg-basket.is-glow::before,
+.lg-option.is-glow::before {
+  content: '';
+  position: absolute;
+  inset: -6%;
+  border-radius: 40px;
+  background: radial-gradient(closest-side, rgba(241, 210, 124, 0.9), rgba(241, 210, 124, 0.35) 70%, transparent);
+  z-index: -1;
+}
+.lg-option.is-glow::before {
+  border-radius: 50%;
+  inset: -16%;
+}
+
+/* ── 串珠珠 ── */
+.lg-pattern-play {
+  display: grid;
+  grid-template-rows: 48% 52%;
+}
+.lg-strand {
+  position: relative;
+  align-self: center;
+  justify-self: center;
+  display: flex;
+  align-items: center;
+  gap: clamp(8px, 1.4cqw, 20px);
+  padding: 0 clamp(20px, 3cqw, 44px);
+}
+/* 繩子：穿過每一顆珠子的中間 */
+.lg-strand::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 50%;
+  height: 5px;
+  margin-top: -2.5px;
+  border-radius: 3px;
+  background: #2e2a25;
+  opacity: 0.8;
+}
+.lg-slot {
+  position: relative;
+  width: min(13cqw, 24cqh);
+  aspect-ratio: 1;
+  border-radius: 50%;
+  transition:
+    translate 0.25s var(--ease-out, ease-out),
+    scale 0.25s var(--ease-out, ease-out);
+}
+/* 空的那一格：虛線圈（紙色底，蓋住繩子） */
+.lg-slot.is-blank {
+  background: var(--card, #fbf8f2);
+  border: 6px dashed rgba(46, 42, 37, 0.55);
+}
+/* 念到這一顆：浮起來一點（一次就停） */
+.lg-slot.is-lit {
+  translate: 0 -10%;
+  scale: 1.1;
+}
+.lg-options {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: clamp(36px, 8cqw, 120px);
+  min-height: 0;
+}
+.lg-options.n3 {
+  gap: clamp(24px, 5cqw, 80px);
+}
+.lg-option {
+  position: relative;
+  width: min(17cqw, 30cqh);
+  aspect-ratio: 1;
+  border: 0;
+  padding: 0;
+  background: none;
+  border-radius: 50%;
+  z-index: 3;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  filter: drop-shadow(0 10px 8px rgba(46, 42, 37, 0.16));
+}
+
+/* 一局串完：豆豆戴上項鍊 */
+.lg-necklace {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+}
+.lg-necklace-dino {
+  position: relative;
+  width: min(48cqw, 82cqh);
+  aspect-ratio: 230 / 210;
+}
+.lg-necklace-beads {
+  position: absolute;
+  inset: 0;
+  overflow: visible;
+}
+
+.lg-again-art {
+  display: block;
+  width: 80%;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lg-basket-in.is-bump {
+    animation: none;
+  }
+  .lg-slot,
+  .lg-sort-play,
+  .lg-pattern-play {
+    transition: none;
+  }
+}

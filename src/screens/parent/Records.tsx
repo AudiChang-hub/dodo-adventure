@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import { isQuiz, phaseOf, today, type Attempt, type Phase, type StationId } from '../../lib/db'
 import { game } from '../../content/games'
 import { download, lastDays, PHASE_NAME, skillLabel, STATION_NAME, toCSV, type ParentData } from './data'
+import { LOGIC_GAME_NAME, logicSkillLabel } from '../../games/logic/report'
 
 const PAGE = 100
 
@@ -97,9 +98,10 @@ export function Records({ d }: { d: ParentData }) {
                 <tr key={a.id}>
                   <td style={{ whiteSpace: 'nowrap' }}>{new Date(a.ts).toLocaleString('zh-TW', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</td>
                   <td>
-                    {STATION_NAME[a.station]}・{game(a.game)?.title ?? a.game}
+                    {STATION_NAME[a.station]}・{game(a.game)?.title ?? LOGIC_GAME_NAME[a.game] ?? a.game}
                   </td>
-                  <td>{skillLabel(a.skill)}</td>
+                  {/* 邏輯遊戲（T-152）的技能名稱在 games/logic/report.ts（pattern:ab 跟以前程式車庫的規律同名） */}
+                  <td>{logicSkillLabel(a.skill, a.station) ?? skillLabel(a.skill)}</td>
                   <td>
                     <span className={`phase ${phaseOf(a)}`}>{PHASE_NAME[phaseOf(a)]}</span>
                   </td>
