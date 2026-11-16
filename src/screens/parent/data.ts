@@ -49,7 +49,7 @@ export function useParentData(source: 'local' | 'cloud', reloadKey: number) {
   return { data, error }
 }
 
-export const STATION_NAME: Record<StationId, string> = { english: '字母森林', math: '數字工地', mandarin: '動物村', draw: '畫畫小屋', park: '彩虹公園', code: '程式車庫' }
+export const STATION_NAME: Record<StationId, string> = { english: '字母森林', math: '數字工地', mandarin: '動物村', draw: '畫畫小屋', park: '彩虹公園', code: '程式車庫', logic: '邏輯遊戲' }
 
 /** 教學階段（PRD §5.8）：只有「自己答」計入答對率與熟練度 */
 export const PHASE_NAME: Record<Phase, string> = { teach: '教學', guided: '一起練', quiz: '自己答' }

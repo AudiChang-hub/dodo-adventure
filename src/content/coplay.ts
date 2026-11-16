@@ -55,6 +55,7 @@ const STATION_HINTS: Record<StationId, string> = {
   draw: '請他說說畫了什麼',
   park: '他選完，問他：你怎麼知道的？',
   code: '問他：你怎麼知道的？',
+  logic: '請他說說看：為什麼放這裡？',
 }
 
 /** 這個遊戲有沒有自己的陪玩句子（自動檢查用） */

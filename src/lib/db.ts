@@ -1,7 +1,8 @@
 import Dexie, { type Table } from 'dexie'
 import type { Band } from '../content/growth'
 
-export type StationId = 'english' | 'math' | 'mandarin' | 'draw' | 'park' | 'code'
+/** logic：遊戲角的邏輯遊戲（T-152，只是多一個值，IndexedDB 不用升版） */
+export type StationId = 'english' | 'math' | 'mandarin' | 'draw' | 'park' | 'code' | 'logic'
 
 /**
  * 教學階段（PRD §5.8）：teach 教學卡／示範、guided 一起練、quiz 自己答。

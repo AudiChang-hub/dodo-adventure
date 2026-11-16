@@ -27,6 +27,9 @@ import './lines-worksheet'
 // 三堂課的台詞（各課自己的檔，這裡只負責 import，npm run audio 才找得到）
 import '../lessons/english/lines'
 import '../games/draw/lines'
+// 遊戲角（T-152）：首頁鎖住、打開的兩句（lines-home-corner）；邏輯遊戲的台詞
+import './lines-home-corner'
+import '../games/logic/lines'
 
 export { def, defBridge, isBridge, line, hasLine, allLines, segments, plainText, type Speaker, type Line, type Segment } from './registry'
 

@@ -45,7 +45,7 @@ function tick() {
   usedToday++
   session.activeSec++
   sinceBreak++
-  // 護眼休息、每日上限：家長在設定改的（預設是小班段的外框：每 10 分鐘、每天 20 分鐘，FRAME-6、7）
+  // 護眼休息、每日上限：家長在設定改的（預設是小班段的外框：每 10 分鐘、每天 30 分鐘，見 lib/settings.ts 的 DEFAULTS）
   const every = getSettings().eyeBreakEvery
   if (every > 0 && !breakDue && sinceBreak >= every * 60) {
     breakDue = true

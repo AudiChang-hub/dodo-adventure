@@ -16,6 +16,10 @@ export type Route =
   | { name: 'storybook' }
   /** 首頁牆上的貼紙板點進去：只看不改的貼紙本（T-132，screens/StickerBook.tsx） */
   | { name: 'stickers' }
+  /** 遊戲角的「邏輯遊戲」進去：選豆豆收拾還是串珠珠（T-152，games/logic/index.tsx） */
+  | { name: 'logic' }
+  /** 邏輯遊戲的一種玩法：sort 豆豆收拾（分類）、pattern 串珠珠（規律）（T-152） */
+  | { name: 'logic-play'; game: 'sort' | 'pattern' }
   | { name: 'bedtime' }
   | { name: 'parent' }
 
@@ -28,7 +32,7 @@ function initialRoute(): Route {
     const r = sessionStorage.getItem(RESUME_KEY)
     sessionStorage.removeItem(RESUME_KEY)
     // T-147：首頁拿掉故事門，更新前停在故事書的（舊的平板）回首頁，不再打開故事書
-    if (r === 'home' || r === 'storybook' || r === 'stickers' || r === 'parent' || r === 'draw' || r === 'coloring') return { name: r === 'storybook' ? 'home' : r }
+    if (r === 'home' || r === 'storybook' || r === 'stickers' || r === 'parent' || r === 'draw' || r === 'coloring' || r === 'logic') return { name: r === 'storybook' ? 'home' : r }
   } catch {
     /* 讀不到就照網址 */
   }
@@ -101,6 +105,7 @@ export function useRoute(): Route {
 /**
  * 上一層：一堂課、畫畫（選白紙還是著色本）、故事書、貼紙本、家長區 → 首頁。首頁和睡覺畫面沒有上一層。
  * 畫畫裡（T-138）：自由畫畫、著色本 → 選白紙還是著色本；塗一張圖 → 著色本。
+ * 邏輯遊戲裡（T-152）：玩到一半 → 選玩法 → 首頁。
  */
 export function parentOf(r: Route): Route | null {
   switch (r.name) {
@@ -108,6 +113,9 @@ export function parentOf(r: Route): Route | null {
       return r.game === 'd-color' ? { name: 'coloring' } : { name: 'draw' }
     case 'coloring':
       return { name: 'draw' }
+    case 'logic-play':
+      return { name: 'logic' }
+    case 'logic':
     case 'draw':
     case 'storybook':
     case 'stickers':
