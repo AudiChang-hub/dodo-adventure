@@ -17,7 +17,7 @@ import { go } from '../../lib/nav'
 import { bedtimeIfDue } from '../../lib/session'
 import { useLive } from '../logic/kit'
 import { useTaps } from '../../ui/tap'
-import { MazeHarderArt, MazePickArt, Padlock } from './art'
+import { MazeAnimal, MazeHarderArt, MazePickArt, Padlock } from './art'
 import { MAZE_COPLAY } from './coplay'
 import { findKey, gotKey } from './lines'
 import {
@@ -27,11 +27,12 @@ import {
   MAZE_GAME,
   MAZE_LEVELS,
   MAZE_MAX,
-  THEME_DECO,
   afterMaze,
   choicesOf,
+  decoFor,
   dirOf,
   harderMaze,
+  isDino,
   linked,
   makeMaze,
   mazeOk,
@@ -70,6 +71,15 @@ const THEME_LOOK: Record<ThemeId, { bg: string; edge: string; path: string; path
   sea: { bg: '#86BCD8', edge: '#5F97B8', path: '#F6EBCB', pathEdge: '#C8B27E' },
   snow: { bg: '#B9CFDF', edge: '#8DA9BF', path: '#FFFFFF', pathEdge: '#9DB4C6' },
   garden: { bg: '#E7C3CF', edge: '#C495A6', path: '#FBF3E2', pathEdge: '#D2B98A' },
+  // T-158 加的主題：底色彼此拉開，走道一律是淺色（深色的太空、夜晚也一樣），一眼看得出哪裡是路
+  desert: { bg: '#EACB8C', edge: '#C9A262', path: '#FFF6E1', pathEdge: '#C29A5B' },
+  space: { bg: '#4B4180', edge: '#342C61', path: '#ECE8FA', pathEdge: '#A39BD0' },
+  city: { bg: '#B9BFC8', edge: '#8F969F', path: '#F8F4EA', pathEdge: '#A99F8C' },
+  farm: { bg: '#CADF8E', edge: '#9DB563', path: '#F0DAB0', pathEdge: '#B89A64' },
+  dino: { bg: '#D8A88A', edge: '#B27E61', path: '#FBEEDB', pathEdge: '#C69872' },
+  candy: { bg: '#CDB8EE', edge: '#A28BD2', path: '#FFF7EA', pathEdge: '#D6BA8C' },
+  rain: { bg: '#82A9A3', edge: '#5E8580', path: '#F0F5F1', pathEdge: '#9DB5AE' },
+  night: { bg: '#283B61', edge: '#18264A', path: '#F6E9C6', pathEdge: '#C4A770' },
 }
 
 /**
@@ -149,6 +159,8 @@ const Board = memo(function Board({ maze }: { maze: MazeData }) {
   // 牆縫（相鄰但不通的兩格中間）放裝飾：大約四分之三，看起來像樹叢、珊瑚，不擋路
   const deco = useMemo(() => {
     const rnd = seeded(maze.sig)
+    // 這個主題的裝飾（4～6 樣），不放終點的東西、不放正在走的那隻動物
+    const icons = decoFor(theme, maze.dino, maze.goalId)
     const out: { x: number; y: number; icon: string }[] = []
     for (let c = 0; c < cols * rows; c++)
       for (const dd of [1, 2]) {
@@ -157,7 +169,7 @@ const Board = memo(function Board({ maze }: { maze: MazeData }) {
         if (rnd() < 0.25) continue
         const x = (c % cols) + 0.5 + DX[dd] * 0.5
         const y = Math.floor(c / cols) + 0.5 + DY[dd] * 0.5
-        out.push({ x, y, icon: THEME_DECO[theme][Math.floor(rnd() * 4)] })
+        out.push({ x, y, icon: icons[Math.floor(rnd() * icons.length) % icons.length] })
       }
     return out
   }, [maze, cols, rows, theme])
@@ -327,6 +339,8 @@ function MazeView({ maze, prog, onDone, onAgain, onHarder, resting }: { maze: Ma
     setHand(null)
     setGlow(null)
     setDone(true)
+    // 小動物沒有歡呼的表情：跳一下
+    if (!isDino(dino)) setHop((k) => k + 1)
     sfx.done()
     record()
     flow.cut()
@@ -687,7 +701,7 @@ function MazeView({ maze, prog, onDone, onAgain, onHarder, resting }: { maze: Ma
                 animate={bump ? { x: [0, DX[bump.d] * cs * 0.12, 0], y: [0, DY[bump.d] * cs * 0.12, 0] } : hop ? { y: [0, -cs * 0.08, 0] } : {}}
                 transition={{ duration: 0.32, ease: 'easeOut' }}
               >
-                <Dino who={dino} mood={done ? 'cheer' : 'idle'} size="100%" flip={flip} />
+                {isDino(dino) ? <Dino who={dino} mood={done ? 'cheer' : 'idle'} size="100%" flip={flip} /> : <MazeAnimal who={dino} flip={flip} />}
               </motion.div>
             </motion.div>
           </>

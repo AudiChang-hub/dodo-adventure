@@ -1,5 +1,9 @@
 // 迷宮的小圖示（T-156）：選玩法、「再一個」用。一條彎彎的小路，起點一顆蛋形的恐龍頭、終點一顆蘋果（Fluent Emoji）。
+import type { ReactElement } from 'react'
 import { Emoji } from '../../art/Emoji'
+import { Cat, Chicken, Frog, Pig } from '../../art/storybook/animals'
+import { Rabbit, Turtle } from '../../art/storybook/chars'
+import type { AnimalId } from './plan'
 
 const INK = '#2E2A25'
 
@@ -51,6 +55,27 @@ export function Padlock() {
       <rect x={14} y={48} width={72} height={56} rx={12} fill="#F1C24B" stroke={INK} strokeWidth={5} />
       <circle cx={50} cy={70} r={8} fill={INK} />
       <rect x={46} y={72} width={8} height={18} rx={3} fill={INK} />
+    </svg>
+  )
+}
+
+/**
+ * 走迷宮的小動物（T-158）：故事繪本裡 App 自己畫的造型（art/storybook，面向右、腳在下緣）。
+ * flip：往左走的時候轉過來（跟恐龍的 Dino flip 一樣）。
+ */
+const ANIMAL_ART: Record<AnimalId, { w: number; h: number; art: () => ReactElement }> = {
+  cat: { w: 200, h: 210, art: () => <Cat /> },
+  rabbit: { w: 200, h: 250, art: () => <Rabbit pose="stand" /> },
+  turtle: { w: 300, h: 190, art: () => <Turtle pose="walk" /> },
+  pig: { w: 250, h: 190, art: () => <Pig /> },
+  chicken: { w: 200, h: 220, art: () => <Chicken /> },
+  frog: { w: 210, h: 170, art: () => <Frog /> },
+}
+export function MazeAnimal({ who, flip }: { who: AnimalId; flip: boolean }) {
+  const a = ANIMAL_ART[who]
+  return (
+    <svg viewBox={`0 0 ${a.w} ${a.h}`} width="100%" height="100%" preserveAspectRatio="xMidYMax meet" aria-hidden="true">
+      <g transform={flip ? `translate(${a.w} 0) scale(-1 1)` : undefined}>{a.art()}</g>
     </svg>
   )
 }

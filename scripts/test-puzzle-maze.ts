@@ -10,6 +10,8 @@ import { problemsOf } from '../src/art/storybook/layout'
 import { GRID, OK_WRONGS, PUZZLE_MAX, PUZZLE_PICS, RECENT_PICS, afterPuzzle, normalizePuzzle, pickPic, puzzleRound, puzzleSkill, trayOrder, type PuzzleLevel } from '../src/games/puzzle/plan'
 import {
   DETOUR,
+  ANIMALS,
+  GOALS,
   GOAL_IDS,
   ITEM_OFF,
   MAZE_LEVELS,
@@ -18,10 +20,13 @@ import {
   SMOOTH_BASE_MS,
   SMOOTH_STEP_MS,
   STAR_COUNT,
+  THEMES,
   THEME_IDS,
+  WALKERS,
   afterMaze,
   bestTour,
   choicesOf,
+  decoFor,
   distances,
   fitsLevel,
   harderMaze,
@@ -47,6 +52,7 @@ import '../src/content/lines'
 import { hasLine } from '../src/content/registry'
 import { picLineKey } from '../src/games/puzzle/lines'
 import { findKey, gotKey } from '../src/games/maze/lines'
+import { EMOJI } from '../src/art/emoji.generated'
 
 function seeded(seed: number) {
   let s = seed >>> 0 || 1
@@ -174,6 +180,8 @@ function main() {
         if (last.theme) assert.notEqual(m.theme, last.theme, '主題不跟上一次一樣')
         if (last.goal) assert.notEqual(m.goalId, last.goal, '終點的東西不跟上一次一樣')
         assert.ok(THEME_IDS.includes(m.theme) && GOAL_IDS.includes(m.goalId))
+        assert.ok(THEMES[m.theme].goals.includes(m.goalId), '終點的東西對得上主題')
+        assert.ok(WALKERS.includes(m.dino))
         sigs = [...sigs, m.sig].slice(-RECENT_MAZES)
         last = { theme: m.theme, goal: m.goalId }
       }
@@ -298,6 +306,52 @@ function main() {
     assert.ok(!needsDemo([1, 9], 9))
     assert.ok(needsDemo([1, 9], 10), '星星第一次：示範')
     console.log('ok 12 順利走完直接升一級（走很久、靠提示照原本的規則）、「難一點」往上跳一級、示範只在新玩法第一次')
+  }
+
+  {
+    // T-158（家長：圖片太少）：主題 ≥ 10 種、終點的東西 ≥ 20 種、角色有恐龍也有小動物；圖示都是 App 已經有的 Fluent Emoji
+    assert.ok(THEME_IDS.length >= 10, `主題 ${THEME_IDS.length} 種`)
+    assert.ok(GOAL_IDS.length >= 20, `終點 ${GOAL_IDS.length} 種`)
+    assert.ok(Object.keys(ANIMALS).length >= 4 && WALKERS.length >= 7, '角色：三隻恐龍加小動物')
+    for (const g of GOAL_IDS) {
+      assert.ok(EMOJI[GOALS[g].icon], `終點 ${g} 的圖示 ${GOALS[g].icon} 是 App 已經有的`)
+      assert.ok(THEME_IDS.some((t) => THEMES[t].goals.includes(g)), `終點 ${g} 至少在一個主題裡會出現`)
+      assert.ok(GOALS[g].find.split(/\s+/).length <= 6 && GOALS[g].got.split(/\s+/).length <= 6, `${g} 的台詞 ≤ 6 個字`)
+    }
+    assert.equal(new Set(GOAL_IDS.map((g) => GOALS[g].icon)).size, GOAL_IDS.length, '終點的圖示不重複')
+    for (const t of THEME_IDS) {
+      const T = THEMES[t]
+      assert.ok(T.deco.length >= 4, `${t} 的裝飾至少 4 樣`)
+      assert.ok(T.goals.length >= 4, `${t} 的終點至少 4 樣`)
+      for (const d of T.deco) {
+        assert.ok(EMOJI[d], `${t} 的裝飾 ${d} 是 App 已經有的`)
+        assert.ok(!['star', 'glowing-star', 'shooting-star', 'key'].includes(d), `${t} 的裝飾不用星星、鑰匙`)
+      }
+      for (const g of T.goals) assert.ok(!T.deco.includes(GOALS[g].icon), `${t}：終點 ${g} 不會跟裝飾一樣`)
+      for (const w of WALKERS)
+        for (const g of T.goals) {
+          const icons = decoFor(t, w, g)
+          assert.ok(icons.length >= 3, `${t}／${w}／${g} 至少 3 樣裝飾`)
+          if (w in ANIMALS) for (const e of ANIMALS[w as keyof typeof ANIMALS].emoji) assert.ok(!icons.includes(e), `${w} 在走的時候牆縫裡沒有 ${e}`)
+        }
+    }
+    // 連續出 400 個：每一種主題、終點、角色都出現過
+    const rnd = seeded(77)
+    const seenT = new Set<string>()
+    const seenG = new Set<string>()
+    const seenW = new Set<string>()
+    let last: { theme?: string; goal?: string } = {}
+    for (let k = 0; k < 400; k++) {
+      const m = makeMaze(1, last, rnd)
+      seenT.add(m.theme)
+      seenG.add(m.goalId)
+      seenW.add(m.dino)
+      last = { theme: m.theme, goal: m.goalId }
+    }
+    assert.equal(seenT.size, THEME_IDS.length, '每一種主題都會出現')
+    assert.equal(seenG.size, GOAL_IDS.length, '每一種終點都會出現')
+    assert.equal(seenW.size, WALKERS.length, '每一個角色都會出現')
+    console.log(`ok 13 主題 ${THEME_IDS.length} 種、終點 ${GOAL_IDS.length} 種、角色 ${WALKERS.length} 個（圖示都是 App 已有的、裝飾不撞終點和星星鑰匙、400 個都輪得到）`)
   }
 
   // ── 家長區、台詞 ──

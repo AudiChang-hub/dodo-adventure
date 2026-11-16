@@ -58,24 +58,36 @@ export const ITEM_OFF = 2
 export const MAZE_GAME = 'logic-maze'
 /** 作答紀錄的技能：maze:3x3、maze:4x3… */
 export const mazeSkill = (level: MazeLevel) => `maze:${MAZE_LEVELS[level].cols}x${MAZE_LEVELS[level].rows}`
-/**
- * 走完一個算「第一次就對」：沒有靠發呆提示、走的步數 ≤ 最短的 ＋ 這一級的 detour（走進岔路一格再回來可以）。撞牆不算錯、畫面上不計時。
- * 升降級（T-158）：「順利」走完（第一次就對、而且沒有走很久，mazeSmooth）直接升一級；其他照邏輯遊戲同一套（sort-plan 的 stepLevel）。
- */
 /** 記住最近幾個迷宮：新的不跟這幾個一樣 */
 export const RECENT_MAZES = 5
 
-/** 主題：背景、裝飾（Fluent Emoji，App 已經有的那一套），畫面在 ./Maze.tsx 的 THEME_LOOK */
-export type ThemeId = 'forest' | 'sea' | 'snow' | 'garden'
-export const THEME_IDS: ThemeId[] = ['forest', 'sea', 'snow', 'garden']
-export const THEME_DECO: Record<ThemeId, string[]> = {
-  forest: ['deciduous-tree', 'evergreen-tree', 'mushroom', 'herb'],
-  sea: ['tropical-fish', 'octopus', 'crab', 'dolphin'],
-  snow: ['snowman', 'snowflake', 'evergreen-tree', 'penguin'],
-  garden: ['tulip', 'sunflower', 'blossom', 'seedling'],
-}
-/** 終點：恐龍要去拿的東西（Fluent Emoji） */
-export type GoalId = 'apple' | 'strawberry' | 'banana' | 'watermelon' | 'cookie' | 'cupcake' | 'eggs' | 'carrot'
+/** 終點：恐龍（或小動物）要去拿的東西（Fluent Emoji，App 已經有的那一套）。T-158（家長：圖片太少）從 8 種加到 25 種 */
+export type GoalId =
+  | 'apple'
+  | 'strawberry'
+  | 'banana'
+  | 'watermelon'
+  | 'cookie'
+  | 'cupcake'
+  | 'eggs'
+  | 'carrot'
+  | 'grapes'
+  | 'cherries'
+  | 'peach'
+  | 'pear'
+  | 'donut'
+  | 'icecream'
+  | 'lollipop'
+  | 'cake'
+  | 'pizza'
+  | 'milk'
+  | 'bread'
+  | 'rocket'
+  | 'planet'
+  | 'teddy'
+  | 'gift'
+  | 'balloon'
+  | 'umbrella'
 export const GOALS: Record<GoalId, { icon: string; find: string; got: string }> = {
   apple: { icon: 'red-apple', find: 'Find the apple!', got: 'Yum! An apple!' },
   strawberry: { icon: 'strawberry', find: 'Find the strawberry!', got: 'Yum! A strawberry!' },
@@ -85,9 +97,70 @@ export const GOALS: Record<GoalId, { icon: string; find: string; got: string }> 
   cupcake: { icon: 'cupcake', find: 'Find the cupcake!', got: 'Yum! A cupcake!' },
   eggs: { icon: 'nest-with-eggs', find: 'Find the eggs!', got: 'The eggs! Hooray!' },
   carrot: { icon: 'carrot', find: 'Find the carrot!', got: 'Yum! A carrot!' },
+  grapes: { icon: 'grapes', find: 'Find the grapes!', got: 'Yum! Grapes!' },
+  cherries: { icon: 'cherries', find: 'Find the cherries!', got: 'Yum! Cherries!' },
+  peach: { icon: 'peach', find: 'Find the peach!', got: 'Yum! A peach!' },
+  pear: { icon: 'pear', find: 'Find the pear!', got: 'Yum! A pear!' },
+  donut: { icon: 'doughnut', find: 'Find the donut!', got: 'Yum! A donut!' },
+  icecream: { icon: 'ice-cream', find: 'Find the ice cream!', got: 'Yum! Ice cream!' },
+  lollipop: { icon: 'lollipop', find: 'Find the lollipop!', got: 'Yum! A lollipop!' },
+  cake: { icon: 'birthday-cake', find: 'Find the cake!', got: 'Yum! A cake!' },
+  pizza: { icon: 'pizza', find: 'Find the pizza!', got: 'Yum! Pizza!' },
+  milk: { icon: 'glass-of-milk', find: 'Find the milk!', got: 'Yum! Milk!' },
+  bread: { icon: 'bread', find: 'Find the bread!', got: 'Yum! Bread!' },
+  rocket: { icon: 'rocket', find: 'Find the rocket!', got: 'The rocket! Hooray!' },
+  planet: { icon: 'ringed-planet', find: 'Find the planet!', got: 'The planet! Hooray!' },
+  teddy: { icon: 'teddy-bear', find: 'Find the teddy bear!', got: 'My teddy bear! Hooray!' },
+  gift: { icon: 'wrapped-gift', find: 'Find the present!', got: 'A present! Hooray!' },
+  balloon: { icon: 'balloon', find: 'Find the balloon!', got: 'A balloon! Hooray!' },
+  umbrella: { icon: 'umbrella', find: 'Find the umbrella!', got: 'The umbrella! Hooray!' },
 }
 export const GOAL_IDS = Object.keys(GOALS) as GoalId[]
+
+/**
+ * 主題（T-158，家長：圖片太少）：4 種加到 12 種。每種：牆縫裡的裝飾（Fluent Emoji，4～6 樣隨機擺）、終點會出現的東西（對得上主題的）。
+ * 底色、牆、路的顏色在 ./Maze.tsx 的 THEME_LOOK。裝飾不用星星、鑰匙（第 9、10 級要拿的東西），也不用這個主題終點的東西。
+ */
+export type ThemeId = 'forest' | 'sea' | 'snow' | 'garden' | 'desert' | 'space' | 'city' | 'farm' | 'dino' | 'candy' | 'rain' | 'night'
+export const THEMES: Record<ThemeId, { deco: string[]; goals: GoalId[] }> = {
+  forest: { deco: ['deciduous-tree', 'evergreen-tree', 'mushroom', 'herb', 'leaf-fluttering-in-wind', 'hedgehog'], goals: ['apple', 'strawberry', 'pear', 'cherries', 'grapes'] },
+  sea: { deco: ['tropical-fish', 'octopus', 'crab', 'dolphin', 'jellyfish', 'spouting-whale'], goals: ['watermelon', 'icecream', 'banana', 'peach'] },
+  snow: { deco: ['snowman', 'snowflake', 'evergreen-tree', 'penguin', 'ice'], goals: ['cookie', 'milk', 'gift', 'cupcake'] },
+  garden: { deco: ['tulip', 'sunflower', 'blossom', 'seedling', 'butterfly', 'honeybee'], goals: ['strawberry', 'carrot', 'peach', 'cherries', 'apple'] },
+  desert: { deco: ['sun-with-face', 'rock', 'lizard', 'snake', 'footprints'], goals: ['watermelon', 'banana', 'icecream', 'milk'] },
+  space: { deco: ['flying-saucer', 'crescent-moon', 'robot', 'sun'], goals: ['rocket', 'planet', 'cookie', 'icecream'] },
+  city: { deco: ['taxi', 'bus', 'vertical-traffic-light', 'bus-stop', 'police-car', 'house'], goals: ['pizza', 'donut', 'balloon', 'bread', 'icecream'] },
+  farm: { deco: ['cow', 'pig', 'chicken', 'tractor', 'ewe', 'horse'], goals: ['eggs', 'carrot', 'milk', 'apple', 'bread'] },
+  dino: { deco: ['sauropod', 't-rex', 'volcano', 'footprints', 'rock', 'herb'], goals: ['eggs', 'banana', 'grapes', 'watermelon'] },
+  candy: { deco: ['soft-ice-cream', 'popcorn', 'party-popper', 'yo-yo', 'balloon'], goals: ['lollipop', 'donut', 'cupcake', 'cake', 'cookie'] },
+  rain: { deco: ['cloud-with-rain', 'droplet', 'snail', 'frog', 'rainbow', 'duck'], goals: ['umbrella', 'cupcake', 'milk', 'cookie'] },
+  night: { deco: ['crescent-moon', 'owl', 'zzz', 'candle', 'mouse-face'], goals: ['teddy', 'cookie', 'milk', 'gift', 'balloon'] },
+}
+export const THEME_IDS = Object.keys(THEMES) as ThemeId[]
+export const THEME_DECO = Object.fromEntries(THEME_IDS.map((t) => [t, THEMES[t].deco])) as Record<ThemeId, string[]>
+
+/**
+ * 走迷宮的角色：三隻恐龍（App 的主角），T-158 加上故事繪本裡 App 自己畫的小動物，隨機出現。
+ * emoji：同一隻動物的 Fluent Emoji，這一隻在走的時候牆縫裡不放（不會看到兩隻一樣的）。
+ */
+export type AnimalId = 'cat' | 'rabbit' | 'turtle' | 'pig' | 'chicken' | 'frog'
+export type WalkerId = Speaker | AnimalId
 export const DINOS: Speaker[] = ['dodo', 'bobo', 'momo']
+export const ANIMALS: Record<AnimalId, { emoji: string[] }> = {
+  cat: { emoji: ['cat', 'cat-face'] },
+  rabbit: { emoji: ['rabbit', 'rabbit-face'] },
+  turtle: { emoji: ['turtle'] },
+  pig: { emoji: ['pig', 'pig-face'] },
+  chicken: { emoji: ['chicken'] },
+  frog: { emoji: ['frog'] },
+}
+export const WALKERS: WalkerId[] = [...DINOS, ...(Object.keys(ANIMALS) as AnimalId[])]
+export const isDino = (w: WalkerId): w is Speaker => (DINOS as string[]).includes(w)
+/** 這個主題、這個角色、這個終點的時候，牆縫裡可以放哪些裝飾 */
+export const decoFor = (theme: ThemeId, walker: WalkerId, goalId: GoalId) => {
+  const no = new Set([GOALS[goalId].icon, ...(isDino(walker) ? [] : ANIMALS[walker].emoji)])
+  return THEMES[theme].deco.filter((d) => !no.has(d))
+}
 
 export interface Maze {
   level: MazeLevel
@@ -107,7 +180,8 @@ export interface Maze {
   tour: number
   theme: ThemeId
   goalId: GoalId
-  dino: Speaker
+  /** 走迷宮的角色（恐龍或小動物） */
+  dino: WalkerId
   /** 同一個迷宮（大小、牆、起點、終點都一樣）才一樣 */
   sig: string
 }
@@ -379,7 +453,8 @@ export function makeMaze(level: MazeLevel, recent: { sigs?: readonly string[]; t
     best = { links, start: 0, goal, path: shortest({ cols, rows, links }, 0, goal), items: [], score: 0 }
   }
   const theme = pick(THEME_IDS.filter((t) => t !== recent.theme), rnd)
-  const goalId = pick(GOAL_IDS.filter((g) => g !== recent.goal), rnd)
+  // 終點的東西：對得上主題的那幾樣裡挑，不跟上一次一樣
+  const goalId = pick(THEMES[theme].goals.filter((g) => g !== recent.goal), rnd)
   const { links, start, goal, path, items } = best
   const tour = items.length ? bestTour({ cols, rows, links }, start, items, goal).len : path.length - 1
   return {
@@ -395,7 +470,7 @@ export function makeMaze(level: MazeLevel, recent: { sigs?: readonly string[]; t
     tour,
     theme,
     goalId,
-    dino: pick(DINOS, rnd),
+    dino: pick(WALKERS, rnd),
     sig: sigOf(cols, rows, links, start, goal) + (items.length ? `:${items.join('.')}` : ''),
   }
 }
