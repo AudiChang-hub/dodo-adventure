@@ -6,7 +6,7 @@ export function PuzzlePickArt() {
   return (
     <svg viewBox="0 0 240 200" width="100%" height="100%" aria-hidden="true">
       <g stroke={INK} strokeWidth={5} strokeLinejoin="round" strokeLinecap="round">
-        {/* 底下淡淡的空位 */}
+        {/* 空著的位置 */}
         <rect x={106} y={96} width={78} height={62} rx={8} fill="#EFE7D6" strokeDasharray="10 9" strokeWidth={4} opacity={0.8} />
         {/* 三片：天空、草地、太陽 */}
         <path d="M28 34 H106 V96 H28 Z" fill="#CFE6F0" />

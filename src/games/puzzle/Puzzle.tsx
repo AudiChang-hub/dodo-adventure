@@ -32,7 +32,7 @@ const DRAG_PX = 14
 const SNAP = 0.6
 
 /**
- * 拼圖（T-156）：左邊是板子（底下淡淡的原圖＋虛線格子），右邊托盤放打散的片（不旋轉）。
+ * 拼圖（T-156）：左邊是拼盤（只有空的虛線格子），右上角一張小的完整圖當參考，下面托盤放打散的片（每片都不在自己的位置、不旋轉）。
  * 拖過去放對了會吸附；點一片（拿起來）再點位置也能放（TOUCH-2）。拖到空白處放手：片回托盤，不算錯（TOUCH-7）。
  * 放錯：片回托盤。第 1 次「Look at the picture.」；同一片第 2 次對的位置亮起來「It goes here.」；第 3 次手帶著放進去（記一起做）。
  * 第一次到這一級：手先示範放一片（示範中點了只有「看這裡」的圈圈）。發呆：15 秒再說一次、30 秒手點一片、對的位置亮起來。
@@ -80,38 +80,45 @@ const Slice = memo(function Slice({ art, col, row, cols, rows }: { art: PageArt;
 })
 
 type Box = { x: number; y: number; w: number; h: number }
-type Geo = { board: Box; pw: number; ph: number; tray: { x: number; y: number }[]; s: number; w: number; h: number }
+type Geo = { board: Box; ref: Box; pw: number; ph: number; tray: { x: number; y: number }[]; s: number; w: number; h: number }
 
-/** 版面：板子在左（橫的 960:600），托盤在右（兩欄，片縮小放） */
-function geometry(w: number, h: number, cols: number, rows: number): Geo | null {
+/**
+ * 版面：拼盤在左（橫的 960:600，只有空格子）；右上角一張小的完整圖當參考（拼盤寬的 0.4，像拼圖盒上的圖）；
+ * 參考圖下面是托盤，跟拼盤一樣排成 cols×rows（片縮小放），每一格稍微散開。
+ */
+function geometry(w: number, h: number, cols: number, rows: number, spread: readonly { dx: number; dy: number }[]): Geo | null {
   if (w < 50 || h < 50) return null
-  const n = cols * rows
   const gap = Math.max(20, w * 0.025)
-  const bw = Math.min(w * 0.56, (h - 24) * 1.6)
+  const bw = Math.min(w * 0.54, (h - 24) * 1.6)
   const bh = bw / 1.6
   const board = { x: gap, y: (h - bh) / 2, w: bw, h: bh }
   const pw = bw / cols
   const ph = bh / rows
   const tx = board.x + bw + gap * 1.5
   const tw = w - tx - gap * 0.5
-  const tRows = Math.ceil(n / 2)
-  const tg = Math.max(16, h * 0.03)
-  const s = Math.min(0.8, (tw - tg) / 2 / pw, (h - tg * (tRows + 1)) / tRows / ph)
+  const rw = Math.min(bw * 0.4, tw * 0.7)
+  const ref = { x: tx + tw - rw, y: board.y, w: rw, h: rw / 1.6 }
+  const tg = Math.max(18, h * 0.035)
+  const top = ref.y + ref.h + tg
+  const th = h - top - 8
+  const s = Math.max(0.3, Math.min(0.8, (tw - tg * (cols + 1)) / cols / pw, (th - tg * rows) / rows / ph))
   const cw = pw * s
   const chh = ph * s
-  const used = tRows * chh + (tRows - 1) * tg
-  const tray = Array.from({ length: n }, (_, i) => {
-    const c = i % 2
-    const r = Math.floor(i / 2)
-    return { x: tx + tw / 2 + (c === 0 ? -1 : 1) * (cw / 2 + tg / 2), y: (h - used) / 2 + r * (chh + tg) + chh / 2 }
-  })
-  return { board, pw, ph, tray, s, w, h }
+  const x0 = tx + (tw - (cols * cw + (cols - 1) * tg)) / 2
+  const y0 = top + (th - (rows * chh + (rows - 1) * tg)) / 2
+  // 散開：每一格最多挪開 0.45 個間隔（相鄰兩片不會疊在一起）
+  const jig = tg * 0.45
+  const tray = Array.from({ length: cols * rows }, (_, k) => ({
+    x: x0 + (k % cols) * (cw + tg) + cw / 2 + (spread[k]?.dx ?? 0) * jig,
+    y: y0 + Math.floor(k / cols) * (chh + tg) + chh / 2 + (spread[k]?.dy ?? 0) * jig,
+  }))
+  return { board, ref, pw, ph, tray, s, w, h }
 }
 
 type HandState = { x: number; y: number; tap: number; beckon?: boolean } | null
 
 function PuzzleView({ round, prog, onDone, onAgain, resting }: { round: PuzzleRound; prog: { current: PuzzleState | null }; onDone: () => void; onAgain: () => void; resting: boolean }) {
-  const { level, pic, cols, rows, tray } = round
+  const { level, pic, cols, rows, tray, spread } = round
   const n = cols * rows
   const live = useLive()
   const flow = useFlow()
@@ -128,7 +135,7 @@ function PuzzleView({ round, prog, onDone, onAgain, resting }: { round: PuzzleRo
     ro.observe(el)
     return () => ro.disconnect()
   }, [])
-  const geo = geometry(size.w, size.h, cols, rows)
+  const geo = geometry(size.w, size.h, cols, rows, spread)
   const geoRef = useRef(geo)
   geoRef.current = geo
 
@@ -516,9 +523,6 @@ function PuzzleView({ round, prog, onDone, onAgain, resting }: { round: PuzzleRo
             transition={{ duration: 0.9, ease: 'easeInOut', delay: 0.15 }}
           >
             <div className="pz-board" style={{ left: g.board.x, top: g.board.y, width: g.board.w, height: g.board.h }} onPointerDown={downBoard} onPointerUp={upBoard} role="presentation">
-              <div className="pz-ghost" aria-hidden="true">
-                <StoryPage art={pic.art} />
-              </div>
               {Array.from({ length: n }, (_, j) => (
                 <div
                   key={j}
@@ -527,6 +531,10 @@ function PuzzleView({ round, prog, onDone, onAgain, resting }: { round: PuzzleRo
                   style={{ left: `${((j % cols) / cols) * 100}%`, top: `${(Math.floor(j / cols) / rows) * 100}%`, width: `${100 / cols}%`, height: `${100 / rows}%` }}
                 />
               ))}
+            </div>
+            {/* 參考的小圖（像拼圖盒上的圖）：只看、不能點 */}
+            <div className="pz-ref" data-ref="" style={{ left: g.ref.x, top: g.ref.y, width: g.ref.w, height: g.ref.h }} aria-hidden="true">
+              <StoryPage art={pic.art} />
             </div>
             {Array.from({ length: n }, (_, i) => {
               const isDrag = drag?.id === i
@@ -538,6 +546,7 @@ function PuzzleView({ round, prog, onDone, onAgain, resting }: { round: PuzzleRo
                   className={`pz-piece${placed[i] ? ' is-placed' : ''}${lifted === i ? ' is-lifted' : ''}${isDrag ? ' is-drag' : ''}`}
                   data-piece={i}
                   data-home={placed[i] ? 'board' : 'tray'}
+                  data-tray={tray.indexOf(i)}
                   role="button"
                   aria-label={`拼圖第 ${i + 1} 片`}
                   style={{ width: g.pw, height: g.ph }}

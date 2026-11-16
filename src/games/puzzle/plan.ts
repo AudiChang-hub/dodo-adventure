@@ -1,6 +1,8 @@
 // 拼圖（T-156，家長 2026-11-16 要求）的圖庫、出題、升降級。只有純函式，scripts/test-puzzle-maze.ts 直接測；畫面在 ./Puzzle.tsx。
 // 圖全部是 App 自己的故事插畫（src/art/storybook：場景＋角色庫），用 StoryPage 畫，不照任何現成 App 的關卡或圖。
-// 片數從 3 歲做得到的開始（指引 MA-6「積木、拼圖」）：2×2 四片 → 熟練了 3×2 六片。片不旋轉、底下有淡淡的原圖。
+// 片數從 3 歲做得到的開始（指引 MA-6「積木、拼圖」）：2×2 四片 → 熟練了 3×2 六片。片不旋轉。
+// 拼盤只有空的虛線格子（家長 2026-11-16：底下有原圖等於只是對照位置），旁邊一張小的完整圖當參考（像拼圖盒上的圖）；
+// 托盤跟拼盤一樣排成 cols×rows，但每一片都不在它自己的位置（右上那片不會放在托盤右上），稍微散開、不轉。
 import type { PageArt } from '../../art/storybook/layout'
 import { stepLevel, type LevelState } from '../logic/sort-plan'
 
@@ -65,18 +67,27 @@ export function pickPic(recent: readonly string[], rnd: Rnd = Math.random): Puzz
   return pool[Math.floor(rnd() * pool.length) % pool.length]
 }
 
-/** 托盤裡片的順序：洗牌，而且不跟板子上的順序一樣（不然照順序放就好，不用看圖） */
+/**
+ * 托盤裡片的順序（托盤的第 k 格放第 o[k] 片）：洗牌，而且每一片都不在跟拼盤一樣的位置（o[k] ≠ k）。
+ * 托盤排得跟拼盤一樣（cols×rows），所以「右上那片放在托盤右上」照搬過去就好、不用看圖，要避開。
+ */
 export function trayOrder(n: number, rnd: Rnd = Math.random): number[] {
   const ids = Array.from({ length: n }, (_, i) => i)
-  for (let k = 0; k < 20; k++) {
+  for (let k = 0; k < 200; k++) {
     const o = [...ids]
     for (let i = o.length - 1; i > 0; i--) {
       const j = Math.floor(rnd() * (i + 1)) % (i + 1)
       ;[o[i], o[j]] = [o[j], o[i]]
     }
-    if (o.some((x, i) => x !== i)) return o
+    if (o.every((x, i) => x !== i)) return o
   }
-  return [...ids].reverse()
+  // 保險（幾乎不會用到）：整排轉一格，也是每一片都不在原位
+  return ids.map((i) => (i + 1) % n)
+}
+
+/** 托盤每一格稍微散開一點（-1～1，畫面再乘上可以挪的距離）：看起來是倒在桌上的，不是排好的；片不轉 */
+export function scatter(n: number, rnd: Rnd = Math.random): { dx: number; dy: number }[] {
+  return Array.from({ length: n }, () => ({ dx: rnd() * 2 - 1, dy: rnd() * 2 - 1 }))
 }
 
 export interface PuzzleRound {
@@ -84,13 +95,15 @@ export interface PuzzleRound {
   pic: PuzzlePic
   cols: number
   rows: number
-  /** 托盤的第 i 格放第 tray[i] 片（片的編號＝板子上的位置，左上 0，往右、往下數） */
+  /** 托盤的第 i 格放第 tray[i] 片（片的編號＝板子上的位置，左上 0，往右、往下數）；托盤也排成 cols×rows */
   tray: number[]
+  /** 托盤第 i 格散開多少 */
+  spread: { dx: number; dy: number }[]
 }
 
 export function puzzleRound(level: PuzzleLevel, recent: readonly string[], rnd: Rnd = Math.random): PuzzleRound {
   const { cols, rows } = GRID[level]
-  return { level, pic: pickPic(recent, rnd), cols, rows, tray: trayOrder(cols * rows, rnd) }
+  return { level, pic: pickPic(recent, rnd), cols, rows, tray: trayOrder(cols * rows, rnd), spread: scatter(cols * rows, rnd) }
 }
 
 // ── 進度 ─────────────────────────────────────────────────────

@@ -173,6 +173,14 @@ test.describe('拼圖', () => {
       await k.wait(1000)
       c.outcome('連點拼圖：進到拼圖', (await snap(page)).live === 'logic-puzzle', String((await snap(page)).live))
       c.outcome('第一次玩：2×2 四片', (await piecesN(page)) === 4, String(await piecesN(page)))
+      // 家長 2026-11-16：拼盤沒有淡淡的原圖，旁邊一張小的完整圖；托盤打亂，每一片都不在跟拼盤一樣的位置
+      const look = await page.evaluate(() => ({
+        ghost: !!document.querySelector('.pz-ghost'),
+        ref: !!document.querySelector('[data-logic-game="puzzle"] [data-ref]'),
+        same: [...document.querySelectorAll('[data-piece]')].filter((e) => e.getAttribute('data-piece') === e.getAttribute('data-tray')).length,
+      }))
+      c.outcome('拼盤只有空格子、旁邊有參考小圖', !look.ghost && look.ref, JSON.stringify(look))
+      c.outcome('托盤打亂：每一片都不在跟拼盤一樣的位置', look.same === 0, `${look.same} 片在原位`)
       // 1. 示範中搶著點：點片、點板子，都只有圈圈，不算作答
       k.behavior = '示範中搶著點'
       const sawDemo = await until(page, () => inDemo(page), 6000)

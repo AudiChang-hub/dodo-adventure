@@ -82,13 +82,17 @@ function main() {
         const n = GRID[lv as PuzzleLevel].cols * GRID[lv as PuzzleLevel].rows
         assert.equal(r.tray.length, n)
         assert.deepEqual([...r.tray].sort((a, b) => a - b), Array.from({ length: n }, (_, i) => i), '托盤剛好每一片一次')
-        assert.ok(r.tray.some((x, i) => x !== i), '托盤順序不跟板子一樣')
+        assert.ok(r.tray.every((x, i) => x !== i), `每一片都不在跟拼盤一樣的位置：${r.tray}`)
+        assert.equal(r.spread.length, n)
+        assert.ok(r.spread.every((p) => Math.abs(p.dx) <= 1 && Math.abs(p.dy) <= 1), '散開在 -1～1')
       }
     }
-    assert.deepEqual(trayOrder(2, () => 0).sort(), [0, 1])
+    // 亂數一直給一樣的（最壞的情況）：還是每一片都不在原位
+    for (const n of [4, 6]) assert.ok(trayOrder(n, () => 0).every((x, i) => x !== i), `trayOrder(${n}) 保險`)
+    assert.deepEqual(trayOrder(2, () => 0), [1, 0])
     assert.equal(puzzleSkill(1), 'puzzle:4')
     assert.equal(puzzleSkill(2), 'puzzle:6')
-    console.log('ok 3 片數：2×2 四片、3×2 六片；托盤打散、每片一次')
+    console.log('ok 3 片數：2×2 四片、3×2 六片；托盤打散、每片一次、每一片都不在跟拼盤一樣的位置')
   }
   {
     // 升級：8 張裡 ≥ 7 張（放錯 ≤ 1 次）、分布 ≥ 3 天

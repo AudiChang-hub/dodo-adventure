@@ -24,23 +24,33 @@
   touch-action: none;
   -webkit-tap-highlight-color: transparent;
 }
-/* 底下淡淡的原圖（看得出來是什麼，但一眼分得出哪裡還空著） */
-.pz-ghost {
+/* 參考的小圖：像拼圖盒上的那張圖（白框、影子），只看、不能點 */
+.pz-ref {
   position: absolute;
-  inset: 0;
-  border-radius: 18px;
+  border-radius: 12px;
   overflow: hidden;
-  opacity: 0.3;
+  background: #fbf8f2;
+  box-shadow:
+    0 0 0 5px #fff,
+    0 0 0 7px var(--paper-edge, #e6dccb),
+    0 14px 20px -14px rgba(46, 42, 37, 0.45);
+  pointer-events: none;
   transition: opacity 0.4s ease-out;
 }
-.pz-ghost .sb-page {
+/* 拼完：拼盤上已經是整張圖，參考圖收起來（右邊那一欄換成「再一張／回首頁」） */
+.pz.is-done .pz-ref {
+  opacity: 0;
+}
+.pz-ref .sb-page {
   width: 100%;
   height: 100%;
 }
+/* 拼盤的空格子：只有虛線，空著的格子底色稍深一點 */
 .pz-slot {
   position: absolute;
   box-sizing: border-box;
   border: 3px dashed rgba(46, 42, 37, 0.35);
+  background: rgba(46, 42, 37, 0.035);
   pointer-events: none;
 }
 /* 第 2 次放錯、發呆的提示：對的位置亮起來（暖黃，靜止、不閃，MOTION-3） */
@@ -111,12 +121,9 @@
 .pz.is-done .pz-piece.is-placed .pz-slice {
   box-shadow: none;
 }
-.pz.is-done .pz-ghost {
-  opacity: 0;
-}
 @media (prefers-reduced-motion: reduce) {
-  .pz-slice,
-  .pz-ghost {
+  .pz-ref,
+  .pz-slice {
     transition: none;
   }
 }

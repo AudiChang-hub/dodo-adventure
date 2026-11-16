@@ -6,7 +6,7 @@ import { PUZZLE_PICS } from './plan'
 
 def('pz.intro', 'dodo', "Let's make a picture!")
 def('pz.ask', 'dodo', 'Where does it go?')
-/** 放錯第 1 次：看底下淡淡的圖 */
+/** 放錯第 1 次：看旁邊的小圖（參考圖） */
 def('pz.look', 'dodo', 'Look at the picture.')
 /** 放錯第 2 次（對的位置亮起來）、示範、手帶著放 */
 def('pz.here', 'dodo', 'It goes here.')
