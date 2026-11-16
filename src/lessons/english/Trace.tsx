@@ -755,18 +755,20 @@ export function Trace({
               {!done && glowLane(LANE + 14, '#FFEDB0')}
               {/* 畫完（不是示範）：整個字變彩虹色、跳一下 */}
               <g key={cheerTap} className={rainbow ? 'trace-pop' : undefined} data-trace-finished={finished ? '' : undefined} data-trace-neat={finished ? (neat ? '1' : '0') : undefined}>
+                {/* 先畫全部的外框、再畫全部的跑道（T-153）：轉角分成兩筆的字（M、N、W…）接起來的地方不會有一條外框的弧線切過跑道 */}
                 {strokes.map((d, i) => (
-                  <g key={i}>
-                    <path d={d} fill="none" stroke={look.rim} strokeWidth={LANE + 3} strokeLinecap="round" strokeLinejoin="round" />
-                    <path
-                      d={d}
-                      fill="none"
-                      stroke={rainbow ? `url(#en-rainbow-${r})` : i < stroke || done ? look.lane : '#FBF8F2'}
-                      strokeWidth={LANE}
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    />
-                  </g>
+                  <path key={`rim-${i}`} d={d} fill="none" stroke={look.rim} strokeWidth={LANE + 3} strokeLinecap="round" strokeLinejoin="round" />
+                ))}
+                {strokes.map((d, i) => (
+                  <path
+                    key={`lane-${i}`}
+                    d={d}
+                    fill="none"
+                    stroke={rainbow ? `url(#en-rainbow-${r})` : i < stroke || done ? look.lane : '#FBF8F2'}
+                    strokeWidth={LANE}
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
                 ))}
               </g>
               {!done && (
