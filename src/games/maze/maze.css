@@ -1,0 +1,52 @@
+/* 迷宮（T-156）：迷宮的位置和格子大小由 Maze.tsx 依作答區大小算，這裡只管樣子。平板橫向 1200×786 為準 */
+.mz {
+  position: absolute;
+  inset: 0;
+}
+.mz-play {
+  position: absolute;
+  inset: 0;
+  /* 準則 TOUCH-5：最下緣 2 cm 是手腕靠的地方，迷宮在它上面 */
+  bottom: 70px;
+  touch-action: none;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+}
+.mz-board {
+  position: absolute;
+  filter: drop-shadow(0 18px 18px rgba(46, 42, 37, 0.18));
+}
+.mz-svg {
+  display: block;
+}
+.mz-cell {
+  position: absolute;
+  pointer-events: none;
+}
+.mz-trail,
+.mz-glow {
+  position: absolute;
+  translate: -50% -50%;
+  border-radius: 50%;
+  pointer-events: none;
+}
+.mz-trail {
+  background: rgba(46, 42, 37, 0.22);
+}
+/* 發呆提示：下一格亮起來（暖黃，靜止、不閃，MOTION-3） */
+.mz-glow {
+  background: radial-gradient(closest-side, rgba(241, 210, 124, 0.95), rgba(241, 210, 124, 0.45) 70%, transparent);
+}
+.mz-goal {
+  position: absolute;
+  pointer-events: none;
+  filter: drop-shadow(0 6px 4px rgba(46, 42, 37, 0.2));
+}
+.mz-dino {
+  position: absolute;
+  left: 0;
+  top: 0;
+  pointer-events: none;
+  z-index: 2;
+  filter: drop-shadow(0 8px 6px rgba(46, 42, 37, 0.2));
+}

@@ -1,0 +1,12 @@
+/* 選玩法有四張（T-156 加上拼圖、迷宮）：排成 2×2，每張還是夠大（TOUCH-1 ≥ 2.5 cm） */
+.lg-pick.n4 {
+  display: grid;
+  grid-template-columns: repeat(2, auto);
+  align-content: center;
+  justify-content: center;
+  gap: clamp(20px, 3.4cqh, 40px) clamp(28px, 5cqw, 72px);
+}
+.lg-pick.n4 .lg-pick-card {
+  width: min(30cqw, 40cqh * 1.2);
+  border-radius: 32px;
+}

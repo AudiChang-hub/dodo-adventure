@@ -200,7 +200,8 @@ test.describe('邏輯遊戲', () => {
     const { k, c } = await setup(page, info, '選玩法', { taught: true })
     try {
       const picks = await page.evaluate(() => [...document.querySelectorAll('[data-pick]')].map((e) => e.getAttribute('data-pick')).join(','))
-      c.outcome('進來是兩個大圖示：籃子、珠子', picks === 'sort,pattern', picks)
+      // T-156 加上拼圖、迷宮（tests/toddler/puzzle-maze.spec.ts）
+      c.outcome('進來是四個大圖示：籃子、珠子、拼圖、迷宮', picks === 'sort,pattern,puzzle,maze', picks)
       await shot(page, info, '01-選玩法')
       // 連點籃子：只進一次
       k.behavior = '連點豆豆收拾'

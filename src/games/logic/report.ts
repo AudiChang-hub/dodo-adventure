@@ -3,7 +3,7 @@
 import type { Attempt } from '../../lib/db'
 import { MASTER_DAYS, MASTER_OF, MASTER_OK } from './sort-plan'
 
-export const LOGIC_GAME_NAME: Record<string, string> = { 'logic-sort': '豆豆收拾', 'logic-pattern': '串珠珠' }
+export const LOGIC_GAME_NAME: Record<string, string> = { 'logic-sort': '豆豆收拾', 'logic-pattern': '串珠珠', 'logic-puzzle': '拼圖', 'logic-maze': '迷宮' }
 
 /** 技能的中文（作答紀錄、總覽用） */
 export const LOGIC_SKILLS: { skill: string; zh: string }[] = [
@@ -13,6 +13,14 @@ export const LOGIC_SKILLS: { skill: string; zh: string }[] = [
   { skill: 'sort:size', zh: '依大小分類' },
   { skill: 'pattern:ab', zh: 'ABAB 接下去（珠子）' },
   { skill: 'pattern:ab-obj', zh: 'ABAB 接下去（東西）' },
+  // T-156 拼圖、迷宮：一張拼完、一個走完記一筆
+  { skill: 'puzzle:4', zh: '拼 4 片拼圖' },
+  { skill: 'puzzle:6', zh: '拼 6 片拼圖' },
+  { skill: 'maze:3x3', zh: '走迷宮（3×3）' },
+  { skill: 'maze:4x3', zh: '走迷宮（4×3）' },
+  { skill: 'maze:4x4', zh: '走迷宮（4×4）' },
+  { skill: 'maze:5x4', zh: '走迷宮（5×4）' },
+  { skill: 'maze:5x5', zh: '走迷宮（5×5）' },
 ]
 
 /** 邏輯遊戲的技能名稱；不是邏輯遊戲的回傳 null（交給家長區原本的 skillLabel） */

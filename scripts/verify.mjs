@@ -49,6 +49,7 @@ const CHECKS = [
   { id: 'test-zh-stage4', name: '單元：中文 4 歲內容（門的開、退級、暫停、加長版、找字 4 選 1）', cmd: ['npx', 'tsx', 'scripts/test-zh-stage4.ts'], check: unit },
   { id: 'test-play-gate', name: '單元：遊戲角的鎖（三堂課今天各上完、今天先打開、一直開著、跨日）', cmd: ['npx', 'tsx', 'scripts/test-play-gate.ts'], check: unit },
   { id: 'test-logic', name: '單元：邏輯遊戲（出題、升降級、答案在選項裡、規律正確、不給貼紙）', cmd: ['npx', 'tsx', 'scripts/test-logic.ts'], check: unit },
+  { id: 'test-puzzle-maze', name: '單元：拼圖、迷宮（圖庫、不跟最近幾張一樣、迷宮走得到、岔路上限、不穿牆、升降級）', cmd: ['npx', 'tsx', 'scripts/test-puzzle-maze.ts'], check: unit },
   { id: 'test-stage4-registry', name: '單元：家長區 4 歲內容（三科的門、暫停的 kv、尚未提供、每堂出多少）', cmd: ['npx', 'tsx', 'scripts/test-stage4-registry.ts'], check: unit },
   {
     id: 'zh-layout',

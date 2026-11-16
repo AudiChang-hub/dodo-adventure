@@ -44,4 +44,4 @@ const PAT_COPLAY: Record<PatThemeId, { play: string; now: string }> = {
 export const patternCoplay = (theme: PatThemeId) => PAT_COPLAY[theme]
 
 /** 選玩法的畫面 */
-export const LOGIC_PICK_HINT = '讓他自己挑一個，不用每次都玩兩種'
+export const LOGIC_PICK_HINT = '讓他自己挑一個，不用每次每種都玩'
