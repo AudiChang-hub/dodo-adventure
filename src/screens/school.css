@@ -2,7 +2,9 @@
    三個大門站在地面線上，門的顏色跟守門的恐龍一樣；畫畫是旁邊一扇小圓窗（T-147 拿掉了故事門）。
    門的大小跟著畫面的寬和高取比較小的那個，平板橫向、手機直式都不會超出畫面。 */
 .school {
-  --door-w: min(21.5vw, 34vh);
+  /* T-152 版面 A：一排五個（三扇門＋遊戲角），門小 9%（258 → 236 px，1200×786） */
+  --door-w: min(19.6vw, 31vh);
+  --corner-win: clamp(108px, min(10.3vw, 16vh), 128px);
   --ground: 11.5vh;
   background: linear-gradient(#e6efee 0%, #f1ede4 58%, var(--paper) 100%);
 }
@@ -227,19 +229,177 @@
   padding: 4px 16px;
 }
 
-/* 手機直式（家長遠端看）：三扇門一排、畫畫的小圓窗在下面置中，不壞版就好 */
+/* ── 遊戲角（T-152）：門燈一排＋畫畫、邏輯遊戲兩扇並排的圓窗 ─────────────
+   兩扇窗站在地面線上、字跟門下的字同一條線；門燈掛在兩扇窗的正上方，一看就知道「這一區一起開」。
+   平常都不動（MOTION-2）：門燈不呼吸、不閃；窗簾只在孩子點了晃一下、三盞都亮的那一刻拉開一次。 */
+.play-corner {
+  gap: 14px;
+}
+.corner-windows {
+  display: flex;
+  align-items: flex-end;
+  gap: 24px;
+}
+.play-corner .side-window {
+  position: relative;
+  overflow: hidden;
+  width: var(--corner-win);
+  /* 窗框：圓窗外一圈木頭色，窗簾收在框裡 */
+  box-shadow:
+    inset 0 0 0 5px #e4d6bf,
+    0 7px 0 var(--paper-edge),
+    0 0 0 10px rgba(251, 248, 242, 0.7);
+}
+.play-corner .side-door:active .side-window {
+  box-shadow:
+    inset 0 0 0 5px #e4d6bf,
+    0 2px 0 var(--paper-edge),
+    0 0 0 10px rgba(251, 248, 242, 0.7);
+}
+
+/* 窗簾：兩片布從兩邊拉上，中間留一條縫看得到裡面的圖（不用鎖頭、不變灰、不打叉）。
+   開著的時候收在兩邊，各露一小條，看起來像綁起來的窗簾 */
+.curtains {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+.curtain {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  /* 兩片各 38%：中間留約 1/4 的縫，看得到裡面的調色盤、拼圖 */
+  width: 38%;
+  background:
+    repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.22) 0 7px, rgba(167, 96, 74, 0.1) 7px 14px),
+    #e7a995;
+  transform: translateX(var(--off, 0));
+}
+.curtain-l {
+  left: 0;
+  border-right: 3px solid #cf8c76;
+  --off: -80%;
+}
+.curtain-r {
+  right: 0;
+  border-left: 3px solid #cf8c76;
+  --off: 80%;
+}
+.play-corner[data-corner='locked'] .curtain {
+  --off: 0%;
+}
+/* 三盞都亮的那一刻：往兩邊拉開一次（約 0.6 秒）。其他時候直接是該有的樣子，不會每次回首頁都拉一次 */
+.play-corner[data-anim='1'] .curtain {
+  transition: transform 0.6s var(--ease-out);
+}
+
+/* 門燈：門形的小燈，顏色跟三扇課門一樣，裡面是 ABC／中／123。
+   還沒上：淡淡的外框、空心；上完：整個填滿、右下角一個小勾。空心和實心形狀不一樣，紙感螢幕的灰階也分得出來（DISPLAY-2） */
+.corner-lamps {
+  display: flex;
+  gap: 12px;
+  padding: 4px 8px;
+  border: 0;
+  background: none;
+  -webkit-tap-highlight-color: transparent;
+}
+.lamp {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 48px;
+  border-radius: 20px 20px 7px 7px;
+  background: rgba(251, 248, 242, 0.85);
+  box-shadow: inset 0 0 0 3px var(--door-deep);
+  opacity: 0.72;
+  transition: box-shadow 0.3s var(--ease-out);
+}
+.lamp-sign {
+  padding-top: 6px;
+  font-family: 'Fredoka', 'Huninn', sans-serif;
+  font-weight: 600;
+  font-size: 12px;
+  letter-spacing: -0.02em;
+  color: var(--door-deep);
+}
+.lamp-chinese .lamp-sign {
+  font-family: 'Huninn', sans-serif;
+  font-size: 16px;
+}
+.lamp[data-lit='1'] {
+  opacity: 1;
+  background: var(--door);
+  box-shadow:
+    inset 0 0 0 3px var(--door-deep),
+    0 3px 0 var(--door-deep);
+}
+.lamp[data-lit='1'] .lamp-sign {
+  color: #fbf8f2;
+}
+.lamp-tick {
+  position: absolute;
+  right: -7px;
+  bottom: -6px;
+  width: 20px;
+  height: 20px;
+  color: var(--door-deep);
+  filter: drop-shadow(0 1px 1px rgba(46, 42, 37, 0.18));
+}
+/* 點了鎖住的遊戲角：還沒上的那一盞亮外框（跟門的暖黃光一樣），亮一下就熄 */
+.lamp[data-point='1'] {
+  opacity: 1;
+  box-shadow:
+    inset 0 0 0 3px var(--door-deep),
+    0 0 0 4px #ffe39a,
+    0 0 16px 6px rgba(255, 214, 102, 0.6);
+}
+
+/* 陪玩小字：遊戲角鎖住時才有。安裝提示也在的時候排在它下面 */
+.corner-hint {
+  white-space: normal;
+}
+.corner-hint.below {
+  top: 216px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .play-corner[data-anim='1'] .curtain,
+  .lamp {
+    transition: none;
+  }
+}
+
+/* 手機直式（家長遠端看）：三扇門一排、遊戲角（門燈＋兩扇圓窗）在下面置中，不壞版就好 */
 @media (orientation: portrait) {
   .school {
     --door-w: min(27vw, 24vh);
+    --corner-win: 112px;
     --ground: 9vh;
   }
   .school-yard {
     flex-direction: column;
     align-items: center;
-    gap: 64px;
+    /* 門下的字（約 50px）和門燈不能疊在一起 */
+    gap: 58px;
   }
-  .side-doors {
-    padding-bottom: 36px;
+  /* 遊戲角多了一排門燈：圓窗下面的字放在地面上就好，不另外墊高（不然門會被推上去碰到貼紙板） */
+  .play-corner {
+    gap: 10px;
+  }
+  .corner-lamps {
+    padding: 0;
+  }
+  .lamp {
+    width: 34px;
+    height: 40px;
+  }
+  .lamp-sign {
+    font-size: 11px;
+  }
+  /* 陪玩小字：直式放不下（會壓到貼紙板），家長區的設定有同樣的說明 */
+  .school .corner-hint {
+    display: none;
   }
   .school-hint {
     top: 110px;
