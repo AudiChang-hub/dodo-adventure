@@ -25,7 +25,12 @@ const DOORS = [
   // 牆上的貼紙板（T-132）：點進去是貼紙本
   { door: 'stickers', name: '貼紙本', live: 'stickers' },
 ] as const
-const LABELS = new Set<string>(DOORS.map((d) => d.name))
+/**
+ * 遊戲角（T-152）多的兩個：邏輯遊戲的窗、門燈（點了等於點遊戲角）。
+ * 鎖住、打開、進出由 home-corner.spec 測；邏輯遊戲裡面由 logic.spec 測，這裡只算首頁點得到的東西。
+ */
+const CORNER_LABELS = ['邏輯遊戲', '今天上了哪幾堂課']
+const LABELS = new Set<string>([...DOORS.map((d) => d.name), ...CORNER_LABELS])
 type Door = (typeof DOORS)[number]
 /** 進到這扇門了 */
 const inDoor = (d: Door, l: string | null) => l === d.live
@@ -115,7 +120,7 @@ test.describe('學校首頁', () => {
       // 按鈕（門裡面的恐龍、圖是門的一部分，不算）
       const ts = (await targets(page)).filter((t) => t.kind === 'btn').map((t) => t.label)
       const extra = ts.filter((l) => !LABELS.has(l))
-      c.outcome('首頁只有三大門＋畫畫、貼紙板', !extra.length && ts.length === LABELS.size, `點得到：${ts.join('、')}`)
+      c.outcome('首頁只有三大門＋遊戲角（畫畫、邏輯遊戲、門燈）、貼紙板', !extra.length && ts.length === LABELS.size, `點得到：${ts.join('、')}`)
       if (extra.length) await c.once('home-extra', '困惑', `首頁多了別的按鈕：${extra.join('、')}`, '')
       const corner = await page.evaluate(() => !!document.querySelector('.parent-corner'))
       c.outcome('家長角落還在', corner, corner ? '右上角' : '不見了')

@@ -1,4 +1,4 @@
-import { useEffect, useState, type CSSProperties, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react'
 import { motion } from 'motion/react'
 import { DINO_EN, Dino } from '../art/Dino'
 import { Emoji } from '../art/Emoji'
@@ -13,6 +13,7 @@ import { useIntro } from '../ui/Scenes'
 import { LESSONS, SUBJECTS, type Subject } from '../lessons'
 import type { Speaker } from '../content/lines'
 import { BoardStickers } from './StickerBook'
+import { GATE_ORDER, firstUnlit, markOpenAnnounced, usePlayGate, type GateSubject, type HomeGate } from '../lib/play-gate'
 import './school.css'
 
 let greeted = false
@@ -96,12 +97,25 @@ const TINT: Record<Speaker, { door: string; deep: string; glass: string }> = {
 }
 
 /**
- * 首頁另外的小入口：畫畫（進去先選白紙還是著色本）。
+ * 遊戲角（T-152，設計稿第四節版面 A）：畫畫（進去先選白紙還是著色本）、邏輯遊戲（選豆豆收拾還是串珠珠）兩扇並排的圓窗，
+ * 上面掛三盞門燈（ABC／中／123），上完一堂亮一盞。三堂課今天各上完一次才開（lib/play-gate.ts）；家長區可以今天先打開或一直開著（預設）。
  * T-147（2026-11-14 親師晤談：英文故事太難）拿掉了故事門；故事書的程式、路由和進度這一版都還留著，下一版才刪。
  */
-const SIDE: { id: 'draw'; label: string; icon: string; to: Route }[] = [
+const CORNER: { id: 'draw' | 'logic'; label: string; icon: string; to: Route }[] = [
   { id: 'draw', label: '畫畫', icon: 'artist-palette', to: { name: 'draw' } },
+  { id: 'logic', label: '邏輯遊戲', icon: 'puzzle-piece', to: { name: 'logic' } },
 ]
+
+/** 門燈裡的字：跟門上的窗一樣 */
+const LAMP_SIGN: Record<GateSubject, string> = { english: 'ABC', chinese: '中', math: '123' }
+
+/** 點了鎖住的遊戲角：0.8 秒內只算一次（連點、多指，跟 NotYet 的點頭節奏一樣）；8 秒內不再說話，只亮門、跳一下 */
+const NUDGE_EVERY_MS = 800
+const NUDGE_SAY_EVERY_MS = 8000
+/** 還沒上的那一扇門亮多久 */
+const NUDGE_GLOW_MS = 2500
+/** 三盞都亮回到首頁：首頁先站好、窗簾還拉著，停一下再拉開 */
+const OPEN_DELAY_MS = 450
 
 /**
  * 學校的首頁（2026-10-31 家長決定照學校分科）：三個大門＝英文字母（豆豆）、中文課文（莫莫）、數學數字（波波），
@@ -171,6 +185,63 @@ export function Home() {
     }
   }, [])
 
+  // 遊戲角（T-152）
+  const gate = usePlayGate()
+  /** 這次掛上首頁時還沒打招呼（剛打開 App）：今天的 Play corner is open! 不跟招呼搶著說，窗簾直接開 */
+  const firstHome = useRef(!greeted)
+  /** 三盞都亮的那一刻：wait 窗簾先拉著、go 拉開 */
+  const [opening, setOpening] = useState<'no' | 'wait' | 'go'>('no')
+  useEffect(() => {
+    if (!gate?.announce || opening !== 'no') return
+    void markOpenAnnounced()
+    if (firstHome.current) return setOpening('go')
+    setOpening('wait')
+  }, [gate?.announce, opening])
+  useEffect(() => {
+    if (opening !== 'wait') return
+    const t = window.setTimeout(() => {
+      setOpening('go')
+      sfx.chime(1)
+      void say('home.corner.open')
+    }, OPEN_DELAY_MS)
+    return () => clearTimeout(t)
+  }, [opening])
+  // 還沒讀到（剛打開 App 的第一下）照開著的畫：預設是一直開著，不要每次都先拉上再拉開
+  const shut = gate ? !gate.open || opening === 'wait' || (gate.announce && opening === 'no') : false
+
+  // 點了鎖住的窗或門燈（TOUCH-6：0.3 秒內有反應）：窗簾晃一下、還沒上的第一扇門亮起來、恐龍跳一下、那盞門燈亮外框，豆豆說先上課再玩
+  const [wiggle, setWiggle] = useState(0)
+  const [point, setPoint] = useState<GateSubject | null>(null)
+  const nudged = useRef({ at: -Infinity, said: -Infinity, timer: 0 })
+  useEffect(() => () => clearTimeout(nudged.current.timer), [])
+  const nudge = () => {
+    const n = nudged.current
+    const now = performance.now()
+    if (now - n.at < NUDGE_EVERY_MS || !gate) return
+    n.at = now
+    sfx.tap()
+    setWiggle((w) => w + 1)
+    // 介紹還沒說完就點：say 會切掉正在說的介紹，這次不再接著介紹
+    greeted = true
+    greetRun++
+    introducing = false
+    if (now - n.said >= NUDGE_SAY_EVERY_MS) {
+      n.said = now
+      void say('home.corner.first')
+    }
+    const s = firstUnlit(gate)
+    if (!s) return
+    const who = LESSONS[s].host
+    setNamed(who)
+    setHop((h) => ({ who, n: (h?.n ?? 0) + 1 }))
+    setPoint(s)
+    clearTimeout(n.timer)
+    n.timer = window.setTimeout(() => {
+      setNamed((x) => (x === who ? null : x))
+      setPoint(null)
+    }, NUDGE_GLOW_MS)
+  }
+
   // 點門：按下、放開就進去，不等瀏覽器的 click（ui/tap.ts：有時候 click 沒來，孩子會覺得按了沒反應）
   const tap = useTaps()
   const open = (to: Route) => {
@@ -203,6 +274,17 @@ export function Home() {
             家長：可以安裝成 App，全螢幕更穩定
             <br />
             右上角按住 3 秒 → 設定與同步
+          </span>
+        </p>
+      )}
+
+      {gate && !gate.open && (
+        // 陪玩小字（PARENT-1，給大人看）：遊戲角鎖住時才出現；孩子點了也沒反應
+        <p className={`install-hint school-hint corner-hint${!install.standalone && !install.installed ? ' below' : ''}`} data-corner-hint="">
+          <span>
+            陪玩　今天三堂課各上完一次，就能畫畫、玩邏輯遊戲。
+            <br />
+            中文課要大人一起念；沒辦法陪的日子，家長區可以「今天先打開」。
           </span>
         </p>
       )}
@@ -262,25 +344,17 @@ export function Home() {
             )
           })}
         </div>
-        <div className="side-doors">
-          {SIDE.map((x, i) => (
-            <motion.button
-              key={x.id}
-              className={`side-door side-${x.id}`}
-              data-door={x.id}
-              aria-label={x.label}
-              initial={intro ? { scale: 0.6, opacity: 0 } : false}
-              animate={{ scale: 1, opacity: 1 }}
-              transition={{ type: 'spring', stiffness: 160, damping: 15, delay: 0.55 + i * 0.1 }}
-              {...tap(x.id, () => open(x.to))}
-            >
-              <span className="side-window">
-                <Emoji name={x.icon} />
-              </span>
-              <span className="door-label">{x.label}</span>
-            </motion.button>
-          ))}
-        </div>
+        <PlayCorner
+          gate={gate}
+          shut={shut}
+          opening={opening === 'go'}
+          wiggle={wiggle}
+          point={point}
+          intro={intro}
+          tap={tap}
+          onOpen={open}
+          onShut={nudge}
+        />
       </div>
     </div>
   )
@@ -297,5 +371,92 @@ function SchoolWall() {
       <path d="M0 708 H1200 V800 H0 Z" fill="#E7DDCB" />
       <path d="M0 708 H1200" stroke="#DCCFB8" strokeWidth={5} />
     </svg>
+  )
+}
+
+/**
+ * 遊戲角（T-152）：門燈一排＋兩扇並排的圓窗。
+ * 鎖住時：兩片窗簾從兩邊拉上、中間留一條縫看得到裡面的圖（不用鎖頭、不變灰、不打叉）；門燈還沒上的是空心、上完的是實心加小勾。
+ * 平常都是靜止的（MOTION-2、DISPLAY-1）：只有孩子點了才晃一下，三盞都亮的那一刻拉開一次。
+ * 點門燈等於點遊戲角：鎖住時一樣是提醒；開著的時候門燈只是告訴他今天上了哪幾堂，點了輕輕一聲。
+ */
+function PlayCorner(p: {
+  gate: HomeGate | null
+  shut: boolean
+  opening: boolean
+  wiggle: number
+  point: GateSubject | null
+  intro: boolean
+  tap: ReturnType<typeof useTaps>
+  onOpen: (to: Route) => void
+  onShut: () => void
+}) {
+  const { shut, tap } = p
+  const lit = p.gate?.lit
+  return (
+    <div className="side-doors play-corner" data-corner={shut ? 'locked' : 'open'} data-anim={p.opening ? '1' : undefined}>
+      <motion.button
+        className="corner-lamps"
+        data-corner-lamps=""
+        aria-label="今天上了哪幾堂課"
+        initial={p.intro ? { y: -16, opacity: 0 } : false}
+        animate={{ y: 0, opacity: 1 }}
+        transition={{ type: 'spring', stiffness: 150, damping: 15, delay: 0.7 }}
+        {...tap('lamps', () => (shut ? p.onShut() : sfx.tap()))}
+      >
+        {GATE_ORDER.map((s) => {
+          const t = TINT[LESSONS[s].host]
+          return (
+            <span
+              key={s}
+              className={`lamp lamp-${s}`}
+              data-lamp={s}
+              data-lit={lit?.[s] ? '1' : undefined}
+              data-point={p.point === s ? '1' : undefined}
+              style={{ '--door': t.door, '--door-deep': t.deep, '--glass': t.glass } as CSSProperties}
+            >
+              <span className="lamp-sign">{LAMP_SIGN[s]}</span>
+              {lit?.[s] && (
+                <svg className="lamp-tick" viewBox="0 0 16 16" aria-hidden="true">
+                  <circle cx={8} cy={8} r={7.4} fill="#fbf8f2" />
+                  <path d="M4.6 8.3l2.3 2.3 4.5-4.8" fill="none" stroke="currentColor" strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+              )}
+            </span>
+          )
+        })}
+      </motion.button>
+      <div className="corner-windows">
+        {CORNER.map((x, i) => (
+          <motion.button
+            key={x.id}
+            className={`side-door side-${x.id}`}
+            data-door={x.id}
+            data-shut={shut ? '1' : undefined}
+            aria-label={x.label}
+            initial={p.intro ? { scale: 0.6, opacity: 0 } : false}
+            animate={{ scale: 1, opacity: 1 }}
+            transition={{ type: 'spring', stiffness: 160, damping: 15, delay: 0.55 + i * 0.1 }}
+            {...tap(x.id, () => (shut ? p.onShut() : p.onOpen(x.to)))}
+          >
+            <span className="side-window">
+              <Emoji name={x.icon} />
+              {/* 窗簾：換 key 重新掛上就從頭晃一次（位移 ≤ 3%，MOTION-1），一次就停 */}
+              <motion.span
+                key={p.wiggle}
+                className="curtains"
+                aria-hidden="true"
+                animate={p.wiggle ? { x: ['0%', '-2.5%', '2%', '-1%', '0%'] } : { x: '0%' }}
+                transition={{ duration: 0.45, ease: 'easeOut' }}
+              >
+                <span className="curtain curtain-l" />
+                <span className="curtain curtain-r" />
+              </motion.span>
+            </span>
+            <span className="door-label">{x.label}</span>
+          </motion.button>
+        ))}
+      </div>
+    </div>
   )
 }

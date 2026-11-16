@@ -8,6 +8,7 @@ import { useAudioCache } from '../../lib/audio-cache'
 import { minutesUsedToday } from '../../lib/session'
 import { CHILD_EN, CHILD_ZH } from '../../lib/env'
 import { ResetCard } from './ResetCard'
+import { useUnlockToday } from '../../lib/play-gate'
 
 function Field({ label, hint, children }: { label: string; hint?: string; children: React.ReactNode }) {
   return (
@@ -98,6 +99,42 @@ function VersionCard() {
   )
 }
 
+/**
+ * 首頁的遊戲角（畫畫和邏輯遊戲，T-152）：一直開著（預設，家長 2026-11-16 決定不鎖），或上完今天的三堂課才開。
+ * 上完才開的時候多一個「今天先打開」：只算今天，隔天自動恢復（lib/play-gate.ts 的 home.unlockToday）。
+ */
+function PlayCornerField({ freePlay, onChange }: { freePlay: Settings['freePlay']; onChange: (v: Settings['freePlay']) => void }) {
+  const [today, setToday] = useUnlockToday()
+  return (
+    <Field
+      label="畫畫和邏輯遊戲"
+      hint={
+        freePlay === 'after'
+          ? '首頁的遊戲角上面有三盞門燈，上完一堂亮一盞，三堂都上完窗簾就拉開。中文課要大人一起念；沒辦法陪的日子，可以今天先打開。'
+          : '首頁的遊戲角隨時都能進去；門燈照樣會顯示今天上了哪幾堂課。'
+      }
+    >
+      <select value={freePlay} onChange={(e) => onChange(e.target.value as Settings['freePlay'])} data-setting="freePlay">
+        <option value="always">一直開著（預設）</option>
+        <option value="after">上完今天的三堂課才開</option>
+      </select>
+      {freePlay === 'after' &&
+        (today ? (
+          <span className="update-status" data-unlock-today="on">
+            今天已打開，明天自動恢復
+            <button className="btn" style={{ marginLeft: 8 }} onClick={() => setToday(false)}>
+              取消
+            </button>
+          </span>
+        ) : (
+          <button className="btn" style={{ marginLeft: 8 }} onClick={() => setToday(true)} data-unlock-today="off">
+            今天先打開
+          </button>
+        ))}
+    </Field>
+  )
+}
+
 export function SettingsPanel({ onChanged }: { onChanged: () => void }) {
   const s = useSettings()
   const sync = useSync()
@@ -126,6 +163,7 @@ export function SettingsPanel({ onChanged }: { onChanged: () => void }) {
             ))}
           </select>
         </Field>
+        <PlayCornerField freePlay={s.freePlay} onChange={(v) => set({ freePlay: v })} />
         <Field
           label="單字中文提示"
           hint="教學卡教一個英文單字時，接著用中文說一次，再用英文說一次，例如「Apple → 蘋果 → Apple」，字幕也會顯示中文。孩子學會這個字以後就只說英文；在「單字清單」勾了「他不認得」的字，會重新帶回中文。其他語音都是英文。"
