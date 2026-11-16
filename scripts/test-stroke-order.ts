@@ -38,7 +38,8 @@ const UPPER: Record<string, S[]> = {
   Q: [['TC', 'l'], [['MC', 'MR', 'BC', 'BR'], 'dr']],
   R: [['TL', 'd'], ['TL', 'r'], ['MC', 'dr']],
   S: [['TR', 'ul']],
-  T: [['TC', 'd'], ['TL', 'r']],
+  // T 照家長習慣先橫後直（2026-11-16）；台灣筆順表和 Zaner-Bloser 都是先直後橫
+  T: [['TL', 'r'], ['TC', 'd']],
   U: [['TL', 'd', 'TR']],
   V: [['TL', 'dr'], ['BC', 'ur']],
   W: [['TL', 'dr'], ['BL', 'ur'], [['TC', 'MC'], 'dr'], ['BR', 'ur']],
