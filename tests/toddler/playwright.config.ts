@@ -25,7 +25,8 @@ export default defineConfig({
   testDir: '.',
   // lesson-english-*：英文課選擇題的新玩法各一個 spec（T-127：泡泡、餵豆豆）
   // story.spec.ts 不跑（T-147：首頁拿掉故事門，檔案留著，下一版跟故事書的程式一起刪）
-  testMatch: /(games|screens|home|lesson-english(-bubbles|-feed)?|lesson-math|lesson-chinese)\.spec\.ts/,
+  // home-corner、logic：首頁的遊戲角、邏輯遊戲（T-152）
+  testMatch: /(games|screens|home|home-corner|logic|lesson-english(-bubbles|-feed)?|lesson-math|lesson-chinese)\.spec\.ts/,
   outputDir: '../../test-results/toddler/pw',
   timeout: 15 * 60_000,
   fullyParallel: true,

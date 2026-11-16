@@ -97,6 +97,8 @@ export const STATIONS: StationDef[] = [
   { id: 'park', name: '彩虹公園', host: 'bobo', icon: 'rainbow', tint: '#F6E7B8', deep: '#C9A23E' },
   // 車庫的水泥地：其他站都帶一點色相，這一站用偏冷的淺灰，在地圖上一眼分得出來
   { id: 'code', name: '程式車庫', host: 'bobo', icon: 'vertical-traffic-light', tint: '#DDE2E6', deep: '#6F8499' },
+  // 遊戲角的邏輯遊戲（T-152）：豆豆收拾、串珠珠
+  { id: 'logic', name: '邏輯遊戲', host: 'dodo', icon: 'puzzle-piece', tint: '#F4E6CF', deep: '#C79A5B' },
 ]
 
 export const station = (id: StationId) => STATIONS.find((s) => s.id === id)!

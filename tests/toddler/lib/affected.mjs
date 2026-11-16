@@ -68,6 +68,8 @@ export const SCREEN_TESTS = [
   // 中文課（lesson-chinese.spec）：課本、選圖、中途返回；家長區挑課的分頁跟著跑家長區
   { token: 'lesson-chinese', spec: 'lesson-chinese', files: ['src/lessons/chinese/'], games: [] },
   { token: 'parent', spec: 'screens', files: ['src/lessons/chinese/ParentPicker.tsx'], games: [] },
+  // 遊戲角的邏輯遊戲（T-152，logic.spec）：games/logic 整個資料夾；入口 index.tsx、台詞 lines.ts 要列出來（App、content/lines.ts import 它們，不列會被當成共用檔）
+  { token: 'logic', spec: 'logic', files: ['src/games/logic/index.tsx', 'src/games/logic/lines.ts', 'src/games/logic/'], games: [] },
 ]
 
 /** 測試檔本身改了：跑那個檔的全部 */
@@ -81,6 +83,9 @@ const SPEC_TOKENS = {
   'home.spec.ts': ['home-doors', 'home-draw', 'home-coloring'],
   'lesson-math.spec.ts': ['lesson-math'],
   'lesson-chinese.spec.ts': ['lesson-chinese'],
+  // 遊戲角（T-152）
+  'home-corner.spec.ts': ['home-corner'],
+  'logic.spec.ts': ['logic'],
 }
 
 // ── 讀程式 ────────────────────────────────────────────────

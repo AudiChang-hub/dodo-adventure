@@ -134,7 +134,7 @@ export async function loadAchievements() {
 }
 
 // ── 判斷 ─────────────────────────────────────────────────────
-type Judge = Pick<Attempt, 'phase' | 'firstTryCorrect' | 'attempts' | 'hintUsed' | 'metrics'>
+type Judge = Pick<Attempt, 'phase' | 'firstTryCorrect' | 'attempts' | 'hintUsed' | 'metrics'> & { station?: Attempt['station'] }
 
 /**
  * 自己改正：自己答時錯了（第一次沒對），沒有看提示、沒有重教，自己再試就對了。
@@ -304,13 +304,16 @@ function addMilestone(m: Milestone) {
   save()
 }
 
-type AttemptIn = Pick<Attempt, 'game' | 'itemId' | 'skill' | 'answer' | 'level' | 'phase' | 'firstTryCorrect' | 'attempts' | 'hintUsed' | 'metrics'>
+type AttemptIn = Pick<Attempt, 'game' | 'itemId' | 'skill' | 'answer' | 'level' | 'phase' | 'firstTryCorrect' | 'attempts' | 'hintUsed' | 'metrics'> & { station?: Attempt['station'] }
 
 /**
  * 每寫一筆作答紀錄就呼叫（record.ts 的 logAttempt，在寫進資料庫之前，同步執行）。
  * becameMastered：這一題讓技能第一次跨過「已熟」。
  */
 export function noteAttempt(a: AttemptIn, becameMastered: boolean) {
+  // 遊戲角的邏輯遊戲（T-152）：不給里程碑貼紙、不算進每局回顧（家長要的是「先上課再玩」，不是「玩也拿貼紙」，FB-6）。
+  // 技能 pattern:ab 跟以前程式車庫的規律同名，不擋會變成熟練就給一張貼紙
+  if (a.station === 'logic') return
   const r = round?.game === a.game ? round : null
   if (a.phase === 'teach') {
     if (r && !a.metrics?.retaught) r.taught++

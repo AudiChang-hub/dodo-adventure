@@ -774,7 +774,8 @@ test.describe('畫面', () => {
     const every = Number(/eyeBreakEvery:\s*(\d+)/.exec(src)?.[1])
     const help = /coloringHelp:\s*(true|false)/.exec(src)?.[1]
     const rules = [
-      { id: 'TIME-1', ok: daily <= 20 && every <= 10, note: `預設每日 ${daily} 分鐘、每 ${every} 分鐘護眼`, where: '設定' },
+      // 每日預設 2026-11-16 家長決定改成 30 分鐘（T-152：留時間給遊戲角）；指引的上限是每天 1 小時
+      { id: 'TIME-1', ok: daily <= 30 && every <= 10, note: `預設每日 ${daily} 分鐘、每 ${every} 分鐘護眼`, where: '設定' },
       { id: 'DRAW-1', ok: help === 'false', note: `著色輔助 coloringHelp 預設 ${help}（準則：false，不限制畫的位置）`, where: '設定' },
     ]
     const dir = path.join(process.env.TODDLER_OUT || 'test-results/toddler', 'findings')

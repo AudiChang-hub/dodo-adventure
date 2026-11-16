@@ -5,7 +5,7 @@ import type { VocabTheme } from '../content/vocab'
 export interface Settings {
   /** 每日遊玩上限（分鐘），0 代表不限制 */
   dailyMinutes: number
-  /** 自由探索：完成今日冒險後才開放，或一直開放 */
+  /** 畫畫和邏輯遊戲（首頁的遊戲角，T-152）：上完今天三堂課才開（'after'），或一直開放（'always'，預設，家長 2026-11-16 決定不鎖） */
   freePlay: 'after' | 'always'
   volume: number
   /** 本週主題：動物村會優先出這個主題的詞（對應幼兒園聯絡簿），7 天後自動取消 */
@@ -27,6 +27,10 @@ export interface Settings {
    * 舊裝置存著的 true 是當時的預設、不是家長選的，讀進來時改成關一次；之後家長再打開就照家長的。
    * 3：story 預設從關改成開（2026-10-30，家長確認故事世界的語氣）。版本 3 以前沒有正式版能在家長區選故事，
    * 舊裝置存著的 false 只會是當時的預設，讀進來時改成開一次；之後家長在家長區關掉就照家長的。
+   * 4：dailyMinutes 預設從 20 改成 30（2026-11-16 家長決定：三堂課約 10～14 分鐘，要留時間給遊戲角）。
+   * 舊裝置存著的 20 是當時的預設，讀進來時改成 30 一次；存著別的數字（家長自己選的）不動。之後家長改回 20 就照家長的。
+   * 同一版 freePlay 預設從 'after' 改成 'always'（2026-11-16 家長決定：遊戲角預設不鎖）。版本 4 以前家長區沒有這個選項，
+   * 舊裝置存著的 'after' 只會是當時的預設，讀進來時改成 'always' 一次；之後家長在家長區選「上完三堂課才開」就照家長的。
    */
   defaultsV?: number
   /** 單字中文提示：教學卡教還沒學會的字時唸「Apple → 蘋果 → Apple」（lib/words.ts 的 bridgeLines）；關掉就全英文 */
@@ -38,9 +42,12 @@ export interface Settings {
   story: boolean
 }
 
-const DEFAULTS_V = 3
-/** 每日 20 分鐘、護眼每 10 分鐘是小班段的外框（準則 FRAME-6、7）；家長在家長區改的優先（TIME-1） */
-const DEFAULTS: Settings = { dailyMinutes: 20, freePlay: 'after', volume: 0.9, theme: 'all', activitiesPerDay: 4, eyeBreakEvery: 10, nightWarm: true, coloringHelp: false, zhBridge: true, story: true, defaultsV: DEFAULTS_V }
+const DEFAULTS_V = 4
+/**
+ * 每日 30 分鐘（2026-11-16 家長決定，原本 20；指引的上限是每天 1 小時，TIME-1）、護眼每 10 分鐘（準則 FRAME-7）；
+ * 家長在家長區改的優先（TIME-1）
+ */
+const DEFAULTS: Settings = { dailyMinutes: 30, freePlay: 'always', volume: 0.9, theme: 'all', activitiesPerDay: 4, eyeBreakEvery: 10, nightWarm: true, coloringHelp: false, zhBridge: true, story: true, defaultsV: DEFAULTS_V }
 
 let state: Settings = DEFAULTS
 const subs = new Set<() => void>()
@@ -52,6 +59,8 @@ export function migrateSettings(saved: Partial<Settings>): { s: Partial<Settings
   const s: Partial<Settings> = { ...saved, defaultsV: DEFAULTS_V }
   if (v < 2) s.coloringHelp = false
   if (v < 3) s.story = true
+  if (v < 4 && saved.dailyMinutes === 20) s.dailyMinutes = 30
+  if (v < 4) s.freePlay = 'always'
   return { s, changed: Object.keys(saved).length > 0 }
 }
 

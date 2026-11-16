@@ -135,6 +135,16 @@ const mig = (s: object) => ({ ...{ story: true }, ...migrateSettings(s as never)
 need(mig({ dailyMinutes: 20, defaultsV: 2 }) === true, '設定：舊裝置（版本 2、沒有 story）升級後故事要打開')
 need(mig({ story: false, defaultsV: 2 }) === true, '設定：版本 2 存著的 false 是當時的預設，升級後要打開')
 need(mig({ story: false, defaultsV: 3 }) === false, '設定：家長在家長區關掉的要保持關閉')
+// 每日上限預設 20 → 30（2026-11-16 家長決定，T-152）：舊裝置存著的 20 是當時的預設，升級後變 30；家長自己選的別的數字不動
+const daily = (s: object) => migrateSettings(s as never).s.dailyMinutes
+need(daily({ dailyMinutes: 20, defaultsV: 3 }) === 30, '設定：版本 3 存著的 20 分鐘是當時的預設，升級後要變 30')
+need(daily({ dailyMinutes: 45, defaultsV: 3 }) === 45, '設定：家長選的 45 分鐘升級後不動')
+need(daily({ dailyMinutes: 0, defaultsV: 3 }) === 0, '設定：家長選的「不限制」升級後不動')
+need(daily({ dailyMinutes: 20, defaultsV: 4 }) === 20, '設定：新版裡家長改回 20 分鐘要照家長的')
+// 遊戲角預設不鎖（2026-11-16 家長決定）：舊裝置存著的 after 是當時的預設，升級後一直開著；新版裡家長選的 after 照家長的
+const free = (s: object) => migrateSettings(s as never).s.freePlay
+need(free({ freePlay: 'after', defaultsV: 3 }) === 'always', '設定：版本 3 存著的 after 是當時的預設，升級後遊戲角一直開著')
+need(free({ freePlay: 'after', defaultsV: 4 }) === 'after', '設定：新版裡家長選「上完三堂課才開」要照家長的')
 
 console.log(`故事：${ARCS.length} 篇長篇（${ARCS.reduce((n, a) => n + a.chapters.length, 0)} 章）、${CLASSICS.length} 則故事時間（${CLASSICS.reduce((n, c) => n + 1 + Object.keys(c.grown ?? {}).length, 0)} 個年段版本）`)
 if (problems.length) {

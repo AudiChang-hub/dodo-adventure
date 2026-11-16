@@ -117,7 +117,7 @@ export function SettingsPanel({ onChanged }: { onChanged: () => void }) {
 
       <div className="card">
         <h3>使用時間與內容</h3>
-        <Field label="每日時間上限" hint="時間到了豆豆會說晚安，畫面進入休息模式。預設 20 分鐘。">
+        <Field label="每日時間上限" hint="時間到了豆豆會說晚安，畫面進入休息模式。預設 30 分鐘。">
           <select value={daily} onChange={(e) => set({ dailyMinutes: Number(e.target.value) })}>
             {[10, 15, 20, 25, 30, 45, 60, 0].map((m) => (
               <option key={m} value={m}>

@@ -4,6 +4,7 @@ import { lastDays, minutesByDay, pct, skillLabel, STATION_NAME, type ParentData 
 import { isScored } from '../../lib/engine'
 import { NextStep } from './NextStep'
 import { LearnedCheck } from './LearnedCheck'
+import { logicSummary } from '../../games/logic/report'
 
 /**
  * 今天新教了什麼：今天的教學紀錄（不含答錯後的重教），每個技能一筆，
@@ -74,6 +75,8 @@ export function Overview({ d }: { d: ParentData }) {
     stats.set(a.skill, s)
   }
   const weak = [...stats.entries()].filter(([, s]) => s.n >= 3).sort((a, b) => a[1].ok / a[1].n - b[1].ok / b[1].n).slice(0, 6)
+  // 遊戲角的邏輯遊戲（T-152）：用「會了什麼」描述（PARENT-3），只看得到、不算進下一步準備度
+  const logic = logicSummary(d.attempts)
   const strong = [...d.skills.entries()].filter(([, s]) => s.box >= 4).map(([k]) => k).slice(0, 12)
 
   return (
@@ -199,6 +202,21 @@ export function Overview({ d }: { d: ParentData }) {
         </div>
       </div>
 
+      {logic.length > 0 && (
+        <div className="card" data-logic-summary="">
+          <h3>邏輯遊戲（遊戲角）</h3>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+            {logic.map((x) => (
+              <span key={x.skill} className={`chip${x.status === 'ok' ? ' ok' : ''}`}>
+                {x.zh} {x.status === 'ok' ? '✔︎' : '還在學'}
+              </span>
+            ))}
+          </div>
+          <p className="empty" style={{ marginTop: 8 }}>
+            會了＝最近 8 次自己做、第一次就對 7 次以上，分布在 3 天以上。邏輯遊戲不算進上面的下一步準備度。
+          </p>
+        </div>
+      )}
     </>
   )
 }
