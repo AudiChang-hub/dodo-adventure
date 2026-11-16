@@ -152,6 +152,6 @@ claude 的位置：`CLAUDE_BIN` → PATH 上的 `claude` → 桌面版帶的 `cl
 | [relay.mjs](relay.mjs) | 交接模式的另一頭 |
 | [login.ts](login.ts) | `npm run ai-toddler:login` |
 
-**待辦**：`docs/全球幼教指引-3到4歲.md` 整理好以後，persona.md〈依據〉改成引用那份（現在引用的是 `docs/幼兒設計準則.md` 用過的原始出處）。
+**待辦**：`guides/全球幼教指引-3到4歲.md` 整理好以後，persona.md〈依據〉改成引用那份（現在引用的是 `guides/幼兒設計準則.md` 用過的原始出處）。
 
 探針（語音、字幕、閃動、示範狀態、錯誤）和開 App 的方法沿用 `tests/toddler/probe.js`、`tests/toddler/lib/app.ts`。
