@@ -419,18 +419,20 @@ export function WritePart({ ctx }: { ctx: PartCtx }) {
             <RainbowDef id={`ma-rainbow-${k}`} w={g.w} h={H} />
             {/* 畫完（不是示範）：整個數字變彩虹色、跳一下 */}
             <g className={done && !demo ? 'trace-pop' : undefined} data-trace-finished={done && !demo ? '' : undefined}>
+              {/* 先畫全部的外框、再畫全部的跑道（T-153）：5 的上橫跟直線接起來的地方不會有一條外框的弧線切過跑道 */}
               {g.strokes.map((d, i) => (
-                <g key={i}>
-                  <path d={d} fill="none" stroke="#D9CFBE" strokeWidth={LANE + 3} strokeLinecap="round" strokeLinejoin="round" />
-                  <path
-                    d={d}
-                    fill="none"
-                    stroke={done && !demo ? `url(#ma-rainbow-${k})` : i < stroke || done ? look.done : look.lane}
-                    strokeWidth={LANE}
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  />
-                </g>
+                <path key={`rim-${i}`} d={d} fill="none" stroke="#D9CFBE" strokeWidth={LANE + 3} strokeLinecap="round" strokeLinejoin="round" />
+              ))}
+              {g.strokes.map((d, i) => (
+                <path
+                  key={`lane-${i}`}
+                  d={d}
+                  fill="none"
+                  stroke={done && !demo ? `url(#ma-rainbow-${k})` : i < stroke || done ? look.done : look.lane}
+                  strokeWidth={LANE}
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
               ))}
             </g>
             {!done && (
