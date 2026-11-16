@@ -8,8 +8,6 @@ import { useIdle } from '../idle'
 import { wait } from '../lines'
 import { PACE } from '../pace'
 import { DoneChoices } from '../draw/DoneChoices'
-import { StoryPage } from '../../art/storybook/Page'
-import type { PageArt } from '../../art/storybook/layout'
 import { say, sfx } from '../../lib/audio'
 import { logAttempt, logTeach } from '../../lib/record'
 import { today } from '../../lib/db'
@@ -19,8 +17,11 @@ import { useLive } from '../logic/kit'
 import { PuzzlePickArt } from './art'
 import { PUZZLE_COPLAY } from './coplay'
 import { picLineKey } from './lines'
-import { OK_WRONGS, PUZZLE_GAME, afterPuzzle, puzzleRound, puzzleSkill, type PuzzleRound, type PuzzleState } from './plan'
+import { OK_WRONGS, PUZZLE_GAME, afterPuzzle, puzzleRound, puzzleSkill, type PuzzleLevel, type PuzzleRound, type PuzzleState } from './plan'
 import { loadPuzzle, savePuzzle } from './progress'
+import { geometry } from './geometry'
+import { PicArt } from './PicArt'
+import type { PuzzlePic } from './pics'
 import '../draw/tools.css'
 import './puzzle.css'
 
@@ -48,7 +49,7 @@ export function Puzzle() {
     void loadPuzzle().then((p) => {
       if (!on || prog.current) return
       prog.current = p
-      setRound(puzzleRound(p.level as 1 | 2, p.pics))
+      setRound(puzzleRound(p.level as PuzzleLevel, p.pics))
     })
     return () => {
       on = false
@@ -58,7 +59,7 @@ export function Puzzle() {
     const p = prog.current
     if (!p || bedtimeIfDue()) return
     setResting(false)
-    setRound(puzzleRound(p.level as 1 | 2, p.pics))
+    setRound(puzzleRound(p.level as PuzzleLevel, p.pics))
     setN((k) => k + 1)
   }
   return (
@@ -69,51 +70,15 @@ export function Puzzle() {
 }
 
 /** 圖的一片：整張圖放大 cols×rows 倍、移到這一片的位置，外面裁掉 */
-const Slice = memo(function Slice({ art, col, row, cols, rows }: { art: PageArt; col: number; row: number; cols: number; rows: number }) {
+const Slice = memo(function Slice({ pic, col, row, cols, rows }: { pic: PuzzlePic; col: number; row: number; cols: number; rows: number }) {
   return (
     <div className="pz-slice">
       <div className="pz-slice-in" style={{ width: `${cols * 100}%`, height: `${rows * 100}%`, left: `${-col * 100}%`, top: `${-row * 100}%` }}>
-        <StoryPage art={art} />
+        <PicArt pic={pic} />
       </div>
     </div>
   )
 })
-
-type Box = { x: number; y: number; w: number; h: number }
-type Geo = { board: Box; ref: Box; pw: number; ph: number; tray: { x: number; y: number }[]; s: number; w: number; h: number }
-
-/**
- * 版面：拼盤在左（橫的 960:600，只有空格子）；右上角一張小的完整圖當參考（拼盤寬的 0.4，像拼圖盒上的圖）；
- * 參考圖下面是托盤，跟拼盤一樣排成 cols×rows（片縮小放），每一格稍微散開。
- */
-function geometry(w: number, h: number, cols: number, rows: number, spread: readonly { dx: number; dy: number }[]): Geo | null {
-  if (w < 50 || h < 50) return null
-  const gap = Math.max(20, w * 0.025)
-  const bw = Math.min(w * 0.54, (h - 24) * 1.6)
-  const bh = bw / 1.6
-  const board = { x: gap, y: (h - bh) / 2, w: bw, h: bh }
-  const pw = bw / cols
-  const ph = bh / rows
-  const tx = board.x + bw + gap * 1.5
-  const tw = w - tx - gap * 0.5
-  const rw = Math.min(bw * 0.4, tw * 0.7)
-  const ref = { x: tx + tw - rw, y: board.y, w: rw, h: rw / 1.6 }
-  const tg = Math.max(18, h * 0.035)
-  const top = ref.y + ref.h + tg
-  const th = h - top - 8
-  const s = Math.max(0.3, Math.min(0.8, (tw - tg * (cols + 1)) / cols / pw, (th - tg * rows) / rows / ph))
-  const cw = pw * s
-  const chh = ph * s
-  const x0 = tx + (tw - (cols * cw + (cols - 1) * tg)) / 2
-  const y0 = top + (th - (rows * chh + (rows - 1) * tg)) / 2
-  // 散開：每一格最多挪開 0.45 個間隔（相鄰兩片不會疊在一起）
-  const jig = tg * 0.45
-  const tray = Array.from({ length: cols * rows }, (_, k) => ({
-    x: x0 + (k % cols) * (cw + tg) + cw / 2 + (spread[k]?.dx ?? 0) * jig,
-    y: y0 + Math.floor(k / cols) * (chh + tg) + chh / 2 + (spread[k]?.dy ?? 0) * jig,
-  }))
-  return { board, ref, pw, ph, tray, s, w, h }
-}
 
 type HandState = { x: number; y: number; tap: number; beckon?: boolean } | null
 
@@ -534,7 +499,7 @@ function PuzzleView({ round, prog, onDone, onAgain, resting }: { round: PuzzleRo
             </div>
             {/* 參考的小圖（像拼圖盒上的圖）：只看、不能點 */}
             <div className="pz-ref" data-ref="" style={{ left: g.ref.x, top: g.ref.y, width: g.ref.w, height: g.ref.h }} aria-hidden="true">
-              <StoryPage art={pic.art} />
+              <PicArt pic={pic} />
             </div>
             {Array.from({ length: n }, (_, i) => {
               const isDrag = drag?.id === i
@@ -558,7 +523,7 @@ function PuzzleView({ round, prog, onDone, onAgain, resting }: { round: PuzzleRo
                   onPointerUp={upPiece}
                   onPointerCancel={cancelPiece}
                 >
-                  <Slice art={pic.art} col={i % cols} row={Math.floor(i / cols)} cols={cols} rows={rows} />
+                  <Slice pic={pic} col={i % cols} row={Math.floor(i / cols)} cols={cols} rows={rows} />
                 </motion.div>
               )
             })}

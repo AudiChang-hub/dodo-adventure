@@ -1,68 +1,45 @@
 // 拼圖（T-156，家長 2026-11-16 要求）的圖庫、出題、升降級。只有純函式，scripts/test-puzzle-maze.ts 直接測；畫面在 ./Puzzle.tsx。
 // 圖全部是 App 自己的故事插畫（src/art/storybook：場景＋角色庫），用 StoryPage 畫，不照任何現成 App 的關卡或圖。
-// 片數從 3 歲做得到的開始（指引 MA-6「積木、拼圖」）：2×2 四片 → 熟練了 3×2 六片。片不旋轉。
+// 片數從 3 歲做得到的開始（指引 MA-6「積木、拼圖」）：2×2 四片 → 3×2 六片 → 3×3 九片（T-159，家長 2026-11-16）。片不旋轉。
 // 拼盤只有空的虛線格子（家長 2026-11-16：底下有原圖等於只是對照位置），旁邊一張小的完整圖當參考（像拼圖盒上的圖）；
 // 托盤跟拼盤一樣排成 cols×rows，但每一片都不在它自己的位置（右上那片不會放在托盤右上），稍微散開、不轉。
-import type { PageArt } from '../../art/storybook/layout'
 import { stepLevel, type LevelState } from '../logic/sort-plan'
+import { PUZZLE_PICS, themeOf, type PuzzlePic } from './pics'
 
-export interface PuzzlePic {
-  id: string
-  /** 中文名字（家長區、報告看的） */
-  zh: string
-  art: PageArt
-  /** 拼完念的那一句（./lines.ts 用 picLineKey 登記） */
-  en: string
-}
-
-/**
- * 圖庫：每張都是一個場景＋2～3 個角色或東西，分散在左、右（2×2 切開每一片都有看得出來的東西）。
- * 新增一張：加在這裡、跑 npm run audio（只產新的那一句）；scripts/test-puzzle-maze.ts 會用 problemsOf 檢查擺法。
- */
-export const PUZZLE_PICS: PuzzlePic[] = [
-  { id: 'park', zh: '豆豆在公園', en: 'Dodo is at the park!', art: { scene: 'park', cast: [{ who: 'dodo', at: 'L', size: 'L' }, { who: 'sun', at: 'RC' }], back: [{ who: 'tree', at: 'R', size: 'L' }] } },
-  { id: 'farm', zh: '農場的牛和豬', en: 'Moo! Oink! Hello, farm!', art: { scene: 'farm', cast: [{ who: 'cow', at: 'L', size: 'L' }, { who: 'pig', at: 'R', size: 'L', flip: true }, { who: 'sun', at: 'C' }] } },
-  { id: 'sea', zh: '海上的鯨魚', en: 'A big whale in the sea!', art: { scene: 'sea', cast: [{ who: 'whale', at: 'L', size: 'L' }, { who: 'sailboat', at: 'R', size: 'L' }, { who: 'sun', at: 'LC' }] } },
-  { id: 'beach', zh: '莫莫在海邊', en: 'Momo is at the beach!', art: { scene: 'beach', cast: [{ who: 'momo', at: 'L', size: 'L' }, { who: 'beach-umbrella', at: 'R', size: 'L' }, { who: 'sun', at: 'C' }] } },
-  { id: 'valley', zh: '恐龍谷', en: 'Two big dinosaurs!', art: { scene: 'valley', cast: [{ who: 'sauropod', at: 'L', size: 'L' }, { who: 'trex', at: 'R', size: 'L', flip: true }] } },
-  { id: 'zoo', zh: '動物園的長頸鹿和大象', en: 'Hello, giraffe and elephant!', art: { scene: 'zoo', cast: [{ who: 'giraffe', at: 'L', size: 'L' }, { who: 'elephant', at: 'R', size: 'L', flip: true }, { who: 'sun', at: 'C' }] } },
-  { id: 'party', zh: '生日派對', en: 'Happy birthday, Bobo!', art: { scene: 'party', cast: [{ who: 'bobo', at: 'L', size: 'L' }, { who: 'cake', at: 'C' }, { who: 'balloons', at: 'R', size: 'L' }] } },
-  { id: 'rain', zh: '下雨天的青蛙', en: 'Frog loves the rain!', art: { scene: 'rain', cast: [{ who: 'frog', at: 'L', size: 'L' }, { who: 'umbrella', at: 'R', size: 'L' }, { who: 'raincloud', at: 'C' }] } },
-  { id: 'city', zh: '城市的公車', en: 'Beep beep! A big bus!', art: { scene: 'city', cast: [{ who: 'bus', at: 'LC', size: 'L' }, { who: 'traffic-light', at: 'R', size: 'L' }] } },
-  { id: 'site', zh: '工地的卡車', en: 'Bobo and the big truck!', art: { scene: 'site', cast: [{ who: 'truck', at: 'L', size: 'L' }, { who: 'bobo', at: 'R', size: 'L', flip: true }, { who: 'sun', at: 'C' }] } },
-  { id: 'meadow', zh: '兔子和烏龜', en: 'Rabbit and turtle!', art: { scene: 'meadow', cast: [{ who: 'rabbit', at: 'L', size: 'L' }, { who: 'turtle', at: 'R', size: 'L', pose: 'walk', flip: true }, { who: 'rainbow', at: 'C' }] } },
-  { id: 'market', zh: '水果市場的猴子', en: 'Monkey loves fruit!', art: { scene: 'market', cast: [{ who: 'monkey', at: 'L', size: 'L' }, { who: 'banana', at: 'C' }, { who: 'watermelon', at: 'R', size: 'L' }] } },
-  { id: 'night', zh: '晚安泰迪熊', en: 'Good night, teddy!', art: { scene: 'bedroom', cast: [{ who: 'bed', at: 'LC', size: 'L', with: 'teddy' }, { who: 'moon', at: 'R' }] } },
-  { id: 'nest', zh: '莫莫找到蛋', en: 'Momo found the eggs!', art: { scene: 'meadow', cast: [{ who: 'momo', at: 'L', size: 'L' }, { who: 'dino-nest', at: 'R', size: 'L' }, { who: 'sun', at: 'C' }] } },
-  { id: 'fire', zh: '消防車', en: 'Wee-oo! A fire truck!', art: { scene: 'city', cast: [{ who: 'fire-truck', at: 'LC', size: 'L' }, { who: 'cat', at: 'R', size: 'L', flip: true }] } },
-  { id: 'kite', zh: '豆豆放風箏', en: 'Dodo flies a kite!', art: { scene: 'meadow', cast: [{ who: 'dodo', at: 'L', size: 'L' }, { who: 'kite', at: 'RC' }, { who: 'sheep', at: 'R', size: 'L', flip: true }] } },
-]
+// 圖庫在 ./pics.ts（T-159 加到 200 張以上）
+export { PUZZLE_PICS, themeOf, type PuzzlePic } from './pics'
 
 export const picOf = (id: string) => PUZZLE_PICS.find((p) => p.id === id) ?? null
 
 // ── 級數 ─────────────────────────────────────────────────────
 
-export type PuzzleLevel = 1 | 2
-export const PUZZLE_MAX: PuzzleLevel = 2
-/** 每一級切幾片：1 → 2×2、2 → 3×2（橫的圖，多切一欄） */
-export const GRID: Record<PuzzleLevel, { cols: number; rows: number }> = { 1: { cols: 2, rows: 2 }, 2: { cols: 3, rows: 2 } }
-/** 作答紀錄的技能：puzzle:4、puzzle:6 */
+export type PuzzleLevel = 1 | 2 | 3
+export const PUZZLE_MAX: PuzzleLevel = 3
+/** 每一級切幾片：1 → 2×2、2 → 3×2（橫的圖，多切一欄）、3 → 3×3（T-159） */
+export const GRID: Record<PuzzleLevel, { cols: number; rows: number }> = { 1: { cols: 2, rows: 2 }, 2: { cols: 3, rows: 2 }, 3: { cols: 3, rows: 3 } }
+/** 作答紀錄的技能：puzzle:4、puzzle:6、puzzle:9 */
 export const puzzleSkill = (level: PuzzleLevel) => `puzzle:${GRID[level].cols * GRID[level].rows}`
 export const PUZZLE_GAME = 'logic-puzzle'
 /**
  * 一張拼完算「第一次就對」：放錯 ≤ 1 次、沒有手帶著放（3 歲試一個位置不對是正常的探索，FB-5 不扣分）。
- * 升降級照邏輯遊戲同一套（sort-plan 的 stepLevel：最近 8 張 ≥ 7 張、分布 ≥ 3 天升級；最近 6 張 ≤ 3 張退級）。
+ * 升級（T-159，家長 2026-11-16 要加快）：一張順利拼完（第一次就對、自己拼的，不是示範或發呆時手帶著的）就直接升一級。
+ * 退級照邏輯遊戲同一套（sort-plan 的 stepLevel：最近 6 張 ≤ 3 張退級）。
  */
 export const OK_WRONGS = 1
-/** 記住最近幾張：新的一張不跟這幾張一樣 */
-export const RECENT_PICS = 5
+/** 記住最近幾張：新的一張不跟這幾張一樣（T-159 圖庫 200 張以上，從 5 張改成 10 張） */
+export const RECENT_PICS = 10
 
 type Rnd = () => number
 
-/** 挑一張圖：不在最近幾張裡（圖庫比最近幾張多，一定挑得到；萬一都用過了，至少不跟上一張一樣） */
+/**
+ * 挑一張圖：不在最近幾張裡，也不跟上一張同一個主題（場景）。
+ * 圖庫比最近幾張多得多，一定挑得到；萬一都用過了，至少不跟上一張一樣。
+ */
 export function pickPic(recent: readonly string[], rnd: Rnd = Math.random): PuzzlePic {
   const last = recent.slice(-RECENT_PICS)
-  let pool = PUZZLE_PICS.filter((p) => !last.includes(p.id))
+  const prev = picOf(recent[recent.length - 1] ?? '')
+  let pool = PUZZLE_PICS.filter((p) => !last.includes(p.id) && (!prev || themeOf(p) !== themeOf(prev)))
+  if (!pool.length) pool = PUZZLE_PICS.filter((p) => !last.includes(p.id))
   if (!pool.length) pool = PUZZLE_PICS.filter((p) => p.id !== recent[recent.length - 1])
   return pool[Math.floor(rnd() * pool.length) % pool.length]
 }
@@ -126,6 +103,9 @@ export function normalizePuzzle(raw: unknown): PuzzleState {
 /** 拼完一張：記住這張圖、照結果升降級 */
 export function afterPuzzle(s: PuzzleState, r: { pic: string; date: string; wrongs: number; shown: boolean; counted: boolean }): PuzzleState {
   const pics = [...s.pics.filter((p) => p !== r.pic), r.pic].slice(-RECENT_PICS)
-  const lv = stepLevel(s, { date: r.date, first: r.wrongs <= OK_WRONGS && !r.shown, counted: r.counted }, PUZZLE_MAX)
+  const first = r.wrongs <= OK_WRONGS && !r.shown
+  // 順利拼完一張就升一級（已經是最難的就照原本的規則記下來）
+  if (r.counted && first && s.level < PUZZLE_MAX) return { ...s, level: s.level + 1, recent: [], pics }
+  const lv = stepLevel(s, { date: r.date, first, counted: r.counted }, PUZZLE_MAX)
   return { ...s, ...lv, pics }
 }
