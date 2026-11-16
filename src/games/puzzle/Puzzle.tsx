@@ -19,8 +19,9 @@ import { useLive } from '../logic/kit'
 import { PuzzlePickArt } from './art'
 import { PUZZLE_COPLAY } from './coplay'
 import { picLineKey } from './lines'
-import { OK_WRONGS, PUZZLE_GAME, afterPuzzle, puzzleRound, puzzleSkill, type PuzzleRound, type PuzzleState } from './plan'
+import { OK_WRONGS, PUZZLE_GAME, afterPuzzle, puzzleRound, puzzleSkill, type PuzzleLevel, type PuzzleRound, type PuzzleState } from './plan'
 import { loadPuzzle, savePuzzle } from './progress'
+import { geometry } from './geometry'
 import '../draw/tools.css'
 import './puzzle.css'
 
@@ -48,7 +49,7 @@ export function Puzzle() {
     void loadPuzzle().then((p) => {
       if (!on || prog.current) return
       prog.current = p
-      setRound(puzzleRound(p.level as 1 | 2, p.pics))
+      setRound(puzzleRound(p.level as PuzzleLevel, p.pics))
     })
     return () => {
       on = false
@@ -58,7 +59,7 @@ export function Puzzle() {
     const p = prog.current
     if (!p || bedtimeIfDue()) return
     setResting(false)
-    setRound(puzzleRound(p.level as 1 | 2, p.pics))
+    setRound(puzzleRound(p.level as PuzzleLevel, p.pics))
     setN((k) => k + 1)
   }
   return (
@@ -78,42 +79,6 @@ const Slice = memo(function Slice({ art, col, row, cols, rows }: { art: PageArt;
     </div>
   )
 })
-
-type Box = { x: number; y: number; w: number; h: number }
-type Geo = { board: Box; ref: Box; pw: number; ph: number; tray: { x: number; y: number }[]; s: number; w: number; h: number }
-
-/**
- * 版面：拼盤在左（橫的 960:600，只有空格子）；右上角一張小的完整圖當參考（拼盤寬的 0.4，像拼圖盒上的圖）；
- * 參考圖下面是托盤，跟拼盤一樣排成 cols×rows（片縮小放），每一格稍微散開。
- */
-function geometry(w: number, h: number, cols: number, rows: number, spread: readonly { dx: number; dy: number }[]): Geo | null {
-  if (w < 50 || h < 50) return null
-  const gap = Math.max(20, w * 0.025)
-  const bw = Math.min(w * 0.54, (h - 24) * 1.6)
-  const bh = bw / 1.6
-  const board = { x: gap, y: (h - bh) / 2, w: bw, h: bh }
-  const pw = bw / cols
-  const ph = bh / rows
-  const tx = board.x + bw + gap * 1.5
-  const tw = w - tx - gap * 0.5
-  const rw = Math.min(bw * 0.4, tw * 0.7)
-  const ref = { x: tx + tw - rw, y: board.y, w: rw, h: rw / 1.6 }
-  const tg = Math.max(18, h * 0.035)
-  const top = ref.y + ref.h + tg
-  const th = h - top - 8
-  const s = Math.max(0.3, Math.min(0.8, (tw - tg * (cols + 1)) / cols / pw, (th - tg * rows) / rows / ph))
-  const cw = pw * s
-  const chh = ph * s
-  const x0 = tx + (tw - (cols * cw + (cols - 1) * tg)) / 2
-  const y0 = top + (th - (rows * chh + (rows - 1) * tg)) / 2
-  // 散開：每一格最多挪開 0.45 個間隔（相鄰兩片不會疊在一起）
-  const jig = tg * 0.45
-  const tray = Array.from({ length: cols * rows }, (_, k) => ({
-    x: x0 + (k % cols) * (cw + tg) + cw / 2 + (spread[k]?.dx ?? 0) * jig,
-    y: y0 + Math.floor(k / cols) * (chh + tg) + chh / 2 + (spread[k]?.dy ?? 0) * jig,
-  }))
-  return { board, ref, pw, ph, tray, s, w, h }
-}
 
 type HandState = { x: number; y: number; tap: number; beckon?: boolean } | null
 

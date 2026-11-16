@@ -16,6 +16,7 @@ export const LOGIC_SKILLS: { skill: string; zh: string }[] = [
   // T-156 拼圖、迷宮：一張拼完、一個走完記一筆
   { skill: 'puzzle:4', zh: '拼 4 片拼圖' },
   { skill: 'puzzle:6', zh: '拼 6 片拼圖' },
+  { skill: 'puzzle:9', zh: '拼 9 片拼圖' },
   { skill: 'maze:3x3', zh: '走迷宮（3×3）' },
   { skill: 'maze:4x3', zh: '走迷宮（4×3）' },
   { skill: 'maze:4x4', zh: '走迷宮（4×4）' },
