@@ -43,6 +43,9 @@ import '../games/where/lines'
 import '../games/feel/lines'
 // 遊戲角的積木蓋蓋看（T-162）
 import '../games/blocks/lines'
+// 遊戲角的恐龍賽跑棋、躲起來了幾隻（家長 2026-11-17）
+import '../games/race/lines'
+import '../games/hide/lines'
 
 export { def, defBridge, isBridge, line, hasLine, allLines, segments, plainText, type Speaker, type Line, type Segment } from './registry'
 
