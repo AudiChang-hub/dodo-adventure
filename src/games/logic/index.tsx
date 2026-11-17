@@ -13,6 +13,10 @@ import { Puzzle } from '../puzzle/Puzzle'
 import { PuzzlePickArt } from '../puzzle/art'
 import { Maze } from '../maze/Maze'
 import { MazePickArt } from '../maze/art'
+import { Memory } from '../memory/Memory'
+import { MemoryPickArt } from '../memory/art'
+import { Shadow } from '../shadow/Shadow'
+import { ShadowPickArt } from '../shadow/art'
 import type { LogicGame } from '../../lib/nav'
 import '../draw/coloring.css'
 import './logic.css'
@@ -49,6 +53,9 @@ export function LogicPick() {
     { id: 'pattern' as const, label: '串珠珠', art: <PatternPickArt /> },
     { id: 'puzzle' as const, label: '拼圖', art: <PuzzlePickArt /> },
     { id: 'maze' as const, label: '迷宮', art: <MazePickArt /> },
+    // T-160（家長 2026-11-17）：翻翻牌、影子配對
+    { id: 'memory' as const, label: '翻翻牌', art: <MemoryPickArt /> },
+    { id: 'shadow' as const, label: '影子配對', art: <ShadowPickArt /> },
   ]
   return (
     <Shell station="logic" mood="idle" onExit={() => go({ name: 'home' }, { back: true })} hideHost hintText={LOGIC_PICK_HINT}>
@@ -74,9 +81,11 @@ export function LogicPick() {
   )
 }
 
-/** 一種玩法：sort 豆豆收拾、pattern 串珠珠、puzzle 拼圖、maze 迷宮 */
+/** 一種玩法：sort 豆豆收拾、pattern 串珠珠、puzzle 拼圖、maze 迷宮、memory 翻翻牌、shadow 影子配對 */
 export function LogicPlay({ game }: { game: LogicGame }) {
   if (game === 'puzzle') return <Puzzle />
   if (game === 'maze') return <Maze />
+  if (game === 'memory') return <Memory />
+  if (game === 'shadow') return <Shadow />
   return game === 'sort' ? <Sort /> : <Pattern />
 }

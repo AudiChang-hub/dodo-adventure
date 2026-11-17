@@ -3,7 +3,7 @@
 import type { Attempt } from '../../lib/db'
 import { MASTER_DAYS, MASTER_OF, MASTER_OK } from './sort-plan'
 
-export const LOGIC_GAME_NAME: Record<string, string> = { 'logic-sort': '豆豆收拾', 'logic-pattern': '串珠珠', 'logic-puzzle': '拼圖', 'logic-maze': '迷宮' }
+export const LOGIC_GAME_NAME: Record<string, string> = { 'logic-sort': '豆豆收拾', 'logic-pattern': '串珠珠', 'logic-puzzle': '拼圖', 'logic-maze': '迷宮', 'logic-memory': '翻翻牌', 'logic-shadow': '影子配對' }
 
 /** 技能的中文（作答紀錄、總覽用） */
 export const LOGIC_SKILLS: { skill: string; zh: string }[] = [
@@ -28,6 +28,17 @@ export const LOGIC_SKILLS: { skill: string; zh: string }[] = [
   { skill: 'maze:8x5', zh: '走迷宮（8×5）' },
   { skill: 'maze:9x6', zh: '走迷宮（9×6，先拿鑰匙）' },
   { skill: 'maze:10x7', zh: '走迷宮（10×7，收集星星）' },
+  // T-160 翻翻牌、影子配對（家長 2026-11-17）：一局玩完記一筆
+  { skill: 'memory:4', zh: '翻翻牌（4 張）' },
+  { skill: 'memory:6', zh: '翻翻牌（6 張）' },
+  { skill: 'memory:8', zh: '翻翻牌（8 張）' },
+  { skill: 'memory:10', zh: '翻翻牌（10 張）' },
+  { skill: 'memory:12', zh: '翻翻牌（12 張）' },
+  { skill: 'shadow:2', zh: '影子配對（2 個）' },
+  { skill: 'shadow:3', zh: '影子配對（3 個）' },
+  { skill: 'shadow:4', zh: '影子配對（4 個）' },
+  { skill: 'shadow:alike', zh: '影子配對（輪廓很像的）' },
+  { skill: 'shadow:flip', zh: '影子配對（影子朝另一邊）' },
 ]
 
 /** 邏輯遊戲的技能名稱；不是邏輯遊戲的回傳 null（交給家長區原本的 skillLabel） */

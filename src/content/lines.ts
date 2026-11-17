@@ -33,6 +33,9 @@ import '../games/logic/lines'
 // 遊戲角的拼圖、迷宮（T-156）
 import '../games/puzzle/lines'
 import '../games/maze/lines'
+// 遊戲角的翻翻牌、影子配對（T-160）
+import '../games/memory/lines'
+import '../games/shadow/lines'
 
 export { def, defBridge, isBridge, line, hasLine, allLines, segments, plainText, type Speaker, type Line, type Segment } from './registry'
 

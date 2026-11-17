@@ -1,0 +1,71 @@
+/* 翻翻牌（T-160）：牌的大小、位置由 Memory.tsx 依作答區大小算，這裡只管樣子。平板橫向 1200×786 為準 */
+.mm {
+  position: absolute;
+  inset: 0;
+}
+.mm-play {
+  position: absolute;
+  inset: 0;
+  /* 準則 TOUCH-5：最下緣 2 cm 是手腕靠的地方，牌都在它上面 */
+  bottom: 70px;
+}
+.mm-card {
+  position: absolute;
+  border-radius: 18px;
+  touch-action: none;
+  -webkit-tap-highlight-color: transparent;
+  cursor: pointer;
+  box-shadow:
+    0 0 0 5px #fff,
+    0 0 0 7px var(--paper-edge, #e6dccb),
+    0 16px 20px -14px rgba(46, 42, 37, 0.5);
+}
+.mm-back,
+.mm-face {
+  position: absolute;
+  inset: 0;
+  border-radius: 18px;
+  overflow: hidden;
+}
+.mm-face {
+  background: #fffdf8;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}
+.mm-pic {
+  width: 74%;
+  aspect-ratio: 1;
+}
+/* 配成一對：留在上面，外框換成淡淡的綠（靜止，不閃） */
+.mm-card.is-matched {
+  cursor: default;
+  box-shadow:
+    0 0 0 5px #fff,
+    0 0 0 9px #9fd3a5,
+    0 10px 14px -12px rgba(46, 42, 37, 0.4);
+}
+/* 提示（記錯第 2 次、發呆）：另一半的外框亮起來（暖黃，靜止、不閃，MOTION-3） */
+.mm-card.is-glow {
+  box-shadow:
+    0 0 0 5px #fff,
+    0 0 0 12px #f1d27c,
+    0 16px 20px -14px rgba(46, 42, 37, 0.5);
+}
+.mm.is-done .mm-card {
+  cursor: default;
+}
+@media (prefers-reduced-motion: reduce) {
+  .mm-face {
+    transition: none !important;
+  }
+}
+/* 翻開：正面淡入之後，牌背才收起來（不然圓角邊緣會透出一條牌背的細線）；蓋回去：牌背馬上在底下，正面慢慢淡出 */
+.mm-back {
+  transition: opacity 0s linear 0s;
+}
+.mm-card.is-open .mm-back {
+  opacity: 0;
+  transition-delay: 0.24s;
+}
