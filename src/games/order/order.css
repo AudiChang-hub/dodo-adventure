@@ -1,0 +1,146 @@
+/* 故事排順序（T-164）：上面一排空格（中間有箭頭），下面一排打亂的圖卡。平板橫向 1200×786 為準；直的手機兩欄 */
+.or {
+  position: absolute;
+  inset: 0;
+  --gap: clamp(30px, 4cqw, 52px);
+  --card: min(calc((100cqw - 60px - (var(--n) - 1) * var(--gap)) / var(--n)), calc((100cqh - 70px - 72px) / 2), 280px);
+}
+.or-play {
+  position: absolute;
+  inset: 0;
+  /* 準則 TOUCH-5：最下緣 2 cm 是手腕靠的地方，卡片都在它上面 */
+  bottom: 70px;
+  display: grid;
+  grid-template-rows: 1fr 1fr;
+  align-items: center;
+  justify-items: center;
+  padding: 8px 30px 0;
+  transition: right 0.35s var(--ease-out, ease-out);
+}
+.or.is-resting > .or-play {
+  right: calc(2 * 92px + 48px);
+  --card: min(calc((100cqw - 2 * 92px - 108px - (var(--n) - 1) * 30px) / var(--n)), calc((100cqh - 70px - 72px) / 2), 280px);
+}
+.or.is-resting .or-deck {
+  visibility: hidden;
+}
+.or-slots,
+.or-deck {
+  display: flex;
+  gap: var(--gap);
+  justify-content: center;
+  align-items: center;
+}
+.or-slot {
+  position: relative;
+  width: var(--card);
+  height: var(--card);
+  border-radius: 24px;
+  /* 空格：虛線框＋下面幾個點（第一格一個點、第二格兩個點…，三歲不用認數字） */
+  background: rgba(255, 255, 255, 0.55);
+  outline: 4px dashed #d8c7a8;
+  outline-offset: -4px;
+}
+/* 下一張要放的那一格：框變實線、顏色暖一點（靜止，不閃） */
+.or-slot.is-next {
+  outline: 6px solid #f1d27c;
+  outline-offset: -6px;
+  background: rgba(255, 246, 214, 0.8);
+}
+.or-dots {
+  position: absolute;
+  inset: auto 0 14% 0;
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+}
+.or-dots > i {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #d8c7a8;
+}
+.or-slot.is-next .or-dots > i {
+  background: #e3a92a;
+}
+.or-arrow {
+  position: absolute;
+  top: 50%;
+  left: 100%;
+  width: var(--gap);
+  height: 24px;
+  margin-top: -12px;
+  pointer-events: none;
+}
+.or-arrow::before {
+  content: '';
+  position: absolute;
+  left: 22%;
+  right: 30%;
+  top: 9px;
+  height: 6px;
+  border-radius: 3px;
+  background: #c2a266;
+}
+.or-arrow::after {
+  content: '';
+  position: absolute;
+  right: 18%;
+  top: 2px;
+  border: 10px solid transparent;
+  border-left: 13px solid #c2a266;
+  border-right: 0;
+}
+.or-card {
+  position: relative;
+  width: var(--card);
+  height: var(--card);
+  border: 0;
+  padding: 0;
+  overflow: hidden;
+  border-radius: 24px;
+  background: #fff;
+  box-shadow:
+    0 0 0 5px #fff,
+    0 0 0 8px var(--paper-edge, #e6dccb),
+    0 14px 20px -14px rgba(46, 42, 37, 0.45);
+  cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+.or-card.is-placed {
+  position: absolute;
+  inset: 0;
+  width: auto;
+  height: auto;
+  cursor: default;
+}
+.or-card.is-gone {
+  visibility: hidden;
+}
+.or-card > svg {
+  display: block;
+}
+.or-card:focus-visible {
+  outline: 5px solid #4f7fc2;
+  outline-offset: 6px;
+}
+@media (orientation: portrait) {
+  .or {
+    --gap: 18px;
+    --card: min(calc((100cqw - 60px - 18px) / 2), calc((100cqh - 70px - 120px) / 4), 240px);
+  }
+  .or-slots,
+  .or-deck {
+    display: grid;
+    grid-template-columns: repeat(2, var(--card));
+  }
+  .or-arrow {
+    display: none;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .or-play {
+    transition: none;
+  }
+}

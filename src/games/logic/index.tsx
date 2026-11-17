@@ -31,6 +31,10 @@ import { Race } from '../race/Race'
 import { RacePickArt } from '../race/art'
 import { Hide } from '../hide/Hide'
 import { HidePickArt } from '../hide/art'
+import { Order } from '../order/Order'
+import { OrderPickArt } from '../order/art'
+import { Listen } from '../listen/Listen'
+import { ListenPickArt } from '../listen/art'
 import type { LogicGame } from '../../lib/nav'
 import { pickGrid } from './pick-grid'
 import '../draw/coloring.css'
@@ -83,6 +87,9 @@ export function LogicPick() {
     // 家長 2026-11-17：恐龍賽跑棋（數字線、一一對應、輪流）、躲起來了幾隻（5 以內的分與合）
     { id: 'race' as const, label: '恐龍賽跑棋', art: <RacePickArt /> },
     { id: 'hide' as const, label: '躲起來了幾隻', art: <HidePickArt /> },
+    // T-164（家長 2026-11-17）：故事排順序（先後、因果）、聽兩步驟指令（英文、工作記憶）
+    { id: 'order' as const, label: '故事排順序', art: <OrderPickArt /> },
+    { id: 'listen' as const, label: '聽指令', art: <ListenPickArt /> },
   ]
   const grid = pickGrid(cards.length)
   return (
@@ -126,5 +133,7 @@ export function LogicPlay({ game }: { game: LogicGame }) {
   if (game === 'blocks') return <Blocks />
   if (game === 'race') return <Race />
   if (game === 'hide') return <Hide />
+  if (game === 'order') return <Order />
+  if (game === 'listen') return <Listen />
   return game === 'sort' ? <Sort /> : <Pattern />
 }

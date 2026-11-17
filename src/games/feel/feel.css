@@ -113,3 +113,103 @@
     width: 100%;
   }
 }
+
+/* T-164「為什麼」：看臉選情境。左邊主角（已經是那個心情，旁邊一個問號），右邊 2～3 張情境小圖（2 張並排、3 張排成 2＋1） */
+.fl-play.fl-cause {
+  grid-template-columns: clamp(200px, 25cqw, 320px) minmax(0, 1fr);
+  align-items: center;
+}
+.fl.is-resting > .fl-play.fl-cause {
+  grid-template-columns: clamp(200px, 25cqw, 320px) 0;
+}
+.fl.is-resting .fl-sits {
+  display: none;
+}
+.fl-hero {
+  position: relative;
+  height: min(100%, 520px);
+  min-height: 0;
+  border-radius: 28px;
+  background: #fbf8f2;
+  box-shadow: 0 0 0 4px var(--paper-edge, #e6dccb);
+}
+.fl-hero > svg {
+  display: block;
+}
+.fl-ask {
+  position: absolute;
+  top: 6px;
+  right: 10px;
+  font: 800 clamp(44px, 6cqmin, 72px) / 1 var(--font-display, system-ui), sans-serif;
+  color: #e39a1e;
+}
+.fl-sits {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: clamp(12px, 1.6cqw, 22px);
+  align-content: center;
+  justify-items: center;
+  min-height: 0;
+  height: 100%;
+}
+.fl-sit {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 820 / 520;
+  max-height: calc((100cqh - 70px - 28px) / 2);
+  border: 0;
+  padding: 0;
+  overflow: hidden;
+  border-radius: 22px;
+  background: #fbf8f2;
+  box-shadow:
+    0 0 0 4px var(--paper-edge, #e6dccb),
+    0 12px 18px -12px rgba(46, 42, 37, 0.4);
+  cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+.fl-sits.n2 .fl-sit {
+  max-height: calc(100cqh - 70px - 40px);
+}
+/* 3 張：最後一張放在第二排中間 */
+.fl-sits.n3 .fl-sit:nth-child(3) {
+  grid-column: 1 / -1;
+  width: calc(50% - 11px);
+}
+.fl-sit > svg {
+  display: block;
+}
+.fl-sit:focus-visible {
+  outline: 5px solid #4f7fc2;
+  outline-offset: 4px;
+}
+.fl-sit.is-answer {
+  box-shadow:
+    0 0 0 9px #f1d27c,
+    0 14px 20px -12px rgba(46, 42, 37, 0.45);
+}
+.fl-sit.is-picked {
+  opacity: 0.7;
+}
+/* 正在演的那一張：藍色的框（跟答案的黃框不一樣） */
+.fl-sit.is-playing {
+  box-shadow:
+    0 0 0 8px #8fc3ea,
+    0 14px 20px -12px rgba(46, 42, 37, 0.45);
+}
+@media (orientation: portrait) {
+  .fl-play.fl-cause {
+    grid-template-columns: 1fr;
+    grid-template-rows: minmax(0, 0.8fr) minmax(0, 1.2fr);
+  }
+  .fl-hero {
+    height: 100%;
+    justify-self: center;
+    aspect-ratio: 260 / 330;
+  }
+  .fl-sit,
+  .fl-sits.n2 .fl-sit {
+    max-height: none;
+  }
+}

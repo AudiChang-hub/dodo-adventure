@@ -1,0 +1,112 @@
+/* 聽兩步驟指令（T-164）：左上角一隻耳朵（再聽一次），中間一排 3～4 樣東西。平板橫向 1200×786 為準；直的手機兩欄 */
+.ls {
+  position: absolute;
+  inset: 0;
+  --gap: clamp(22px, 3cqw, 44px);
+  --thing: min(calc((100cqw - 80px - (var(--n) - 1) * var(--gap)) / var(--n)), calc(100cqh - 70px - 200px), 270px);
+}
+.ls-play {
+  position: absolute;
+  inset: 0;
+  /* 準則 TOUCH-5：最下緣 2 cm 是手腕靠的地方，東西都在它上面 */
+  bottom: 70px;
+  display: grid;
+  place-items: center;
+  transition: right 0.35s var(--ease-out, ease-out);
+}
+.ls.is-resting > .ls-play {
+  right: calc(2 * 92px + 48px);
+  --thing: min(calc((100cqw - 2 * 92px - 128px - (var(--n) - 1) * 24px) / var(--n)), calc(100cqh - 70px - 200px), 270px);
+  --gap: 24px;
+}
+.ls-ear {
+  position: absolute;
+  top: 6px;
+  left: 18px;
+  width: clamp(84px, 11cqmin, 112px);
+  height: clamp(84px, 11cqmin, 112px);
+  border: 0;
+  padding: 0;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow:
+    0 0 0 4px var(--paper-edge, #e6dccb),
+    0 10px 16px -10px rgba(46, 42, 37, 0.4);
+  cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  z-index: 2;
+}
+.ls-ear:active {
+  transform: scale(0.95);
+}
+.ls-ear:focus-visible,
+.ls-thing:focus-visible {
+  outline: 5px solid #4f7fc2;
+  outline-offset: 5px;
+}
+.ls.is-resting .ls-ear {
+  visibility: hidden;
+}
+.ls-things {
+  display: flex;
+  gap: var(--gap);
+  justify-content: center;
+  align-items: center;
+}
+.ls-thing {
+  position: relative;
+  width: var(--thing);
+  height: var(--thing);
+  border: 0;
+  padding: 10px;
+  border-radius: 28px;
+  background: #fff;
+  box-shadow:
+    0 0 0 4px var(--paper-edge, #e6dccb),
+    0 14px 20px -14px rgba(46, 42, 37, 0.45);
+  cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+.ls-thing > svg {
+  display: block;
+}
+/* 點對了：一圈暖黃色的粗框（靜止、不閃）＋右上角 1 個（第二步 2 個）小點 */
+.ls-thing.is-done {
+  box-shadow:
+    0 0 0 10px #f1d27c,
+    0 14px 20px -12px rgba(46, 42, 37, 0.45);
+}
+.ls-badge {
+  position: absolute;
+  top: -14px;
+  right: -14px;
+  display: flex;
+  gap: 4px;
+  padding: 8px 10px;
+  border-radius: 999px;
+  background: #fff;
+  box-shadow: 0 0 0 4px #f1d27c;
+}
+.ls-badge > i {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #e3a92a;
+}
+@media (orientation: portrait) {
+  .ls {
+    --gap: 22px;
+    --thing: min(calc((100cqw - 60px - 22px) / 2), calc((100cqh - 70px - 200px) / 2), 230px);
+  }
+  .ls-things {
+    display: grid;
+    grid-template-columns: repeat(2, var(--thing));
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ls-play {
+    transition: none;
+  }
+}

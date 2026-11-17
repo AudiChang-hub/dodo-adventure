@@ -6,9 +6,10 @@
 //   害怕：眼睛睜很大（白眼珠、小黑眼珠）、眉毛抬高、嘴巴小小張開、冒汗、手摀著臉頰、身體旁邊發抖的線
 // 座標：整隻 240×280（腳底在 y = 280，正中間 x = 120）；頭在 (120, 104)。
 import type { ReactElement } from 'react'
-import type { Emo, SpeciesId } from './data'
+import type { Mood, SpeciesId } from './data'
 
-export type Face = Emo | 'neutral'
+/** T-164：「為什麼」那一層多一種驚訝（surprised）：眉毛挑高、眼睛圓圓、嘴巴大大的 O、頭上一個驚嘆號、兩手張開 */
+export type Face = Mood | 'neutral'
 /** 右手的姿勢：拿著東西（手往前伸）或照心情 */
 export type Arm = 'hold' | 'mood'
 
@@ -274,6 +275,15 @@ function Expression({ sp, face }: { sp: SpeciesId; face: Face }) {
           <circle cx={x} cy={y + 1} r={4.6} fill={INK} />
         </g>,
       )
+    } else if (face === 'surprised') {
+      // 驚訝：眼睛圓圓亮亮的（黑眼珠大、有亮點），跟害怕的小黑點不一樣
+      out.push(
+        <g key={`e${i}`}>
+          <circle cx={x} cy={y - 2} r={12} fill="#fff" {...L(INK, 3)} />
+          <circle cx={x} cy={y - 2} r={7.4} fill={panda ? INK : eyeFill} />
+          <circle cx={x + 2.6} cy={y - 5} r={2.6} fill="#fff" />
+        </g>,
+      )
     } else {
       const dy = face === 'sad' ? 3 : 0
       out.push(
@@ -296,13 +306,17 @@ function Expression({ sp, face }: { sp: SpeciesId; face: Face }) {
   } else if (face === 'scared') {
     brow(`M${lx - 14} ${browY - 22} Q${lx} ${browY - 34} ${lx + 12} ${browY - 25}`, 'b0')
     brow(`M${rx + 14} ${browY - 22} Q${rx} ${browY - 34} ${rx - 12} ${browY - 25}`, 'b1')
+  } else if (face === 'surprised') {
+    // 驚訝：眉毛挑得很高、圓弧
+    brow(`M${lx - 13} ${browY - 26} Q${lx} ${browY - 42} ${lx + 13} ${browY - 26}`, 'b0')
+    brow(`M${rx - 13} ${browY - 26} Q${rx} ${browY - 42} ${rx + 13} ${browY - 26}`, 'b1')
   }
   // 嘴巴
   // 大象的鼻子在中間：嘴巴畫在鼻子右邊
   const mx = sp === 'elephant' ? 146 : 120
   if (sp === 'ducky') {
     // 鴨子的嘴巴就是喙：開心、害怕張開，難過嘴角往下，生氣緊緊閉著
-    const open = face === 'happy' ? 14 : face === 'scared' ? 10 : 0
+    const open = face === 'happy' || face === 'surprised' ? 14 : face === 'scared' ? 10 : 0
     const down = face === 'sad' ? 6 : 0
     out.push(
       <g key="m">
@@ -332,15 +346,32 @@ function Expression({ sp, face }: { sp: SpeciesId; face: Face }) {
     )
   } else if (face === 'scared') {
     out.push(<ellipse key="m" cx={mx} cy={my + 6} rx={8.5} ry={11} fill={MOUTH} {...L(INK, 3)} />)
+  } else if (face === 'surprised') {
+    // 驚訝：大大的 O（比害怕的大、圓）
+    out.push(
+      <g key="m">
+        <ellipse cx={mx} cy={my + 8} rx={13} ry={16} fill={MOUTH} {...L(INK, 3)} />
+        <ellipse cx={mx} cy={my + 16} rx={7} ry={5} fill={TONGUE} />
+      </g>,
+    )
   } else {
     const w = sp === 'froggy' ? 22 : 9
     out.push(<path key="m" d={`M${mx - w} ${my + 1} Q${mx} ${my + w * 0.7} ${mx + w} ${my + 1}`} fill="none" {...L(INK, 4)} />)
   }
   // 臉頰
   const cheekY = sp === 'froggy' ? 116 : ey + 26
-  if (face === 'happy' || face === 'neutral') {
-    out.push(<ellipse key="c0" cx={lx - 14} cy={cheekY} rx={11} ry={7} fill={CHEEK} opacity={face === 'happy' ? 0.95 : 0.6} />)
-    out.push(<ellipse key="c1" cx={rx + 14} cy={cheekY} rx={11} ry={7} fill={CHEEK} opacity={face === 'happy' ? 0.95 : 0.6} />)
+  if (face === 'happy' || face === 'neutral' || face === 'surprised') {
+    out.push(<ellipse key="c0" cx={lx - 14} cy={cheekY} rx={11} ry={7} fill={CHEEK} opacity={face === 'neutral' ? 0.6 : 0.95} />)
+    out.push(<ellipse key="c1" cx={rx + 14} cy={cheekY} rx={11} ry={7} fill={CHEEK} opacity={face === 'neutral' ? 0.6 : 0.95} />)
+  }
+  if (face === 'surprised') {
+    // 頭上的驚嘆號（黃色，跟生氣的紅色記號不一樣）
+    out.push(
+      <g key="mark" transform="translate(190 30)">
+        <path d="M0 -20 V2" fill="none" {...L('#E39A1E', 9)} />
+        <circle cx={0} cy={16} r={5.5} fill="#E39A1E" />
+      </g>,
+    )
   }
   if (face === 'angry') {
     out.push(<ellipse key="c0" cx={lx - 12} cy={cheekY} rx={14} ry={8} fill="#E58A80" opacity={0.75} />)
@@ -373,6 +404,7 @@ const ARMS: Record<Face | 'hold', [string, string]> = {
   sad: ['M78 192 Q72 218 72 246', 'M162 192 Q168 218 168 246'],
   angry: ['M74 188 Q34 206 70 236', 'M166 188 Q206 206 170 236'],
   scared: ['M76 186 Q46 170 60 138', 'M164 186 Q194 170 180 138'],
+  surprised: ['M74 186 Q40 176 26 150', 'M166 186 Q200 176 214 150'],
 }
 const HANDS: Record<Face | 'hold', [[number, number], [number, number]]> = {
   neutral: [
@@ -398,6 +430,10 @@ const HANDS: Record<Face | 'hold', [[number, number], [number, number]]> = {
   scared: [
     [62, 134],
     [178, 134],
+  ],
+  surprised: [
+    [24, 146],
+    [216, 146],
   ],
 }
 
@@ -439,7 +475,7 @@ export function Critter({ sp, face, arm = 'mood' }: { sp: SpeciesId; face: Face;
       <ellipse cx={120} cy={224} rx={38} ry={36} fill={c.belly} />
       {sp === 'panda' && <path d="M66 190 Q120 166 174 190 L170 206 Q120 186 70 206 Z" fill="#3E3E46" />}
       {/* 頭：難過的時候往下低一點 */}
-      <g transform={sad ? 'translate(0 8)' : face === 'scared' ? 'translate(0 -4)' : undefined}>
+      <g transform={sad ? 'translate(0 8)' : face === 'scared' ? 'translate(0 -4)' : face === 'surprised' ? 'translate(0 -6)' : undefined}>
         <Head sp={sp} face={face} />
         <Expression sp={sp} face={face} />
         {sp === 'elephant' && <Trunk face={face} />}

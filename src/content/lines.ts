@@ -46,6 +46,9 @@ import '../games/blocks/lines'
 // 遊戲角的恐龍賽跑棋、躲起來了幾隻（家長 2026-11-17）
 import '../games/race/lines'
 import '../games/hide/lines'
+// T-164：故事排順序、聽兩步驟指令
+import '../games/order/lines'
+import '../games/listen/lines'
 
 export { def, defBridge, isBridge, line, hasLine, allLines, segments, plainText, type Speaker, type Line, type Segment } from './registry'
 

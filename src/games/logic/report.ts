@@ -3,7 +3,7 @@
 import type { Attempt } from '../../lib/db'
 import { MASTER_DAYS, MASTER_OF, MASTER_OK } from './sort-plan'
 
-export const LOGIC_GAME_NAME: Record<string, string> = { 'logic-sort': '豆豆收拾', 'logic-pattern': '串珠珠', 'logic-puzzle': '拼圖', 'logic-maze': '迷宮', 'logic-picnic': '小熊野餐', 'logic-drum': '鼓聲停', 'logic-memory': '翻翻牌', 'logic-shadow': '影子配對', 'logic-where': '躲在哪裡', 'logic-feel': '心情臉', 'logic-blocks': '積木蓋蓋看', 'logic-race': '恐龍賽跑棋', 'logic-hide': '躲起來了幾隻' }
+export const LOGIC_GAME_NAME: Record<string, string> = { 'logic-sort': '豆豆收拾', 'logic-pattern': '串珠珠', 'logic-puzzle': '拼圖', 'logic-maze': '迷宮', 'logic-picnic': '小熊野餐', 'logic-drum': '鼓聲停', 'logic-memory': '翻翻牌', 'logic-shadow': '影子配對', 'logic-where': '躲在哪裡', 'logic-feel': '心情臉', 'logic-blocks': '積木蓋蓋看', 'logic-race': '恐龍賽跑棋', 'logic-hide': '躲起來了幾隻', 'logic-order': '故事排順序', 'logic-listen': '聽指令' }
 
 /** 技能的中文（作答紀錄、總覽用） */
 export const LOGIC_SKILLS: { skill: string; zh: string }[] = [
@@ -70,6 +70,16 @@ export const LOGIC_SKILLS: { skill: string; zh: string }[] = [
   { skill: 'hide:3-4', zh: '躲起來了幾隻（3～4 隻）' },
   { skill: 'hide:4-5', zh: '躲起來了幾隻（4～5 隻）' },
   { skill: 'hide:5-num', zh: '躲起來了幾隻（5 隻，用數字答）' },
+  // T-164 故事排順序（先後、因果）：一個故事記一筆；聽兩步驟指令（EN-1）：一句記一筆；心情臉「為什麼」（SE-1 的 4 歲）：一題記一筆
+  { skill: 'order:3-first', zh: '排故事順序（3 張，第一張放好了）' },
+  { skill: 'order:3', zh: '排故事順序（3 張）' },
+  { skill: 'order:4', zh: '排故事順序（4 張）' },
+  { skill: 'listen:1-name', zh: '聽一步驟指令（東西的名字）' },
+  { skill: 'listen:1-color', zh: '聽一步驟指令（顏色＋名字）' },
+  { skill: 'listen:2-name', zh: '聽兩步驟指令（東西的名字）' },
+  { skill: 'listen:2-color', zh: '聽兩步驟指令（顏色＋名字）' },
+  { skill: 'feel:why-face', zh: '看發生什麼事，猜他的心情' },
+  { skill: 'feel:why-cause', zh: '看他的心情，找出為什麼' },
 ]
 
 /** 邏輯遊戲的技能名稱；不是邏輯遊戲的回傳 null（交給家長區原本的 skillLabel） */

@@ -3,7 +3,8 @@
 import { memo, useEffect, useState, type ReactElement } from 'react'
 import { motion, useReducedMotion } from 'motion/react'
 import { Backdrop } from '../where/places'
-import { SvgEmoji } from '../PlayEmoji'
+// T-164：驚訝的情境多了幾個 emoji（../lang-emoji.generated.ts），LangEmoji 三套都查
+import { LangEmoji as SvgEmoji } from '../LangEmoji'
 import { Critter, type Face } from './critter'
 import { TURN, sitLength, type Fx, type Key, type Look, type Sit, type SpeciesId } from './data'
 
@@ -29,10 +30,21 @@ function fillKeys(k: Key[], T: number) {
   return out
 }
 
+/** 時間 t 的樣子（兩個時間點中間照比例算） */
+function sample(keys: Required<Key>[], t: number): Required<Key> {
+  const i = keys.findIndex((q) => q.t >= t)
+  if (i <= 0) return i === 0 ? keys[0] : keys[keys.length - 1]
+  const a = keys[i - 1]
+  const b = keys[i]
+  const f = b.t === a.t ? 1 : (t - a.t) / (b.t - a.t)
+  const mix = (x: number, y: number) => x + (y - x) * f
+  return { t, x: mix(a.x, b.x), y: mix(a.y, b.y), s: mix(a.s, b.s), r: mix(a.r, b.r), o: mix(a.o, b.o) }
+}
+
 /** 一個照時間點移動的東西（內容畫在 (0, 0) 為中心） */
-function Mover({ k, T, still, children }: { k: Key[]; T: number; still: boolean; children: ReactElement }) {
+function Mover({ k, T, still, snap, children }: { k: Key[]; T: number; still: boolean; /** T-164：停在這個時間點（看臉選情境的小圖），沒給就停在最後 */ snap?: number; children: ReactElement }) {
   const keys = fillKeys(k, T)
-  const last = keys[keys.length - 1]
+  const last = snap == null ? keys[keys.length - 1] : sample(keys, snap)
   const first = keys[0]
   const at = (q: Required<Key>) => ({ x: q.x, y: q.y, scale: q.s, rotate: q.r, opacity: q.o })
   if (still) return <motion.g initial={false} animate={at(last)} style={{ transformBox: 'fill-box', originX: 0.5, originY: 0.5 }}>{children}</motion.g>
@@ -301,10 +313,10 @@ function Mood({ night, gray }: { night?: boolean; gray?: boolean }) {
 }
 
 /** 朋友（另一隻小動物）：面向主角（往左），在地面上走 */
-function Friend({ sp, k, T, still, hug }: { sp: SpeciesId; k: Key[]; T: number; still: boolean; hug: boolean }) {
+function Friend({ sp, k, T, still, snap, hug }: { sp: SpeciesId; k: Key[]; T: number; still: boolean; snap?: number; hug: boolean }) {
   const keys = k.map((q) => ({ ...q, y: GROUND - 0 }))
   return (
-    <Mover k={keys} T={T} still={still}>
+    <Mover k={keys} T={T} still={still} snap={snap}>
       <g transform="translate(110 -230) scale(-0.82 0.82)">
         <Critter sp={sp} face={hug ? 'happy' : 'neutral'} arm={hug ? 'mood' : 'hold'} />
       </g>
@@ -315,7 +327,17 @@ function Friend({ sp, k, T, still, hug }: { sp: SpeciesId; k: Key[]; T: number; 
 /** 主角：換心情的時候身體動一下（開心跳一下、害怕抖一下、難過往下沉、生氣跺一下），一次就停 */
 function Hero({ sp, face, holding, still }: { sp: SpeciesId; face: Face; holding: boolean; still: boolean }) {
   const move =
-    face === 'happy' ? { y: [0, -18, 0] } : face === 'scared' ? { x: [0, -7, 7, -5, 5, 0] } : face === 'sad' ? { y: [0, 6] } : face === 'angry' ? { y: [0, -6, 2, 0] } : { y: 0 }
+    face === 'happy'
+      ? { y: [0, -18, 0] }
+      : face === 'scared'
+        ? { x: [0, -7, 7, -5, 5, 0] }
+        : face === 'sad'
+          ? { y: [0, 6] }
+          : face === 'angry'
+            ? { y: [0, -6, 2, 0] }
+            : face === 'surprised'
+              ? { y: [0, -26, 0], x: [0, -10, 0] }
+              : { y: 0 }
   return (
     <g transform={`translate(${HERO.x} ${HERO.y})`}>
       <motion.g key={face} initial={false} animate={still ? {} : move} transition={{ duration: 0.45 }}>
@@ -328,11 +350,15 @@ function Hero({ sp, face, holding, still }: { sp: SpeciesId; face: Face; holding
 /**
  * 一個情境：play 從 0 開始跑（換一個情境要換 key）。face 由外面控制（turn 的時候換），讓整個遊戲可以在說話時決定。
  * 預設：turn 毫秒後自己換成 sit.emo。
+ * T-164「為什麼」那一層：face 給了就一直是那張臉（還沒答之前是 neutral，讓孩子從發生什麼事猜心情）；
+ * still：不動，停在事情剛發生的那一刻（sit.snap，預設是主角換心情的時間；看臉選情境的小圖）。
  */
-export const SceneView = memo(function SceneView({ sit, hero, friend, onTurn }: { sit: Sit; hero: SpeciesId; friend: SpeciesId; onTurn?: () => void }) {
-  const reduce = useReducedMotion() ?? false
+export const SceneView = memo(function SceneView({ sit, hero, friend, onTurn, face: fixed, still: frozen }: { sit: Sit; hero: SpeciesId; friend: SpeciesId; onTurn?: () => void; face?: Face; still?: boolean }) {
+  const reduce = (useReducedMotion() ?? false) || !!frozen
   const T = sitLength(sit)
-  const [face, setFace] = useState<Face>(reduce ? sit.emo : 'neutral')
+  const snap = frozen ? (sit.snap ?? sit.turn ?? TURN) : undefined
+  const [auto, setFace] = useState<Face>(reduce ? sit.emo : 'neutral')
+  const face = fixed ?? auto
   useEffect(() => {
     if (reduce) {
       onTurn?.()
@@ -345,7 +371,7 @@ export const SceneView = memo(function SceneView({ sit, hero, friend, onTurn }: 
     return () => clearTimeout(t)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
-  const [fxOn, setFxOn] = useState<number[]>(() => (reduce ? (sit.fx ?? []).map((_, i) => i) : []))
+  const [fxOn, setFxOn] = useState<number[]>(() => (reduce ? (sit.fx ?? []).map((_, i) => i).filter((i) => snap == null || sit.fx![i].t <= snap) : []))
   useEffect(() => {
     if (reduce) return
     const ts = (sit.fx ?? []).map((f, i) => window.setTimeout(() => setFxOn((a) => [...a, i]), f.t))
@@ -370,7 +396,7 @@ export const SceneView = memo(function SceneView({ sit, hero, friend, onTurn }: 
         <FxView key={`f${f.i}`} kind={f.kind} x={f.x} y={f.y} still={reduce} />
       ))}
       {behind.map((t, i) => (
-        <Mover key={`b${i}`} k={t.k} T={T} still={reduce}>
+        <Mover key={`b${i}`} k={t.k} T={T} still={reduce} snap={snap}>
           <Drawn look={t.look} size={t.size} />
         </Mover>
       ))}
@@ -379,9 +405,9 @@ export const SceneView = memo(function SceneView({ sit, hero, friend, onTurn }: 
       ))}
       <ellipse cx={HERO.x + 120} cy={GROUND + 2} rx={80} ry={12} fill="#2E2A25" opacity={0.12} />
       <Hero sp={hero} face={face} holding={!!sit.holding} still={reduce} />
-      {sit.friend && <Friend sp={friend} k={sit.friend} T={T} still={reduce} hug={!!sit.hug} />}
+      {sit.friend && <Friend sp={friend} k={sit.friend} T={T} still={reduce} snap={snap} hug={!!sit.hug} />}
       {front.map((t, i) => (
-        <Mover key={`f${i}`} k={t.k} T={T} still={reduce}>
+        <Mover key={`f${i}`} k={t.k} T={T} still={reduce} snap={snap}>
           <Drawn look={t.look} size={t.size} />
         </Mover>
       ))}

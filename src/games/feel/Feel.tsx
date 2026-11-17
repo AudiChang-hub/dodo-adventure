@@ -17,11 +17,13 @@ import { pointIn, useLive } from '../logic/kit'
 import { CritterHead } from './critter'
 import { SceneView } from './scene'
 import { FeelPickArt } from './art'
-import { feelCoplay } from './coplay'
+import { feelCoplay, whyCoplay } from './coplay'
+import { WhyRoundView } from './Why'
+import { whyRound, type WhyQ } from './why-plan'
 import { askKey, faceKey, isKey, respKey, sitKey } from './lines'
 import { loadFeel, saveFeel } from './progress'
-import { FEEL_GAME, afterFeel, feelRound, type FeelQ, type FeelState } from './plan'
-import { EMO_ZH, TURN, type Emo } from './data'
+import { FEEL_GAME, afterFeel, feelRound, openWhyIfMastered, type FeelQ, type FeelState } from './plan'
+import { EMO_ZH, TURN, type Emo, type Mood } from './data'
 import '../draw/tools.css'
 import './feel.css'
 
@@ -40,21 +42,33 @@ const FEEL_VIEW = '120 90 820 520'
 export function Feel() {
   const prog = useRef<FeelState | null>(null)
   const [qs, setQs] = useState<FeelQ[] | null>(null)
+  // T-164：原本的玩熟練了（plan.ts 的 openWhyIfMastered），之後每一局都是「為什麼」那一層（./Why.tsx）
+  const [wq, setWq] = useState<WhyQ[] | null>(null)
   const [n, setN] = useState(0)
-  const [emo, setEmo] = useState<Emo>('happy')
+  const [emo, setEmo] = useState<Mood>('happy')
   const [resting, setResting] = useState(false)
   const deal = (p: FeelState) => {
+    if (p.whyOpen) {
+      const mem = { sits: p.why.sits, heroes: p.why.heroes }
+      const r = whyRound(p.why.level, mem)
+      prog.current = { ...p, why: { ...p.why, ...mem } }
+      void saveFeel(prog.current)
+      setQs(null)
+      setWq(r)
+      return
+    }
     const mem = { sits: p.sits, heroes: p.heroes }
     const r = feelRound(p.level, mem)
     prog.current = { ...p, ...mem }
     void saveFeel(prog.current)
-    return r
+    setWq(null)
+    setQs(r)
   }
   useEffect(() => {
     let on = true
     void loadFeel().then((p) => {
       if (!on || prog.current) return
-      setQs(deal(p))
+      deal(p)
     })
     return () => {
       on = false
@@ -65,13 +79,14 @@ export function Feel() {
     const p = prog.current
     if (!p || bedtimeIfDue()) return
     setResting(false)
-    setQs(deal(p))
+    deal(p)
     setN((k) => k + 1)
   }
-  const hint = feelCoplay(emo)
+  const hint = wq ? whyCoplay(emo) : feelCoplay(emo as Emo)
   return (
     <Shell station="logic" mood="idle" onExit={() => go({ name: 'logic' }, { back: true })} hideHost hintText={resting ? hint.now : hint.play}>
       {qs && prog.current && <FeelRoundView key={n} qs={qs} prog={prog} onQ={setEmo} onDone={() => setResting(true)} onAgain={again} resting={resting} />}
+      {wq && prog.current && <WhyRoundView key={`w${n}`} qs={wq} prog={prog} onQ={setEmo} onDone={() => setResting(true)} onAgain={again} resting={resting} />}
     </Shell>
   )
 }
@@ -154,7 +169,7 @@ function FeelRoundView({ qs, prog, onQ, onDone, onAgain, resting }: { qs: FeelQ[
     sfx.done()
     const p = prog.current
     if (p) {
-      prog.current = afterFeel(p, tally.current)
+      prog.current = openWhyIfMastered(afterFeel(p, tally.current))
       void saveFeel(prog.current)
     }
     await say('fl.done')
