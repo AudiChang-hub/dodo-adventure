@@ -21,6 +21,7 @@ import { CardBack } from './backs'
 import { MEMORY_COPLAY } from './coplay'
 import { MEMORY_GAME, afterMemory, memoryRound, memorySkill, okSlips, type MemoryLevel, type MemoryRound, type MemoryState } from './plan'
 import { loadMemory, saveMemory } from './progress'
+import { flipFlow } from './turn'
 import '../draw/tools.css'
 import './memory.css'
 
@@ -245,8 +246,7 @@ function MemoryView({ round, prog, onDone, onAgain, resting }: { round: MemoryRo
     const o = [...s.open, i]
     setOpenBoth(o)
     sfx.tap()
-    flow.cut()
-    const ok = flow.begin(live)
+    const ok = flipFlow(flow, live, by)
     void say(nameKey(cards[i]))
     if (o.length === 1) {
       const p = partnerOf(i)
