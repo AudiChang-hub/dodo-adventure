@@ -7,6 +7,7 @@
 //   3 級：4 選 1（四種都有）
 // 不評分、不說錯：選了別的，溫柔地說出答案（./Feel.tsx）。升降級照躲在哪裡同一套（連續 2 局全對升、一局 ≥ 2 題沒對退）。
 import { EMOS, SITUATIONS, SPECIES_IDS, type Emo, type Sit, type SpeciesId } from './data'
+import { WHY_START, normalizeWhy, type WhyState } from './why-plan'
 
 export type FeelLevel = 1 | 2 | 3
 export const FEEL_MAX: FeelLevel = 3
@@ -88,9 +89,12 @@ export interface FeelState extends FeelMemory {
   level: FeelLevel
   streak: number
   taught: number[]
+  /** T-164：「為什麼」那一層開了沒（原本的玩熟練了才開，開了就一直開著）、那一層的進度（./why-plan.ts） */
+  whyOpen: boolean
+  why: WhyState
 }
 
-export const FEEL_START: FeelState = { level: 1, streak: 0, taught: [], sits: [], heroes: [] }
+export const FEEL_START: FeelState = { level: 1, streak: 0, taught: [], sits: [], heroes: [], whyOpen: false, why: WHY_START }
 
 export function normalizeFeel(raw: unknown): FeelState {
   const o = (raw && typeof raw === 'object' ? raw : {}) as Partial<FeelState>
@@ -102,8 +106,16 @@ export function normalizeFeel(raw: unknown): FeelState {
     taught: Array.isArray(o.taught) ? o.taught.filter((x) => Number.isInteger(x)) : [],
     sits: strs(o.sits, RECENT_SITS),
     heroes: strs(o.heroes, RECENT_HEROES),
+    whyOpen: o.whyOpen === true,
+    why: normalizeWhy(o.why),
   }
 }
+
+/** T-164：原本的心情臉玩熟練了＝最高一級（4 張臉）連續 UP_AFTER 局全對。熟練了就開「為什麼」那一層 */
+export const feelMastered = (s: FeelState) => s.level === FEEL_MAX && s.streak >= UP_AFTER
+
+/** 一局原本的玩法玩完以後：熟練了就把「為什麼」打開（已經開了就不動） */
+export const openWhyIfMastered = (s: FeelState): FeelState => (s.whyOpen || !feelMastered(s) ? s : { ...s, whyOpen: true })
 
 /** 一局玩完：全對（自己答的至少 3 題）→ streak + 1，到 UP_AFTER 升一級；≥ DOWN_AT 題沒對 → 退一級 */
 export function afterFeel(s: FeelState, r: { counted: number; misses: number }): FeelState {

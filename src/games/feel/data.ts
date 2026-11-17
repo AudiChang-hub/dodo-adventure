@@ -7,6 +7,10 @@ import type { PlaceId } from '../where/data'
 export type Emo = 'happy' | 'sad' | 'angry' | 'scared'
 export const EMOS: Emo[] = ['happy', 'sad', 'angry', 'scared']
 export const EMO_ZH: Record<Emo, string> = { happy: '開心', sad: '難過', angry: '生氣', scared: '害怕' }
+/** 「為什麼」那一層（T-164，4 歲：說出情緒的原因）多一種：驚訝。原本的 3 歲玩法只用上面四種 */
+export type Mood = Emo | 'surprised'
+export const MOODS: Mood[] = [...EMOS, 'surprised']
+export const MOOD_ZH: Record<Mood, string> = { ...EMO_ZH, surprised: '驚訝' }
 
 // ── 主角（自己畫的小動物，./critter.tsx） ──────────────────────
 
@@ -74,7 +78,7 @@ export type Fx = 'confetti' | 'hearts' | 'rain' | 'flash' | 'dark' | 'snow' | 's
 
 export interface Sit {
   id: string
-  emo: Emo
+  emo: Mood
   /** 旁白（≤ 6 個字，不說心情的字，讓孩子自己看臉、看發生什麼事） */
   say: string
   place: PlaceId
@@ -91,6 +95,8 @@ export interface Sit {
   turn?: number
   /** 主角手裡一開始拿著東西（手舉起來一點） */
   holding?: boolean
+  /** T-164 看臉選情境的小圖停在幾毫秒（事情剛發生、看得出發生什麼事的那一刻；預設 turn） */
+  snap?: number
 }
 
 /** 主角換表情的時間、整段動畫大約多長 */
@@ -212,7 +218,27 @@ const SCARED: Sit[] = [
 ]
 
 export const SITUATIONS: Sit[] = [...HAPPY, ...SAD, ...ANGRY, ...SCARED]
-export const sitOf = (id: string) => SITUATIONS.find((s) => s.id === id) ?? null
+
+// ── 驚訝（T-164，只在「為什麼」那一層用）：9 個。旁白不說 wow、surprise，讓孩子自己看發生什麼事 ──
+const SURPRISED: Sit[] = [
+  { id: 'w-hat', emo: 'surprised', say: 'A bunny in the hat!', place: 'living', tracks: [stool(), em('rabbit-face', 80, [{ t: 0, x: 640, y: STOOL_TOP - 40, o: 0, s: 0.3 }, { t: 700 }, { t: 1100, y: STOOL_TOP - 110, o: 1, s: 1 }], true), onStool('top-hat', 96)], fx: [{ kind: 'sparkle', t: 1000, x: 640, y: 300 }], turn: 1200 },
+  { id: 'w-whale', emo: 'surprised', say: 'A whale jumped up!', place: 'beach', tracks: [em('spouting-whale', 200, [{ t: 0, x: 800, y: 620, o: 1, s: 0.8, r: 0 }, { t: 400 }, { t: 1000, y: 330, s: 1, r: -10 }])], fx: [{ kind: 'splash', t: 1000, x: 800, y: 470 }], turn: 1100 },
+  { id: 'w-melon', emo: 'surprised', say: 'A giant watermelon!', place: 'garden', tracks: [grow('watermelon', 680, 430, 260, 300, 900)], turn: 1300 },
+  { id: 'w-star', emo: 'surprised', say: 'A shooting star zoomed by!', place: 'forest', night: true, tracks: [em('shooting-star', 130, [{ t: 0, x: 1150, y: 60, o: 1, s: 1, r: 0 }, { t: 200 }, { t: 1200, x: 520, y: 220 }])], fx: [{ kind: 'sparkle', t: 1200, x: 560, y: 200 }], turn: 1300 },
+  { id: 'w-pop', emo: 'surprised', say: 'Pop! The popcorn jumped!', place: 'kitchen', tracks: [stool(), onStool('popcorn', 90, [{ t: 600 }, { t: 900, y: STOOL_TOP - 160, s: 1.3 }, { t: 1200, y: STOOL_TOP - 37 }])], fx: [{ kind: 'burst', t: 650, x: 640, y: 360 }], turn: 900 },
+  { id: 'w-dino', emo: 'surprised', say: 'A dinosaur egg cracked open!', place: 'forest', tracks: [em('egg', 110, [{ t: 0, x: 680, y: 500, o: 1, s: 1 }, { t: 500 }, { t: 700, o: 0 }]), grow('sauropod', 680, 450, 180, 600, 600)], fx: [{ kind: 'burst', t: 600, x: 680, y: 480 }], turn: 1000 },
+  { id: 'w-bubble', emo: 'surprised', say: 'A giant bubble!', place: 'park', tracks: [grow('bubbles', 680, 300, 260, 300, 1100)], turn: 1300 },
+  { id: 'w-frog', emo: 'surprised', say: 'A frog jumped on the cake!', place: 'kitchen', tracks: [stool(), onStool('birthday-cake', 110), em('frog', 80, [{ t: 0, x: 1150, y: 500, o: 1, s: 1 }, { t: 200 }, { t: 700, x: 900, y: 250 }, { t: 1100, x: 640, y: STOOL_TOP - 130 }])], turn: 1200 },
+  { id: 'w-party', emo: 'surprised', say: 'A party! Everyone jumped out!', place: 'living', friend: [{ t: 0, x: 1200, o: 1 }, { t: 100 }, { t: 600, x: 700 }], tracks: [dropIn('balloon', 820, 220, 110, 500, 500)], fx: [{ kind: 'confetti', t: 700 }], turn: 800 },
+]
+
+/** 看臉選情境的小圖停在哪一刻：預設是主角換心情的時候；這幾個那時候東西已經飛走、朋友已經走出畫面，往前一點 */
+const SNAP: Record<string, number> = { 's-balloon': 900, 's-bye': 800, 'a-scribble': 1200, 'a-cookie': 1050, 'a-mud': 1000, 'a-kick': 1100, 'a-pizza': 1300, 'a-stomp': 1150, 'a-tower': 1050, 'w-dino': 1300 }
+for (const s of [...SITUATIONS, ...SURPRISED]) if (SNAP[s.id] != null) s.snap = SNAP[s.id]
+
+/** 「為什麼」那一層用的情境：原本 60 個加上驚訝 9 個 */
+export const WHY_SITS: Sit[] = [...SITUATIONS, ...SURPRISED]
+export const sitOf = (id: string) => WHY_SITS.find((s) => s.id === id) ?? null
 
 /** 這一段動畫多長（最後一個時間點） */
 export const sitLength = (s: Sit) => Math.max(s.turn ?? TURN, ...s.tracks.flatMap((t) => t.k.map((k) => k.t)), ...(s.friend ?? []).map((k) => k.t), ...(s.fx ?? []).map((f) => f.t + 600))
@@ -221,3 +247,5 @@ export const sitLength = (s: Sit) => Math.max(s.turn ?? TURN, ...s.tracks.flatMa
 /** 效果（./scene.tsx 的 FxView）用的 emoji */
 export const FX_EMOJI = ['red-heart', 'sparkles', 'collision', 'musical-note']
 export const FEEL_EMOJI = [...new Set([...FX_EMOJI, ...SITUATIONS.flatMap((s) => s.tracks.map((t) => ('e' in t.look ? t.look.e : null)).filter((e): e is string => !!e))])]
+/** 驚訝的情境用到、上面那一套沒有的 emoji（T-164，放在 ../lang-emoji.generated.ts，不動 ../play-emoji.generated.ts） */
+export const WHY_EMOJI = [...new Set(SURPRISED.flatMap((s) => s.tracks.map((t) => ('e' in t.look ? t.look.e : null)).filter((e): e is string => !!e)))]

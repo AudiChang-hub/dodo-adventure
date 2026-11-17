@@ -43,6 +43,9 @@ import '../games/where/lines'
 import '../games/feel/lines'
 // 遊戲角的積木蓋蓋看（T-162）
 import '../games/blocks/lines'
+// T-164：故事排順序、聽兩步驟指令
+import '../games/order/lines'
+import '../games/listen/lines'
 
 export { def, defBridge, isBridge, line, hasLine, allLines, segments, plainText, type Speaker, type Line, type Segment } from './registry'
 
