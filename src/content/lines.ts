@@ -41,6 +41,8 @@ import '../games/shadow/lines'
 // 遊戲角的躲在哪裡、心情臉（T-160）
 import '../games/where/lines'
 import '../games/feel/lines'
+// 遊戲角的積木蓋蓋看（T-162）
+import '../games/blocks/lines'
 
 export { def, defBridge, isBridge, line, hasLine, allLines, segments, plainText, type Speaker, type Line, type Segment } from './registry'
 

@@ -1,0 +1,176 @@
+/* 積木蓋蓋看（T-162）：版面（參考圖、底板、托盤的位置和大小）由 Build.tsx、Free.tsx 依作答區大小算，這裡只管樣子。平板橫向 1200×786 為準 */
+.bk {
+  position: absolute;
+  inset: 0;
+}
+.bk-play {
+  position: absolute;
+  inset: 0;
+  /* 準則 TOUCH-5：最下緣 2 cm 是手腕靠的地方，托盤和底板都在它上面 */
+  bottom: 70px;
+  touch-action: none;
+  -webkit-tap-highlight-color: transparent;
+}
+/* 參考圖：像盒子上的圖（白框、影子），只看、不能點 */
+.bk-ref {
+  position: absolute;
+  border-radius: 18px;
+  background: #fbf8f2;
+  box-shadow:
+    0 0 0 5px #fff,
+    0 0 0 8px var(--paper-edge, #e6dccb),
+    0 16px 22px -16px rgba(46, 42, 37, 0.45);
+  pointer-events: none;
+  transition: opacity 0.4s ease-out;
+}
+.bk-ref-pic {
+  position: absolute;
+  inset: 8%;
+}
+.bk-ref-pic svg {
+  display: block;
+}
+/* 蓋好：底板上已經是整個成品，參考圖收起來 */
+.bk.is-done .bk-ref {
+  opacity: 0;
+}
+/* 第 4 級：第幾步（大大的數字）＋每一步一個點（做完的實心、這一步的有圈） */
+.bk-steps {
+  position: absolute;
+  left: 10px;
+  top: 10px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.bk-step-no {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: #f1d27c;
+  color: #2e2a25;
+  font: 800 26px/1 var(--font-round, system-ui);
+  box-shadow: 0 0 0 3px #2e2a25;
+}
+.bk-step-dots {
+  display: flex;
+  gap: 6px;
+}
+.bk-step-dots i {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  box-shadow: inset 0 0 0 2.5px #b8ae9f;
+}
+.bk-step-dots i.is-done {
+  background: #b8ae9f;
+}
+.bk-step-dots i.is-now {
+  background: #f1d27c;
+  box-shadow: inset 0 0 0 2.5px #2e2a25;
+}
+.bk-board {
+  position: absolute;
+  left: 0;
+  top: 0;
+  pointer-events: none;
+  overflow: visible;
+}
+/* 托盤可以點的格子（≥ 2 公分）：看不見，積木畫在 .bk-piece */
+.bk-cell {
+  position: absolute;
+  z-index: 3;
+  border-radius: 18px;
+  touch-action: none;
+  cursor: grab;
+}
+/* 拿起來（點了一下）：格子亮一圈暖黃，等他點底板 */
+.bk-cell.is-lifted {
+  background: rgba(241, 210, 124, 0.3);
+  box-shadow: inset 0 0 0 5px #f1d27c;
+}
+/* 積木：放在一個點上（積木正面的中心），svg 自己往左上挪 */
+.bk-piece {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 0;
+  height: 0;
+  z-index: 4;
+  pointer-events: none;
+  transform-origin: 0 0;
+}
+.bk-piece-art {
+  position: absolute;
+  overflow: visible;
+  filter: drop-shadow(0 6px 5px rgba(46, 42, 37, 0.22));
+}
+.bk-piece.is-drag {
+  z-index: 8;
+}
+.bk-piece.is-drag .bk-piece-art {
+  filter: drop-shadow(0 14px 10px rgba(46, 42, 37, 0.3));
+}
+/* 自由蓋：顏色、形狀、完成鍵 */
+.bk-swatch {
+  position: absolute;
+  z-index: 3;
+  border: 0;
+  padding: 10px;
+  background: none;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  cursor: pointer;
+}
+.bk-swatch span {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  box-shadow:
+    inset 0 0 0 3px rgba(46, 42, 37, 0.85),
+    0 4px 0 rgba(46, 42, 37, 0.18);
+  transition: transform 0.15s ease-out;
+}
+.bk-swatch.is-on span {
+  transform: scale(1.05);
+  box-shadow:
+    inset 0 0 0 3px #2e2a25,
+    0 0 0 6px #fbf8f2,
+    0 0 0 10px #2e2a25;
+}
+.bk-shape {
+  background: rgba(251, 248, 242, 0.75);
+  box-shadow: inset 0 0 0 2px var(--paper-edge, #e6dccb);
+}
+.bk-shape .bk-piece {
+  z-index: 0;
+}
+.bk-btn {
+  position: absolute;
+  z-index: 3;
+  display: grid;
+  place-items: center;
+}
+/* 存作品用的圖：畫面上看不到 */
+.bk-thumb {
+  position: absolute;
+  left: -9999px;
+  top: 0;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  visibility: hidden;
+}
+/* 選照圖蓋還是自由蓋 */
+.bk-pick .draw-pick-card {
+  padding: 4%;
+}
+@media (prefers-reduced-motion: reduce) {
+  .bk-ref,
+  .bk-swatch span {
+    transition: none;
+  }
+}
