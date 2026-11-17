@@ -17,6 +17,10 @@ import { Picnic } from '../picnic/Picnic'
 import { PicnicPickArt } from '../picnic/art'
 import { Drum } from '../drum/Drum'
 import { DrumPickArt } from '../drum/art'
+import { Memory } from '../memory/Memory'
+import { MemoryPickArt } from '../memory/art'
+import { Shadow } from '../shadow/Shadow'
+import { ShadowPickArt } from '../shadow/art'
 import type { LogicGame } from '../../lib/nav'
 import { pickGrid } from './pick-grid'
 import '../draw/coloring.css'
@@ -58,6 +62,9 @@ export function LogicPick() {
     { id: 'maze' as const, label: '迷宮', art: <MazePickArt /> },
     { id: 'picnic' as const, label: '小熊野餐', art: <PicnicPickArt /> },
     { id: 'drum' as const, label: '鼓聲停', art: <DrumPickArt /> },
+    // T-160（家長 2026-11-17）：翻翻牌、影子配對
+    { id: 'memory' as const, label: '翻翻牌', art: <MemoryPickArt /> },
+    { id: 'shadow' as const, label: '影子配對', art: <ShadowPickArt /> },
   ]
   const grid = pickGrid(cards.length)
   return (
@@ -88,11 +95,13 @@ export function LogicPick() {
   )
 }
 
-/** 一種玩法：sort 豆豆收拾、pattern 串珠珠、puzzle 拼圖、maze 迷宮、picnic 小熊野餐、drum 鼓聲停 */
+/** 一種玩法：sort 豆豆收拾、pattern 串珠珠、puzzle 拼圖、maze 迷宮、picnic 小熊野餐、drum 鼓聲停、memory 翻翻牌、shadow 影子配對 */
 export function LogicPlay({ game }: { game: LogicGame }) {
   if (game === 'puzzle') return <Puzzle />
   if (game === 'maze') return <Maze />
   if (game === 'picnic') return <Picnic />
   if (game === 'drum') return <Drum />
+  if (game === 'memory') return <Memory />
+  if (game === 'shadow') return <Shadow />
   return game === 'sort' ? <Sort /> : <Pattern />
 }

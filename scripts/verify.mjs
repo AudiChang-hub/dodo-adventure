@@ -51,6 +51,7 @@ const CHECKS = [
   { id: 'test-logic', name: '單元：邏輯遊戲（出題、升降級、答案在選項裡、規律正確、不給貼紙）', cmd: ['npx', 'tsx', 'scripts/test-logic.ts'], check: unit },
   { id: 'test-puzzle-maze', name: '單元：拼圖、迷宮（圖庫、不跟最近幾張一樣、迷宮走得到、岔路上限、不穿牆、升降級）', cmd: ['npx', 'tsx', 'scripts/test-puzzle-maze.ts'], check: unit },
   { id: 'test-picnic-drum', name: '單元：小熊野餐、鼓聲停（內容量、不跟最近幾次重複、數量範圍、給多給少、停住了沒、升降級、版面、台詞和音檔）、選玩法排法', cmd: ['npx', 'tsx', 'scripts/test-picnic-drum.ts'], check: unit },
+  { id: 'test-match', name: '單元：翻翻牌、影子配對（圖庫 ≥ 150、牌背、場景、不跟最近幾局一樣、輪廓很像的、升降級、台詞音檔）', cmd: ['npx', 'tsx', 'scripts/test-match.ts'], check: unit },
   { id: 'test-stage4-registry', name: '單元：家長區 4 歲內容（三科的門、暫停的 kv、尚未提供、每堂出多少）', cmd: ['npx', 'tsx', 'scripts/test-stage4-registry.ts'], check: unit },
   {
     id: 'zh-layout',
