@@ -49,6 +49,8 @@ import '../games/hide/lines'
 // T-164：故事排順序、聽兩步驟指令
 import '../games/order/lines'
 import '../games/listen/lines'
+// 遊戲角的蹺蹺板比輕重（家長 2026-11-17）
+import '../games/seesaw/lines'
 
 export { def, defBridge, isBridge, line, hasLine, allLines, segments, plainText, type Speaker, type Line, type Segment } from './registry'
 

@@ -3,7 +3,7 @@
 import type { Attempt } from '../../lib/db'
 import { MASTER_DAYS, MASTER_OF, MASTER_OK } from './sort-plan'
 
-export const LOGIC_GAME_NAME: Record<string, string> = { 'logic-sort': '豆豆收拾', 'logic-pattern': '串珠珠', 'logic-puzzle': '拼圖', 'logic-maze': '迷宮', 'logic-picnic': '小熊野餐', 'logic-drum': '鼓聲停', 'logic-memory': '翻翻牌', 'logic-shadow': '影子配對', 'logic-where': '躲在哪裡', 'logic-feel': '心情臉', 'logic-blocks': '積木蓋蓋看', 'logic-race': '恐龍賽跑棋', 'logic-hide': '躲起來了幾隻', 'logic-order': '故事排順序', 'logic-listen': '聽指令' }
+export const LOGIC_GAME_NAME: Record<string, string> = { 'logic-sort': '豆豆收拾', 'logic-pattern': '串珠珠', 'logic-puzzle': '拼圖', 'logic-maze': '迷宮', 'logic-picnic': '小熊野餐', 'logic-drum': '鼓聲停', 'logic-memory': '翻翻牌', 'logic-shadow': '影子配對', 'logic-where': '躲在哪裡', 'logic-feel': '心情臉', 'logic-blocks': '積木蓋蓋看', 'logic-race': '恐龍賽跑棋', 'logic-hide': '躲起來了幾隻', 'logic-order': '故事排順序', 'logic-listen': '聽指令', 'logic-seesaw': '蹺蹺板' }
 
 /** 技能的中文（作答紀錄、總覽用） */
 export const LOGIC_SKILLS: { skill: string; zh: string }[] = [
@@ -80,6 +80,16 @@ export const LOGIC_SKILLS: { skill: string; zh: string }[] = [
   { skill: 'listen:2-color', zh: '聽兩步驟指令（顏色＋名字）' },
   { skill: 'feel:why-face', zh: '看發生什麼事，猜他的心情' },
   { skill: 'feel:why-cause', zh: '看他的心情，找出為什麼' },
+  // 家長 2026-11-17：豆豆收拾的 4 歲玩法（第 5 級熟練了才開，logic/sort-switch.ts）
+  { skill: 'sort:thing', zh: '依東西分類（球一邊、車子一邊）' },
+  { skill: 'sort:switch', zh: '換規則再分一次（顏色↔形狀）' },
+  { skill: 'sort:both', zh: '顏色和形狀一起看（紅色的圓形）' },
+  // 家長 2026-11-17：蹺蹺板比輕重（一題記一筆）
+  { skill: 'seesaw:1', zh: '猜哪邊比較重（差很多）' },
+  { skill: 'seesaw:2', zh: '猜哪邊比較重（差一點）' },
+  { skill: 'seesaw:3', zh: '三樣東西從輕排到重' },
+  { skill: 'seesaw:4', zh: '大的不一定比較重' },
+  { skill: 'seesaw:5', zh: '從輕排到重（有大而輕的）' },
 ]
 
 /** 邏輯遊戲的技能名稱；不是邏輯遊戲的回傳 null（交給家長區原本的 skillLabel） */

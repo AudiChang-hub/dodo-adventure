@@ -189,6 +189,8 @@ export function ThingArt({ thing }: { thing: Thing }) {
     <Full>
       <g stroke={INK} strokeWidth={4.5} strokeLinejoin="round" strokeLinecap="round">
         {thing.t === 'toy' && <ToyBody toy={thing.toy} c={COLOR_HEX[thing.color]} />}
+        {/* 籃子上「看是什麼東西」的樣品（第 6、7 級）：只有線條、不上色，顏色不是線索 */}
+        {thing.t === 'outline' && <ToyBody toy={thing.toy} c={PAPER} />}
         {thing.t === 'swatch' && (
           // 一團顏料：不是哪一種東西，只告訴他「這個顏色」
           <path
@@ -357,7 +359,7 @@ const BINS: Record<BinId, { back?: ReactNode; front: ReactNode; lid: ReactNode }
  * 容器（viewBox 0 0 240 210）：前面掛一個圓牌子，裡面是樣品（這個容器收什麼）；收好的東西從上面露出來，越收越多。
  * closed：一局收完，蓋子蓋起來。
  */
-export function BinArt({ bin, sample, inside, closed }: { bin: BinId; sample: Thing; inside: Thing[]; closed?: boolean }) {
+export function BinArt({ bin, sample, inside, closed, sign }: { bin: BinId; sample: Thing; inside: Thing[]; closed?: boolean; sign?: string }) {
   const b = BINS[bin]
   return (
     <svg viewBox="0 0 240 210" width="100%" height="100%" aria-hidden="true" style={{ display: 'block', overflow: 'visible' }} data-bin={bin}>
@@ -379,9 +381,12 @@ export function BinArt({ bin, sample, inside, closed }: { bin: BinId; sample: Th
         <circle cx={120} cy={138} r={48} fill={PAPER} />
         {closed && b.lid}
       </g>
-      <svg x={84} y={102} width={72} height={72} style={{ overflow: 'visible' }}>
-        <ThingArt thing={sample} />
-      </svg>
+      {/* sign：第 6 級換規則，牌子翻面換成新的樣品（./logic.css 的 .lg-sign） */}
+      <g key={sign ?? ''} className={sign ? 'lg-sign' : undefined}>
+        <svg x={84} y={102} width={72} height={72} style={{ overflow: 'visible' }}>
+          <ThingArt thing={sample} />
+        </svg>
+      </g>
     </svg>
   )
 }
@@ -557,3 +562,41 @@ export function AgainArt({ children }: { children: ReactNode }) {
 }
 
 export { SMALL }
+
+/**
+ * 第 6 級「換規則」：作答區左上角的規則牌（viewBox 0 0 100 100），跟籃子上的牌子一樣是圓的：
+ * color 三團顏料、shape 三個形狀的線條、thing 一顆球和一台車的線條（都不上色）。換規則時跟著翻面。
+ */
+export function RuleArt({ dim }: { dim: 'color' | 'shape' | 'thing' }) {
+  return (
+    <svg viewBox="0 0 100 100" width="100%" height="100%" aria-hidden="true" style={{ display: 'block', overflow: 'visible' }}>
+      <circle cx={50} cy={50} r={46} fill={PAPER} stroke={INK} strokeWidth={4} />
+      <g stroke={INK} strokeWidth={3.5} strokeLinejoin="round" strokeLinecap="round">
+        {dim === 'color' && (
+          <>
+            <circle cx={34} cy={38} r={14} fill={COLOR_HEX.red} />
+            <circle cx={66} cy={38} r={14} fill={COLOR_HEX.blue} />
+            <circle cx={50} cy={66} r={14} fill={COLOR_HEX.yellow} />
+          </>
+        )}
+        {dim === 'shape' && (
+          <g fill={PAPER} strokeWidth={4.5}>
+            <circle cx={30} cy={38} r={13} />
+            <path d="M70 24 L84 50 H56 Z" />
+            <rect x={38} y={56} width={24} height={24} rx={3} />
+          </g>
+        )}
+        {dim === 'thing' && (
+          <>
+            <svg x={14} y={18} width={40} height={40} viewBox="0 0 100 100">
+              <ToyBody toy="ball" c={PAPER} />
+            </svg>
+            <svg x={44} y={44} width={42} height={42} viewBox="0 0 100 100">
+              <ToyBody toy="car" c={PAPER} />
+            </svg>
+          </>
+        )}
+      </g>
+    </svg>
+  )
+}

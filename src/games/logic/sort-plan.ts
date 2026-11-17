@@ -48,6 +48,8 @@ export type Thing =
   | { t: 'emoji'; icon: string; scale?: number }
   /** color 沒給：籃子上的樣品，只有線條、不上色（不讓顏色變成線索）；look cookie：餅乾（糖霜是 color） */
   | { t: 'shape'; shape: ShapeId; color?: ColorId; look?: 'cookie' }
+  /** 籃子上「看是什麼東西」的樣品（第 6、7 級，./sort-switch.ts）：自己畫的東西只有線條、不上色 */
+  | { t: 'outline'; toy: ToyId }
 
 // ── 收拾的情境（T-157）───────────────────────────────────────
 
@@ -92,7 +94,8 @@ export const KIND_BIN: Record<KindId, BinId> = { animal: 'barn', food: 'basket',
 
 // ── 級數 ─────────────────────────────────────────────────────
 
-export type SortDim = 'color' | 'kind' | 'shape' | 'size'
+/** thing：看是哪一種東西（球、車子…，第 6、7 級）；both：顏色和形狀／東西一起看（第 7 級），見 ./sort-switch.ts */
+export type SortDim = 'color' | 'kind' | 'shape' | 'size' | 'thing' | 'both'
 export type SortLevel = 1 | 2 | 3 | 4 | 5
 export const SORT_MAX: SortLevel = 5
 /** 每一級分什麼（設計稿的表）：1 顏色（只差顏色）、2 顏色（不同東西）、3 種類、4 形狀、5 大小 */
@@ -136,8 +139,16 @@ export interface SortItem {
   /** 要放進哪個籃子（Basket.id） */
   answer: string
 }
+/** 第 6 級換規則之後的那一半（./sort-switch.ts）：同一堆東西照新的特徵再分一次 */
+export interface SortPhase {
+  dim: SortDim
+  skill: string
+  baskets: Basket[]
+  items: SortItem[]
+}
 export interface SortRound {
-  level: SortLevel
+  /** 1～5 是原本的玩法；6、7 是熟練了才開的 4 歲玩法（./sort-switch.ts） */
+  level: SortLevel | 6 | 7
   dim: SortDim
   /** 作答紀錄的技能：sort:<這一局實際分的特徵> */
   skill: string
@@ -146,6 +157,12 @@ export interface SortRound {
   scene: SceneId
   baskets: Basket[]
   items: SortItem[]
+  /** 一局開始先說的規則（第 6、7 級：Sort by color!） */
+  intro?: string
+  /** 第 6 級：分完 items 之後換規則，換成這一半 */
+  then?: SortPhase
+  /** 這一局的組合（第 6、7 級同一天不重複） */
+  sig?: string
 }
 
 type Rnd = () => number

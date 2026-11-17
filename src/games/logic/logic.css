@@ -354,3 +354,62 @@
     transition: none;
   }
 }
+
+/* ── 豆豆收拾的 4 歲玩法（./sort-switch.ts）── */
+/* 第 7 級：4 個籃子（2 個顏色 × 2 種形狀），每個仍 ≥ 2.5 cm（TOUCH-1） */
+.lg-baskets.n4 {
+  gap: clamp(12px, 2.4cqw, 36px);
+}
+.lg-baskets.n4 .lg-basket {
+  width: min(20cqw, 38cqh);
+}
+/* 第 6 級：左上角的規則牌（看顏色、看形狀、看是什麼），換規則時翻面 */
+.lg-rule {
+  position: absolute;
+  left: clamp(12px, 2.5cqw, 32px);
+  top: clamp(12px, 2.5cqh, 28px);
+  width: min(12cqw, 20cqh);
+  aspect-ratio: 1;
+  perspective: 600px;
+  pointer-events: none;
+  z-index: 2;
+}
+.lg-rule-in {
+  width: 100%;
+  height: 100%;
+  filter: drop-shadow(0 6px 6px rgba(46, 42, 37, 0.16));
+}
+/* 換規則：收好的東西倒出來，在桌上排一排 */
+.lg-pile {
+  display: flex;
+  gap: clamp(10px, 2cqw, 28px);
+  align-items: end;
+  justify-content: center;
+}
+.lg-pile-one {
+  width: min(16cqh, 11cqw);
+  aspect-ratio: 1;
+  filter: drop-shadow(0 8px 6px rgba(46, 42, 37, 0.16));
+}
+/* 籃子上的牌子翻面（只翻一次，MOTION-1） */
+.lg-sign {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: lg-sign-flip 0.6s var(--ease-out, ease-out) both;
+}
+@keyframes lg-sign-flip {
+  0% {
+    transform: scaleX(0);
+  }
+  60% {
+    transform: scaleX(1.12);
+  }
+  100% {
+    transform: scaleX(1);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .lg-sign {
+    animation: none;
+  }
+}

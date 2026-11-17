@@ -35,6 +35,8 @@ import { Order } from '../order/Order'
 import { OrderPickArt } from '../order/art'
 import { Listen } from '../listen/Listen'
 import { ListenPickArt } from '../listen/art'
+import { Seesaw } from '../seesaw/Seesaw'
+import { SeesawPickArt } from '../seesaw/art'
 import type { LogicGame } from '../../lib/nav'
 import { pickGrid } from './pick-grid'
 import '../draw/coloring.css'
@@ -90,6 +92,8 @@ export function LogicPick() {
     // T-164（家長 2026-11-17）：故事排順序（先後、因果）、聽兩步驟指令（英文、工作記憶）
     { id: 'order' as const, label: '故事排順序', art: <OrderPickArt /> },
     { id: 'listen' as const, label: '聽指令', art: <ListenPickArt /> },
+    // 家長 2026-11-17：蹺蹺板比輕重（給 4 歲左右玩中學）
+    { id: 'seesaw' as const, label: '蹺蹺板', art: <SeesawPickArt /> },
   ]
   const grid = pickGrid(cards.length)
   return (
@@ -135,5 +139,6 @@ export function LogicPlay({ game }: { game: LogicGame }) {
   if (game === 'hide') return <Hide />
   if (game === 'order') return <Order />
   if (game === 'listen') return <Listen />
+  if (game === 'seesaw') return <Seesaw />
   return game === 'sort' ? <Sort /> : <Pattern />
 }

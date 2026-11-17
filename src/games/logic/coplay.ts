@@ -21,7 +21,12 @@ const SORT_PLAY: Record<SortDim, string> = {
   kind: '請他說說看：「這是動物，所以回農場」',
   shape: '一起摸摸邊邊：圓圓的、三個角、四個角',
   size: '請他比比看：哪一個大、哪一個小',
+  // 4 歲玩法（./sort-switch.ts）
+  thing: '請他說說看：「這是車子，所以放這裡」',
+  both: '請他兩個都說：「紅色的、圓形的，放這裡」',
 }
+/** 第 6 級換規則：換之前、換之後都提醒大人「規則換了」 */
+const SORT_SWITCH = '換規則了：問他「現在要看顏色，還是看形狀？」，他說對了再放'
 /** 豆豆收拾：一局玩完（看這一局的情境） */
 const SORT_NOW: Record<SceneId, string> = {
   toys: LOGIC_COPLAY.sort.now,
@@ -31,7 +36,7 @@ const SORT_NOW: Record<SceneId, string> = {
   kitchen: '現在去做：擺餐具時請他把湯匙放一邊、碗放一邊',
   garage: '現在去做：玩具車停一排，一樣的停在一起',
 }
-export const sortCoplay = (scene: SceneId, dim: SortDim) => ({ play: SORT_PLAY[dim], now: SORT_NOW[scene] })
+export const sortCoplay = (scene: SceneId, dim: SortDim, switching = false) => ({ play: switching ? SORT_SWITCH : SORT_PLAY[dim], now: SORT_NOW[scene] })
 
 const PAT_COPLAY: Record<PatThemeId, { play: string; now: string }> = {
   necklace: LOGIC_COPLAY.pattern,
