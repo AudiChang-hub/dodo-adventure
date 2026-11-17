@@ -50,6 +50,7 @@ const CHECKS = [
   { id: 'test-play-gate', name: '單元：遊戲角的鎖（三堂課今天各上完、今天先打開、一直開著、跨日）', cmd: ['npx', 'tsx', 'scripts/test-play-gate.ts'], check: unit },
   { id: 'test-logic', name: '單元：邏輯遊戲（出題、升降級、答案在選項裡、規律正確、不給貼紙）', cmd: ['npx', 'tsx', 'scripts/test-logic.ts'], check: unit },
   { id: 'test-puzzle-maze', name: '單元：拼圖、迷宮（圖庫、不跟最近幾張一樣、迷宮走得到、岔路上限、不穿牆、升降級）', cmd: ['npx', 'tsx', 'scripts/test-puzzle-maze.ts'], check: unit },
+  { id: 'test-where-feel', name: '單元：躲在哪裡、心情臉（內容量、選項數、答案唯一、不跟最近幾題一樣、升降級、台詞 ≤ 6 個字、音檔）', cmd: ['npx', 'tsx', 'scripts/test-where-feel.ts'], check: unit },
   { id: 'test-stage4-registry', name: '單元：家長區 4 歲內容（三科的門、暫停的 kv、尚未提供、每堂出多少）', cmd: ['npx', 'tsx', 'scripts/test-stage4-registry.ts'], check: unit },
   {
     id: 'zh-layout',

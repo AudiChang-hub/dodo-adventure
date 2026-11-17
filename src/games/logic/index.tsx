@@ -13,6 +13,10 @@ import { Puzzle } from '../puzzle/Puzzle'
 import { PuzzlePickArt } from '../puzzle/art'
 import { Maze } from '../maze/Maze'
 import { MazePickArt } from '../maze/art'
+import { Where } from '../where/Where'
+import { WherePickArt } from '../where/art'
+import { Feel } from '../feel/Feel'
+import { FeelPickArt } from '../feel/art'
 import type { LogicGame } from '../../lib/nav'
 import '../draw/coloring.css'
 import './logic.css'
@@ -49,6 +53,9 @@ export function LogicPick() {
     { id: 'pattern' as const, label: '串珠珠', art: <PatternPickArt /> },
     { id: 'puzzle' as const, label: '拼圖', art: <PuzzlePickArt /> },
     { id: 'maze' as const, label: '迷宮', art: <MazePickArt /> },
+    // T-160（家長 2026-11-17）：躲在哪裡（位置詞 in、on、under）、心情臉（認情緒）
+    { id: 'where' as const, label: '躲在哪裡', art: <WherePickArt /> },
+    { id: 'feel' as const, label: '心情臉', art: <FeelPickArt /> },
   ]
   return (
     <Shell station="logic" mood="idle" onExit={() => go({ name: 'home' }, { back: true })} hideHost hintText={LOGIC_PICK_HINT}>
@@ -78,5 +85,7 @@ export function LogicPick() {
 export function LogicPlay({ game }: { game: LogicGame }) {
   if (game === 'puzzle') return <Puzzle />
   if (game === 'maze') return <Maze />
+  if (game === 'where') return <Where />
+  if (game === 'feel') return <Feel />
   return game === 'sort' ? <Sort /> : <Pattern />
 }

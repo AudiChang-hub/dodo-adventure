@@ -4,7 +4,7 @@ import { shownFor, type Shown } from './shown'
 import type { Subject } from '../lessons/types'
 
 /** 遊戲角的邏輯遊戲：豆豆收拾、串珠珠（T-152）、拼圖、迷宮（T-156） */
-export type LogicGame = 'sort' | 'pattern' | 'puzzle' | 'maze'
+export type LogicGame = 'sort' | 'pattern' | 'puzzle' | 'maze' | 'where' | 'feel'
 
 export type Route =
   | { name: 'home' }
