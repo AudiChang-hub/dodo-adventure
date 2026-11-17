@@ -1,4 +1,4 @@
-import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react'
+import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
 import { Shell } from '../Shell'
 import { Hand } from '../Demo'
@@ -31,6 +31,7 @@ import {
   choicesOf,
   decoFor,
   dirOf,
+  doneStack,
   harderMaze,
   isDino,
   linked,
@@ -604,9 +605,15 @@ function MazeView({ maze, prog, onDone, onAgain, onHarder, resting }: { maze: Ma
   const nx = done ? -1 : nextStep(maze, at, got)
   const ready = readyFor(maze, got)
   const dsize = cs * 0.86
+  // 「難一點」＋「再一個／回首頁」三顆在右邊那一欄由上往下排好、不重疊、不出界（家長平板錄影：「難一點」被那一欄蓋住點不到）
+  const ds = doneStack(size.h)
+  const stackVars = harderOn
+    ? ({ '--mz-harder-top': `${ds.harderTop}px`, '--mz-harder': `${ds.harder}px`, '--mz-col-top': `${ds.colTop}px`, '--mz-again': `${ds.again}px`, '--mz-home': `${ds.home}px`, '--mz-col-gap': `${ds.gap}px` } as CSSProperties)
+    : undefined
   return (
     <div
       className={`mz${done ? ' is-done' : ''}${resting ? ' is-resting' : ''}${harderOn ? ' has-harder' : ''}`}
+      style={stackVars}
       data-logic-game="maze"
       data-level={level}
       data-cols={cols}

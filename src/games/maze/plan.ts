@@ -551,6 +551,26 @@ export function harderMaze(s: MazeState): MazeState {
   return s.level >= MAZE_MAX ? s : { ...s, level: s.level + 1, recent: [] }
 }
 
+/** 「再一個」外面那一圈黃光（呼吸時最大 18px，draw/tools.css 的 draw-next-glow）：上下各留這麼多，才不會碰到旁邊的鈕 */
+export const DONE_RING = 18
+const clampTo = (lo: number, v: number, hi: number) => Math.min(hi, Math.max(lo, v))
+
+/**
+ * 走完停著、還能「難一點」的時候，右邊那一欄由上往下三顆：難一點、再一個、回首頁（家長平板錄影：以前「再一個／回首頁」那一欄
+ * 從上到下整欄都是它的盒子，蓋在「難一點」上面，點了沒反應；而且那一欄只往下挪固定的 170px，畫面矮一點最下面的回首頁就出界）。
+ * h 是作答區的高（.mz-play，已經扣掉最下面 2 cm，TOUCH-5）。三顆照 h 縮放（各有最小值，三歲的手點得到），間距平均分、整組上下置中。
+ * 回傳的都是 px，從作答區的上緣算：harderTop 是「難一點」的上緣，colTop 是「再一個」的上緣，gap 是「再一個」下緣到「回首頁」上緣（含黃光）。
+ */
+export function doneStack(h: number) {
+  const harder = Math.round(clampTo(96, h * 0.22, 140))
+  const again = Math.round(clampTo(104, h * 0.27, 176))
+  const home = Math.round(clampTo(88, h * 0.2, 136))
+  const body = harder + again + DONE_RING * 2 + home
+  const gap = Math.round(clampTo(16, (h - body) / 4, 48))
+  const harderTop = Math.round(Math.max(0, (h - body - gap * 2) / 2))
+  return { harder, again, home, harderTop, colTop: harderTop + harder + gap + DONE_RING, gap: gap + DONE_RING }
+}
+
 /** 這一個算不算「第一次就對」：沒靠提示、走的步數 ≤ 最短的 ＋ detour（第 1～5 級是 DETOUR） */
 export const mazeOk = (r: { steps: number; shortest: number; led: boolean; detour?: number }) => !r.led && r.steps <= r.shortest + (r.detour ?? DETOUR)
 
