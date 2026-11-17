@@ -53,10 +53,11 @@ const CHECKS = [
   { id: 'test-picnic-drum', name: '單元：小熊野餐、鼓聲停（內容量、不跟最近幾次重複、數量範圍、給多給少、停住了沒、升降級、版面、台詞和音檔）、選玩法排法', cmd: ['npx', 'tsx', 'scripts/test-picnic-drum.ts'], check: unit },
   { id: 'test-match', name: '單元：翻翻牌、影子配對（圖庫 ≥ 150、牌背、場景、不跟最近幾局一樣、輪廓很像的、升降級、台詞音檔）', cmd: ['npx', 'tsx', 'scripts/test-match.ts'], check: unit },
   { id: 'test-where-feel', name: '單元：躲在哪裡、心情臉（內容量、選項數、答案唯一、不跟最近幾題一樣、升降級、台詞 ≤ 6 個字、音檔）', cmd: ['npx', 'tsx', 'scripts/test-where-feel.ts'], check: unit },
-  { id: 'test-blocks', name: '單元：積木蓋蓋看（模型 ≥ 200、每個看得出是什麼不重複、撐得住放得完、顏色 ≥ 8、不跟最近 10 個重複、托盤多放的不會是答案、步驟、升降級、版面 ≥ 2 公分、自由蓋、台詞音檔）、選單 11 張', cmd: ['npx', 'tsx', 'scripts/test-blocks.ts'], check: unit },
+  { id: 'test-blocks', name: '單元：積木蓋蓋看（模型 ≥ 200、每個看得出是什麼不重複、撐得住放得完、顏色 ≥ 8、不跟最近 10 個重複、托盤多放的不會是答案、步驟、升降級、版面 ≥ 2 公分、自由蓋、台詞音檔）、選單有它', cmd: ['npx', 'tsx', 'scripts/test-blocks.ts'], check: unit },
   { id: 'test-race-hide', name: '單元：恐龍賽跑棋、躲起來了幾隻（內容量、同一天不重複、骰子點數、走的格子、選項含答案、分與合、升降級、台詞 ≤ 6 個字、音檔）', cmd: ['npx', 'tsx', 'scripts/test-race-hide.ts'], check: unit },
   { id: 'test-order-listen', name: '單元：故事排順序、聽兩步驟指令、心情臉「為什麼」（內容量、同一天不重複、順序看得出來、答案唯一、選項數、升降級、熟練了才開、台詞 ≤ 6 個字、音檔）', cmd: ['npx', 'tsx', 'scripts/test-order-listen.ts'], check: unit },
   { id: 'test-sort-seesaw', name: '單元：豆豆收拾換規則（同一堆換規則、衝突題、兩個一起看、組合 ≥ 300、同一天不重複、原本 1～5 級不變）、蹺蹺板（東西 ≥ 40、重的明顯比較重、大的不一定比較重、排輕重、一天不重複、升降級、台詞音檔）', cmd: ['npx', 'tsx', 'scripts/test-sort-seesaw.ts'], check: unit },
+  { id: 'test-logic-pick', name: '單元：遊戲角選單分類（16 張都在、每張剛好一類、4 類、平板一頁放下、卡片 ≥ 2.5 公分、間距 ≥ 0.6 公分）', cmd: ['npx', 'tsx', 'scripts/test-logic-pick.ts'], check: unit },
   { id: 'test-stage4-registry', name: '單元：家長區 4 歲內容（三科的門、暫停的 kv、尚未提供、每堂出多少）', cmd: ['npx', 'tsx', 'scripts/test-stage4-registry.ts'], check: unit },
   {
     id: 'zh-layout',

@@ -58,7 +58,7 @@ import {
   type DrumLevel,
 } from '../src/games/drum/plan'
 import { hitsOf } from '../src/games/drum/plan'
-import { pickGrid } from '../src/games/logic/pick-grid'
+import { PICK_GROUPS, groupLayout } from '../src/games/logic/pick-grid'
 import { LOGIC_GAME_NAME, LOGIC_SKILLS } from '../src/games/logic/report'
 
 /** 可重現的亂數（mulberry32） */
@@ -305,18 +305,18 @@ function main() {
 
   // ── 選玩法、家長區 ──
   {
-    assert.deepEqual(pickGrid(4), { cols: 2, rows: 2, pcols: 2, prows: 2 })
-    assert.deepEqual(pickGrid(6), { cols: 3, rows: 2, pcols: 2, prows: 3 })
-    assert.deepEqual(pickGrid(10), { cols: 5, rows: 2, pcols: 2, prows: 5 })
-    for (let n = 1; n <= 14; n++) {
-      const g = pickGrid(n)
-      assert.ok(g.cols * g.rows >= n && g.pcols * g.prows >= n, `${n} 張排得下`)
+    assert.ok(['picnic', 'drum'].every((id) => PICK_GROUPS.some((g) => g.games.includes(id as 'picnic'))), '選單有野餐、鼓聲停')
+    // 每一類多加幾張也排得下（分類、排法的細項在 test-logic-pick）
+    for (let extra = 0; extra <= 3; extra++) {
+      const sizes = PICK_GROUPS.map((g) => g.games.length + extra)
+      const l = groupLayout(sizes)
+      sizes.forEach((s, i) => assert.ok(l.cols[i] * Math.ceil(s / l.cols[i]) >= s && l.pcols[i] * Math.ceil(s / l.pcols[i]) >= s, `每類多 ${extra} 張排得下`))
     }
     assert.equal(LOGIC_GAME_NAME['logic-picnic'], '小熊野餐')
     assert.equal(LOGIC_GAME_NAME['logic-drum'], '鼓聲停')
     for (const lv of [1, 2, 3, 4] as PicnicLevel[]) assert.ok(LOGIC_SKILLS.some((s) => s.skill === picnicSkill(lv)), `家長區缺 ${picnicSkill(lv)}`)
     for (let lv = 1; lv <= DRUM_MAX; lv++) assert.ok(LOGIC_SKILLS.some((s) => s.skill === `drum:${lv}`), `家長區缺 drum:${lv}`)
-    console.log('ok 11 選玩法：10 張平板排 5×2、手機排 2×5，1～14 張都排得下；家長區有遊戲名和每一級的技能')
+    console.log('ok 11 選玩法有野餐、鼓聲停，每類多幾張也排得下；家長區有遊戲名和每一級的技能')
   }
 
   console.log('ALL PASS')

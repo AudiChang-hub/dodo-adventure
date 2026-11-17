@@ -1,36 +1,124 @@
-/* 選玩法有四張（T-156 加上拼圖、迷宮）：排成 2×2，每張還是夠大（TOUCH-1 ≥ 2.5 cm） */
-.lg-pick.n4 {
+/* 選玩法分 4 類（2026-11-17，16 張）：每類一塊淡淡的底色、左上角一個圖示（家長看的小字跟在旁邊），沒有多一層選類別。
+   排法由 index.tsx 的 groupLayout 算（./pick-grid.ts），尺寸跟那裡的常數一樣：
+   卡片間距 28px（≥ 0.6 cm）、色塊內距 12px、標頭 36px、色塊之間 18px；卡片照放得下的最大尺寸算，平板上 ≥ 2.5 cm（TOUCH-1）。
+   選單本身是容器：100cqw、100cqh 就是選單區的寬、高。最下緣 88px 不放卡片（TOUCH-5，手腕靠的地方）。 */
+.lg-pick.is-grouped {
+  inset: 0 3% 88px 3%;
   display: grid;
-  grid-template-columns: repeat(2, auto);
-  align-content: center;
-  justify-content: center;
-  gap: clamp(20px, 3.4cqh, 40px) clamp(28px, 5cqw, 72px);
+  place-items: center;
+  container-type: size;
+  --pg: 28px;
+  --pp: 12px;
+  --ph: 36px;
+  --pgap: 18px;
+  --cw: min(
+    (100cqw - var(--wk1, 0px)) / var(--wc1, 0.01),
+    (100cqw - var(--wk2, 0px)) / var(--wc2, 0.01),
+    (100cqw - var(--wk3, 0px)) / var(--wc3, 0.01),
+    (100cqw - var(--wk4, 0px)) / var(--wc4, 0.01),
+    (100cqh - var(--hk, 0px)) / var(--hs, 1) * 1.2
+  );
 }
-.lg-pick.n4 .lg-pick-card {
-  width: min(30cqw, 40cqh * 1.2);
-  border-radius: 32px;
+/* 最寬的那一排決定寬度，其他排撐到一樣寬，色塊對齊 */
+.lg-groups {
+  display: grid;
+  gap: var(--pgap);
+}
+.lg-group-row {
+  display: flex;
+  gap: var(--pgap);
+}
+.lg-group {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  padding: 0 var(--pp) var(--pp);
+  border-radius: 30px;
+  background: var(--tint);
+  box-shadow: inset 0 0 0 2px var(--edge);
+}
+.lg-group.is-count {
+  --tint: #f8e2a4;
+  --edge: #e8c766;
+  --chip: #f1d27c;
+}
+.lg-group.is-think {
+  --tint: #d9e6c0;
+  --edge: #a9c98b;
+  --chip: #a9c98b;
+}
+.lg-group.is-look {
+  --tint: #cde1f5;
+  --edge: #9dbfe2;
+  --chip: #a3c4e4;
+}
+.lg-group.is-talk {
+  --tint: #f6d0c3;
+  --edge: #eaa58f;
+  --chip: #f0b4a2;
+}
+.lg-group-head {
+  height: var(--ph);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-left: 2px;
+  pointer-events: none;
+}
+.lg-group-icon {
+  flex: none;
+  width: 30px;
+  height: 30px;
+  padding: 3px;
+  border-radius: 50%;
+  background: var(--chip);
+  box-shadow: 0 2px 0 rgba(46, 42, 37, 0.15);
+  overflow: visible;
+}
+/* 家長看的小字：孩子不識字，靠圖示和底色分 */
+.lg-group-name {
+  font-size: 13px;
+  line-height: 1;
+  color: var(--ink-soft, #6b645a);
+  letter-spacing: 0.04em;
+}
+.lg-group-cards {
+  flex: 1;
+  display: grid;
+  align-content: center;
+  grid-template-columns: repeat(var(--gc), var(--cw));
+  justify-content: center;
+  gap: var(--pg);
+}
+.lg-pick.is-grouped .lg-pick-card {
+  width: var(--cw);
+  border-radius: 24px;
+  box-shadow:
+    0 6px 0 var(--paper-edge, #e6dccb),
+    0 18px 30px -22px rgba(46, 42, 37, 0.4);
+}
+.lg-pick.is-grouped .lg-pick-card:focus-visible {
+  outline: 4px solid var(--ink, #2e2a25);
+  outline-offset: 4px;
 }
 
-/* 選玩法超過四張（T-160 起會到 10 張）：平板橫的排 2 排（--cols 欄，10 張是 5×2），手機直的排 2 欄（--pcols×--prows）。
-   欄數、排數由 index.tsx 的 pickGrid 照張數算，清單多加幾項都排得下；卡片照放得下的最大尺寸算，平板上仍 ≥ 2.5 cm（TOUCH-1） */
-.lg-pick.is-many {
-  --gx: clamp(16px, 2.4cqw, 36px);
-  --gy: clamp(16px, 3.2cqh, 34px);
-  display: grid;
-  grid-template-columns: repeat(var(--cols), auto);
-  align-content: center;
-  justify-content: center;
-  gap: var(--gy) var(--gx);
-}
-.lg-pick.is-many .lg-pick-card {
-  width: min((92cqw - (var(--cols) - 1) * var(--gx)) / var(--cols), (86cqh - (var(--rows) - 1) * var(--gy)) / var(--rows) * 1.2, 34cqw);
-  border-radius: 28px;
-}
+/* 手機直式：一類一塊由上往下排，可以捲；4 張排 2×2，其他最多 3 欄 */
 @container (max-aspect-ratio: 1 / 1) {
-  .lg-pick.is-many {
-    grid-template-columns: repeat(var(--pcols), auto);
+  .lg-pick.is-grouped {
+    display: block;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    --pg: 16px;
+    --cw: min(150px, (100cqw - 2 * var(--pp) - 2 * var(--pg)) / 3);
   }
-  .lg-pick.is-many .lg-pick-card {
-    width: min((92cqw - (var(--pcols) - 1) * var(--gx)) / var(--pcols), (86cqh - (var(--prows) - 1) * var(--gy)) / var(--prows) * 1.2);
+  .lg-groups {
+    padding-bottom: 8px;
+  }
+  .lg-group-row {
+    flex-direction: column;
+  }
+  .lg-group-cards {
+    grid-template-columns: repeat(var(--gpc), var(--cw));
   }
 }

@@ -3,7 +3,7 @@
 // 驗收：模型 ≥ 200 個、分 ≥ 6 個主題；每個模型塊數、大小對；樣子（不看顏色、鏡像也算）兩兩不一樣；平面版和前後兩排版都放得完（撐得住）；
 // 顏色 ≥ 8 種；連續出 300 個不跟最近 10 個重複、不跟上一個同主題；托盤有每一塊要用的、多放的不會是答案；
 // 第 4 級的步驟每塊剛好一次、一步 ≤ 3 塊、照步驟放得上去；照提示一直放一定蓋得完；升降級跟拼圖一樣；
-// 平板橫向每一個模型的托盤格子 ≥ 2 公分、不重疊、不超出，手機直式放得下；自由蓋的掉落、疊高、拿得起來；選單 11 張；家長區；台詞和音檔。
+// 平板橫向每一個模型的托盤格子 ≥ 2 公分、不重疊、不超出，手機直式放得下；自由蓋的掉落、疊高、拿得起來；選單有它；家長區；台詞和音檔。
 import assert from 'node:assert/strict'
 import { existsSync } from 'node:fs'
 import { COLORS, buildOrder, kindOf, overlaps, parseRows, signature, sizeOfModel, splitRun, supported, to3d, type Brick } from '../src/games/blocks/bricks'
@@ -35,7 +35,7 @@ import {
 import { TOUCH, boardGeo, freeGeo, trayLayout } from '../src/games/blocks/geometry'
 import { MASTER_OF } from '../src/games/logic/sort-plan'
 import { LOGIC_GAME_NAME, LOGIC_SKILLS, logicSkillLabel } from '../src/games/logic/report'
-import { pickGrid } from '../src/games/logic/pick-grid'
+import { PICK_GROUPS, groupLayout } from '../src/games/logic/pick-grid'
 import '../src/content/lines'
 import { hasLine, line } from '../src/content/registry'
 import { segments } from '../src/content/lines'
@@ -301,10 +301,11 @@ function main() {
 
   // ── 選單、家長區、台詞 ──
   {
-    assert.deepEqual(pickGrid(11), { cols: 6, rows: 2, pcols: 2, prows: 6 })
+    assert.ok(PICK_GROUPS.some((g) => g.games.includes('blocks')), '選單有積木蓋蓋看')
+    assert.ok(groupLayout(PICK_GROUPS.map((g) => g.games.length)).card.w >= 112, '選單的卡片 ≥ 2.5 公分')
     assert.equal(LOGIC_GAME_NAME['logic-blocks'], '積木蓋蓋看')
     assert.ok(LOGIC_SKILLS.filter((s) => s.skill.startsWith('blocks:')).length === 4)
-    console.log('ok 8 選玩法 11 張：平板排 6×2、手機排 2×6；家長區有遊戲名和四級的技能')
+    console.log('ok 8 選玩法有積木蓋蓋看、卡片 ≥ 2.5 公分（分類見 test-logic-pick）；家長區有遊戲名和四級的技能')
   }
   const keys = ['bk.pick', 'bk.intro', 'bk.ask', 'bk.look', 'bk.here', 'bk.bottom', 'bk.praise', 'bk.step', 'bk.again', 'bk.free.intro', 'bk.free.done', 'bk.free.empty', 'bk.free.again', 'teach.watch.dodo', 'teach.turn.dodo', 'd.next.home', ...MODELS.map((m) => modelLineKey(m.id))]
   {
