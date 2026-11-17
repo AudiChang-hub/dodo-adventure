@@ -20,23 +20,27 @@ export const SHADOW_GAME = 'logic-shadow'
 /** 影子配對用得到的圖（輪廓認得出來的） */
 export const SHADOW_PICS: MatchPic[] = MATCH_PICS.filter((p) => p.shadow)
 
-/** 背景場景（故事插畫），每個場景配幾個主題的東西（在農場找農場的動物）；配不夠就從全部挑 */
-export const SHADOW_SCENES: { id: SceneId; zh: string; themes: MatchThemeId[] }[] = [
-  { id: 'park', zh: '公園', themes: ['toys', 'sports', 'plants', 'birds'] },
-  { id: 'meadow', zh: '草地', themes: ['bugs', 'plants', 'forest', 'birds'] },
-  { id: 'city', zh: '城市', themes: ['road', 'fun', 'clothes'] },
-  { id: 'valley', zh: '恐龍谷', themes: ['dino', 'plants', 'birds'] },
-  { id: 'farm', zh: '農場', themes: ['farm', 'veggies', 'fruit'] },
-  { id: 'sea', zh: '大海', themes: ['ocean', 'skywater'] },
-  { id: 'beach', zh: '海邊', themes: ['ocean', 'skywater', 'sports', 'toys'] },
-  { id: 'rain', zh: '下雨天', themes: ['sky', 'clothes', 'bugs'] },
-  { id: 'market', zh: '市場', themes: ['fruit', 'veggies', 'snacks', 'kitchen'] },
-  { id: 'zoo', zh: '動物園', themes: ['wild', 'birds'] },
-  { id: 'site', zh: '工地', themes: ['tools', 'road'] },
-  { id: 'bedroom', zh: '臥室', themes: ['toys', 'clothes', 'music', 'home'] },
-  { id: 'party', zh: '派對', themes: ['snacks', 'toys', 'music'] },
-  { id: 'home', zh: '客廳', themes: ['home', 'kitchen', 'tools'] },
-  { id: 'ark-in', zh: '大船裡', themes: ['farm', 'wild', 'forest'] },
+/**
+ * 背景場景（故事插畫），每個場景配幾個主題的東西（在農場找農場的動物）；配不夠就從全部挑。
+ * base：場景的底色（天空、牆壁，照 src/art/storybook/scenes.tsx）。影子那一片（全寬、鋪到托盤底下）鋪這個顏色，
+ * 把雲、吊車、大樓、窗戶、相框這些裝飾蓋掉（PM 2026-11-17：裝飾壓在影子後面，孩子分不清哪裡是影子），場景只留托盤周圍的地面。
+ */
+export const SHADOW_SCENES: { id: SceneId; base: string; zh: string; themes: MatchThemeId[] }[] = [
+  { id: 'park', base: '#E3EEF2', zh: '公園', themes: ['toys', 'sports', 'plants', 'birds'] },
+  { id: 'meadow', base: '#E3EEF2', zh: '草地', themes: ['bugs', 'plants', 'forest', 'birds'] },
+  { id: 'city', base: '#E3EEF2', zh: '城市', themes: ['road', 'fun', 'clothes'] },
+  { id: 'valley', base: '#EDEAD8', zh: '恐龍谷', themes: ['dino', 'plants', 'birds'] },
+  { id: 'farm', base: '#E3EEF2', zh: '農場', themes: ['farm', 'veggies', 'fruit'] },
+  { id: 'sea', base: '#E3EEF2', zh: '大海', themes: ['ocean', 'skywater'] },
+  { id: 'beach', base: '#E3EEF2', zh: '海邊', themes: ['ocean', 'skywater', 'sports', 'toys'] },
+  { id: 'rain', base: '#D3DCE4', zh: '下雨天', themes: ['sky', 'clothes', 'bugs'] },
+  { id: 'market', base: '#E3EEF2', zh: '市場', themes: ['fruit', 'veggies', 'snacks', 'kitchen'] },
+  { id: 'zoo', base: '#E3EEF2', zh: '動物園', themes: ['wild', 'birds'] },
+  { id: 'site', base: '#E3EEF2', zh: '工地', themes: ['tools', 'road'] },
+  { id: 'bedroom', base: '#E7E3F2', zh: '臥室', themes: ['toys', 'clothes', 'music', 'home'] },
+  { id: 'party', base: '#F7E8D8', zh: '派對', themes: ['snacks', 'toys', 'music'] },
+  { id: 'home', base: '#F3EAD8', zh: '客廳', themes: ['home', 'kitchen', 'tools'] },
+  { id: 'ark-in', base: '#E9D3AE', zh: '大船裡', themes: ['farm', 'wild', 'forest'] },
 ]
 
 /** 記住最近幾局的場景、東西 */

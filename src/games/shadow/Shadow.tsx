@@ -19,7 +19,7 @@ import { MatchIcon, useMatchIcons } from '../match/Icon'
 import { nameKey } from '../match/lines'
 import { ShadowPickArt } from './art'
 import { SHADOW_COPLAY } from './coplay'
-import { FLIP_FROM, OK_WRONGS, SHADOW_GAME, afterShadow, shadowRound, shadowSkill, type ShadowLevel, type ShadowRound, type ShadowState } from './plan'
+import { FLIP_FROM, OK_WRONGS, SHADOW_GAME, SHADOW_SCENES, afterShadow, shadowRound, shadowSkill, type ShadowLevel, type ShadowRound, type ShadowState } from './plan'
 import { loadShadow, saveShadow } from './progress'
 import '../draw/tools.css'
 import './shadow.css'
@@ -85,11 +85,15 @@ function layout(w: number, h: number, n: number, bob: readonly number[]) {
   const trayY = h - traySize / 2 - Math.max(14, h * 0.035)
   const tray = xs.map((x) => ({ x, y: trayY }))
   const board = { x: w * 0.04, y: trayY - traySize / 2 - 16, w: w * 0.92, h: traySize + 32 }
-  return { w, h, s, traySize, shadows, tray, board }
+  // 影子那一片的乾淨底色：全寬、從上緣一直鋪到托盤底下（下緣藏在托盤後面再淡掉），
+  // 天上、牆上的裝飾（雲、吊車、大樓、窗戶、相框）都蓋掉，影子旁邊、影子和托盤之間都不會露出半截裝飾；場景只留托盤周圍的地面
+  const panel = { x: 0, y: 0, w, h: board.y + board.h * 0.6 }
+  return { w, h, s, traySize, shadows, tray, board, panel }
 }
 
 function ShadowView({ round, prog, onDone, onAgain, resting }: { round: ShadowRound; prog: { current: ShadowState | null }; onDone: () => void; onAgain: () => void; resting: boolean }) {
   const { level, items, tray, flip, bob, scene } = round
+  const base = SHADOW_SCENES.find((s) => s.id === scene)?.base ?? '#E3EEF2'
   const n = items.length
   const live = useLive()
   const flow = useFlow()
@@ -492,6 +496,8 @@ function ShadowView({ round, prog, onDone, onAgain, resting }: { round: ShadowRo
       <div className="sh-play" ref={area}>
         {g && (
           <>
+            {/* 影子後面只留乾淨的底色（場景的天空或牆壁的顏色，邊緣柔柔地融進場景），背景的裝飾不會壓在影子上 */}
+            <div className="sh-panel" data-panel="" style={{ left: g.panel.x, top: g.panel.y, width: g.panel.w, height: g.panel.h, ['--sh-base' as string]: base }} aria-hidden="true" />
             <div className="sh-tray" style={{ left: g.board.x, top: g.board.y, width: g.board.w, height: g.board.h }} aria-hidden="true" />
             {items.map((id, j) => {
               const c = g.shadows[j]
