@@ -1,0 +1,86 @@
+/* 鼓聲停（T-160）：舞台鋪滿，角色站在中間的圓舞台上，鼓在左下。平板橫向 1200×786 為準；手機直的鼓移到左上 */
+.dr {
+  position: absolute;
+  inset: 0;
+}
+.dr-play {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  border-radius: 28px;
+  container-type: size;
+  touch-action: none;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+}
+.dr-stage {
+  position: absolute;
+  inset: 0;
+  display: block;
+  pointer-events: none;
+}
+/* 角色：腳底踩在圓舞台上（舞台在畫面 80% 高的地方） */
+.dr-dancer {
+  position: absolute;
+  left: 50%;
+  bottom: 13%;
+  width: min(34cqw, 56cqh);
+  height: min(46cqw, 62cqh);
+  translate: -50% 0;
+  pointer-events: none;
+}
+.dr-dancer-wob,
+.dr-dancer-in,
+.dr-dancer-art {
+  width: 100%;
+  height: 100%;
+}
+.dr-sweat {
+  position: absolute;
+  right: 10%;
+  top: 22%;
+  width: 14%;
+  aspect-ratio: 1;
+}
+.dr-drum {
+  position: absolute;
+  left: 4%;
+  bottom: 14%;
+  width: min(22cqw, 34cqh);
+  aspect-ratio: 1;
+  pointer-events: none;
+}
+.dr-stop {
+  position: absolute;
+  left: 30%;
+  top: -46%;
+  width: 46%;
+  aspect-ratio: 1;
+  padding: 6%;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 0 0 5px #2e2a25;
+}
+/* 吃完、跳完：右邊那一欄換成「再跳一次／回首頁」，角色往左讓一點 */
+.dr.is-resting .dr-dancer {
+  left: 42%;
+  transition: left 0.4s ease-out;
+}
+@container (max-aspect-ratio: 1 / 1) {
+  .dr-dancer {
+    width: 70cqw;
+    height: 46cqh;
+    bottom: 20%;
+  }
+  .dr-drum {
+    left: 5%;
+    top: 14%;
+    bottom: auto;
+    width: 30cqw;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .dr.is-resting .dr-dancer {
+    transition: none;
+  }
+}

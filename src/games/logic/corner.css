@@ -10,3 +10,27 @@
   width: min(30cqw, 40cqh * 1.2);
   border-radius: 32px;
 }
+
+/* 選玩法超過四張（T-160 起會到 10 張）：平板橫的排 2 排（--cols 欄，10 張是 5×2），手機直的排 2 欄（--pcols×--prows）。
+   欄數、排數由 index.tsx 的 pickGrid 照張數算，清單多加幾項都排得下；卡片照放得下的最大尺寸算，平板上仍 ≥ 2.5 cm（TOUCH-1） */
+.lg-pick.is-many {
+  --gx: clamp(16px, 2.4cqw, 36px);
+  --gy: clamp(16px, 3.2cqh, 34px);
+  display: grid;
+  grid-template-columns: repeat(var(--cols), auto);
+  align-content: center;
+  justify-content: center;
+  gap: var(--gy) var(--gx);
+}
+.lg-pick.is-many .lg-pick-card {
+  width: min((92cqw - (var(--cols) - 1) * var(--gx)) / var(--cols), (86cqh - (var(--rows) - 1) * var(--gy)) / var(--rows) * 1.2, 34cqw);
+  border-radius: 28px;
+}
+@container (max-aspect-ratio: 1 / 1) {
+  .lg-pick.is-many {
+    grid-template-columns: repeat(var(--pcols), auto);
+  }
+  .lg-pick.is-many .lg-pick-card {
+    width: min((92cqw - (var(--pcols) - 1) * var(--gx)) / var(--pcols), (86cqh - (var(--prows) - 1) * var(--gy)) / var(--prows) * 1.2);
+  }
+}

@@ -3,7 +3,7 @@
 import type { Attempt } from '../../lib/db'
 import { MASTER_DAYS, MASTER_OF, MASTER_OK } from './sort-plan'
 
-export const LOGIC_GAME_NAME: Record<string, string> = { 'logic-sort': '豆豆收拾', 'logic-pattern': '串珠珠', 'logic-puzzle': '拼圖', 'logic-maze': '迷宮' }
+export const LOGIC_GAME_NAME: Record<string, string> = { 'logic-sort': '豆豆收拾', 'logic-pattern': '串珠珠', 'logic-puzzle': '拼圖', 'logic-maze': '迷宮', 'logic-picnic': '小熊野餐', 'logic-drum': '鼓聲停' }
 
 /** 技能的中文（作答紀錄、總覽用） */
 export const LOGIC_SKILLS: { skill: string; zh: string }[] = [
@@ -28,6 +28,16 @@ export const LOGIC_SKILLS: { skill: string; zh: string }[] = [
   { skill: 'maze:8x5', zh: '走迷宮（8×5）' },
   { skill: 'maze:9x6', zh: '走迷宮（9×6，先拿鑰匙）' },
   { skill: 'maze:10x7', zh: '走迷宮（10×7，收集星星）' },
+  // T-160 小熊野餐（照數量拿東西，MA-2）：一個客人記一筆
+  { skill: 'picnic:1-3', zh: '照數量拿（1～3 個）' },
+  { skill: 'picnic:2-4', zh: '照數量拿（2～4 個）' },
+  { skill: 'picnic:3-5', zh: '照數量拿（3～5 個）' },
+  { skill: 'picnic:3-5-scatter', zh: '照數量拿（3～5 個，打散的）' },
+  // T-160 鼓聲停（自我控制，CG-3）：一首記一筆
+  { skill: 'drum:1', zh: '鼓聲停就停（慢、會說 Freeze）' },
+  { skill: 'drum:2', zh: '鼓聲停就停（不提醒）' },
+  { skill: 'drum:3', zh: '鼓聲停就停（忽快忽慢、突然停）' },
+  { skill: 'drum:4', zh: '鼓聲停就停（停得更快更短）' },
 ]
 
 /** 邏輯遊戲的技能名稱；不是邏輯遊戲的回傳 null（交給家長區原本的 skillLabel） */

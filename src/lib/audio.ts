@@ -368,6 +368,12 @@ function noise(dur: number, gain: number, at = 0, freq = 1800) {
   s.start(t)
 }
 
+/** 音效的出口（跟著音量設定）：遊戲自己合成、要排時間的聲音用（T-160 鼓聲停的鼓，games/drum/beat.ts） */
+export function sfxBus(): { ctx: AudioContext; out: AudioNode } {
+  const c = ensure()
+  return { ctx: c, out: sfxGain }
+}
+
 export const sfx = {
   tap: () => tone(660, 0.08, 'sine', 0.25, 0, 880),
   pop: () => tone(420, 0.12, 'sine', 0.35, 0, 980),
