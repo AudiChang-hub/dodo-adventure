@@ -3,7 +3,8 @@
 // 驗收：圖庫 ≥ 150 種、影子圖 ≥ 150 種、牌背 ≥ 8 種、背景場景 ≥ 10 種（家長 2026-11-17：內容量要夠大）；圖示都抽出來了、名字 ≤ 3 個字；
 // 每一級連續出 300 局：張數／影子數對、每張牌剛好兩張、主題／牌背／場景不跟最近幾局一樣、圖不跟上一局重複；
 // 影子：第 1～3 級沒有輪廓很像的、第 4 級起有一組、第 5 級影子翻過來，托盤每一樣都不在自己影子正下方；
-// 升降級（連續 2 局順利升一級、示範不算、表現差退一級）；家長區的名字；台詞和音檔都在。
+// 升降級（連續 2 局順利升一級、示範不算、表現差退一級）；家長區的名字；台詞和音檔都在；
+// 第一次玩的示範：手翻牌不能作廢示範自己的流程（翻完一對、孩子可以點），孩子點的照舊搶掉之前的流程。
 import assert from 'node:assert/strict'
 import { existsSync } from 'node:fs'
 import { MATCH_PICS, MATCH_THEMES, matchPic } from '../src/games/match/catalog'
@@ -47,6 +48,7 @@ import '../src/content/lines'
 import { hasLine, line } from '../src/content/registry'
 import { segments } from '../src/content/lines'
 import { clipName } from '../src/lib/clip'
+import { flipFlow } from '../src/games/memory/turn'
 
 function seeded(seed: number) {
   let s = seed >>> 0 || 1
@@ -200,6 +202,35 @@ function main() {
       assert.deepEqual(miss, [], `缺音檔：${miss.length} 個（python scripts/gen_audio.py --only mm. sh.）`)
       console.log(`ok 9 ${keys.length} 句台詞都有音檔`)
     } else console.log('ok 9 （跳過）沒有 public/audio，不檢查音檔')
+  }
+  {
+    // 第一次玩的示範（正式站回報：示範翻完第一張就停住、牌都不能點）：走一遍示範的流程。
+    // games/barge 的 useFlow 會載入音效（import.meta.env，node 跑不了），這裡用一樣的規則：begin 開一段、cut 和之後的 begin 都讓之前的作廢
+    let run = 0
+    const f = {
+      begin(live: { current: boolean }) {
+        const my = ++run
+        return () => live.current && run === my
+      },
+      cut() {
+        run++
+      },
+    }
+    const live = { current: true }
+    const demo = f.begin(live)
+    for (const _card of [0, 1]) {
+      flipFlow(f, live, 'hand')
+      assert.ok(demo(), `示範的手翻第 ${_card + 1} 張之後，示範的流程還要算數（不然示範停住、牌永遠不能點）`)
+    }
+    // 示範完：孩子點牌，每一次點都搶掉之前的流程（T-108 搶點照舊）
+    const kid1 = flipFlow(f, live, 'kid')
+    assert.ok(kid1(), '孩子點的這一張自己的流程算數')
+    assert.ok(!demo(), '孩子點牌會搶掉之前的流程')
+    const kid2 = flipFlow(f, live, 'kid')
+    assert.ok(kid2() && !kid1(), '孩子再點一張：上一張的話（例如稱讚）作廢')
+    live.current = false
+    assert.ok(!kid2(), '離開畫面就不算數')
+    console.log('ok 10 第一次玩的示範：手翻完一對示範還算數、之後孩子點牌照常搶點')
   }
 
   console.log('ALL PASS')
