@@ -21,6 +21,10 @@ import { Memory } from '../memory/Memory'
 import { MemoryPickArt } from '../memory/art'
 import { Shadow } from '../shadow/Shadow'
 import { ShadowPickArt } from '../shadow/art'
+import { Where } from '../where/Where'
+import { WherePickArt } from '../where/art'
+import { Feel } from '../feel/Feel'
+import { FeelPickArt } from '../feel/art'
 import type { LogicGame } from '../../lib/nav'
 import { pickGrid } from './pick-grid'
 import '../draw/coloring.css'
@@ -65,6 +69,9 @@ export function LogicPick() {
     // T-160（家長 2026-11-17）：翻翻牌、影子配對
     { id: 'memory' as const, label: '翻翻牌', art: <MemoryPickArt /> },
     { id: 'shadow' as const, label: '影子配對', art: <ShadowPickArt /> },
+    // T-160（家長 2026-11-17）：躲在哪裡（位置詞 in、on、under）、心情臉（認情緒）
+    { id: 'where' as const, label: '躲在哪裡', art: <WherePickArt /> },
+    { id: 'feel' as const, label: '心情臉', art: <FeelPickArt /> },
   ]
   const grid = pickGrid(cards.length)
   return (
@@ -95,7 +102,7 @@ export function LogicPick() {
   )
 }
 
-/** 一種玩法：sort 豆豆收拾、pattern 串珠珠、puzzle 拼圖、maze 迷宮、picnic 小熊野餐、drum 鼓聲停、memory 翻翻牌、shadow 影子配對 */
+/** 一種玩法：sort 豆豆收拾、pattern 串珠珠、puzzle 拼圖、maze 迷宮、picnic 小熊野餐、drum 鼓聲停、memory 翻翻牌、shadow 影子配對、where 躲在哪裡、feel 心情臉 */
 export function LogicPlay({ game }: { game: LogicGame }) {
   if (game === 'puzzle') return <Puzzle />
   if (game === 'maze') return <Maze />
@@ -103,5 +110,7 @@ export function LogicPlay({ game }: { game: LogicGame }) {
   if (game === 'drum') return <Drum />
   if (game === 'memory') return <Memory />
   if (game === 'shadow') return <Shadow />
+  if (game === 'where') return <Where />
+  if (game === 'feel') return <Feel />
   return game === 'sort' ? <Sort /> : <Pattern />
 }

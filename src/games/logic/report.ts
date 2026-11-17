@@ -3,7 +3,7 @@
 import type { Attempt } from '../../lib/db'
 import { MASTER_DAYS, MASTER_OF, MASTER_OK } from './sort-plan'
 
-export const LOGIC_GAME_NAME: Record<string, string> = { 'logic-sort': '豆豆收拾', 'logic-pattern': '串珠珠', 'logic-puzzle': '拼圖', 'logic-maze': '迷宮', 'logic-picnic': '小熊野餐', 'logic-drum': '鼓聲停', 'logic-memory': '翻翻牌', 'logic-shadow': '影子配對' }
+export const LOGIC_GAME_NAME: Record<string, string> = { 'logic-sort': '豆豆收拾', 'logic-pattern': '串珠珠', 'logic-puzzle': '拼圖', 'logic-maze': '迷宮', 'logic-picnic': '小熊野餐', 'logic-drum': '鼓聲停', 'logic-memory': '翻翻牌', 'logic-shadow': '影子配對', 'logic-where': '躲在哪裡', 'logic-feel': '心情臉' }
 
 /** 技能的中文（作答紀錄、總覽用） */
 export const LOGIC_SKILLS: { skill: string; zh: string }[] = [
@@ -49,6 +49,14 @@ export const LOGIC_SKILLS: { skill: string; zh: string }[] = [
   { skill: 'shadow:4', zh: '影子配對（4 個）' },
   { skill: 'shadow:alike', zh: '影子配對（輪廓很像的）' },
   { skill: 'shadow:flip', zh: '影子配對（影子朝另一邊）' },
+  // T-160 躲在哪裡（數學 MA-8）：聽懂位置詞；心情臉（社會情緒 SE-1）：認得四種心情
+  { skill: 'where:in', zh: '聽懂 in（在裡面）' },
+  { skill: 'where:on', zh: '聽懂 on（在上面）' },
+  { skill: 'where:under', zh: '聽懂 under（在下面）' },
+  { skill: 'feel:happy', zh: '認得開心的臉（happy）' },
+  { skill: 'feel:sad', zh: '認得難過的臉（sad）' },
+  { skill: 'feel:angry', zh: '認得生氣的臉（angry）' },
+  { skill: 'feel:scared', zh: '認得害怕的臉（scared）' },
 ]
 
 /** 邏輯遊戲的技能名稱；不是邏輯遊戲的回傳 null（交給家長區原本的 skillLabel） */
