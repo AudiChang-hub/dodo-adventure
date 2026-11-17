@@ -15,6 +15,7 @@ import { FREE_PICS } from '../src/games/puzzle/pics-free'
 import { geometry } from '../src/games/puzzle/geometry'
 import {
   DETOUR,
+  DONE_RING,
   ANIMALS,
   GOALS,
   GOAL_IDS,
@@ -34,6 +35,7 @@ import {
   decoFor,
   distances,
   fitsLevel,
+  doneStack,
   harderMaze,
   linked,
   makeMaze,
@@ -439,6 +441,24 @@ function main() {
       assert.deepEqual(miss, [], `拼圖的台詞缺音檔：${miss.join('、')}`)
       console.log(`ok 11 拼圖 ${PUZZLE_PICS.length} 張圖的台詞都有音檔`)
     } else console.log('ok 11 （跳過）沒有 public/audio，不檢查拼圖音檔')
+  }
+
+  {
+    // 家長平板錄影：走完迷宮點「難一點」沒反應、回首頁被切掉。三顆（難一點、再一個、回首頁）在作答區裡由上往下排好：
+    // 不重疊（再一個的黃光也算）、不超出作答區（作答區已經扣掉最下面 2 cm），每一顆都 ≥ 2 公分（約 76px）
+    // 作答區的高：平板 1200×786 約 558；瀏覽器有網址列、畫面矮一點的到 372（整個畫面 600 高）
+    for (const h of [372, 420, 480, 520, 558, 640, 732]) {
+      const d = doneStack(h)
+      const againTop = d.colTop
+      const homeTop = againTop + d.again + d.gap
+      assert.ok(d.harderTop >= 0, `h=${h} 難一點的上緣在作答區裡`)
+      // 難一點被說到時外面亮 12px（maze.css 的 .mz-harder.is-said）
+      assert.ok(d.harderTop + d.harder + 12 <= againTop - DONE_RING, `h=${h} 難一點和再一個（含黃光）不重疊`)
+      assert.ok(againTop + d.again + DONE_RING <= homeTop, `h=${h} 再一個（含黃光）和回首頁不重疊`)
+      assert.ok(homeTop + d.home <= h, `h=${h} 回首頁不超出作答區（${homeTop + d.home}）`)
+      for (const v of [d.harder, d.again, d.home]) assert.ok(v >= 76, `h=${h} 每一顆 ≥ 2 公分`)
+    }
+    console.log('ok 12 走完的三顆（難一點、再一個、回首頁）由上往下、不重疊、不出界')
   }
 
   console.log('ALL PASS')

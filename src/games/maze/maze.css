@@ -118,17 +118,29 @@
   }
 }
 
-/* T-158「難一點」：在「再一個／回首頁」那一欄的上面（那一欄整個往下挪），比「再一個」小一點，樣子跟它一樣 */
+/* T-158「難一點」：在「再一個／回首頁」那一欄的上面，比「再一個」小一點，樣子跟它一樣。
+   三顆的位置、大小由 Maze.tsx 照作答區的高算（plan.ts 的 doneStack），整組置中、不出界。
+   家長平板錄影：以前那一欄的盒子從上到下整欄（top 0），只用 padding 往下挪，盒子還是蓋在「難一點」上面、點了沒反應；
+   現在那一欄從「再一個」的上緣開始，「難一點」也疊在它上面（z-index 4），兩邊都擋住才不會再被吃掉 */
 .mz.has-harder .draw-next-col {
-  padding-top: 170px;
+  top: var(--mz-col-top, 170px);
+  bottom: auto;
+  align-content: start;
+  gap: var(--mz-col-gap, clamp(28px, 5vh, 48px));
+}
+.mz.has-harder .draw-next-col .draw-again {
+  width: var(--mz-again, clamp(130px, 19vmin, 176px));
+}
+.mz.has-harder .draw-next-col .draw-home {
+  width: var(--mz-home, clamp(104px, 15vmin, 136px));
 }
 .mz-harder {
   position: absolute;
-  z-index: 3;
+  z-index: 4;
   right: calc(14px + 109px);
   translate: 50% 0;
-  top: clamp(24px, 6vh, 56px);
-  width: clamp(112px, 16vmin, 140px);
+  top: var(--mz-harder-top, clamp(24px, 6vh, 56px));
+  width: var(--mz-harder, clamp(112px, 16vmin, 140px));
   aspect-ratio: 1;
   padding: 0;
   border: 0;
