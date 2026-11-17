@@ -14,12 +14,13 @@ import { today } from '../../lib/db'
 import { go } from '../../lib/nav'
 import { bedtimeIfDue } from '../../lib/session'
 import { useTaps } from '../../ui/tap'
-import { BinArt, SortPickArt, ThingArt } from './art'
+import { BinArt, RuleArt, SortPickArt, ThingArt } from './art'
 import { sortCoplay } from './coplay'
-import { goesKey, sortPraiseKey, sortSceneKey, thatKey, thisKey } from './lines'
+import { SWITCH_PRAISE, goesKey, sortPraiseKey, sortSceneKey, thatKey, thisKey } from './lines'
 import { offsetTo, pointIn, useLive } from './kit'
 import { loadLogic, noteScene, saveLogic, type LogicProgress } from './progress'
-import { SORT_GAME, SORT_MAX, sortRound, sortThree, stepLevel, type SortLevel, type SortRound, type Thing } from './sort-plan'
+import { SORT_GAME, sortRound, sortThree, stepLevel, type SortLevel, type SortRound, type Thing } from './sort-plan'
+import { SORT_TOP, SWITCH_LINE, noteMix, nowKey, sortRoundX, todaySigs, type SortXLevel } from './sort-switch'
 import { PATTERN_MAX } from './pattern-plan'
 import '../draw/tools.css'
 import './logic.css'
@@ -38,13 +39,16 @@ const FLY_MS = 520
  * 放錯：東西回中間，說出差在哪（That is the blue basket. This is red.）；第 2 次錯對的籃子亮起來；第 3 次手帶著放進去（記一起做）。
  * 一局 4 個，收完蓋上蓋子、說 All tidy!，停在「再一局／回首頁」，不自己接下一局（HOW-9）。
  * T-157：每一局換一個收拾的情境（容器、背景、開頭那一句跟著換），不跟最近兩局一樣；第 3 級以上偶爾複習學過的特徵（不算升降級）。
+ * 4 歲玩法（家長 2026-11-17，./sort-switch.ts）：第 5 級熟練了才開。第 6 級分完 4 個倒出來、牌子翻面換規則，同一堆再分一次；
+ * 第 7 級 4 個籃子，顏色和形狀（東西）兩個一起看。原本的 1～5 級不變。
  */
 export function Sort() {
   const [prog, setProg] = useState<LogicProgress | null>(null)
   const [n, setN] = useState(0)
   useEffect(() => {
     let on = true
-    void loadLogic({ sort: SORT_MAX, pattern: PATTERN_MAX }).then((p) => on && setProg(p))
+    // 級數讀到第 7 級（4 歲玩法），原本的玩法到第 5 級（SORT_MAX）
+    void loadLogic({ sort: SORT_TOP, pattern: PATTERN_MAX }).then((p) => on && setProg(p))
     return () => {
       on = false
     }
@@ -53,8 +57,13 @@ export function Sort() {
   const progRef = useRef<LogicProgress | null>(null)
   /** 出一局：避開最近用過的情境，記下這一局的 */
   const deal = (p: LogicProgress) => {
-    const level = p.sort.level as SortLevel
-    const r = sortRound(level, Math.random, sortThree(p.sort), { recent: p.scenes.sort, review: p.sort.taught.includes(level) })
+    const level = p.sort.level
+    let r: SortRound
+    if (level >= 6) {
+      // 4 歲玩法：今天用過的組合不再出；第 6 級示範過了，偶爾先照形狀再換成顏色
+      r = sortRoundX(level as SortXLevel, Math.random, { avoid: todaySigs(p.mix, today()), flip: p.sort.taught.includes(level) })
+      p.mix = noteMix(p.mix, today(), r.sig!)
+    } else r = sortRound(level as SortLevel, Math.random, sortThree(p.sort), { recent: p.scenes.sort, review: p.sort.taught.includes(level) })
     noteScene(p, 'sort', r.scene)
     void saveLogic(p)
     return r
@@ -74,7 +83,7 @@ export function Sort() {
     setN((k) => k + 1)
   }
   return (
-    <Shell station="logic" mood="idle" onExit={() => go({ name: 'logic' }, { back: true })} hideHost hintText={round ? sortCoplay(round.scene, round.dim)[resting ? 'now' : 'play'] : undefined}>
+    <Shell station="logic" mood="idle" onExit={() => go({ name: 'logic' }, { back: true })} hideHost hintText={round ? sortCoplay(round.scene, round.dim, !!round.then)[resting ? 'now' : 'play'] : undefined}>
       {round && progRef.current && <SortRoundView key={n} round={round} prog={progRef} onDone={() => setResting(true)} onAgain={again} resting={resting} />}
     </Shell>
   )
@@ -83,7 +92,14 @@ export function Sort() {
 type HandState = { basket: string; tap: number; beckon: boolean } | null
 
 function SortRoundView({ round, prog, onDone, onAgain, resting }: { round: SortRound; prog: { current: LogicProgress | null }; onDone: () => void; onAgain: () => void; resting: boolean }) {
-  const { level, dim, skill, review, scene, baskets, items } = round
+  const { level, review, scene, then, intro } = round
+  /** 第 6 級：換規則以前、以後的東西接在一起，第 switchAt 個開始是換規則以後的 */
+  const items = then ? [...round.items, ...then.items] : round.items
+  const switchAt = then ? round.items.length : Infinity
+  const after = (i: number) => i >= switchAt
+  const dimOf = (i: number) => (after(i) ? then!.dim : round.dim)
+  const skillOf = (i: number) => (after(i) ? then!.skill : round.skill)
+  const basketsOf = (i: number) => (after(i) ? then!.baskets : round.baskets)
   const tap = useTaps()
   const live = useLive()
   const flow = useFlow()
@@ -106,6 +122,11 @@ function SortRoundView({ round, prog, onDone, onAgain, resting }: { round: SortR
   const [demo, setDemo] = useState(false)
   const [closed, setClosed] = useState(false)
   const [poke, setPoke] = useState(0)
+  /** 第 6 級：1 是換規則以後（籃子的牌子、規則牌跟著換） */
+  const [side, setSide] = useState(0)
+  /** 換規則的時候：收好的東西倒出來，在桌上排一排 */
+  const [pile, setPile] = useState(false)
+  const baskets = side ? then!.baskets : round.baskets
   /** 輪到他了（題目、答錯的提示說完，等他點）：只輸出成 data-turn 給三歲測試看，不影響行為 */
   const [turn, setTurn] = useState(false)
 
@@ -117,7 +138,8 @@ function SortRoundView({ round, prog, onDone, onAgain, resting }: { round: SortR
   const taughtLevel = () => prog.current?.sort.taught.includes(level) ?? true
   /** 這一局第 i 個是示範、一起做，還是自己做 */
   const [firstTime] = useState(() => !taughtLevel())
-  const phaseOf = (i: number): 'teach' | 'guided' | 'quiz' => (firstTime && i === 0 ? 'teach' : firstTime && i === 1 ? 'guided' : 'quiz')
+  /** 第 6 級第一次：換規則以後的第一個也示範、第二個一起做 */
+  const phaseOf = (i: number): 'teach' | 'guided' | 'quiz' => (firstTime && (i === 0 || i === switchAt) ? 'teach' : firstTime && (i === 1 || i === switchAt + 1) ? 'guided' : 'quiz')
 
   const basketOf = (id: string) => basketEls.current.get(id)
   const showHand = (basket: string, tapIt: boolean) => setHand((h) => ({ basket, tap: tapIt ? (h?.tap ?? 0) + 1 : h?.tap ?? 0, beckon: !tapIt && !!h?.beckon }))
@@ -145,10 +167,10 @@ function SortRoundView({ round, prog, onDone, onAgain, resting }: { round: SortR
       station: 'logic',
       game: SORT_GAME,
       itemId: item.id,
-      skill,
+      skill: skillOf(i),
       phase,
       level,
-      options: baskets.map((b) => b.id),
+      options: basketsOf(i).map((b) => b.id),
       answer: item.answer,
       taps: s.taps,
       firstTryCorrect: s.wrongs === 0 && !how.handPlaced,
@@ -156,12 +178,12 @@ function SortRoundView({ round, prog, onDone, onAgain, resting }: { round: SortR
       responseMs: Math.round(performance.now() - s.t0),
       hintUsed: s.wrongs >= 2 || s.led || !!how.handPlaced,
       heard: true,
-      metrics: { ...(s.led ? { led: 1 } : {}), ...(how.handPlaced ? { shown: 1 } : {}), ...(review ? { review: 1 } : {}), baskets: baskets.length },
+      metrics: { ...(s.led ? { led: 1 } : {}), ...(how.handPlaced ? { shown: 1 } : {}), ...(review ? { review: 1 } : {}), ...(then ? { switched: after(i) ? 1 : 0 } : {}), baskets: basketsOf(i).length },
     })
     const p = prog.current
     if (p) {
-      // 複習學過的特徵那一局不算進這一級的升降級
-      p.sort = stepLevel(p.sort, { date: today(), first: s.wrongs === 0 && !how.handPlaced, counted: phase === 'quiz' && !review }, SORT_MAX)
+      // 複習學過的特徵那一局不算進這一級的升降級；第 6 級只算換規則以後的
+      p.sort = stepLevel(p.sort, { date: today(), first: s.wrongs === 0 && !how.handPlaced, counted: phase === 'quiz' && !review && (!then || after(i)) }, SORT_TOP)
       void saveLogic(p)
     }
   }
@@ -170,7 +192,7 @@ function SortRoundView({ round, prog, onDone, onAgain, resting }: { round: SortR
     setClosed(true)
     sfx.done()
     const ok = flow.begin(live)
-    await say('lg.sort.done')
+    await say(...(then ? [SWITCH_PRAISE] : []), 'lg.sort.done')
     if (!ok()) return
     // 時間到了：玩完這一局才去睡覺（TIME-2）
     if (bedtimeIfDue()) return
@@ -178,8 +200,40 @@ function SortRoundView({ round, prog, onDone, onAgain, resting }: { round: SortR
   }
 
   const next = async (i: number) => {
-    if (i + 1 < items.length) present(i + 1)
+    if (i + 1 === switchAt) await runSwitch(i + 1)
+    else if (i + 1 < items.length) present(i + 1)
     else await finish()
+  }
+
+  /**
+   * 第 6 級換規則：收好的東西倒出來排在桌上 → 籃子的牌子、左上角的規則牌翻面 → New rule! Now sort by shape! → 一個一個再分。
+   * 這一段不能搶（擋板擋著），也不呼叫 flow.cut()（T-163：示範、換規則這種流程裡 cut 會讓自己作廢、卡住）。
+   */
+  const runSwitch = async (i: number) => {
+    const s = st.current
+    s.busy = true
+    setTurn(false)
+    setHold(true)
+    idle.stop()
+    const ok = flow.begin(live)
+    await wait(PACE.NEXT_REVIEW)
+    if (!ok()) return
+    sfx.whoosh()
+    setPlaced({})
+    setBump((b) => Object.fromEntries(round.baskets.map((k) => [k.id, (b[k.id] ?? 0) + 1])))
+    setPile(true)
+    await wait(900)
+    if (!ok()) return
+    sfx.pop()
+    setSide(1)
+    await wait(500)
+    if (!ok()) return
+    await say(SWITCH_LINE, nowKey(then!.dim))
+    if (!ok()) return
+    await wait(400)
+    if (!ok()) return
+    setPile(false)
+    present(i)
   }
 
   /** 第 1 個東西：手示範一次（Watch me! → 手點籃子、東西滑進去 → Red goes here. → Your turn!） */
@@ -190,8 +244,8 @@ function SortRoundView({ round, prog, onDone, onAgain, resting }: { round: SortR
     setDemo(true)
     setHold(true)
     const t0 = performance.now()
-    // 一局的第一個：先說這一局收拾什麼（Let's tidy the toys!）
-    await say(...(i === 0 ? [sortSceneKey(scene)] : []), 'teach.watch.dodo')
+    // 一局的第一個：先說這一局收拾什麼（Let's tidy the toys!）；4 歲玩法再說規則（Sort by color!）
+    await say(...(i === 0 ? [sortSceneKey(scene), ...(intro ? [intro] : [])] : []), 'teach.watch.dodo')
     if (!ok()) return
     const ans = items[i].answer
     showHand(ans, false)
@@ -208,7 +262,7 @@ function SortRoundView({ round, prog, onDone, onAgain, resting }: { round: SortR
     setHand(null)
     await say('teach.turn.dodo')
     if (!ok()) return
-    void logTeach({ station: 'logic', game: SORT_GAME, itemId: items[i].id, skill, level, ms: Math.round(performance.now() - t0) })
+    void logTeach({ station: 'logic', game: SORT_GAME, itemId: items[i].id, skill: skillOf(i), level, ms: Math.round(performance.now() - t0) })
     const p = prog.current
     if (p && !p.sort.taught.includes(level)) {
       p.sort = { ...p.sort, taught: [...p.sort.taught, level] }
@@ -242,7 +296,7 @@ function SortRoundView({ round, prog, onDone, onAgain, resting }: { round: SortR
     if (phaseOf(i) === 'teach') return void runDemo(i)
     const ok = flow.begin(live)
     s.asking = true
-    await say(...(i === 0 ? [sortSceneKey(scene)] : []), 'lg.sort.ask')
+    await say(...(i === 0 ? [sortSceneKey(scene), ...(intro ? [intro] : [])] : []), 'lg.sort.ask')
     s.asking = false
     if (!ok()) return
     const ans = items[i].answer
@@ -301,7 +355,7 @@ function SortRoundView({ round, prog, onDone, onAgain, resting }: { round: SortR
       record(i, {})
       const ok = flow.begin(live)
       // 過程讚美（FB-1）：第 2、4 個說看了什麼，其他說 Yes!
-      await say(i % 2 ? sortPraiseKey(dim) : 'praise.dodo.0')
+      await say(i % 2 ? sortPraiseKey(dimOf(i)) : 'praise.dodo.0')
       if (!ok()) return
       await wait(s.wrongs === 0 ? PACE.NEXT_REVIEW : PACE.NEXT_NEW)
       if (!ok()) return
@@ -425,7 +479,8 @@ function SortRoundView({ round, prog, onDone, onAgain, resting }: { round: SortR
       ref={layer}
       data-logic-game="sort"
       data-scene={scene}
-      data-dim={dim}
+      data-dim={dimOf(idx)}
+      data-side={then ? side : undefined}
       data-review={review ? '1' : undefined}
       data-level={level}
       data-item={idx}
@@ -440,7 +495,24 @@ function SortRoundView({ round, prog, onDone, onAgain, resting }: { round: SortR
       <div className="lg-scene-bg" aria-hidden="true" />
       <div className="lg-sort-play">
         <div className="lg-sort-table">
-          {!closed && (
+          {/* 第 6 級：左上角的規則牌（看顏色、看形狀、看是什麼），換規則時翻面 */}
+          {then && (
+            <div className="lg-rule" data-rule={side ? then.dim : round.dim} aria-hidden="true">
+              <motion.div key={side} className="lg-rule-in" initial={side ? { rotateY: 90, scale: 1.25 } : false} animate={{ rotateY: 0, scale: 1 }} transition={{ type: 'spring', stiffness: 180, damping: 14 }}>
+                <RuleArt dim={(side ? then.dim : round.dim) as 'color' | 'shape' | 'thing'} />
+              </motion.div>
+            </div>
+          )}
+          {pile && then && (
+            <div className="lg-pile" aria-hidden="true">
+              {round.items.map((x, k) => (
+                <motion.div key={x.id} className="lg-pile-one" initial={{ y: 120, opacity: 0, scale: 0.6 }} animate={{ y: 0, opacity: 1, scale: 1 }} transition={{ type: 'spring', stiffness: 220, damping: 18, delay: k * 0.08 }}>
+                  <ThingArt thing={x.thing} />
+                </motion.div>
+              ))}
+            </div>
+          )}
+          {!closed && !pile && (
             <motion.div
               key={idx}
               ref={itemEl}
@@ -461,9 +533,9 @@ function SortRoundView({ round, prog, onDone, onAgain, resting }: { round: SortR
           )}
         </div>
         <div className={`lg-baskets n${baskets.length}`}>
-          {baskets.map((b) => (
+          {baskets.map((b, k) => (
             <button
-              key={b.id}
+              key={k}
               type="button"
               ref={(el) => {
                 basketEls.current.set(b.id, el)
@@ -474,7 +546,7 @@ function SortRoundView({ round, prog, onDone, onAgain, resting }: { round: SortR
               {...tap(`basket-${b.id}`, () => void choose(b.id))}
             >
               <span key={bump[b.id] ?? 0} className={`lg-basket-in${bump[b.id] ? ' is-bump' : ''}`}>
-                <BinArt bin={b.bin} sample={b.sample} inside={placed[b.id] ?? []} closed={closed} />
+                <BinArt bin={b.bin} sample={b.sample} inside={placed[b.id] ?? []} closed={closed} sign={side ? 'after' : undefined} />
               </span>
             </button>
           ))}

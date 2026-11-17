@@ -21,7 +21,8 @@ import { patDoneKey, patThemeKey, wordKey } from './lines'
 import { offsetTo, pointIn, useLive } from './kit'
 import { loadLogic, noteScene, saveLogic, type LogicProgress } from './progress'
 import { PATTERN_GAME, PATTERN_MAX, patternRound, type Bead, type PatLevel, type PatQ, type PatThemeId } from './pattern-plan'
-import { SORT_MAX, stepLevel } from './sort-plan'
+import { stepLevel } from './sort-plan'
+import { SORT_TOP } from './sort-switch'
 import '../draw/tools.css'
 import './logic.css'
 
@@ -46,7 +47,8 @@ export function Pattern() {
   const [resting, setResting] = useState(false)
   useEffect(() => {
     let on = true
-    void loadLogic({ sort: SORT_MAX, pattern: PATTERN_MAX }).then((p) => on && setProg(p))
+    // 豆豆收拾的級數讀到第 7 級（4 歲玩法），不然存回去會被夾回第 5 級
+    void loadLogic({ sort: SORT_TOP, pattern: PATTERN_MAX }).then((p) => on && setProg(p))
     return () => {
       on = false
     }

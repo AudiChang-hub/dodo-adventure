@@ -27,6 +27,8 @@ import { Feel } from '../feel/Feel'
 import { FeelPickArt } from '../feel/art'
 import { Blocks } from '../blocks/Blocks'
 import { BlocksPickArt } from '../blocks/art'
+import { Seesaw } from '../seesaw/Seesaw'
+import { SeesawPickArt } from '../seesaw/art'
 import type { LogicGame } from '../../lib/nav'
 import { pickGrid } from './pick-grid'
 import '../draw/coloring.css'
@@ -76,6 +78,8 @@ export function LogicPick() {
     { id: 'feel' as const, label: '心情臉', art: <FeelPickArt /> },
     // T-162（家長 2026-11-17）：積木蓋蓋看（照圖蓋＋自由蓋），選單變 11 張：平板橫的 6＋5、手機直的 2 欄 6 排
     { id: 'blocks' as const, label: '積木蓋蓋看', art: <BlocksPickArt /> },
+    // 家長 2026-11-17：蹺蹺板比輕重（給 4 歲左右玩中學）
+    { id: 'seesaw' as const, label: '蹺蹺板', art: <SeesawPickArt /> },
   ]
   const grid = pickGrid(cards.length)
   return (
@@ -117,5 +121,6 @@ export function LogicPlay({ game }: { game: LogicGame }) {
   if (game === 'where') return <Where />
   if (game === 'feel') return <Feel />
   if (game === 'blocks') return <Blocks />
+  if (game === 'seesaw') return <Seesaw />
   return game === 'sort' ? <Sort /> : <Pattern />
 }

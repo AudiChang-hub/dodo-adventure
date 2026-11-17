@@ -2,7 +2,8 @@
 // content/lines.ts import 這個檔，npm run audio 才會產生音檔。
 // 「Watch me!」「Your turn!」「Yes!」「Or go home?」沿用 teach.watch.dodo、teach.turn.dodo、praise.dodo.0、d.next.home。
 import { def } from '../../content/registry'
-import { COLOR_IDS, SCENE_IDS, SHAPE_IDS, type ColorId, type KindId, type SceneId, type ShapeId } from './sort-plan'
+import { COLOR_IDS, SCENE_IDS, SHAPE_IDS, TOY_IDS, type ColorId, type KindId, type SceneId, type ShapeId, type ToyId } from './sort-plan'
+import { SWITCH_LINE, bothKey, byKey, nowKey } from './sort-switch'
 import { OBJ_IDS, THEME_IDS, type PatThemeId } from './pattern-plan'
 
 // 進門
@@ -68,6 +69,52 @@ def(sortPraiseKey('color'), 'dodo', 'Same color, same basket!')
 def(sortPraiseKey('kind'), 'dodo', 'You looked at what it is!')
 def(sortPraiseKey('shape'), 'dodo', 'You looked at the shape!')
 def(sortPraiseKey('size'), 'dodo', 'You looked at the size!')
+
+// ── 豆豆收拾的 4 歲玩法（第 6 級換規則、第 7 級兩個一起看，./sort-switch.ts）──
+const TOY_EN: Record<ToyId, [string, string]> = {
+  ball: ['ball', 'balls'],
+  block: ['block', 'blocks'],
+  balloon: ['balloon', 'balloons'],
+  car: ['car', 'cars'],
+  sock: ['sock', 'socks'],
+  shirt: ['shirt', 'shirts'],
+  hat: ['hat', 'hats'],
+  mitten: ['mitten', 'mittens'],
+  cup: ['cup', 'cups'],
+  bowl: ['bowl', 'bowls'],
+  plate: ['plate', 'plates'],
+  spoon: ['spoon', 'spoons'],
+}
+const Cap = (x: string) => `${x[0].toUpperCase()}${x.slice(1)}`
+// 第 6 級照是什麼東西分：「Cars go here.」「That one is for balls.」「This is a car.」
+for (const t of TOY_IDS) {
+  def(goesKey(t), 'dodo', `${Cap(TOY_EN[t][1])} go here.`)
+  def(thatKey(t), 'dodo', `That one is for ${TOY_EN[t][1]}.`)
+  def(thisKey(t), 'dodo', `This is a ${TOY_EN[t][0]}.`)
+}
+// 第 7 級兩個一起看：「Red circles go here.」「That one is for blue cars.」「This is a red car.」
+const BOTH_EN: Record<string, [string, string]> = { ...Object.fromEntries(SHAPE_IDS.map((x) => [x, [SHAPE_EN[x], `${SHAPE_EN[x]}s`]])), ...TOY_EN }
+for (const c of COLOR_IDS)
+  for (const [v, [one, many]] of Object.entries(BOTH_EN)) {
+    def(goesKey(`${c}-${v}`), 'dodo', `${COLOR_EN[c]} ${many} go here.`)
+    def(thatKey(`${c}-${v}`), 'dodo', `That one is for ${c} ${many}.`)
+    def(thisKey(`${c}-${v}`), 'dodo', `This is a ${c} ${one}.`)
+  }
+// 一局開始說規則；換規則的時候（New rule! Now sort by shape!）
+def(byKey('color'), 'dodo', 'Sort by color!')
+def(byKey('shape'), 'dodo', 'Sort by shape!')
+def(byKey('thing'), 'dodo', 'Sort by what it is!')
+def(SWITCH_LINE, 'dodo', 'New rule!')
+def(nowKey('color'), 'dodo', 'Now sort by color!')
+def(nowKey('shape'), 'dodo', 'Now sort by shape!')
+def(nowKey('thing'), 'dodo', 'Now sort by what it is!')
+def(bothKey('shape'), 'dodo', 'Same color, same shape!')
+def(bothKey('thing'), 'dodo', 'Same color, same toy!')
+def(sortPraiseKey('thing'), 'dodo', 'You looked at what it is!')
+def(sortPraiseKey('both'), 'dodo', 'You looked at both!')
+/** 第 6 級一局收完（過程讚美 FB-1：說他做到了什麼） */
+export const SWITCH_PRAISE = 'lg.sort.praise.switch'
+def(SWITCH_PRAISE, 'dodo', 'You changed the rule!')
 
 // ── 串珠珠 ──
 def('lg.pat.ask', 'dodo', 'What comes next?')

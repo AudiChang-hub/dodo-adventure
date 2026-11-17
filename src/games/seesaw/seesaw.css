@@ -1,0 +1,169 @@
+/* 蹺蹺板比輕重：猜哪邊往下是一張 SVG 場景（1000×600，置中、等比例）；排輕重是上面一排東西、下面一個三格的架子。平板橫向 1200×786 為準 */
+.ss {
+  position: absolute;
+  inset: 0;
+}
+.ss-play {
+  position: absolute;
+  inset: 0;
+  /* 準則 TOUCH-5：最下緣 2 cm 是手腕靠的地方，可以點的東西都在它上面 */
+  bottom: 70px;
+  overflow: hidden;
+  border-radius: 24px;
+  transition: right 0.35s var(--ease-out, ease-out);
+}
+/* 一局玩完：右邊一欄給「再一局／回首頁」，作答區往左讓開 */
+.ss.is-resting > .ss-play {
+  right: calc(2 * 92px + 48px);
+}
+.ss-scene {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+  overflow: visible;
+}
+/* 板子以支點為中心轉（場景座標），歪下去會稍微回彈一下 */
+.ss-tilt {
+  transform-box: view-box;
+  transform-origin: 500px 400px;
+  transition: transform 0.9s cubic-bezier(0.3, 1.35, 0.5, 1);
+}
+/* 撐著板子的兩根木頭：放手時往下掉 */
+.ss-props {
+  transition:
+    transform 0.35s ease-in,
+    opacity 0.35s ease-in;
+}
+.ss-props.is-down {
+  transform: translateY(150px);
+  opacity: 0;
+}
+.ss-seat {
+  cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  outline: none;
+}
+.ss-hit {
+  fill: transparent;
+}
+.ss-seat:focus-visible .ss-hit {
+  stroke: #4f7fc2;
+  stroke-width: 6;
+}
+/* 他猜的那一邊：東西後面一圈淡黃（不是對錯，只是「你選了這個」） */
+.ss-picked {
+  fill: rgba(241, 210, 124, 0.35);
+  stroke: #f1d27c;
+  stroke-width: 6;
+}
+@media (prefers-reduced-motion: reduce) {
+  .ss-tilt {
+    transition-duration: 0.3s;
+    transition-timing-function: ease-out;
+  }
+}
+
+/* ── 排輕重 ── */
+.ss-order {
+  display: grid;
+  grid-template-rows: 46% 54%;
+  background: linear-gradient(#eef5f0, #eef5f0 46%, #f4ead7 46%);
+}
+.ss-table,
+.ss-slots {
+  display: flex;
+  justify-content: center;
+  align-items: end;
+  gap: clamp(20px, 5cqw, 80px);
+  min-height: 0;
+}
+.ss-table {
+  padding-bottom: clamp(8px, 2cqh, 20px);
+}
+.ss-pick,
+.ss-slot {
+  position: relative;
+  width: min(30cqh, 19cqw);
+  aspect-ratio: 1;
+  display: grid;
+  place-items: end center;
+}
+.ss-pick {
+  border: 0;
+  padding: 0;
+  background: none;
+  border-radius: 28px;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+.ss-pick:focus-visible {
+  outline: 4px solid #4f7fc2;
+  outline-offset: 4px;
+}
+/* 第 2 次點錯：對的那一個外圈亮起來（暖黃光，靜止，不閃） */
+.ss-pick.is-glow::before {
+  content: '';
+  position: absolute;
+  inset: -8%;
+  border-radius: 50%;
+  background: radial-gradient(closest-side, rgba(241, 210, 124, 0.9), rgba(241, 210, 124, 0.35) 70%, transparent);
+  z-index: -1;
+}
+.ss-thing {
+  width: calc(100% * var(--k, 1));
+  aspect-ratio: 1;
+  filter: drop-shadow(0 8px 6px rgba(46, 42, 37, 0.16));
+}
+.ss-shelf {
+  display: grid;
+  grid-template-rows: 1fr auto;
+  align-items: end;
+  padding: clamp(10px, 2cqh, 24px) clamp(20px, 6cqw, 90px) clamp(6px, 1.5cqh, 16px);
+  min-height: 0;
+}
+/* 架子上的一格：虛線框，放進來的東西站在格子底下 */
+.ss-slot {
+  border: 4px dashed rgba(46, 42, 37, 0.28);
+  border-radius: 24px;
+  background: rgba(255, 255, 255, 0.5);
+  padding-bottom: 6px;
+}
+/* 排好了：三格從左到右輕輕跳一下（一次就停，MOTION-1） */
+.ss-slot.is-cheer {
+  animation: ss-cheer 0.5s var(--ease-out, ease-out) var(--d, 0s) both;
+}
+@keyframes ss-cheer {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  45% {
+    transform: translateY(-14px);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ss-slot.is-cheer {
+    animation: none;
+  }
+}
+/* 從細到粗的木頭：左邊輕、右邊重 */
+.ss-wedge {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: clamp(8px, 1.6cqh, 16px);
+  height: clamp(36px, 7cqh, 56px);
+}
+.ss-bar {
+  flex: 1;
+  height: 80%;
+  overflow: visible;
+}
+.ss-end {
+  width: clamp(32px, 6cqh, 48px);
+  aspect-ratio: 1;
+  flex: none;
+}

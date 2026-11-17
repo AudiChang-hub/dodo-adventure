@@ -54,6 +54,7 @@ const CHECKS = [
   { id: 'test-match', name: '單元：翻翻牌、影子配對（圖庫 ≥ 150、牌背、場景、不跟最近幾局一樣、輪廓很像的、升降級、台詞音檔）', cmd: ['npx', 'tsx', 'scripts/test-match.ts'], check: unit },
   { id: 'test-where-feel', name: '單元：躲在哪裡、心情臉（內容量、選項數、答案唯一、不跟最近幾題一樣、升降級、台詞 ≤ 6 個字、音檔）', cmd: ['npx', 'tsx', 'scripts/test-where-feel.ts'], check: unit },
   { id: 'test-blocks', name: '單元：積木蓋蓋看（模型 ≥ 200、每個看得出是什麼不重複、撐得住放得完、顏色 ≥ 8、不跟最近 10 個重複、托盤多放的不會是答案、步驟、升降級、版面 ≥ 2 公分、自由蓋、台詞音檔）、選單 11 張', cmd: ['npx', 'tsx', 'scripts/test-blocks.ts'], check: unit },
+  { id: 'test-sort-seesaw', name: '單元：豆豆收拾換規則（同一堆換規則、衝突題、兩個一起看、組合 ≥ 300、同一天不重複、原本 1～5 級不變）、蹺蹺板（東西 ≥ 40、重的明顯比較重、大的不一定比較重、排輕重、一天不重複、升降級、台詞音檔）', cmd: ['npx', 'tsx', 'scripts/test-sort-seesaw.ts'], check: unit },
   { id: 'test-stage4-registry', name: '單元：家長區 4 歲內容（三科的門、暫停的 kv、尚未提供、每堂出多少）', cmd: ['npx', 'tsx', 'scripts/test-stage4-registry.ts'], check: unit },
   {
     id: 'zh-layout',

@@ -43,6 +43,8 @@ import '../games/where/lines'
 import '../games/feel/lines'
 // 遊戲角的積木蓋蓋看（T-162）
 import '../games/blocks/lines'
+// 遊戲角的蹺蹺板比輕重（家長 2026-11-17）
+import '../games/seesaw/lines'
 
 export { def, defBridge, isBridge, line, hasLine, allLines, segments, plainText, type Speaker, type Line, type Segment } from './registry'
 
