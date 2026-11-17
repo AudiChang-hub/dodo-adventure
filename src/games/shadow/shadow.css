@@ -103,3 +103,10 @@
     transition: none;
   }
 }
+/* 影子那一片的乾淨底色（PM 2026-11-17：背景裝飾壓在影子後面，孩子分不清哪裡是影子）：
+   場景的天空或牆壁的顏色、不透明，全寬鋪到托盤底下，最下面一段淡掉、融進地面（看起來是天空，不像多一塊板子） */
+.sh-panel {
+  position: absolute;
+  background: linear-gradient(to bottom, var(--sh-base, #e3eef2) calc(100% - 56px), transparent);
+  pointer-events: none;
+}
