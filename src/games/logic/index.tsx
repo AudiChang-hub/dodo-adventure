@@ -1,4 +1,4 @@
-import { useEffect, useRef, type CSSProperties } from 'react'
+import { useEffect, useRef, type CSSProperties, type ReactNode } from 'react'
 import { motion } from 'motion/react'
 import { Shell } from '../Shell'
 import { go } from '../../lib/nav'
@@ -38,20 +38,22 @@ import { ListenPickArt } from '../listen/art'
 import { Seesaw } from '../seesaw/Seesaw'
 import { SeesawPickArt } from '../seesaw/art'
 import type { LogicGame } from '../../lib/nav'
-import { pickGrid } from './pick-grid'
+import { PICK_GROUPS, groupLayout } from './pick-grid'
+import { GroupIcon } from './group-art'
 import '../draw/coloring.css'
 import './logic.css'
 import './corner.css'
 
 // 遊戲角的邏輯遊戲（T-152 設計稿第三節案 A）：首頁「邏輯遊戲」的圓窗進來先選一種玩法（跟畫畫的 DrawPick 一樣，大圖示、沒有字）。
 // T-156（家長 2026-11-16）加上拼圖（games/puzzle）、迷宮（games/maze），四張排成 2×2。
-// T-160（家長 2026-11-17）加上小熊野餐（games/picnic）、鼓聲停（games/drum）。遊戲會加到 10 個：平板橫的排成 2 排（5×2），
-// 手機直的排成 2 欄；排法照卡片數自己算（pickGrid），清單多加幾項都排得下，卡片仍 ≥ 2.5 cm（TOUCH-1）。
+// T-160 起陸續加到 16 個（家長 2026-11-17）。16 張分成 4 類（數一數、動動腦、看仔細、聽和說，./pick-grid 的 PICK_GROUPS），
+// 每類一塊底色、標頭一個圖示，沒有多一層「選類別」：一個畫面看得到全部，點一下就進遊戲。
+// 平板橫的一頁放下（groupLayout 挑卡片最大的排法，卡片 ≥ 2.5 cm、間距 ≥ 0.6 cm，TOUCH-1）；手機直的一類一塊往下排，可以捲。
 // 每一層返回鍵點一下回上一層：玩到一半 → 選玩法 → 首頁（lib/nav.ts 的 parentOf）。
 // 上次玩的那一個不另外標記（不暗示該玩哪個）。
 
 /**
- * 選玩法：籃子（豆豆收拾，分類）、一串珠子（串珠珠，規律）、拼圖、迷宮、小熊野餐、鼓聲停。進來說一句 Pick a game!。
+ * 選玩法：4 類 16 張大圖示（見 PICK_GROUPS）。進來說一句 Pick a game!。
  * 連點、兩根手指同時點兩張：只照第一下換畫面。時間到了（從一局回到這裡）：去睡覺，不再開新的一局。
  */
 export function LogicPick() {
@@ -71,60 +73,90 @@ export function LogicPick() {
     sfx.tap()
     go({ name: 'logic-play', game })
   }
-  const cards = [
-    { id: 'sort' as const, label: '豆豆收拾', art: <SortPickArt /> },
-    { id: 'pattern' as const, label: '串珠珠', art: <PatternPickArt /> },
-    { id: 'puzzle' as const, label: '拼圖', art: <PuzzlePickArt /> },
-    { id: 'maze' as const, label: '迷宮', art: <MazePickArt /> },
-    { id: 'picnic' as const, label: '小熊野餐', art: <PicnicPickArt /> },
-    { id: 'drum' as const, label: '鼓聲停', art: <DrumPickArt /> },
-    // T-160（家長 2026-11-17）：翻翻牌、影子配對
-    { id: 'memory' as const, label: '翻翻牌', art: <MemoryPickArt /> },
-    { id: 'shadow' as const, label: '影子配對', art: <ShadowPickArt /> },
-    // T-160（家長 2026-11-17）：躲在哪裡（位置詞 in、on、under）、心情臉（認情緒）
-    { id: 'where' as const, label: '躲在哪裡', art: <WherePickArt /> },
-    { id: 'feel' as const, label: '心情臉', art: <FeelPickArt /> },
-    // T-162（家長 2026-11-17）：積木蓋蓋看（照圖蓋＋自由蓋），選單變 11 張：平板橫的 6＋5、手機直的 2 欄 6 排
-    { id: 'blocks' as const, label: '積木蓋蓋看', art: <BlocksPickArt /> },
+  // 每一張的圖和名字（名字只給螢幕閱讀器、家長看）。Record 讓每個遊戲都一定有一張；分在哪一類、順序照 PICK_GROUPS。
+  const cards: Record<LogicGame, { label: string; art: ReactNode }> = {
+    sort: { label: '豆豆收拾', art: <SortPickArt /> },
+    pattern: { label: '串珠珠', art: <PatternPickArt /> },
+    puzzle: { label: '拼圖', art: <PuzzlePickArt /> },
+    maze: { label: '迷宮', art: <MazePickArt /> },
+    // T-160（家長 2026-11-17）：小熊野餐、鼓聲停、翻翻牌、影子配對、躲在哪裡（位置詞 in、on、under）、心情臉（認情緒）
+    picnic: { label: '小熊野餐', art: <PicnicPickArt /> },
+    drum: { label: '鼓聲停', art: <DrumPickArt /> },
+    memory: { label: '翻翻牌', art: <MemoryPickArt /> },
+    shadow: { label: '影子配對', art: <ShadowPickArt /> },
+    where: { label: '躲在哪裡', art: <WherePickArt /> },
+    feel: { label: '心情臉', art: <FeelPickArt /> },
+    // T-162（家長 2026-11-17）：積木蓋蓋看（照圖蓋＋自由蓋）
+    blocks: { label: '積木蓋蓋看', art: <BlocksPickArt /> },
     // 家長 2026-11-17：恐龍賽跑棋（數字線、一一對應、輪流）、躲起來了幾隻（5 以內的分與合）
-    { id: 'race' as const, label: '恐龍賽跑棋', art: <RacePickArt /> },
-    { id: 'hide' as const, label: '躲起來了幾隻', art: <HidePickArt /> },
+    race: { label: '恐龍賽跑棋', art: <RacePickArt /> },
+    hide: { label: '躲起來了幾隻', art: <HidePickArt /> },
     // T-164（家長 2026-11-17）：故事排順序（先後、因果）、聽兩步驟指令（英文、工作記憶）
-    { id: 'order' as const, label: '故事排順序', art: <OrderPickArt /> },
-    { id: 'listen' as const, label: '聽指令', art: <ListenPickArt /> },
+    order: { label: '故事排順序', art: <OrderPickArt /> },
+    listen: { label: '聽指令', art: <ListenPickArt /> },
     // 家長 2026-11-17：蹺蹺板比輕重（給 4 歲左右玩中學）
-    { id: 'seesaw' as const, label: '蹺蹺板', art: <SeesawPickArt /> },
-  ]
-  const grid = pickGrid(cards.length)
+    seesaw: { label: '蹺蹺板', art: <SeesawPickArt /> },
+  }
+  const layout = groupLayout(PICK_GROUPS.map((g) => g.games.length))
+  let i = 0
   return (
     <Shell station="logic" mood="idle" onExit={() => go({ name: 'home' }, { back: true })} hideHost hintText={LOGIC_PICK_HINT}>
-      <div
-        className={`draw-pick lg-pick n${cards.length}${cards.length > 4 ? ' is-many' : ''}`}
-        data-logic-pick=""
-        style={{ '--cols': grid.cols, '--rows': grid.rows, '--pcols': grid.pcols, '--prows': grid.prows } as CSSProperties}
-      >
-        {cards.map((c, i) => (
-          <motion.button
-            key={c.id}
-            type="button"
-            className="draw-pick-card lg-pick-card"
-            data-pick={c.id}
-            aria-label={c.label}
-            initial={{ y: 24, opacity: 0 }}
-            animate={{ y: 0, opacity: 1 }}
-            transition={{ type: 'spring', stiffness: 220, damping: 22, delay: 0.1 + i * 0.12 }}
-            whileTap={{ scale: 0.95 }}
-            {...tap(c.id, () => open(c.id))}
-          >
-            {c.art}
-          </motion.button>
-        ))}
+      <div className="draw-pick lg-pick is-grouped" data-logic-pick="" style={layout.vars as CSSProperties}>
+        <div className="lg-groups">
+          {layout.rows.map((row, r) => (
+            <div key={r} className="lg-group-row">
+              {row.map((gi) => {
+                const g = PICK_GROUPS[gi]
+                return (
+                  <motion.section
+                    key={g.id}
+                    className={`lg-group is-${g.id}`}
+                    data-group={g.id}
+                    role="group"
+                    aria-label={g.label}
+                    style={{ '--gc': layout.cols[gi], '--gpc': layout.pcols[gi], flexGrow: layout.cols[gi] } as CSSProperties}
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    transition={{ duration: 0.3, delay: 0.05 + gi * 0.08 }}
+                  >
+                    <div className="lg-group-head" aria-hidden="true">
+                      <GroupIcon id={g.id} />
+                      <span className="lg-group-name">{g.label}</span>
+                    </div>
+                    <div className="lg-group-cards">
+                      {g.games.map((id) => {
+                        const c = cards[id]
+                        const k = i++
+                        return (
+                          <motion.button
+                            key={id}
+                            type="button"
+                            className="draw-pick-card lg-pick-card"
+                            data-pick={id}
+                            aria-label={c.label}
+                            initial={{ y: 24, opacity: 0 }}
+                            animate={{ y: 0, opacity: 1 }}
+                            transition={{ type: 'spring', stiffness: 220, damping: 22, delay: 0.1 + k * 0.05 }}
+                            whileTap={{ scale: 0.95 }}
+                            {...tap(id, () => open(id))}
+                          >
+                            {c.art}
+                          </motion.button>
+                        )
+                      })}
+                    </div>
+                  </motion.section>
+                )
+              })}
+            </div>
+          ))}
+        </div>
       </div>
     </Shell>
   )
 }
 
-/** 一種玩法：sort 豆豆收拾、pattern 串珠珠、puzzle 拼圖、maze 迷宮、picnic 小熊野餐、drum 鼓聲停、memory 翻翻牌、shadow 影子配對、where 躲在哪裡、feel 心情臉、blocks 積木蓋蓋看 */
+/** 一種玩法（16 種，名字見 LogicPick 的 cards）；返回鍵回到選玩法（lib/nav.ts 的 parentOf） */
 export function LogicPlay({ game }: { game: LogicGame }) {
   if (game === 'puzzle') return <Puzzle />
   if (game === 'maze') return <Maze />
