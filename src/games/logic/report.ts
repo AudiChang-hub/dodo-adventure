@@ -3,7 +3,7 @@
 import type { Attempt } from '../../lib/db'
 import { MASTER_DAYS, MASTER_OF, MASTER_OK } from './sort-plan'
 
-export const LOGIC_GAME_NAME: Record<string, string> = { 'logic-sort': '豆豆收拾', 'logic-pattern': '串珠珠', 'logic-puzzle': '拼圖', 'logic-maze': '迷宮', 'logic-picnic': '小熊野餐', 'logic-drum': '鼓聲停', 'logic-memory': '翻翻牌', 'logic-shadow': '影子配對', 'logic-where': '躲在哪裡', 'logic-feel': '心情臉', 'logic-blocks': '積木蓋蓋看' }
+export const LOGIC_GAME_NAME: Record<string, string> = { 'logic-sort': '豆豆收拾', 'logic-pattern': '串珠珠', 'logic-puzzle': '拼圖', 'logic-maze': '迷宮', 'logic-picnic': '小熊野餐', 'logic-drum': '鼓聲停', 'logic-memory': '翻翻牌', 'logic-shadow': '影子配對', 'logic-where': '躲在哪裡', 'logic-feel': '心情臉', 'logic-blocks': '積木蓋蓋看', 'logic-race': '恐龍賽跑棋', 'logic-hide': '躲起來了幾隻' }
 
 /** 技能的中文（作答紀錄、總覽用） */
 export const LOGIC_SKILLS: { skill: string; zh: string }[] = [
@@ -62,6 +62,14 @@ export const LOGIC_SKILLS: { skill: string; zh: string }[] = [
   { skill: 'blocks:2', zh: '照圖蓋積木（6～8 塊，平面）' },
   { skill: 'blocks:3', zh: '照圖蓋積木（前後兩排）' },
   { skill: 'blocks:4', zh: '照步驟圖蓋積木' },
+  // 家長 2026-11-17：恐龍賽跑棋（MA-3 一一對應、數到 10，SE-2 輪流）：他走完骰子的點數記一筆；躲起來了幾隻（MA-10 5 以內的分與合）：一題記一筆
+  { skill: 'race:1-3-glow', zh: '照骰子點數一格一格走（1～3 點，下一格亮著）' },
+  { skill: 'race:1-3', zh: '照骰子點數一格一格走（1～3 點）' },
+  { skill: 'race:1-6', zh: '照骰子點數一格一格走（1～6 點）' },
+  { skill: 'hide:3-frame', zh: '躲起來了幾隻（3 隻，有空心圈提示）' },
+  { skill: 'hide:3-4', zh: '躲起來了幾隻（3～4 隻）' },
+  { skill: 'hide:4-5', zh: '躲起來了幾隻（4～5 隻）' },
+  { skill: 'hide:5-num', zh: '躲起來了幾隻（5 隻，用數字答）' },
 ]
 
 /** 邏輯遊戲的技能名稱；不是邏輯遊戲的回傳 null（交給家長區原本的 skillLabel） */

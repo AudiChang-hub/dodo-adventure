@@ -1,0 +1,44 @@
+/* 恐龍賽跑棋（家長 2026-11-17）：場景是一張 SVG（1100×640，置中、等比例）。平板橫向 1200×786 為準 */
+.rc {
+  position: absolute;
+  inset: 0;
+}
+.rc-play {
+  position: absolute;
+  inset: 0;
+  /* 準則 TOUCH-5：最下緣 2 cm 是手腕靠的地方，骰子、格子都在它上面 */
+  bottom: 70px;
+  overflow: hidden;
+  border-radius: 24px;
+  transition: right 0.35s var(--ease-out, ease-out);
+}
+/* 一局玩完：右邊一欄給「再玩一次／回首頁」，場景往左讓開 */
+.rc.is-resting > .rc-play {
+  right: calc(2 * 92px + 48px);
+}
+.rc-scene {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  display: block;
+}
+.rc-cell,
+.rc-die,
+.rc-hit {
+  cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  outline: none;
+}
+.rc-cell:focus-visible > rect:first-child,
+.rc-die:focus-visible > rect:first-child {
+  stroke: #4f7fc2;
+  stroke-width: 6;
+}
+@media (prefers-reduced-motion: reduce) {
+  .rc-play {
+    transition: none;
+  }
+}

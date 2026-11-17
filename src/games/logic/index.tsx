@@ -27,6 +27,10 @@ import { Feel } from '../feel/Feel'
 import { FeelPickArt } from '../feel/art'
 import { Blocks } from '../blocks/Blocks'
 import { BlocksPickArt } from '../blocks/art'
+import { Race } from '../race/Race'
+import { RacePickArt } from '../race/art'
+import { Hide } from '../hide/Hide'
+import { HidePickArt } from '../hide/art'
 import type { LogicGame } from '../../lib/nav'
 import { pickGrid } from './pick-grid'
 import '../draw/coloring.css'
@@ -76,6 +80,9 @@ export function LogicPick() {
     { id: 'feel' as const, label: '心情臉', art: <FeelPickArt /> },
     // T-162（家長 2026-11-17）：積木蓋蓋看（照圖蓋＋自由蓋），選單變 11 張：平板橫的 6＋5、手機直的 2 欄 6 排
     { id: 'blocks' as const, label: '積木蓋蓋看', art: <BlocksPickArt /> },
+    // 家長 2026-11-17：恐龍賽跑棋（數字線、一一對應、輪流）、躲起來了幾隻（5 以內的分與合）
+    { id: 'race' as const, label: '恐龍賽跑棋', art: <RacePickArt /> },
+    { id: 'hide' as const, label: '躲起來了幾隻', art: <HidePickArt /> },
   ]
   const grid = pickGrid(cards.length)
   return (
@@ -117,5 +124,7 @@ export function LogicPlay({ game }: { game: LogicGame }) {
   if (game === 'where') return <Where />
   if (game === 'feel') return <Feel />
   if (game === 'blocks') return <Blocks />
+  if (game === 'race') return <Race />
+  if (game === 'hide') return <Hide />
   return game === 'sort' ? <Sort /> : <Pattern />
 }
