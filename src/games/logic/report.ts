@@ -3,7 +3,7 @@
 import type { Attempt } from '../../lib/db'
 import { MASTER_DAYS, MASTER_OF, MASTER_OK } from './sort-plan'
 
-export const LOGIC_GAME_NAME: Record<string, string> = { 'logic-sort': '豆豆收拾', 'logic-pattern': '串珠珠', 'logic-puzzle': '拼圖', 'logic-maze': '迷宮', 'logic-picnic': '小熊野餐', 'logic-drum': '鼓聲停', 'logic-memory': '翻翻牌', 'logic-shadow': '影子配對', 'logic-where': '躲在哪裡', 'logic-feel': '心情臉' }
+export const LOGIC_GAME_NAME: Record<string, string> = { 'logic-sort': '豆豆收拾', 'logic-pattern': '串珠珠', 'logic-puzzle': '拼圖', 'logic-maze': '迷宮', 'logic-picnic': '小熊野餐', 'logic-drum': '鼓聲停', 'logic-memory': '翻翻牌', 'logic-shadow': '影子配對', 'logic-where': '躲在哪裡', 'logic-feel': '心情臉', 'logic-blocks': '積木蓋蓋看' }
 
 /** 技能的中文（作答紀錄、總覽用） */
 export const LOGIC_SKILLS: { skill: string; zh: string }[] = [
@@ -57,6 +57,11 @@ export const LOGIC_SKILLS: { skill: string; zh: string }[] = [
   { skill: 'feel:sad', zh: '認得難過的臉（sad）' },
   { skill: 'feel:angry', zh: '認得生氣的臉（angry）' },
   { skill: 'feel:scared', zh: '認得害怕的臉（scared）' },
+  // T-162 積木蓋蓋看（MA-6 用形狀拼出圖案、MA-8 旁邊／上面、CG-3 先看計畫）：照圖蓋一個記一筆；自由蓋不評分、不記
+  { skill: 'blocks:1', zh: '照圖蓋積木（3～4 塊，平面）' },
+  { skill: 'blocks:2', zh: '照圖蓋積木（6～8 塊，平面）' },
+  { skill: 'blocks:3', zh: '照圖蓋積木（前後兩排）' },
+  { skill: 'blocks:4', zh: '照步驟圖蓋積木' },
 ]
 
 /** 邏輯遊戲的技能名稱；不是邏輯遊戲的回傳 null（交給家長區原本的 skillLabel） */

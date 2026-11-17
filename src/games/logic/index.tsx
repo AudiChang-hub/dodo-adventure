@@ -25,6 +25,8 @@ import { Where } from '../where/Where'
 import { WherePickArt } from '../where/art'
 import { Feel } from '../feel/Feel'
 import { FeelPickArt } from '../feel/art'
+import { Blocks } from '../blocks/Blocks'
+import { BlocksPickArt } from '../blocks/art'
 import type { LogicGame } from '../../lib/nav'
 import { pickGrid } from './pick-grid'
 import '../draw/coloring.css'
@@ -72,6 +74,8 @@ export function LogicPick() {
     // T-160（家長 2026-11-17）：躲在哪裡（位置詞 in、on、under）、心情臉（認情緒）
     { id: 'where' as const, label: '躲在哪裡', art: <WherePickArt /> },
     { id: 'feel' as const, label: '心情臉', art: <FeelPickArt /> },
+    // T-162（家長 2026-11-17）：積木蓋蓋看（照圖蓋＋自由蓋），選單變 11 張：平板橫的 6＋5、手機直的 2 欄 6 排
+    { id: 'blocks' as const, label: '積木蓋蓋看', art: <BlocksPickArt /> },
   ]
   const grid = pickGrid(cards.length)
   return (
@@ -102,7 +106,7 @@ export function LogicPick() {
   )
 }
 
-/** 一種玩法：sort 豆豆收拾、pattern 串珠珠、puzzle 拼圖、maze 迷宮、picnic 小熊野餐、drum 鼓聲停、memory 翻翻牌、shadow 影子配對、where 躲在哪裡、feel 心情臉 */
+/** 一種玩法：sort 豆豆收拾、pattern 串珠珠、puzzle 拼圖、maze 迷宮、picnic 小熊野餐、drum 鼓聲停、memory 翻翻牌、shadow 影子配對、where 躲在哪裡、feel 心情臉、blocks 積木蓋蓋看 */
 export function LogicPlay({ game }: { game: LogicGame }) {
   if (game === 'puzzle') return <Puzzle />
   if (game === 'maze') return <Maze />
@@ -112,5 +116,6 @@ export function LogicPlay({ game }: { game: LogicGame }) {
   if (game === 'shadow') return <Shadow />
   if (game === 'where') return <Where />
   if (game === 'feel') return <Feel />
+  if (game === 'blocks') return <Blocks />
   return game === 'sort' ? <Sort /> : <Pattern />
 }
