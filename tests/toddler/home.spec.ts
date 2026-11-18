@@ -1193,8 +1193,20 @@ const NAME_OF: Record<string, RegExp> = { english: /Dodo/, math: /Bobo/, chinese
 
 const sampleDinos = (page: Page) =>
   page.evaluate((doors) => {
-    const w = window as unknown as { __dino: DinoSample[] }
+    const w = window as unknown as { __dino: DinoSample[]; __voiceLit: { t: number; named: string | null }[] }
     w.__dino = []
+    // 每一段語音開始的那一個工作（task）結束時，哪一扇門亮著：不靠每一幀取樣抓時間，CPU 滿載時也一樣準。
+    // 以前門要等 React 下一輪排程才換亮，CPU 忙的時候中間會插進一幀「聲音換人了、上一隻還亮著」（PM 完整測試 1/1）
+    w.__voiceLit = []
+    const start = AudioBufferSourceNode.prototype.start
+    AudioBufferSourceNode.prototype.start = function (this: AudioBufferSourceNode & { __voice?: boolean }, ...a: Parameters<typeof start>) {
+      const r = start.apply(this, a)
+      if (this.__voice) {
+        const t = performance.now()
+        queueMicrotask(() => w.__voiceLit.push({ t, named: document.querySelector('.door[data-named="1"]')?.getAttribute('data-door') ?? null }))
+      }
+      return r
+    }
     const tick = () => {
       const rise: Record<string, number> = {}
       const h: Record<string, number> = {}
@@ -1235,6 +1247,7 @@ test.describe('T-139 首頁介紹看得出是哪一隻', () => {
       await k.wait(3000)
       const vs = await voiceRecs(page, t0)
       const samples = await page.evaluate(() => (window as unknown as { __dino: DinoSample[] }).__dino)
+      const voiceLit = await page.evaluate(() => (window as unknown as { __voiceLit: { t: number; named: string | null }[] }).__voiceLit)
       // 每一句「說話」：字幕有名字的那一段（開始、結束：被停掉的算到停的時候）
       for (const d of DINO_DOORS) {
         const v = vs.find((x) => NAME_OF[d].test(x.text))
@@ -1259,6 +1272,12 @@ test.describe('T-139 首頁介紹看得出是哪一隻', () => {
         const ok = peak >= height * 0.15 && upAt != null && upAt <= end && lit >= 0.7 && otherMove < 2 && !otherLit
         c.outcome(`念到 ${d} 門的恐龍：牠明顯跳一下、亮著，其他兩隻不動`, ok, note)
         if (!ok) await c.once(`named:${d}`, '困惑', `念到 ${d} 門的恐龍時看不出是哪一隻`, note)
+        // 聲音一開始，同一個工作裡門就換亮（不留給下一幀）
+        const atStart = voiceLit.filter((x) => Math.abs(x.t - v.t) < 5).at(-1)
+        const sync = atStart?.named === d
+        const syncNote = `「${v.text}」開始的那一刻亮著：${atStart ? atStart.named ?? '沒有' : '沒量到'}`
+        c.outcome(`念到 ${d} 門的恐龍：聲音一開始門就換亮`, sync, syncNote)
+        if (!sync) await c.once(`named-sync:${d}`, '困惑', `念到 ${d} 門的恐龍時，上一隻的門還亮著`, syncNote)
       }
       // 介紹說完：大家都不亮（靜止，MOTION-2）
       const last = samples[samples.length - 1]

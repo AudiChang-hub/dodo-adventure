@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react'
+import { flushSync } from 'react-dom'
 import { motion } from 'motion/react'
 import { DINO_EN, Dino } from '../art/Dino'
 import { Emoji } from '../art/Emoji'
@@ -160,10 +161,15 @@ export function Home() {
       }
       const x = INTRO.find((i) => i.key === (e as { key?: string }).key)
       if (!x) return
+      // 換亮用 flushSync：在聲音開始的同一個工作裡就換好門，不等 React 下一輪排程。
+      // 不然 CPU 忙的時候，聲音已經換成波波，畫面卻還有一幀是豆豆的門亮著（PM 完整測試 2026-11-18）。
+      // seg／whole 都在 await 之後才發，不會在 React 渲染、生命週期裡呼叫 flushSync
       if (e.type === 'whole') {
         clear()
-        setNamed(x.who)
-        return jump(x.who)
+        return flushSync(() => {
+          setNamed(x.who)
+          jump(x.who)
+        })
       }
       if (e.type === 'end') {
         if (x.key === INTRO[INTRO.length - 1].key) timers.push(window.setTimeout(() => setNamed(null), 800))
@@ -172,7 +178,7 @@ export function Home() {
       // seg：這一句開始就亮；念到名字的那一刻跳
       if (e.seg === 0) {
         clear()
-        setNamed(x.who)
+        flushSync(() => setNamed(x.who))
       }
       const name = DINO_EN[x.who].toLowerCase()
       const w = e.words?.find((t) => t[2].toLowerCase().includes(name))
