@@ -13,7 +13,7 @@ import { logAttempt, logTeach } from '../../lib/record'
 import { today } from '../../lib/db'
 import { go } from '../../lib/nav'
 import { bedtimeIfDue } from '../../lib/session'
-import { useTaps } from '../../ui/tap'
+import { ANSWER_TAP, useTaps } from '../../ui/tap'
 import { BinArt, RuleArt, SortPickArt, ThingArt } from './art'
 import { sortCoplay } from './coplay'
 import { SWITCH_PRAISE, goesKey, sortPraiseKey, sortSceneKey, thatKey, thisKey } from './lines'
@@ -543,7 +543,7 @@ function SortRoundView({ round, prog, onDone, onAgain, resting }: { round: SortR
               className={`lg-basket${glow === b.id ? ' is-glow' : ''}`}
               data-basket={b.id}
               aria-label={`籃子：${b.id}`}
-              {...tap(`basket-${b.id}`, () => void choose(b.id))}
+              {...tap(`basket-${b.id}`, () => void choose(b.id), ANSWER_TAP)}
             >
               <span key={bump[b.id] ?? 0} className={`lg-basket-in${bump[b.id] ? ' is-bump' : ''}`}>
                 <BinArt bin={b.bin} sample={b.sample} inside={placed[b.id] ?? []} closed={closed} sign={side ? 'after' : undefined} />

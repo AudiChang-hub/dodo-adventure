@@ -14,7 +14,7 @@ import { logAttempt, logTeach } from '../../lib/record'
 import { today } from '../../lib/db'
 import { go } from '../../lib/nav'
 import { bedtimeIfDue } from '../../lib/session'
-import { useTaps } from '../../ui/tap'
+import { ANSWER_TAP, useTaps } from '../../ui/tap'
 import { BeadArt, EngineArt, PatternArt, PatternPickArt } from './art'
 import { patternCoplay } from './coplay'
 import { patDoneKey, patThemeKey, wordKey } from './lines'
@@ -400,7 +400,7 @@ function PatternRoundView({ qs, prog, onDone, onAgain, resting }: { qs: PatQ[]; 
                           : { x: 0, y: 0, scale: 1, opacity: 1 }
                     }
                     transition={flying ? { duration: filled ? 0 : FLY_MS / 1000, ease: [0.4, 0, 0.6, 1] } : nudge?.opt === o.id ? { duration: 0.45 } : { type: 'spring', stiffness: 260, damping: 22 }}
-                    {...tap(`opt-${o.id}`, () => void choose(o.id))}
+                    {...tap(`opt-${o.id}`, () => void choose(o.id), ANSWER_TAP)}
                   >
                     <PatternArt theme={theme} thing={o.thing} />
                   </motion.button>

@@ -34,6 +34,9 @@ import { logicSkillLabel, logicSummary } from '../src/games/logic/report'
 import { stickerFor } from '../src/content/stickers'
 import '../src/content/lines'
 import { hasLine } from '../src/content/registry'
+import { createElement } from 'react'
+import { renderToString } from 'react-dom/server'
+import { ANSWER_TAP, useTaps } from '../src/ui/tap'
 import { goesKey, patDoneKey, patThemeKey, sortPraiseKey, sortSceneKey, thatKey, thisKey, wordKey } from '../src/games/logic/lines'
 
 /** 固定的亂數（每個 seed 一串） */
@@ -310,6 +313,59 @@ function main() {
       }
     for (const t of THEME_IDS) assert.ok(patternCoplay(t).play && patternCoplay(t).now.startsWith('現在去做：'), `陪玩小字：${t}`)
     console.log(`ok 7 台詞都有（${new Set(keys).size} 句）、每個情境和串的東西都有陪玩小字`)
+  }
+
+  // 8. 一直點錯（三歲測試 B02，2026-11-18）：同一個錯的籃子／珠子 0.6 秒內點兩下，兩下都要算。
+  // 以前 ui/tap 的 useTaps 把同一個按鈕 0.7 秒內的第二下當成「同一下按壓的 click」丟掉：
+  // 孩子點了沒反應，第 3 次錯只算第 2 次，手不會帶著放（也就沒有那筆「一起做」的紀錄）。
+  {
+    let now = 1000
+    const realNow = performance.now.bind(performance)
+    performance.now = () => now
+    try {
+      let tap: ReturnType<typeof useTaps> | null = null
+      const Probe = () => {
+        tap = useTaps()
+        return null
+      }
+      renderToString(createElement(Probe))
+      const pt = (id: number) => ({ pointerId: id, clientX: 100, clientY: 100 }) as unknown as PointerEvent
+      /** 手指按下、放開，瀏覽器接著送 click（同一下按壓） */
+      const press = (props: ReturnType<NonNullable<typeof tap>>, id: number) => {
+        props.onPointerDown(pt(id) as never)
+        now += 80
+        props.onPointerUp(pt(id) as never)
+        props.onClick({} as never)
+      }
+      // 作答的選項（豆豆收拾的籃子、串珠珠的珠子）：每一下按壓都算
+      let n = 0
+      press(tap!('basket-blue', () => n++, ANSWER_TAP), 1)
+      assert.equal(n, 1, '一下按壓（pointerup＋click）只算一次')
+      now += 520 // 第二下在第一下之後 0.6 秒
+      press(tap!('basket-blue', () => n++, ANSWER_TAP), 2)
+      assert.equal(n, 2, '同一個選項 0.6 秒內點第二下也要算')
+      now += 120
+      press(tap!('basket-blue', () => n++, ANSWER_TAP), 3)
+      assert.equal(n, 3, '連點三下：三下都算（交給遊戲自己判斷要不要收）')
+      // 鍵盤、滑鼠沒有 pointerup 的 click：照樣算
+      now += 2000
+      tap!('basket-blue', () => n++, ANSWER_TAP).onClick({} as never)
+      assert.equal(n, 4, '只有 click（鍵盤）也算')
+      // 其他按鈕（首頁的門等）不變：同一個按鈕 0.7 秒內的第二下照舊不算
+      let m = 0
+      now += 2000
+      press(tap!('door', () => m++), 4)
+      now += 520
+      press(tap!('door', () => m++), 5)
+      assert.equal(m, 1, '沒有指定的按鈕照舊擋 0.7 秒內的第二下')
+    } finally {
+      performance.now = realNow
+    }
+    // 兩個遊戲的作答選項都用 ANSWER_TAP
+    const src = (f: string) => fs.readFileSync(path.resolve('src/games/logic', f), 'utf8')
+    assert.match(src('Sort.tsx'), /tap\(`basket-\$\{b\.id\}`, \(\) => void choose\(b\.id\), ANSWER_TAP\)/, '豆豆收拾的籃子用 ANSWER_TAP')
+    assert.match(src('Pattern.tsx'), /tap\(`opt-\$\{o\.id\}`, \(\) => void choose\(o\.id\), ANSWER_TAP\)/, '串珠珠的珠子用 ANSWER_TAP')
+    console.log('ok 8 一直點錯：同一個籃子／珠子 0.6 秒內點兩下，兩下都算（其他按鈕照舊擋）')
   }
 
   console.log('ALL PASS')
