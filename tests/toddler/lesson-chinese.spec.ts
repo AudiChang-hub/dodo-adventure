@@ -326,11 +326,22 @@ async function toChoice(k: Toddler, c: Checker) {
 /** 一題一題答對（選圖、找一樣的字；答完的大箭頭 autoNext 會點），直到 done 成立；回傳到了沒、看過哪幾種題 */
 async function answerUntil(k: Toddler, done: (s: Awaited<ReturnType<typeof state>>) => boolean, ms: number) {
   const kinds = new Set<string>()
+  // 複習上完（T-142）這個孩子要點「再一篇」：上完的畫面（.zh-between）出來時，boot 的 autoNext 不替他點下課的大箭頭。
+  // 以前靠「書出來 1.4 秒就點、搶在 autoNext 2.7 秒之前」，機器忙時測試晚一拍看到書，大箭頭先被點成下課（B01，1/3 偶發卡死）
+  const hold = (sel: string | null) => k.page.evaluate((sel) => void ((window as unknown as { __holdNext?: string | null }).__holdNext = sel), sel)
+  await hold('.zh-between')
+  try {
+    return await answerLoop(k, done, ms, kinds)
+  } finally {
+    await hold(null).catch(() => {})
+  }
+}
+
+async function answerLoop(k: Toddler, done: (s: Awaited<ReturnType<typeof state>>) => boolean, ms: number, kinds: Set<string>) {
   for (const end = Date.now() + ms; Date.now() < end; ) {
     const s = await state(k.page)
     if (done(s)) return { ok: true, kinds }
-    // 複習上完（T-142）：孩子主動點旁邊的書「再一篇」——書 1.1 秒後才出現（之前點了不算），
-    // 下課的大箭頭 1.2 秒出來、autoNext 再過 1.5 秒會點它，所以 1.4 秒時點書
+    // 孩子主動點旁邊的書「再一篇」——書 1.1 秒後才出現、1.3 秒前點了不算（Between.tsx），所以看到書 1.4 秒後才點
     const more = (await points(k.page, '.zh-between .zh-offer'))[0]
     if (more) {
       await k.wait(1400)
@@ -1612,6 +1623,29 @@ test.describe('中文課', () => {
       await c.flush()
     } finally {
       finish(k, c, 'T141新篇有事做')
+    }
+  })
+
+  /**
+   * B01（2026-11-18 完整三歲測試，tab1280 4 歲內容「複習上完上新篇」1/3 偶發卡死）：機器忙的時候，測試晚一拍才看到「再一篇」的書；
+   * 等它點書時，頁面裡的 autoNext 已經替孩子點了下課的大箭頭（晚安），書淡在晚安後面、一直點都沒反應，報成卡死。
+   * 這裡故意晚 2 秒才開始點（比下課箭頭出來 1.2 秒＋autoNext 1.5 秒還晚）：想上新篇的孩子照樣要點得到再一篇。
+   */
+  test('B01 複習上完：晚一拍才看到「再一篇」，點了照樣上新篇（不會先被自動點成下課）', async ({ page }, info) => {
+    test.skip(!want('lesson-chinese-b01'))
+    test.setTimeout(6 * 60_000)
+    const { k, c } = await setup(page, info, 'B01再一篇晚一拍')
+    try {
+      if (!(await toChoice(k, c))) return
+      k.behavior = '晚一拍才點再一篇'
+      await k.wait(2000)
+      const o = await answerUntil(k, (s) => s.title === NEW_TITLE && !s.quiz, 30_000)
+      const s = await state(page)
+      c.outcome('晚一拍點再一篇：上得了新篇', o.ok, `停在〈${s.title}〉`)
+      if (!o.ok) await c.once('b01-late', '卡死', '複習上完晚一拍點再一篇，上不了新篇', `〈${s.title}〉`)
+      await c.flush()
+    } finally {
+      finish(k, c, 'B01再一篇晚一拍')
     }
   })
 
