@@ -368,6 +368,29 @@ function main() {
     console.log('ok 8 一直點錯：同一個籃子／珠子 0.6 秒內點兩下，兩下都算（其他按鈕照舊擋）')
   }
 
+  // 9. T-168：B02 的修正套到其他遊戲的作答選項（2026-11-18）。
+  // 只套在答錯後有自己的鎖的：心情臉、為什麼、蹺蹺板（猜重的一邊）點了就 busy 到下一題；
+  // 蹺蹺板排順序點錯後念提示時 asking，再點錯只有「看這裡」不算錯。每一下都交給遊戲自己判斷。
+  // 躲在哪裡、藏起來、聽指令、排順序、賽跑點錯後沒有鎖（每一下都會重播 boing 和跳一下），先不改。
+  {
+    const src = (f: string) => fs.readFileSync(path.resolve('src/games', f), 'utf8')
+    const uses = [
+      ['feel/Feel.tsx', /tap\(`f\$\{qi\}-\$\{e\}`, \(\) => void choose\(e\), ANSWER_TAP\)/, '心情臉的臉'],
+      ['feel/Why.tsx', /tap\(`w\$\{qi\}-\$\{k\}`, \(\) => void choose\(k\), ANSWER_TAP\)/, '為什麼的心情臉'],
+      ['feel/Why.tsx', /tap\(`c\$\{qi\}-\$\{k\}`, \(\) => void choose\(k\), ANSWER_TAP\)/, '為什麼的情境圖'],
+      ['seesaw/Seesaw.tsx', /tap\(`s\$\{qi\}-\$\{side\}`, \(\) => void choose\(side\), ANSWER_TAP\)/, '蹺蹺板的兩邊'],
+      ['seesaw/Seesaw.tsx', /tap\(`o\$\{qi\}-\$\{it\.id\}`, \(\) => void choose\(it\.id\), ANSWER_TAP\)/, '蹺蹺板排順序的東西'],
+    ] as const
+    for (const [f, re, what] of uses) assert.match(src(f), re, `${what}用 ANSWER_TAP`)
+    // 用了 ANSWER_TAP 的遊戲，答錯後要有鎖：點了就 busy（心情臉、為什麼、猜重的一邊），或念提示時 asking（排順序）
+    assert.match(src('feel/Feel.tsx'), /if \(!s\.armed \|\| s\.busy\) return pingAt[\s\S]{0,400}?s\.busy = true/, '心情臉點了就 busy')
+    assert.match(src('feel/Why.tsx'), /if \(!s\.armed \|\| s\.busy\) return pingAt[\s\S]{0,400}?s\.busy = true/, '為什麼點了就 busy')
+    assert.match(src('seesaw/Seesaw.tsx'), /const choose = async \(side: Side\)[\s\S]{0,700}?s\.busy = true/, '猜重的一邊點了就 busy')
+    assert.match(src('seesaw/Seesaw.tsx'), /if \(id !== t && s\.asking\) return pingAt[\s\S]*?s\.busy = false\s+if \(s\.wrongs === 2\) setGlow\(t\)\s+await ask\(/, '排順序點錯後馬上 ask（asking 擋住再點錯）')
+    assert.match(src('seesaw/Seesaw.tsx'), /const ask = async \(keys: string\[\]\) => \{\s+const s = st\.current\s+const ok = flow\.begin\(live\)\s+s\.asking = true/, 'ask 一開始就 asking（同步，不等 await）')
+    console.log('ok 9 T-168：心情臉、為什麼、蹺蹺板的作答選項用 ANSWER_TAP，答錯後都有自己的鎖')
+  }
+
   console.log('ALL PASS')
 }
 

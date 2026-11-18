@@ -12,7 +12,7 @@ import { say, sfx } from '../../lib/audio'
 import { logAttempt, logTeach } from '../../lib/record'
 import { go } from '../../lib/nav'
 import { bedtimeIfDue } from '../../lib/session'
-import { useTaps } from '../../ui/tap'
+import { ANSWER_TAP, useTaps } from '../../ui/tap'
 import { pointIn, useLive } from '../logic/kit'
 import { CritterHead } from './critter'
 import { SceneView } from './scene'
@@ -363,7 +363,7 @@ function FeelRoundView({ qs, prog, onQ, onDone, onAgain, resting }: { qs: FeelQ[
                 initial={{ opacity: 0, y: 16 }}
                 animate={isPicked && e !== q.answer ? { opacity: 1, y: [0, -14, 0] } : isShown ? { opacity: 1, y: 0, scale: [1, 1.05, 1] } : { opacity: 1, y: 0, scale: 1 }}
                 transition={{ duration: 0.4, delay: isPicked || isShown ? 0 : 0.1 + k * 0.08 }}
-                {...tap(`f${qi}-${e}`, () => void choose(e))}
+                {...tap(`f${qi}-${e}`, () => void choose(e), ANSWER_TAP)}
               >
                 <svg viewBox="0 -24 240 214" width="100%" height="100%" aria-hidden="true">
                   <CritterHead sp={q.hero} face={e} />
