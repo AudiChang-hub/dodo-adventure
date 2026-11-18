@@ -22,10 +22,12 @@ export async function boot(page: Page, seed: number, opts: { to?: 'home'; settin
   if (opts.autoNext !== false)
     await page.addInitScript(() => {
       // 大箭頭連續出現 1.5 秒就點（點了還在，再過 1.5 秒再點）。不用「同一個元素只點一次」：箭頭收起來又出來時可能是同一個元素
+      // window.__holdNext（選擇器）：畫面上有它時不點（測試要孩子點別的，例如中文課複習上完點「再一篇」，B01：機器忙時測試晚一拍，大箭頭先被點成下課）
       let since = 0
       window.setInterval(() => {
         const b = document.querySelector('.next-step')
-        if (!b) return void (since = 0)
+        const hold = (window as unknown as { __holdNext?: string }).__holdNext
+        if (!b || (hold && document.querySelector(hold))) return void (since = 0)
         if (!since) return void (since = Date.now())
         if (Date.now() - since < 1500) return
         since = Date.now()
