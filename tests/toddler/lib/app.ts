@@ -53,7 +53,9 @@ export async function boot(page: Page, seed: number, opts: { to?: 'home'; settin
           const tx = db.transaction('kv', 'readwrite')
           const st = tx.objectStore('kv')
           const g = st.get('settings')
-          g.onsuccess = () => st.put({ key: 'settings', value: { ...(g.result?.value ?? {}), freePlay: 'always', eyeBreakEvery: 60, dailyMinutes: 120, ...extra } })
+          // 遊戲角預設上鎖（T-170）；測試預設把它打開，要測鎖住的自己傳 freePlay: 'after'。
+          // defaultsV 要寫目前的版本（lib/settings.ts 的 DEFAULTS_V），不寫的話重新整理時會被當成舊裝置、遷移成預設值
+          g.onsuccess = () => st.put({ key: 'settings', value: { ...(g.result?.value ?? {}), freePlay: 'always', eyeBreakEvery: 60, dailyMinutes: 120, defaultsV: 5, ...extra } })
           if (sticker != null) {
             // 這一輪第 1 堂就出現（有貼紙），或第 3 堂才出現（下一堂沒有）
             const a = st.get('achieve')

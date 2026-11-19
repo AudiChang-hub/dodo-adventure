@@ -1,6 +1,6 @@
 // 首頁「遊戲角」（畫畫、邏輯遊戲）的鎖（T-152，設計稿 docs/T-152-邏輯小遊戲與解鎖設計.md 第二節案 A）。
 // 三堂課今天各「上完一次」（課叫了 onDone，lesson.log 那一筆有 done）才開；中途離開不算，但三堂課同一天回去都會接著上。
-// 家長區可以「今天先打開」（kv home.unlockToday，只算今天）或設成「一直開著」（settings.freePlay = 'always'，預設）。
+// 預設上完才開（settings.freePlay = 'after'，家長 2026-11-19 決定，T-170）。家長區可以「今天先打開」（kv home.unlockToday，只算今天）或設成「一直開著」（'always'）。
 // 只鎖首頁的入口：路由 draw、coloring、logic 本身不擋（孩子畫到一半跨過半夜不會被踢出去，TIME-2）。貼紙本不鎖。
 import { useEffect, useState } from 'react'
 import { getKV, setKV, today } from './db'

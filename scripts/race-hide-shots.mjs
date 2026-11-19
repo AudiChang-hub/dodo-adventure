@@ -23,7 +23,7 @@ async function open(browser, viewport, kv) {
       rq.onsuccess = () => {
         const tx = rq.result.transaction('kv', 'readwrite')
         const st = tx.objectStore('kv')
-        st.put({ key: 'settings', value: { freePlay: 'always', eyeBreakEvery: 60, dailyMinutes: 120, defaultsV: 4 } })
+        st.put({ key: 'settings', value: { freePlay: 'always', eyeBreakEvery: 60, dailyMinutes: 120, defaultsV: 5 } })
         for (const [key, value] of Object.entries(kv)) st.put({ key, value })
         tx.oncomplete = () => {
           rq.result.close()

@@ -24,7 +24,7 @@ async function open(browser, viewport, level, models = []) {
         rq.onsuccess = () => {
           const tx = rq.result.transaction('kv', 'readwrite')
           const st = tx.objectStore('kv')
-          st.put({ key: 'settings', value: { freePlay: 'always', eyeBreakEvery: 60, dailyMinutes: 120, defaultsV: 4 } })
+          st.put({ key: 'settings', value: { freePlay: 'always', eyeBreakEvery: 60, dailyMinutes: 120, defaultsV: 5 } })
           st.put({ key: 'blocks.progress', value: { level, recent: [], taught: [1, 2, 3, 4], models } })
           tx.oncomplete = () => {
             rq.result.close()
