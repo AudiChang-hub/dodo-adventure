@@ -3,7 +3,7 @@
 // 驗收（設計稿第五節）：三科今天都上完才開；少一科、只有開始沒有上完（中途離開）、昨天的紀錄都不開；
 // 今天先打開只算今天；一直開著；跨過半夜才上完記在開始那一天；門燈三盞各自正確；設定的預設是一直開著（家長 2026-11-16）。
 import assert from 'node:assert/strict'
-import { firstUnlit, playGate, GATE_ORDER } from '../src/lib/play-gate'
+import { firstUnlit, gateHint, playGate, GATE_HOST, GATE_ORDER } from '../src/lib/play-gate'
 import { migrateSettings } from '../src/lib/settings'
 import { today } from '../src/lib/db'
 import type { LessonRun } from '../src/lib/readiness'
@@ -119,14 +119,38 @@ t('設定：預設一直開著；舊裝置存著的 after（當時的預設）�
   assert.equal(fp({ freePlay: 'always', defaultsV: 4 }), 'always')
 })
 
-t('台詞：鎖住時、打開時兩句都是豆豆、英文、只說順序', () => {
-  for (const k of ['home.corner.first', 'home.corner.open']) {
+t('引導（T-169）：鎖住時點了，指向還沒上的第一科、那一科的恐龍說、算得出還差幾堂', () => {
+  const none = playGate([], null, 'after', D)
+  assert.deepEqual(gateHint(none), { subject: 'english', host: 'dodo', line: 'home.corner.next.english', left: 3 })
+  // 英文上完、中文中途離開：去中文（莫莫），還差 2 堂
+  const one = playGate([run('english'), run('chinese', D, false)], null, 'after', D)
+  assert.deepEqual(gateHint(one), { subject: 'chinese', host: 'momo', line: 'home.corner.next.chinese', left: 2 })
+  // 跳著上（先上數學）：還是照門的順序指英文，還差 2 堂
+  assert.equal(gateHint(playGate([run('math')], null, 'after', D))?.subject, 'english')
+  assert.equal(gateHint(playGate([run('math')], null, 'after', D))?.left, 2)
+  // 只差數學：波波，還差 1 堂
+  assert.deepEqual(gateHint(playGate([run('english'), run('chinese')], null, 'after', D)), { subject: 'math', host: 'bobo', line: 'home.corner.next.math', left: 1 })
+  // 開著（三堂上完、今天先打開、一直開著）都不引導
+  assert.equal(gateHint(playGate(ALL, null, 'after', D)), null)
+  assert.equal(gateHint(playGate([], { date: D }, 'after', D)), null)
+  assert.equal(gateHint(playGate([], null, 'always', D)), null)
+})
+
+t('台詞（T-169）：三科各一句，由那一科的恐龍說出自己的名字；英文、≤ 6 個字、不說「不行」和交換條件', () => {
+  for (const s of GATE_ORDER) {
+    const k = `home.corner.next.${s}`
     assert.ok(hasLine(k), `缺台詞 ${k}`)
-    assert.equal(line(k).speaker, 'dodo')
+    const l = line(k)
+    assert.equal(l.speaker, GATE_HOST[s])
+    const name = GATE_HOST[s][0].toUpperCase() + GATE_HOST[s].slice(1)
+    assert.ok(l.text.includes(name), `${k} 要說出 ${name}：${l.text}`)
+    assert.ok(l.text.replace(/[^A-Za-z' ]/g, '').trim().split(/\s+/).length <= 6, `${k} 超過 6 個字：${l.text}`)
+    assert.ok(!/not yet|can't|cannot|finish|\bno\b|then play/i.test(l.text), `${k} 不說不行、不說交換條件：${l.text}`)
+    assert.ok(!/[一-鿿]/.test(l.text), `${k} 只說英文`)
   }
-  const first = line('home.corner.first').text
-  assert.ok(first.includes('First class. Then play!'), first)
-  assert.ok(!/not yet|can't|finish/i.test(first), '鎖住的那一句不說「不行」、不說交換條件')
+  assert.ok(!hasLine('home.corner.first'), '舊的 First class. Then play! 不再用')
+  assert.ok(hasLine('home.corner.open'))
+  assert.equal(line('home.corner.open').speaker, 'dodo')
   assert.ok(line('home.corner.open').text.includes('Play corner is open!'))
 })
 
