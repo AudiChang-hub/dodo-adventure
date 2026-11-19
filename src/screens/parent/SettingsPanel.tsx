@@ -100,7 +100,7 @@ function VersionCard() {
 }
 
 /**
- * 首頁的遊戲角（畫畫和邏輯遊戲，T-152）：一直開著（預設，家長 2026-11-16 決定不鎖），或上完今天的三堂課才開。
+ * 首頁的遊戲角（畫畫和邏輯遊戲，T-152）：上完今天的三堂課才開（預設，家長 2026-11-19 決定，T-170），或一直開著。
  * 上完才開的時候多一個「今天先打開」：只算今天，隔天自動恢復（lib/play-gate.ts 的 home.unlockToday）。
  */
 function PlayCornerField({ freePlay, onChange }: { freePlay: Settings['freePlay']; onChange: (v: Settings['freePlay']) => void }) {
@@ -115,8 +115,8 @@ function PlayCornerField({ freePlay, onChange }: { freePlay: Settings['freePlay'
       }
     >
       <select value={freePlay} onChange={(e) => onChange(e.target.value as Settings['freePlay'])} data-setting="freePlay">
-        <option value="always">一直開著（預設）</option>
-        <option value="after">上完今天的三堂課才開</option>
+        <option value="always">一直開著</option>
+        <option value="after">上完今天的三堂課才開（預設）</option>
       </select>
       {freePlay === 'after' &&
         (today ? (

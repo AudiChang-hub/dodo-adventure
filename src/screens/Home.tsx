@@ -100,7 +100,7 @@ const TINT: Record<Speaker, { door: string; deep: string; glass: string }> = {
 
 /**
  * 遊戲角（T-152，設計稿第四節版面 A）：畫畫（進去先選白紙還是著色本）、邏輯遊戲（選豆豆收拾還是串珠珠）兩扇並排的圓窗，
- * 上面掛三盞門燈（ABC／中／123），上完一堂亮一盞。三堂課今天各上完一次才開（lib/play-gate.ts）；家長區可以今天先打開或一直開著（預設）。
+ * 上面掛三盞門燈（ABC／中／123），上完一堂亮一盞。三堂課今天各上完一次才開（lib/play-gate.ts）；預設上鎖（家長 2026-11-19，T-170）；家長區可以今天先打開或一直開著。
  * T-147（2026-11-14 親師晤談：英文故事太難）拿掉了故事門；故事書的程式、路由和進度這一版都還留著，下一版才刪。
  */
 const CORNER: { id: 'draw' | 'logic'; label: string; icon: string; to: Route }[] = [

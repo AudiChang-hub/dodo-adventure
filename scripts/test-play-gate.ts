@@ -4,7 +4,7 @@
 // 今天先打開只算今天；一直開著；跨過半夜才上完記在開始那一天；門燈三盞各自正確；設定的預設是一直開著（家長 2026-11-16）。
 import assert from 'node:assert/strict'
 import { firstUnlit, gateHint, playGate, GATE_HOST, GATE_ORDER } from '../src/lib/play-gate'
-import { migrateSettings } from '../src/lib/settings'
+import { DEFAULTS, migrateSettings } from '../src/lib/settings'
 import { today } from '../src/lib/db'
 import type { LessonRun } from '../src/lib/readiness'
 import '../src/content/lines'
@@ -111,12 +111,16 @@ t('today() 是裝置的當地日期（半夜 12 點換日）', () => {
   assert.equal(today(new Date(2026, 10, 17, 0, 0)), '2026-11-17')
 })
 
-t('設定：預設一直開著；舊裝置存著的 after（當時的預設）升級後改成一直開著；新版家長選的 after 照家長的', () => {
+t('設定（T-170）：預設上完三堂課才開；舊裝置存著的 always（版本 4 整包存下的預設）升級後改成上鎖；新版家長選的照家長的', () => {
+  assert.equal(DEFAULTS.freePlay, 'after')
+  assert.equal(playGate([], null, DEFAULTS.freePlay, D).open, false)
   const fp = (s: object) => migrateSettings(s as never).s.freePlay
-  assert.equal(fp({ freePlay: 'after', defaultsV: 3 }), 'always')
-  assert.equal(fp({ defaultsV: 2 }), 'always')
-  assert.equal(fp({ freePlay: 'after', defaultsV: 4 }), 'after')
-  assert.equal(fp({ freePlay: 'always', defaultsV: 4 }), 'always')
+  assert.equal(fp({}), 'after')
+  assert.equal(fp({ freePlay: 'always', defaultsV: 4 }), 'after')
+  assert.equal(fp({ freePlay: 'after', defaultsV: 3 }), 'after')
+  assert.equal(fp({ defaultsV: 2 }), 'after')
+  assert.equal(fp({ freePlay: 'always', defaultsV: 5 }), 'always')
+  assert.equal(fp({ freePlay: 'after', defaultsV: 5 }), 'after')
 })
 
 t('引導（T-169）：鎖住時點了，指向還沒上的第一科、那一科的恐龍說、算得出還差幾堂', () => {

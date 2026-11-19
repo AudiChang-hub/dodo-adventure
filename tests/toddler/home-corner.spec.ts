@@ -7,7 +7,7 @@ import { Checker, centerOf, doorAt, linesSince, pressBack, toHome, waitLive } fr
 
 /**
  * 首頁的遊戲角（T-152 P2，src/screens/Home.tsx 的 PlayCorner、src/lib/play-gate.ts）：畫畫、邏輯遊戲兩扇圓窗＋三盞門燈。
- * 三堂課今天各上完一次才開（家長區設成「上完今天的三堂課才開」的時候）；預設一直開著。
+ * 三堂課今天各上完一次才開（預設，家長 2026-11-19 決定，T-170）；家長區可以設成一直開著。
  * 三歲孩子會做的事：鎖住時亂點、連點、多指點窗和門燈 → 停在首頁、還沒上的那扇門亮著、手指指著、那一隻恐龍說
  * Let's visit Momo first!（T-169）、8 秒內只說一次、恐龍不一直跳、手指不疊；
  * 點完馬上點課門 → 正常進課、那句話不帶進課裡；三盞都亮的那一刻窗簾拉開、只說一次；進去畫畫、邏輯遊戲都 1 步回首頁。
@@ -17,8 +17,8 @@ const BASE_SEED = Number(process.env.TODDLER_SEED || 20261116)
 const only = (process.env.TODDLER_GAMES ?? '').split(',').map((s) => s.trim()).filter(Boolean)
 const want = () => !only.length || only.some((s) => s === 'screens' || s === 'home' || s === 'home-corner')
 
-// defaultsV: 4：boot 寫的設定沒有版本號，不寫的話重新整理時會被當成舊裝置，一直開著的預設蓋掉（lib/settings.ts 的 migrateSettings）
-const LOCKED = { freePlay: 'after', defaultsV: 4 }
+// defaultsV: 5：目前的設定版本（lib/settings.ts 的 DEFAULTS_V；boot 也會寫）
+const LOCKED = { freePlay: 'after', defaultsV: 5 }
 /** 點了鎖住的遊戲角，下一堂課的恐龍說的那一句（T-169，content/lines-home-corner.ts） */
 const NEXT = { english: "Let's visit Dodo first!", chinese: "Let's visit Momo first!", math: "Let's visit Bobo first!" } as const
 const ANY_NEXT = 'first!'
@@ -383,10 +383,37 @@ test.describe('遊戲角', () => {
     }
   })
 
-  test('一直開著（預設）：點了就進去；手機直式不跑版', async ({ page }, info) => {
+  test('預設就上鎖（T-170）：新平板、存著版本 4「一直開著」的舊平板', async ({ page }, info) => {
+    test.skip(!want())
+    test.setTimeout(3 * 60_000)
+    const { k, c } = await setup(page, info, '預設上鎖')
+    try {
+      // 家長沒選過：新平板（設定裡沒有 freePlay）；舊平板（版本 4 改任何設定都會整包存下 freePlay: 'always'）
+      for (const [label, saved] of [
+        ['新平板', { eyeBreakEvery: 60, dailyMinutes: 120 }],
+        ['版本 4 的舊平板', { freePlay: 'always', eyeBreakEvery: 60, dailyMinutes: 120, defaultsV: 4 }],
+      ] as const) {
+        k.behavior = `預設上鎖／${label}`
+        await putKV(page, 'settings', saved)
+        await page.reload()
+        await page.waitForSelector('.screen.home', { timeout: 20_000 })
+        await settle(page)
+        const s = await corner(page)
+        c.outcome(`${label}：沒上課就鎖著`, s?.state === 'locked', JSON.stringify(s))
+        await k.tap((await doorAt(page, 'draw'))!, '畫畫（鎖住）')
+        await k.wait(800)
+        c.outcome(`${label}：點畫畫窗停在首頁`, (await snap(page)).live === 'home', String((await snap(page)).live))
+      }
+      await c.flush()
+    } finally {
+      finish(k, c, '預設上鎖')
+    }
+  })
+
+  test('一直開著（家長選的）：點了就進去；手機直式不跑版', async ({ page }, info) => {
     test.skip(!want())
     test.setTimeout(4 * 60_000)
-    // boot 預設就是一直開著（freePlay: 'always'）
+    // boot 預設把遊戲角打開（freePlay: 'always'，像家長在家長區選了一直開著）
     const { k, c } = await setup(page, info, '一直開著')
     try {
       await lessonsDone(page, ['math'])
@@ -416,7 +443,7 @@ test.describe('遊戲角', () => {
               const tx = rq.result.transaction('kv', 'readwrite')
               const st = tx.objectStore('kv')
               const g = st.get('settings')
-              g.onsuccess = () => st.put({ key: 'settings', value: { ...g.result.value, freePlay: lock ? 'after' : 'always', defaultsV: 4 } })
+              g.onsuccess = () => st.put({ key: 'settings', value: { ...g.result.value, freePlay: lock ? 'after' : 'always', defaultsV: 5 } })
               tx.oncomplete = () => {
                 rq.result.close()
                 res()
