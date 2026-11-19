@@ -12,7 +12,7 @@ import { logAttempt, logTeach } from '../../lib/record'
 import { today } from '../../lib/db'
 import { go } from '../../lib/nav'
 import { bedtimeIfDue } from '../../lib/session'
-import { useTaps } from '../../ui/tap'
+import { ANSWER_TAP, useTaps } from '../../ui/tap'
 import { pointIn, useLive } from '../logic/kit'
 import { Backdrop } from '../hide/scene'
 import { Emo } from '../hide/emoji'
@@ -20,15 +20,13 @@ import { Cell, DieFace, FinishLine, RacePickArt, Runner } from './art'
 import { REWARDS, TRACKS } from './data'
 import { RACE_COPLAY } from './coplay'
 import { gotKey, hopsKey, numKey } from './lines'
-import { GOAL, RACE_GAME, RACE_LEVELS, demoRoll, makeRace, raceSkill, rollDie, stepRace, type Race as RaceRound, type RaceState } from './plan'
+import { GOAL, RACE_GAME, RACE_LEVELS, demoRoll, makeRace, raceSkill, raceTap, rollDie, stepRace, type Race as RaceRound, type RaceState } from './plan'
 import { loadRace, saveRace } from './progress'
 import '../draw/tools.css'
 import './race.css'
 
 /** 新的一步剛輪到他這麼久內點不算（上一步連點的手指，TOUCH-4） */
 const ARM_MS = 300
-/** 兩下跳格之間至少隔這麼久（同一下按壓彈兩次不算兩格） */
-const STEP_GAP_MS = 250
 
 // 場景座標（SVG 1100 × 520，置中、等比例）：平板橫向的作答區約 1200 × 558，縮放約 1.07 倍，孩子那一排的格子點的範圍約 94 px 寬（≥ 2 cm，TOUCH-1）
 const W = 1100
@@ -141,6 +139,7 @@ function RaceView({ race, prog, onDone, onAgain, resting }: { race: RaceRound; p
     taps: [] as { pick: string; ms: number }[],
     t0: 0,
     lastStep: 0,
+    missAt: -Infinity,
     ended: false,
   })
   const armTimer = useRef(0)
@@ -370,7 +369,7 @@ function RaceView({ race, prog, onDone, onAgain, resting }: { race: RaceRound; p
     setHand(null)
     setGlowNext(false)
     setDie((d) => ({ ...d, lit: 0 }))
-    Object.assign(s, { wrongs: 0, led: false, taps: [], t0: performance.now(), lit: 0 })
+    Object.assign(s, { wrongs: 0, missAt: -Infinity, led: false, taps: [], t0: performance.now(), lit: 0 })
     if (race.demo && !s.demoDone) {
       setPh('busy')
       return runDemo()
@@ -445,17 +444,18 @@ function RaceView({ race, prog, onDone, onAgain, resting }: { race: RaceRound; p
     const el = c === 'me' ? null : cellEls.current.get(c)
     if (!kidCan('step')) return c === 'me' ? undefined : pingAt(el)
     const next = nextCell()
-    // 點自己、點自己站的那一格：跳下一格
-    const target = c === 'me' || c === s.pos.kid ? next : c
-    // 後面的格子：不算，只有「看這裡」的圈圈
-    if (target < next) return pingAt(el)
     const now = performance.now()
-    if (now - s.lastStep < STEP_GAP_MS) return
+    // 點自己、點自己站的那一格：跳下一格；後面的格子：不算，只有「看這裡」的圈圈
+    // 剛跳完 0.25 秒內、跳格點錯後的鎖裡（miss-lock 0.45 秒）、剛跳到的那一格 0.7 秒內再點：都不算（race/plan 的 raceTap，T-168）
+    const { kind, target } = raceTap(c, s.pos.kid, now, s)
+    if (kind === 'ping') return pingAt(el)
+    if (kind === 'ignore') return
     s.taps.push({ pick: String(target), ms: Math.round(now - s.t0) })
     idle.poke()
-    if (target > next) {
+    if (kind === 'skip') {
       // 跳格：恐龍原地抖一下，一格一格走（不說錯）
       s.wrongs++
+      s.missAt = now
       setNudge((k) => k + 1)
       sfx.boing()
       if (s.wrongs >= 2) setGlowNext(true)
@@ -567,7 +567,7 @@ function RaceView({ race, prog, onDone, onAgain, resting }: { race: RaceRound; p
               data-next={i === pos.kid + 1 ? '1' : undefined}
               role="button"
               aria-label={`第 ${i} 格`}
-              {...tap(`c${i}`, () => void tapCell(i))}
+              {...tap(`c${i}`, () => void tapCell(i), ANSWER_TAP)}
             >
               <rect x={cx(i) - 44} y={LANE.kid.y - LANE.kid.h / 2 - 8} width={88} height={LANE.kid.h + 16} fill="transparent" />
               <Cell shape={track.cell} fill={fills(i)} edge={track.edge} ink={track.ink} x={cx(i)} y={LANE.kid.y} w={CELL_W} h={LANE.kid.h} n={i} glow={glowNext && i === pos.kid + 1 && phase === 'step'} />

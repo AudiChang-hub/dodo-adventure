@@ -13,7 +13,8 @@ import { say, sfx } from '../../lib/audio'
 import { logAttempt, logTeach } from '../../lib/record'
 import { go } from '../../lib/nav'
 import { bedtimeIfDue } from '../../lib/session'
-import { useTaps } from '../../ui/tap'
+import { ANSWER_TAP, useTaps } from '../../ui/tap'
+import { missLocked } from '../miss-lock'
 import { pointIn, useLive } from '../logic/kit'
 import { ANIMAL, HIDERS, OBJECTS, type Rel } from './data'
 import { THING_ART } from './things'
@@ -100,7 +101,7 @@ function WhereRoundView({ qs, prog, onQ, onDone, onAgain, resting }: { qs: Where
   const [allDone, setAllDone] = useState(false)
   const [poke, setPoke] = useState(0)
   const [turn, setTurn] = useState(false)
-  const st = useRef({ qi: 0, busy: true, demo: false, asking: false, armed: false, wrongs: 0, led: false, guided: false, taps: [] as { pick: string; ms: number }[], t0: 0 })
+  const st = useRef({ qi: 0, busy: true, demo: false, asking: false, armed: false, wrongs: 0, missAt: -Infinity, led: false, guided: false, taps: [] as { pick: string; ms: number }[], t0: 0 })
   const armTimer = useRef(0)
   const tally = useRef({ counted: 0, misses: 0 })
 
@@ -208,7 +209,7 @@ function WhereRoundView({ qs, prog, onQ, onDone, onAgain, resting }: { qs: Where
 
   const present = async (i: number) => {
     const s = st.current
-    Object.assign(s, { qi: i, busy: false, demo: false, asking: false, armed: false, wrongs: 0, led: false, guided: phaseOf(i) === 'guided', taps: [], t0: performance.now() })
+    Object.assign(s, { qi: i, busy: false, demo: false, asking: false, armed: false, wrongs: 0, missAt: -Infinity, led: false, guided: phaseOf(i) === 'guided', taps: [], t0: performance.now() })
     setQi(i)
     setOut(null)
     setNudge(null)
@@ -262,6 +263,7 @@ function WhereRoundView({ qs, prog, onQ, onDone, onAgain, resting }: { qs: Where
     const s = st.current
     if (s.busy || s.demo || resting || allDone) return
     if (!s.armed) return pingAt(els.current.get(k))
+    if (missLocked(s.missAt, performance.now())) return
     const i = s.qi
     const x = qs[i]
     // 念題目的時候點錯：不算錯（TOUCH-7），只有「看這裡」的圈圈
@@ -285,6 +287,7 @@ function WhereRoundView({ qs, prog, onQ, onDone, onAgain, resting }: { qs: Where
     }
     // 點錯：那一隻輕輕跳一下（不搖、不打叉），說牠在哪裡，再說一次題目
     s.wrongs++
+    s.missAt = performance.now()
     setNudge({ i: k, k: performance.now() })
     sfx.boing()
     const ok = flow.begin(live)
@@ -350,7 +353,7 @@ function WhereRoundView({ qs, prog, onQ, onDone, onAgain, resting }: { qs: Where
           initial={{ opacity: 0 }}
           animate={isOut ? { opacity: 1, ...outMove } : nudged ? { opacity: 1, y: [0, -24, 0] } : { opacity: 1, y: 0, scale: 1 }}
           transition={isOut ? { duration: OUT_MS / 1000, ease: 'easeOut' } : nudged ? { duration: 0.4 } : { duration: 0.25 }}
-          {...tap(`a${qi}-${k}`, () => void choose(k))}
+          {...tap(`a${qi}-${k}`, () => void choose(k), ANSWER_TAP)}
         >
           <rect x={-hit / 2} y={-size / 2 - hit / 2} width={hit} height={hit} fill="transparent" />
           <SvgEmoji name={hider.emoji} x={-size / 2} y={-size * 0.93} size={size} />

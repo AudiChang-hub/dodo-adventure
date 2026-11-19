@@ -13,7 +13,8 @@ import { logAttempt, logTeach } from '../../lib/record'
 import { today } from '../../lib/db'
 import { go } from '../../lib/nav'
 import { bedtimeIfDue } from '../../lib/session'
-import { useTaps } from '../../ui/tap'
+import { ANSWER_TAP, useTaps } from '../../ui/tap'
+import { missLocked } from '../miss-lock'
 import { pointIn, useLive } from '../logic/kit'
 import { OrderPickArt, Pic } from './art'
 import { orderCoplay } from './coplay'
@@ -94,7 +95,7 @@ function OrderRoundView({ qs, prog, onQ, onDone, onAgain, resting }: { qs: Order
   const [demo, setDemo] = useState(false)
   const [allDone, setAllDone] = useState(false)
   const [poke, setPoke] = useState(0)
-  const st = useRef({ qi: 0, busy: true, demo: false, armed: false, led: false, guided: false, missed: false, slotMiss: 0, placed: [] as number[], taps: [] as { pick: string; ms: number }[], t0: 0 })
+  const st = useRef({ qi: 0, busy: true, demo: false, armed: false, led: false, guided: false, missAt: -Infinity, missed: false, slotMiss: 0, placed: [] as number[], taps: [] as { pick: string; ms: number }[], t0: 0 })
   const armTimer = useRef(0)
   const tally = useRef({ counted: 0, misses: 0 })
 
@@ -267,7 +268,7 @@ function OrderRoundView({ qs, prog, onQ, onDone, onAgain, resting }: { qs: Order
     const s = st.current
     const x = qs[i]
     const given = Array.from({ length: x.given }, (_, k) => k)
-    Object.assign(s, { qi: i, busy: true, demo: false, armed: false, led: false, guided: phaseOf(i) === 'guided', missed: false, slotMiss: 0, placed: given, taps: [], t0: performance.now() })
+    Object.assign(s, { qi: i, busy: true, demo: false, armed: false, led: false, guided: phaseOf(i) === 'guided', missAt: -Infinity, missed: false, slotMiss: 0, placed: given, taps: [], t0: performance.now() })
     setQi(i)
     setPlaced(given)
     setShake(null)
@@ -322,6 +323,7 @@ function OrderRoundView({ qs, prog, onQ, onDone, onAgain, resting }: { qs: Order
     if (s.demo || resting || allDone) return
     if (s.placed.includes(j)) return
     if (!s.armed || s.busy) return pingAt(els.current.get(j))
+    if (missLocked(s.missAt, performance.now())) return
     const i = s.qi
     const x = qs[i]
     const slot = s.placed.length
@@ -350,6 +352,7 @@ function OrderRoundView({ qs, prog, onQ, onDone, onAgain, resting }: { qs: Order
     // 不是這一格的：輕輕晃一下留在原地，不說錯；同一格點錯兩次，手指出對的那張
     s.missed = true
     s.slotMiss++
+    s.missAt = performance.now()
     sfx.gentle()
     setShake((v) => ({ at: j, k: (v?.k ?? 0) + 1 }))
     if (s.slotMiss >= 2) {
@@ -425,7 +428,7 @@ function OrderRoundView({ qs, prog, onQ, onDone, onAgain, resting }: { qs: Order
                 initial={{ opacity: 0, y: 20 }}
                 animate={shake?.at === j ? { opacity: 1, y: 0, x: shake.k % 2 ? [0, -12, 12, -8, 8, 0] : [0, 12, -12, 8, -8, 0] } : { opacity: 1, y: 0, x: 0 }}
                 transition={{ duration: 0.4 }}
-                {...tap(`o${qi}-${j}`, () => void choose(j))}
+                {...tap(`o${qi}-${j}`, () => void choose(j), ANSWER_TAP)}
               >
                 <Pic story={q.story} step={q.steps[j]} />
               </motion.button>

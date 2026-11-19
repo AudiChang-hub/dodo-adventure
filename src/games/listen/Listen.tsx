@@ -14,7 +14,8 @@ import { logAttempt, logTeach } from '../../lib/record'
 import { today } from '../../lib/db'
 import { go } from '../../lib/nav'
 import { bedtimeIfDue } from '../../lib/session'
-import { useTaps } from '../../ui/tap'
+import { ANSWER_TAP, useTaps } from '../../ui/tap'
+import { missLocked } from '../miss-lock'
 import { pointIn, useLive } from '../logic/kit'
 import { ListenPickArt, ThingArt } from './art'
 import { listenCoplay } from './coplay'
@@ -95,7 +96,7 @@ function ListenRoundView({ qs, prog, onDone, onAgain, resting }: { qs: ListenQ[]
   const [allDone, setAllDone] = useState(false)
   const [poke, setPoke] = useState(0)
   const [turn, setTurn] = useState(false)
-  const st = useRef({ qi: 0, busy: true, demo: false, armed: false, led: false, guided: false, missed: false, stepMiss: 0, step: 0, replays: 0, taps: [] as { pick: string; ms: number }[], t0: 0 })
+  const st = useRef({ qi: 0, busy: true, demo: false, armed: false, led: false, guided: false, missAt: -Infinity, missed: false, stepMiss: 0, step: 0, replays: 0, taps: [] as { pick: string; ms: number }[], t0: 0 })
   const tally = useRef({ counted: 0, misses: 0 })
 
   const level = qs[0].level
@@ -238,7 +239,7 @@ function ListenRoundView({ qs, prog, onDone, onAgain, resting }: { qs: ListenQ[]
 
   const present = async (i: number) => {
     const s = st.current
-    Object.assign(s, { qi: i, busy: true, demo: false, armed: false, led: false, guided: phaseOf(i) === 'guided', missed: false, stepMiss: 0, step: 0, replays: 0, taps: [], t0: performance.now() })
+    Object.assign(s, { qi: i, busy: true, demo: false, armed: false, led: false, guided: phaseOf(i) === 'guided', missAt: -Infinity, missed: false, stepMiss: 0, step: 0, replays: 0, taps: [], t0: performance.now() })
     setQi(i)
     setDone([])
     setShake(null)
@@ -296,6 +297,7 @@ function ListenRoundView({ qs, prog, onDone, onAgain, resting }: { qs: ListenQ[]
     const s = st.current
     if (s.demo || resting || allDone) return
     if (!s.armed || s.busy) return pingAt(els.current.get(k))
+    if (missLocked(s.missAt, performance.now())) return
     const i = s.qi
     const x = qs[i]
     if (x.targets.slice(0, s.step).includes(k)) return
@@ -318,6 +320,7 @@ function ListenRoundView({ qs, prog, onDone, onAgain, resting }: { qs: ListenQ[]
     // 點錯了：不扣分。輕輕晃一下，說他點的是什麼，再念一次還沒做的；同一步點錯兩次，手指出對的
     s.missed = true
     s.stepMiss++
+    s.missAt = performance.now()
     sfx.gentle()
     setShake((v) => ({ at: k, k: (v?.k ?? 0) + 1 }))
     if (s.stepMiss >= 2) {
@@ -377,7 +380,7 @@ function ListenRoundView({ qs, prog, onDone, onAgain, resting }: { qs: ListenQ[]
                       : { opacity: 1, y: 0, x: 0, transition: { duration: 0.35, delay: 0.05 + k * 0.07 } }
                 }
                 transition={{ duration: 0.4 }}
-                {...tap(`l${qi}-${k}`, () => void choose(k))}
+                {...tap(`l${qi}-${k}`, () => void choose(k), ANSWER_TAP)}
               >
                 <ThingArt t={t} />
                 {step >= 0 && (

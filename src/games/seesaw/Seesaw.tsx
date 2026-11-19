@@ -12,7 +12,7 @@ import { say, sfx } from '../../lib/audio'
 import { logAttempt, logTeach } from '../../lib/record'
 import { go } from '../../lib/nav'
 import { bedtimeIfDue } from '../../lib/session'
-import { useTaps } from '../../ui/tap'
+import { ANSWER_TAP, useTaps } from '../../ui/tap'
 import { pointIn, useLive } from '../logic/kit'
 import { GROUND, PIVOT, Park, Pivot, Plank, Prop, SCENE_H, SCENE_W, SEAT, SeesawPickArt, Thing, ThingBox } from './art'
 import { seesawCoplay } from './coplay'
@@ -334,7 +334,7 @@ function PairView({ qs, prog, onDone, onAgain, resting }: RoundProps & { qs: Pai
         initial={{ opacity: 0, y: -80 }}
         animate={leaving ? { opacity: 0, y: -40 } : { opacity: 1, y: isPicked ? [0, -16, 0] : 0 }}
         transition={leaving ? { duration: 0.3 } : isPicked ? { duration: 0.35 } : { type: 'spring', stiffness: 260, damping: 20 }}
-        {...tap(`s${qi}-${side}`, () => void choose(side))}
+        {...tap(`s${qi}-${side}`, () => void choose(side), ANSWER_TAP)}
       >
         {/* 可以點的範圍：板子這一半的上面整塊（平板上 > 3 cm，TOUCH-1） */}
         <rect x={x - 180} y={TOP - 300} width={360} height={316} rx={28} className="ss-hit" />
@@ -655,7 +655,7 @@ function OrderView({ qs, prog, onDone, onAgain, resting }: RoundProps & { qs: Or
                 disabled={done}
                 animate={nudge?.id === it.id ? { y: [0, -22, 0] } : { y: 0 }}
                 transition={{ duration: 0.4 }}
-                {...tap(`o${qi}-${it.id}`, () => void choose(it.id))}
+                {...tap(`o${qi}-${it.id}`, () => void choose(it.id), ANSWER_TAP)}
               >
                 {!done && cell(it.id, it.size, 'table')}
               </motion.button>

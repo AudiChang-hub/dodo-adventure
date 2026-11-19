@@ -37,6 +37,8 @@ import { hasLine } from '../src/content/registry'
 import { createElement } from 'react'
 import { renderToString } from 'react-dom/server'
 import { ANSWER_TAP, useTaps } from '../src/ui/tap'
+import { MISS_LOCK_MS, missLocked } from '../src/games/miss-lock'
+import { raceTap } from '../src/games/race/plan'
 import { goesKey, patDoneKey, patThemeKey, sortPraiseKey, sortSceneKey, thatKey, thisKey, wordKey } from '../src/games/logic/lines'
 
 /** 固定的亂數（每個 seed 一串） */
@@ -366,6 +368,164 @@ function main() {
     assert.match(src('Sort.tsx'), /tap\(`basket-\$\{b\.id\}`, \(\) => void choose\(b\.id\), ANSWER_TAP\)/, '豆豆收拾的籃子用 ANSWER_TAP')
     assert.match(src('Pattern.tsx'), /tap\(`opt-\$\{o\.id\}`, \(\) => void choose\(o\.id\), ANSWER_TAP\)/, '串珠珠的珠子用 ANSWER_TAP')
     console.log('ok 8 一直點錯：同一個籃子／珠子 0.6 秒內點兩下，兩下都算（其他按鈕照舊擋）')
+  }
+
+  // 9. T-168：B02 的修正套到其他遊戲的作答選項（2026-11-18）。
+  // 只套在答錯後有自己的鎖的：心情臉、為什麼、蹺蹺板（猜重的一邊）點了就 busy 到下一題；
+  // 蹺蹺板排順序點錯後念提示時 asking，再點錯只有「看這裡」不算錯。每一下都交給遊戲自己判斷。
+  // 躲在哪裡、藏起來、聽指令、排順序、賽跑點錯後沒有鎖（每一下都會重播 boing 和跳一下），先不改。
+  {
+    const src = (f: string) => fs.readFileSync(path.resolve('src/games', f), 'utf8')
+    const uses = [
+      ['feel/Feel.tsx', /tap\(`f\$\{qi\}-\$\{e\}`, \(\) => void choose\(e\), ANSWER_TAP\)/, '心情臉的臉'],
+      ['feel/Why.tsx', /tap\(`w\$\{qi\}-\$\{k\}`, \(\) => void choose\(k\), ANSWER_TAP\)/, '為什麼的心情臉'],
+      ['feel/Why.tsx', /tap\(`c\$\{qi\}-\$\{k\}`, \(\) => void choose\(k\), ANSWER_TAP\)/, '為什麼的情境圖'],
+      ['seesaw/Seesaw.tsx', /tap\(`s\$\{qi\}-\$\{side\}`, \(\) => void choose\(side\), ANSWER_TAP\)/, '蹺蹺板的兩邊'],
+      ['seesaw/Seesaw.tsx', /tap\(`o\$\{qi\}-\$\{it\.id\}`, \(\) => void choose\(it\.id\), ANSWER_TAP\)/, '蹺蹺板排順序的東西'],
+    ] as const
+    for (const [f, re, what] of uses) assert.match(src(f), re, `${what}用 ANSWER_TAP`)
+    // 用了 ANSWER_TAP 的遊戲，答錯後要有鎖：點了就 busy（心情臉、為什麼、猜重的一邊），或念提示時 asking（排順序）
+    assert.match(src('feel/Feel.tsx'), /if \(!s\.armed \|\| s\.busy\) return pingAt[\s\S]{0,400}?s\.busy = true/, '心情臉點了就 busy')
+    assert.match(src('feel/Why.tsx'), /if \(!s\.armed \|\| s\.busy\) return pingAt[\s\S]{0,400}?s\.busy = true/, '為什麼點了就 busy')
+    assert.match(src('seesaw/Seesaw.tsx'), /const choose = async \(side: Side\)[\s\S]{0,700}?s\.busy = true/, '猜重的一邊點了就 busy')
+    assert.match(src('seesaw/Seesaw.tsx'), /if \(id !== t && s\.asking\) return pingAt[\s\S]*?s\.busy = false\s+if \(s\.wrongs === 2\) setGlow\(t\)\s+await ask\(/, '排順序點錯後馬上 ask（asking 擋住再點錯）')
+    assert.match(src('seesaw/Seesaw.tsx'), /const ask = async \(keys: string\[\]\) => \{\s+const s = st\.current\s+const ok = flow\.begin\(live\)\s+s\.asking = true/, 'ask 一開始就 asking（同步，不等 await）')
+    console.log('ok 9 T-168：心情臉、為什麼、蹺蹺板的作答選項用 ANSWER_TAP，答錯後都有自己的鎖')
+  }
+
+  // 10. T-168 第二批：躲在哪裡、躲起來了幾隻、聽指令、故事排順序、恐龍賽跑棋。
+  // 點錯後先鎖 0.45 秒（games/miss-lock，參考豆豆收拾點錯後 busy 0.45 秒）：鎖住時再點不算、不重播、不打斷提示；
+  // 作答選項改用 ANSWER_TAP：鎖解開後的下一下點錯一定算，不會被 useTaps 0.7 秒的防連點吞掉（B02）。
+  {
+    let now = 1000
+    const realNow = performance.now.bind(performance)
+    performance.now = () => now
+    try {
+      let tap: ReturnType<typeof useTaps> | null = null
+      const Probe = () => {
+        tap = useTaps()
+        return null
+      }
+      renderToString(createElement(Probe))
+      let pid = 100
+      /** 手指按下、放開，瀏覽器接著送 click（同一下按壓） */
+      const press = (key: string, fn: () => void, opts?: typeof ANSWER_TAP) => {
+        const pt = { pointerId: ++pid, clientX: 100, clientY: 100 } as never
+        const props = tap!(key, fn, opts)
+        props.onPointerDown(pt)
+        now += 80
+        props.onPointerUp(pt)
+        props.onClick({} as never)
+      }
+      // 10a. 四個遊戲共用的點錯鎖：跟遊戲裡一樣，choose 先看鎖，點錯記 missAt
+      const run = (opts?: typeof ANSWER_TAP) => {
+        const s = { missAt: -Infinity, wrongs: 0, boing: 0 }
+        const choose = () => {
+          if (missLocked(s.missAt, performance.now())) return
+          s.wrongs++
+          s.boing++
+          s.missAt = performance.now()
+        }
+        const log: number[] = []
+        press('o0-1', choose, opts) // 第 1 下點錯
+        log.push(s.wrongs)
+        now += 20
+        press('o0-1', choose, opts) // 0.1 秒後連點：鎖住
+        log.push(s.wrongs)
+        now += 120
+        press('o0-1', choose, opts) // 0.3 秒：還鎖著
+        log.push(s.wrongs)
+        now += 120 + 80 + 20 // 第 1 下之後 0.6 秒：鎖解開了
+        press('o0-1', choose, opts)
+        log.push(s.wrongs)
+        now += 520
+        press('o0-1', choose, opts) // 再 0.6 秒：第 3 次錯（手帶著做）
+        log.push(s.wrongs)
+        return { log, boing: s.boing }
+      }
+      const fixed = run(ANSWER_TAP)
+      assert.deepEqual(fixed.log, [1, 1, 1, 2, 3], '鎖住期間的連點不算；鎖解開後同一個錯的選項再點，算第 2、第 3 次錯')
+      assert.equal(fixed.boing, 3, '鎖住期間不重播 boing')
+      now += 5000
+      const old = run()
+      assert.deepEqual(old.log, [1, 1, 1, 1, 2], '對照：沒有 ANSWER_TAP 時，鎖解開後 0.6 秒那一下被 useTaps 吞掉（B02）')
+      assert.ok(MISS_LOCK_MS >= 350 && MISS_LOCK_MS <= 500, '鎖的時間跟豆豆收拾點錯後的 0.45 秒差不多')
+
+      // 10b. 恐龍賽跑棋：真正的判斷（race/plan 的 raceTap），跳格點錯要鎖、點自己站的那一格在剛跳完時不再多走一格
+      now += 5000
+      const r = { pos: 0, lastStep: -Infinity, missAt: -Infinity, wrongs: 0, steps: 0 }
+      const tapCell = (c: number | 'me') => {
+        const t = performance.now()
+        const v = raceTap(c, r.pos, t, r)
+        if (v.kind === 'skip') {
+          r.wrongs++
+          r.missAt = t
+        } else if (v.kind === 'step') {
+          r.pos = v.target
+          r.lastStep = t
+          r.steps++
+        }
+        return v.kind
+      }
+      let kinds: string[] = []
+      const cell = (c: number) => press(`c${c}`, () => void kinds.push(tapCell(c)), ANSWER_TAP)
+      cell(1)
+      assert.equal(r.pos, 1, '點下一格：走一格')
+      now += 220
+      cell(1) // 0.3 秒後再點同一格（現在站在上面）：恐龍還在跳，不算
+      assert.equal(r.pos, 1, '剛跳到的那一格 0.3 秒內再點：不多走一格')
+      now += 220
+      cell(1) // 0.6 秒：還在「剛跳完」的鎖裡
+      assert.equal(r.pos, 1, '剛跳到的那一格 0.6 秒內再點：不多走一格')
+      now += 300
+      cell(1) // 0.98 秒：要跳下一格（點自己站的那一格＝走下一格，原本的玩法）
+      assert.equal(r.pos, 2, '跳完之後點自己站的那一格：照原本的玩法走下一格')
+      now += 1000
+      kinds = []
+      cell(6) // 跳格：第 1 次錯
+      now += 20
+      cell(6) // 0.1 秒後連點：鎖住
+      now += 120
+      cell(6) // 0.3 秒：還鎖著
+      assert.equal(r.wrongs, 1, '跳格點錯後鎖住期間的連點不算')
+      assert.deepEqual(kinds, ['skip', 'ignore', 'ignore'])
+      now += 120 + 80 + 20
+      cell(6) // 0.6 秒：鎖解開
+      assert.equal(r.wrongs, 2, '鎖解開後同一個跳格再點：算第 2 次錯（下一格會亮）')
+      now += 520
+      cell(6)
+      assert.equal(r.wrongs, 3, '再 0.6 秒：第 3 次錯（手帶著走）')
+      assert.equal(r.pos, 2, '點錯不會走')
+      now += 1000
+      cell(3)
+      assert.equal(r.pos, 3, '點對下一格照樣走')
+      cell(1)
+      assert.equal(raceTap(1, r.pos, performance.now(), r).kind, 'ping', '後面的格子：只有「看這裡」')
+      now += 100
+      assert.equal(raceTap(4, r.pos, performance.now(), r).kind, 'ignore', '跳完 0.25 秒內點下一格不算（同一下按壓彈兩次）')
+    } finally {
+      performance.now = realNow
+    }
+    // 10c. 四個遊戲接上：作答選項用 ANSWER_TAP、choose 一開頭看鎖、點錯記 missAt；恐龍賽跑棋用 raceTap
+    const src = (f: string) => fs.readFileSync(path.resolve('src/games', f), 'utf8')
+    const games = [
+      ['where/Where.tsx', /tap\(`a\$\{qi\}-\$\{k\}`, \(\) => void choose\(k\), ANSWER_TAP\)/, '躲在哪裡'],
+      ['hide/Hide.tsx', /tap\(`o\$\{qi\}-\$\{v\}`, \(\) => void choose\(v\), ANSWER_TAP\)/, '躲起來了幾隻'],
+      ['listen/Listen.tsx', /tap\(`l\$\{qi\}-\$\{k\}`, \(\) => void choose\(k\), ANSWER_TAP\)/, '聽指令'],
+      ['order/Order.tsx', /tap\(`o\$\{qi\}-\$\{j\}`, \(\) => void choose\(j\), ANSWER_TAP\)/, '故事排順序'],
+    ] as const
+    for (const [f, re, what] of games) {
+      const code = src(f)
+      assert.match(code, re, `${what}的作答選項用 ANSWER_TAP`)
+      const body = code.slice(code.indexOf('const choose = async'))
+      const lockAt = body.indexOf('if (missLocked(s.missAt, performance.now())) return')
+      assert.ok(lockAt > 0 && lockAt < body.indexOf('s.taps.push'), `${what}：choose 先看點錯鎖，鎖住就不算`)
+      assert.match(body, /s\.missAt = performance\.now\(\)/, `${what}：點錯記 missAt`)
+    }
+    const race = src('race/Race.tsx')
+    assert.match(race, /tap\(`c\$\{i\}`, \(\) => void tapCell\(i\), ANSWER_TAP\)/, '恐龍賽跑棋的格子用 ANSWER_TAP')
+    assert.match(race, /raceTap\(c, s\.pos\.kid, now, s\)/, '恐龍賽跑棋的點格子用 raceTap 判斷')
+    console.log('ok 10 T-168：躲在哪裡、躲起來了幾隻、聽指令、故事排順序、賽跑棋點錯鎖 0.45 秒，鎖住的連點不算、解開後再點錯算；剛跳到的格子不多走一格')
   }
 
   console.log('ALL PASS')

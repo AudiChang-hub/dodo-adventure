@@ -11,7 +11,7 @@ import { say, sfx } from '../../lib/audio'
 import { logAttempt, logTeach } from '../../lib/record'
 import { go } from '../../lib/nav'
 import { bedtimeIfDue } from '../../lib/session'
-import { useTaps } from '../../ui/tap'
+import { ANSWER_TAP, useTaps } from '../../ui/tap'
 import { pointIn, useLive } from '../logic/kit'
 import { Critter, CritterHead } from './critter'
 import { SceneView } from './scene'
@@ -358,7 +358,7 @@ export function WhyRoundView({ qs, prog, onQ, onDone, onAgain, resting }: { qs: 
                 initial={{ opacity: 0, y: 16 }}
                 animate={optAnim(k, 0.1 + k * 0.08)}
                 transition={{ duration: 0.4 }}
-                {...tap(`w${qi}-${k}`, () => void choose(k))}
+                {...tap(`w${qi}-${k}`, () => void choose(k), ANSWER_TAP)}
               >
                 <svg viewBox="0 -24 240 214" width="100%" height="100%" aria-hidden="true">
                   <CritterHead sp={q.hero} face={m} />
@@ -392,7 +392,7 @@ export function WhyRoundView({ qs, prog, onQ, onDone, onAgain, resting }: { qs: 
                 initial={{ opacity: 0, y: 16 }}
                 animate={optAnim(k, 0.15 + k * 0.1)}
                 transition={{ duration: 0.4 }}
-                {...tap(`c${qi}-${k}`, () => void choose(k))}
+                {...tap(`c${qi}-${k}`, () => void choose(k), ANSWER_TAP)}
               >
                 <svg viewBox={FEEL_VIEW} preserveAspectRatio="xMidYMid slice" width="100%" height="100%" aria-hidden="true">
                   <SceneView key={playing === k ? 'play' : 'still'} sit={s} hero={q.hero} friend={q.friend} face="neutral" still={playing !== k} />
