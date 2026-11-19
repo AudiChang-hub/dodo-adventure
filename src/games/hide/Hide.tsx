@@ -13,7 +13,8 @@ import { logAttempt, logTeach } from '../../lib/record'
 import { today } from '../../lib/db'
 import { go } from '../../lib/nav'
 import { bedtimeIfDue } from '../../lib/session'
-import { useTaps } from '../../ui/tap'
+import { ANSWER_TAP, useTaps } from '../../ui/tap'
+import { missLocked } from '../miss-lock'
 import { pointIn, useLive } from '../logic/kit'
 import { Backdrop } from './scene'
 import { Emo } from './emoji'
@@ -126,7 +127,7 @@ function HideView({ round, prog, onDone, onAgain, resting }: { round: HideRound;
   const [allDone, setAllDone] = useState(false)
   const [poke, setPoke] = useState(0)
   const [turn, setTurn] = useState(false)
-  const st = useRef({ qi: 0, busy: true, demo: false, asking: false, armed: false, wrongs: 0, led: false, guided: false, taps: [] as { pick: string; ms: number }[], t0: 0 })
+  const st = useRef({ qi: 0, busy: true, demo: false, asking: false, armed: false, wrongs: 0, missAt: -Infinity, led: false, guided: false, taps: [] as { pick: string; ms: number }[], t0: 0 })
   const armTimer = useRef(0)
 
   const q: HideQ = qs[qi]
@@ -256,7 +257,7 @@ function HideView({ round, prog, onDone, onAgain, resting }: { round: HideRound;
   const present = async (i: number) => {
     const s = st.current
     const x = qs[i]
-    Object.assign(s, { qi: i, busy: true, demo: false, asking: false, armed: false, wrongs: 0, led: false, guided: isGuidedQ(i), taps: [], t0: 0 })
+    Object.assign(s, { qi: i, busy: true, demo: false, asking: false, armed: false, wrongs: 0, missAt: -Infinity, led: false, guided: isGuidedQ(i), taps: [], t0: 0 })
     setQi(i)
     setArrived(0)
     setStage('arrive')
@@ -339,6 +340,7 @@ function HideView({ round, prog, onDone, onAgain, resting }: { round: HideRound;
     const el = optEls.current.get(v)
     if (s.busy || s.demo || resting || allDone) return pingAt(el)
     if (!s.armed) return pingAt(el)
+    if (missLocked(s.missAt, performance.now())) return
     const i = s.qi
     const x = qs[i]
     // 念題目的時候點錯：不算錯（TOUCH-7），只有「看這裡」的圈圈
@@ -361,6 +363,7 @@ function HideView({ round, prog, onDone, onAgain, resting }: { round: HideRound;
     }
     // 點錯：那一張輕輕跳一下（不搖、不打叉），一起想
     s.wrongs++
+    s.missAt = performance.now()
     setNudge({ v, k: performance.now() })
     sfx.boing()
     const ok = flow.begin(live)
@@ -520,7 +523,7 @@ function HideView({ round, prog, onDone, onAgain, resting }: { round: HideRound;
                     initial={{ opacity: 0, y: 12 }}
                     animate={nudged ? { opacity: 1, y: [0, -18, 0] } : { opacity: 1, y: 0 }}
                     transition={nudged ? { duration: 0.4 } : { duration: 0.3, delay: k * 0.08 }}
-                    {...tap(`o${qi}-${v}`, () => void choose(v))}
+                    {...tap(`o${qi}-${v}`, () => void choose(v), ANSWER_TAP)}
                   >
                     <rect x={optX(k) - 10} y={OPT.y - 10} width={OPT.w + 20} height={OPT.h + 20} fill="transparent" />
                     <rect x={optX(k)} y={OPT.y} width={OPT.w} height={OPT.h} rx={24} fill={isPicked ? '#FFF3C4' : '#FFFDF8'} stroke={isPicked ? '#D9A93A' : '#2E2A25'} strokeWidth={isPicked ? 7 : 4} />

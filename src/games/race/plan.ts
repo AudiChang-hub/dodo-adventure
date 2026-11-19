@@ -11,6 +11,7 @@
 // 「一步」= 孩子走完骰子的點數。第一次就對 = 中間沒有跳格、沒有手帶著走。
 // 升級：最近 6 步有 5 步第一次就對；退級：最近 4 步只有 ≤ 1 步第一次就對（ADAPT-4）。示範、發呆時手帶著走的不算。
 import { REWARDS, RUNNERS, TRACKS, type Runner } from './data'
+import { missLocked } from '../miss-lock'
 
 type Rnd = () => number
 const pickOf = <T,>(a: readonly T[], rnd: Rnd): T => a[Math.floor(rnd() * a.length) % a.length]
@@ -154,3 +155,32 @@ export function normalizeRace(raw: unknown): RaceState {
 
 /** 總共可以組出幾種棋盤（場景 × 驚喜 × 孩子的恐龍）：回報、測試用 */
 export const RACE_COMBOS = TRACKS.length * REWARDS.length * RUNNERS.length
+
+/** 兩下跳格之間至少隔這麼久（同一下按壓彈兩次不算兩格） */
+export const STEP_GAP_MS = 250
+/**
+ * 剛跳到的那一格，這麼久內再點不算（T-168）：格子改用 ANSWER_TAP 後每一下都會進來，
+ * 孩子連點下一格兩下時，第二下點到的是「自己站的那一格」（＝走下一格），恐龍還在跳就會多走一格。
+ * 跳一下的動畫 0.32 秒；鎖到 0.7 秒，跟以前 ui/tap 擋同一個格子連點的時間一樣。
+ */
+export const LANDED_MS = 700
+
+export type RaceTapKind = 'ping' | 'ignore' | 'skip' | 'step'
+
+/**
+ * 他點了一格（或點自己的恐龍 'me'）要做什麼（純函式，Race.tsx 的 tapCell 用，scripts/test-logic.ts 直接測）：
+ * - ping：後面的格子，只有「看這裡」的圈圈
+ * - ignore：剛跳完 0.25 秒內、點錯後的鎖（miss-lock）裡、剛跳到的那一格 0.7 秒內再點，都不算
+ * - skip：點太前面的格子（跳格，算一次錯）
+ * - step：走下一格（點下一格、點自己站的那一格、點自己的恐龍）
+ */
+export function raceTap(c: number | 'me', pos: number, now: number, t: { lastStep: number; missAt: number }): { kind: RaceTapKind; target: number } {
+  const next = pos + 1
+  const own = c !== 'me' && c === pos
+  const target = c === 'me' || own ? next : c
+  if (target < next) return { kind: 'ping', target }
+  if (now - t.lastStep < STEP_GAP_MS) return { kind: 'ignore', target }
+  if (missLocked(t.missAt, now)) return { kind: 'ignore', target }
+  if (own && now - t.lastStep < LANDED_MS) return { kind: 'ignore', target }
+  return { kind: target > next ? 'skip' : 'step', target }
+}
