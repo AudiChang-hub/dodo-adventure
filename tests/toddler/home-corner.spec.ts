@@ -8,7 +8,8 @@ import { Checker, centerOf, doorAt, linesSince, pressBack, toHome, waitLive } fr
 /**
  * 首頁的遊戲角（T-152 P2，src/screens/Home.tsx 的 PlayCorner、src/lib/play-gate.ts）：畫畫、邏輯遊戲兩扇圓窗＋三盞門燈。
  * 三堂課今天各上完一次才開（家長區設成「上完今天的三堂課才開」的時候）；預設一直開著。
- * 三歲孩子會做的事：鎖住時亂點、連點、多指點窗和門燈 → 停在首頁、還沒上的那扇門亮、8 秒內只說一次；
+ * 三歲孩子會做的事：鎖住時亂點、連點、多指點窗和門燈 → 停在首頁、還沒上的那扇門亮著、手指指著、那一隻恐龍說
+ * Let's visit Momo first!（T-169）、8 秒內只說一次、恐龍不一直跳、手指不疊；
  * 點完馬上點課門 → 正常進課、那句話不帶進課裡；三盞都亮的那一刻窗簾拉開、只說一次；進去畫畫、邏輯遊戲都 1 步回首頁。
  * 共用 helper（lib/app.ts 的 boot）預設把遊戲角設成一直開著；鎖住的情境在這裡自己把它關掉（freePlay: 'after'）。
  */
@@ -18,7 +19,11 @@ const want = () => !only.length || only.some((s) => s === 'screens' || s === 'ho
 
 // defaultsV: 4：boot 寫的設定沒有版本號，不寫的話重新整理時會被當成舊裝置，一直開著的預設蓋掉（lib/settings.ts 的 migrateSettings）
 const LOCKED = { freePlay: 'after', defaultsV: 4 }
-const FIRST = 'First class. Then play!'
+/** 點了鎖住的遊戲角，下一堂課的恐龍說的那一句（T-169，content/lines-home-corner.ts） */
+const NEXT = { english: "Let's visit Dodo first!", chinese: "Let's visit Momo first!", math: "Let's visit Bobo first!" } as const
+const ANY_NEXT = 'first!'
+/** 門亮著、手指指著多久（Home.tsx 的 NUDGE_GLOW_MS） */
+const GLOW_MS = 6000
 const OPEN = 'Play corner is open!'
 /** 截圖（給 PM 看）：test-results/t152；PM 收到後放到主 repo 的 docs/T-152-截圖/ */
 const SHOTS = path.resolve('test-results', 't152')
@@ -89,7 +94,13 @@ const corner = (page: Page) =>
       state: el.getAttribute('data-corner'),
       lamps,
       point: el.querySelector<HTMLElement>('[data-point="1"]')?.dataset.lamp ?? null,
-      named: [...document.querySelectorAll<HTMLElement>('.screen.home .door[data-named="1"]')].map((d) => d.dataset.door),
+      named: [...document.querySelectorAll<HTMLElement>('.screen.home .door[data-named="1"], .screen.home .door[data-point="1"]')].map((d) => d.dataset.door),
+      /** 門頂的手指在哪幾扇門（T-169）：同時最多一隻 */
+      hands: [...document.querySelectorAll<HTMLElement>('.screen.home [data-door-point]')].map((h) => h.closest<HTMLElement>('[data-door]')?.dataset.door),
+      /** 門燈上寫的還差幾堂 */
+      left: Number(el.querySelector<HTMLElement>('[data-corner-lamps]')?.dataset.left ?? -1),
+      /** 窗簾上還在跑的動畫（窗簾不晃，T-169） */
+      anims: document.getAnimations().filter((a) => a.playState === 'running' && !!((a.effect as KeyframeEffect | null)?.target as Element | null)?.closest?.('.curtains') && el.contains((a.effect as KeyframeEffect | null)?.target as Node | null)).length,
       hint: !!document.querySelector('.screen.home [data-corner-hint]'),
     }
   })
@@ -128,6 +139,22 @@ async function enterAndBack(k: Toddler, c: Checker, door: 'draw' | 'logic', name
 
 const said = async (page: Page, t0: number, text: string) => (await linesSince(page, t0)).filter((l) => l.text?.includes(text)).length
 
+/** 記下門口哪幾隻恐龍跳過（data-hop 變了就記那扇門；同 home.spec.ts） */
+const watchHops = (page: Page) =>
+  page.evaluate(() => {
+    const w = window as unknown as { __cornerHops: string[]; __cornerHopObs?: MutationObserver }
+    w.__cornerHops = []
+    w.__cornerHopObs?.disconnect()
+    w.__cornerHopObs = new MutationObserver((ms) => {
+      for (const m of ms) {
+        const el = m.target as HTMLElement
+        if (el.getAttribute('data-hop')) w.__cornerHops.push(el.closest('[data-door]')?.getAttribute('data-door') ?? '?')
+      }
+    })
+    w.__cornerHopObs.observe(document.body, { subtree: true, attributes: true, attributeFilter: ['data-hop'] })
+  })
+const hops = (page: Page) => page.evaluate(() => (window as unknown as { __cornerHops?: string[] }).__cornerHops ?? [])
+
 test.describe('遊戲角', () => {
   test('鎖住：亂點、連點、多指點窗和門燈，點完馬上點課門', async ({ page }, info) => {
     test.skip(!want())
@@ -140,21 +167,24 @@ test.describe('遊戲角', () => {
       k.behavior = '鎖住的樣子'
       let s = await corner(page)
       c.outcome('鎖住：窗簾拉上、陪玩小字在', s?.state === 'locked' && s.hint, JSON.stringify(s))
-      c.outcome('門燈：英文亮、中文（中途離開）和數學不亮', !!s && s.lamps.english && !s.lamps.chinese && !s.lamps.math, JSON.stringify(s?.lamps))
+      c.outcome('門燈：英文亮、中文（中途離開）和數學不亮、還差 2 堂', !!s && s.lamps.english && !s.lamps.chinese && !s.lamps.math && s.left === 2, JSON.stringify(s))
 
-      // 點一下鎖住的畫畫窗：0.3 秒內有反應、還沒上的第一扇（中文）亮、說一次
+      // 點一下鎖住的畫畫窗（T-169）：0.3 秒內有反應——還沒上的第一扇（中文）亮、門頂手指指著、中文那盞門燈亮外框、莫莫跳一下；窗簾不晃
       k.behavior = '點鎖住的畫畫窗'
+      await watchHops(page)
       let t0 = await now(page)
       await k.tap((await doorAt(page, 'draw'))!, '畫畫（鎖住）')
       await k.wait(300)
       s = await corner(page)
-      c.outcome('點了 0.3 秒內：中文的門亮、中文那盞門燈亮外框', !!s && s.named.includes('chinese') && s.point === 'chinese', JSON.stringify(s))
-      await k.wait(2500)
+      c.outcome('點了 0.3 秒內：中文的門亮、手指指著中文的門、中文那盞門燈亮外框', !!s && s.named.join() === 'chinese' && s.hands.join() === 'chinese' && s.point === 'chinese', JSON.stringify(s))
+      c.outcome('窗簾不晃（不像搖頭說不行）', !!s && s.anims === 0, `窗簾上在跑的動畫 ${s?.anims}`)
+      await k.wait(2400)
       c.outcome('停在首頁', (await snap(page)).live === 'home', `${(await snap(page)).live}`)
+      c.outcome("莫莫說 Let's visit Momo first!（說出下一堂的恐龍，不說不行）", (await said(page, t0, NEXT.chinese)) === 1, JSON.stringify((await linesSince(page, t0)).map((l) => l.text)))
       s = await corner(page)
-      c.outcome('2.5 秒後門的光熄掉', !!s && !s.named.length && !s.point, JSON.stringify(s))
+      c.outcome('快 3 秒（話說完了）門還亮著、手指還在：三歲孩子轉頭找得到', !!s && s.named.join() === 'chinese' && s.hands.join() === 'chinese', JSON.stringify(s))
 
-      // 8 秒內亂點、連點、多指：還在首頁，那句話只說了一次
+      // 還亮著的時候亂點、連點、多指（8 秒內）：還在首頁，那句話只說了一次、莫莫只跳了一次、手指只有一隻
       k.behavior = '鎖住時亂點、連點、多指'
       const draw = (await doorAt(page, 'draw'))!
       const logic = (await doorAt(page, 'logic'))!
@@ -171,13 +201,21 @@ test.describe('遊戲角', () => {
       const live = (await snap(page)).live
       c.outcome('鎖住時亂點、連點、多指：停在首頁、不換畫面', live === 'home', `${live}`)
       if (live !== 'home') await c.once('corner-leak', '困惑', '鎖住的遊戲角點了跑去別的畫面', `${live}`)
-      const n = await said(page, t0, FIRST)
-      c.outcome('8 秒內只說一次 First class. Then play!', n === 1, `說了 ${n} 次`)
+      const n = await said(page, t0, ANY_NEXT)
+      c.outcome("8 秒內只說一次 Let's visit Momo first!", n === 1, `說了 ${n} 次`)
+      const hs = await hops(page)
+      c.outcome('連點時莫莫只跳一次、別的恐龍不跳（不疊動畫）', hs.length === 1 && hs[0] === 'chinese', JSON.stringify(hs))
+      s = await corner(page)
+      c.outcome('連點時手指只有一隻、還指著中文的門', !!s && s.hands.join() === 'chinese', JSON.stringify(s))
+      // 不再點：最後一下的 6 秒後熄掉
+      await k.wait(GLOW_MS + 500)
+      s = await corner(page)
+      c.outcome('不再點：6 秒後門的光、手指、門燈外框都收起來', !!s && !s.named.length && !s.hands.length && !s.point, JSON.stringify(s))
       await c.flush()
 
       // 8 秒後再點：再說一次（不會永遠不說話）；說完馬上點英文門 → 正常進課，那句話被切掉、不帶進課裡
       k.behavior = '點完馬上點課門'
-      await k.wait(8500)
+      await k.wait(1500)
       t0 = await now(page)
       await k.tap((await doorAt(page, 'draw'))!, '畫畫（鎖住）')
       await k.wait(250)
@@ -185,7 +223,7 @@ test.describe('遊戲角', () => {
       const l2 = await waitLive(page, (l) => l === 'lesson-math', 5000)
       c.outcome('點完馬上點數學門：進得去', l2 === 'lesson-math', `到 ${l2}`)
       await k.wait(2500)
-      const vs = await page.evaluate((t0) => window.__toddler.voices.filter((v) => v.t > t0 && v.text?.includes('First class')), t0)
+      const vs = await page.evaluate(({ t0, text }) => window.__toddler.voices.filter((v) => v.t > t0 && v.text?.includes(text)), { t0, text: NEXT.chinese })
       const cut = vs.every((v) => v.stopped != null && v.stopped - v.t < 1500)
       c.outcome('那句話不帶進課裡（換畫面就停）', vs.length <= 1 && cut, JSON.stringify(vs.map((v) => ({ dur: v.dur, stopped: v.stopped && Math.round(v.stopped - v.t) }))))
       const h = await homeButton(page)
@@ -207,13 +245,25 @@ test.describe('遊戲角', () => {
       await lessonsDone(page, ['english', 'chinese'])
       await viaStickers(k, c)
       let s = await corner(page)
-      c.outcome('兩堂上完：還鎖著，兩盞亮', s?.state === 'locked' && !!s && s.lamps.english && s.lamps.chinese && !s.lamps.math, JSON.stringify(s))
-      // 點鎖住的窗：亮的是數學的門（還沒上的第一扇）
+      c.outcome('兩堂上完：還鎖著，兩盞亮、還差 1 堂', s?.state === 'locked' && !!s && s.lamps.english && s.lamps.chinese && !s.lamps.math && s.left === 1, JSON.stringify(s))
+      // 點鎖住的窗：亮的是數學的門（還沒上的第一扇），波波說；減少動態效果時手指只淡入、不往下落
+      await page.emulateMedia({ reducedMotion: 'reduce' })
+      const tb = await now(page)
       await k.tap((await doorAt(page, 'logic'))!, '邏輯遊戲（鎖住）')
       await k.wait(300)
       s = await corner(page)
-      c.outcome('兩堂上完時點：亮的是數學的門', !!s && s.named.includes('math'), JSON.stringify(s))
-      await k.wait(3000)
+      c.outcome('兩堂上完時點：亮的是數學的門、手指指著數學的門', !!s && s.named.join() === 'math' && s.hands.join() === 'math', JSON.stringify(s))
+      const anim = await page.evaluate(() => {
+        const h = document.querySelector('[data-door-point]')
+        return h ? getComputedStyle(h).animationName : null
+      })
+      c.outcome('減少動態效果：手指只淡入（不移動）', anim === 'door-point-fade', `${anim}`)
+      await page.emulateMedia({ reducedMotion: 'no-preference' })
+      await k.wait(2500)
+      c.outcome("波波說 Let's visit Bobo first!", (await said(page, tb, NEXT.math)) === 1, JSON.stringify((await linesSince(page, tb)).map((l) => l.text)))
+      fs.mkdirSync(SHOTS, { recursive: true })
+      await page.screenshot({ path: path.join(SHOTS, `${info.project.name}-鎖住-點了指向數學.png`) })
+      await k.wait(GLOW_MS)
 
       // 數學上完（在別的畫面時寫進 lesson.log，像上完數學課回首頁）
       k.behavior = '上完第三堂回首頁'
@@ -346,7 +396,8 @@ test.describe('遊戲角', () => {
       const t0 = await now(page)
       await k.tap((await centerOf(page, '[data-corner-lamps]'))!, '門燈')
       await k.wait(1500)
-      c.outcome('開著的時候點門燈：停在首頁、不說話', (await snap(page)).live === 'home' && (await said(page, t0, FIRST)) === 0, `${(await snap(page)).live}`)
+      s = await corner(page)
+      c.outcome('開著的時候點門燈：停在首頁、不說話、門不亮、沒有手指', (await snap(page)).live === 'home' && (await said(page, t0, ANY_NEXT)) === 0 && !!s && !s.named.length && !s.hands.length, `${(await snap(page)).live} ${JSON.stringify(s)}`)
       await enterAndBack(k, c, 'draw', '畫畫')
       await enterAndBack(k, c, 'logic', '邏輯遊戲')
 

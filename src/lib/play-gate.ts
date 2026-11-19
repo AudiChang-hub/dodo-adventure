@@ -43,6 +43,20 @@ export function firstUnlit(g: PlayGate): GateSubject | null {
   return GATE_ORDER.find((s) => !g.lit[s]) ?? null
 }
 
+/** 每一科的主持恐龍（跟 lessons/ 的 host 一樣；這裡另外寫，單元測試不用載入課程） */
+export const GATE_HOST = { english: 'dodo', chinese: 'momo', math: 'bobo' } as const satisfies Record<GateSubject, string>
+
+/**
+ * 點了鎖住的遊戲角要引導去哪裡（T-169）：還沒上的第一科、那一科的恐龍、要說的那一句、還差幾堂。
+ * 開著或三科都上完是 null（不引導）。
+ */
+export function gateHint(g: PlayGate): { subject: GateSubject; host: (typeof GATE_HOST)[GateSubject]; line: string; left: number } | null {
+  if (g.open) return null
+  const subject = firstUnlit(g)
+  if (!subject) return null
+  return { subject, host: GATE_HOST[subject], line: `home.corner.next.${subject}`, left: GATE_ORDER.filter((s) => !g.lit[s]).length }
+}
+
 // ── 讀 kv（首頁、家長區）──────────────────────────────────────
 
 export const unlockedFor = () => getKV<{ date: string } | null>(UNLOCK_KEY, null)
